@@ -1,0 +1,134 @@
+@use '../mixins' as *;
+
+// ── Drawer Backdrop ───────────────────────────────────────────
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  @include frosted-overlay;
+  z-index: $z-modal - 5;
+  animation: fadeIn $duration-base $ease-out;
+}
+
+// ── Drawer Panel ─────────────────────────────────────────────
+.drawer-panel {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: 440px;
+  max-width: 95vw;
+  background: $surface-white;
+  border-left: 1px solid $border-default;
+  box-shadow: $shadow-xl;
+  z-index: $z-modal;
+  display: flex;
+  flex-direction: column;
+  animation: slideInRight $duration-slow $ease-out;
+  overflow: hidden;
+}
+
+// ── Drawer Header ────────────────────────────────────────────
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $space-5 $space-6;
+  border-bottom: 1px solid $border-default;
+  flex-shrink: 0;
+
+  .drawer-title {
+    h3 { font-size: $text-xl; font-weight: 700; color: $text-heading; letter-spacing: -0.01em; }
+    p  { font-size: $text-sm; color: $text-muted; margin-top: 2px; font-family: $font-mono; }
+  }
+}
+
+.drawer-close-btn {
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: $radius-lg;
+  background: transparent; border: none;
+  cursor: pointer; color: $text-muted;
+  transition: background $duration-fast $ease-out;
+
+  &:hover { background: $neutral-100; color: $text-secondary; }
+  svg { width: 20px; height: 20px; }
+}
+
+// ── Drawer Body ──────────────────────────────────────────────
+.drawer-body {
+  flex: 1; overflow-y: auto;
+  padding: $space-6;
+  display: flex; flex-direction: column;
+  gap: $space-5;
+  @include thin-scrollbar;
+}
+
+// ── Section ──────────────────────────────────────────────────
+.drawer-section {
+  background: $neutral-50;
+  border: 1px solid $border-light;
+  border-radius: $radius-xl;
+  overflow: hidden;
+
+  &__header {
+    display: flex; align-items: center; gap: $space-2;
+    padding: $space-3 $space-5;
+    background: $surface-white;
+    border-bottom: 1px solid $border-light;
+    font-size: $text-xs;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: $text-muted;
+  }
+
+  &__body {
+    padding: $space-4 $space-5;
+    display: flex; flex-direction: column;
+    gap: $space-3;
+  }
+}
+
+// ── KV Row ───────────────────────────────────────────────────
+.drawer-kv {
+  display: flex; align-items: baseline;
+  justify-content: space-between; gap: $space-4;
+
+  &__key { font-size: $text-base; color: $text-muted; flex-shrink: 0; }
+  &__val {
+    font-size: $text-base; font-weight: 600;
+    color: $text-primary; text-align: right;
+    font-family: $font-mono;
+  }
+}
+
+// ── Repayment Progress ───────────────────────────────────────
+.repay-progress {
+  &__bar {
+    width: 100%; height: 8px;
+    background: $neutral-200;
+    border-radius: $radius-full;
+    overflow: hidden;
+    margin-top: $space-2;
+  }
+  &__fill {
+    height: 100%;
+    background: linear-gradient(90deg, $success-icon 0%, #059669 100%);
+    border-radius: $radius-full;
+    transition: width 0.5s $ease-out;
+    min-width: 4px;
+  }
+  &__labels {
+    display: flex; justify-content: space-between;
+    font-size: $text-xs; font-family: $font-mono;
+    color: $text-muted; margin-top: $space-2;
+  }
+}
+
+// ── Drawer Footer ────────────────────────────────────────────
+.drawer-footer {
+  padding: $space-5 $space-6;
+  border-top: 1px solid $border-default;
+  background: $neutral-50;
+  flex-shrink: 0;
+  display: flex; flex-direction: column;
+  gap: $space-4;
+}

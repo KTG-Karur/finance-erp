@@ -1,0 +1,81 @@
+@use '../mixins' as *;
+
+// ── Backdrop ─────────────────────────────────────────────────
+.modal-backdrop {
+  position: fixed; inset: 0;
+  @include frosted-overlay;
+  z-index: $z-modal;
+  display: flex; align-items: center; justify-content: center;
+  padding: $space-5;
+  animation: fadeIn $duration-base $ease-out;
+}
+
+// ── Panel ────────────────────────────────────────────────────
+.modal-panel {
+  background: $surface-white;
+  border: 1px solid $border-default;
+  border-radius: $radius-2xl;
+  box-shadow: $shadow-xl;
+  width: 100%; max-width: 480px;
+  max-height: 90vh;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  animation: scaleIn $duration-base $ease-out;
+
+  &--lg { max-width: 600px; }
+  &--xl { max-width: 760px; }
+}
+
+// ── Header ───────────────────────────────────────────────────
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: $space-5 $space-6;
+  border-bottom: 1px solid $border-light;
+  flex-shrink: 0;
+
+  h2, h3 {
+    font-size: $text-xl; font-weight: 700;
+    color: $text-heading; letter-spacing: -0.01em;
+  }
+}
+
+// ── Body ─────────────────────────────────────────────────────
+.modal-body {
+  flex: 1; overflow-y: auto;
+  padding: $space-6;
+  display: flex; flex-direction: column; gap: $space-5;
+  @include thin-scrollbar;
+}
+
+// ── Footer ───────────────────────────────────────────────────
+.modal-footer {
+  display: flex; justify-content: flex-end; gap: $space-3;
+  padding: $space-4 $space-6;
+  border-top: 1px solid $border-light;
+  background: $neutral-50;
+  flex-shrink: 0;
+}
+
+// ── Form Field ───────────────────────────────────────────────
+.form-field {
+  display: flex; flex-direction: column; gap: $space-2;
+
+  label {
+    font-size: $text-sm; font-weight: 600;
+    color: $text-secondary;
+  }
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: $space-4;
+}
+
+// ── Success Banner ───────────────────────────────────────────
+.modal-success {
+  background: $success-bg; border: 1px solid $success-border;
+  color: $success-text; border-radius: $radius-xl;
+  padding: $space-5; font-weight: 600; font-size: $text-base;
+  text-align: center; animation: scaleIn $duration-base $ease-out;
+}

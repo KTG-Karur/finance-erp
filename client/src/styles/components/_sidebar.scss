@@ -1,0 +1,306 @@
+@use '../mixins' as *;
+
+// ============================================================
+// SIDEBAR — Light Mode · Collapsible · Equal Item Spacing
+// ============================================================
+
+// ── Sidebar Root ─────────────────────────────────────────────
+.sidebar {
+  position: relative;
+  height: 100%;
+  background: $sidebar-bg;
+  border-right: 1px solid $sidebar-border;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+  @include sidebar-transition;
+  z-index: $z-sidebar;
+
+  // Full width state
+  &--full { width: $sidebar-width-full; }
+
+  // Collapsed / mini state (icon only)
+  &--mini {
+    width: $sidebar-width-mini;
+
+    // Hide text labels
+    .sidebar__label,
+    .sidebar__section-label,
+    .sidebar__chevron,
+    .sidebar__children,
+    .sidebar__user-info { display: none; }
+
+    // Center all nav items
+    .sidebar__item {
+      justify-content: center;
+      padding: 11px 0;
+    }
+
+    .sidebar__item-icon { margin: 0; }
+
+    // User avatar centered at bottom
+    .sidebar__user-badge {
+      justify-content: center;
+      padding: $space-3 0;
+    }
+
+    // Collapse button centered
+    .sidebar__collapse-btn {
+      justify-content: center;
+      padding: 0;
+    }
+  }
+}
+
+// ── Collapse / Toggle Button ──────────────────────────────────
+.sidebar__collapse-btn {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  width: 100%;
+  padding: 14px $space-4;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-bottom: 1px solid $sidebar-border;
+  flex-shrink: 0;
+  transition: background $duration-fast $ease-out;
+  color: $text-muted;
+
+  &:hover {
+    background: $sidebar-hover-bg;
+    color: $text-secondary;
+  }
+
+  svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    color: $neutral-500;
+    transition: transform $duration-slow $ease-out;
+  }
+
+  .sidebar--mini & svg { transform: rotate(180deg); }
+
+  span {
+    font-size: $text-sm;
+    font-weight: 500;
+    color: $text-muted;
+    white-space: nowrap;
+  }
+}
+
+// ── Scroll Area ───────────────────────────────────────────────
+.sidebar__scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: $space-3 0;
+  @include thin-scrollbar;
+}
+
+// ── Section Group Label ───────────────────────────────────────
+.sidebar__section-label {
+  padding: $space-4 $space-4 $space-2;   // Generous top spacing
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: $sidebar-group-label;
+  font-family: $font-sans;
+  white-space: nowrap;
+  user-select: none;
+}
+
+// ── Navigation Container ─────────────────────────────────────
+.sidebar__nav {
+  padding: 0 $space-2;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;     // Equal 2px gap between every item
+}
+
+// ── Nav Item (Top-Level) ──────────────────────────────────────
+.sidebar__item {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  width: 100%;
+  padding: 11px $space-3;    // Consistent generous padding on all items
+  border-radius: $radius-lg;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: $sidebar-text;
+  transition:
+    background $duration-fast $ease-out,
+    color $duration-fast $ease-out;
+  position: relative;
+  @include focus-ring;
+
+  &:hover {
+    background: $sidebar-hover-bg;
+    color: $sidebar-text-hover;
+
+    .sidebar__item-icon { color: $neutral-700; }
+  }
+
+  &--active {
+    background: $sidebar-active-bg;
+    color: $sidebar-text-active;
+
+    .sidebar__item-icon { color: $brand-primary; }
+    .sidebar__label     { font-weight: 600; }
+
+    // Left accent bar
+    &::before {
+      content: '';
+      position: absolute;
+      left: -$space-2;
+      top: 25%;
+      bottom: 25%;
+      width: 3px;
+      background: $brand-primary;
+      border-radius: 0 $radius-full $radius-full 0;
+    }
+  }
+
+  &--accordion {
+    justify-content: space-between;
+  }
+}
+
+// ── Item Left Group ───────────────────────────────────────────
+.sidebar__item-left {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  overflow: hidden;
+}
+
+// ── Icon ─────────────────────────────────────────────────────
+.sidebar__item-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: $neutral-400;
+  transition: color $duration-fast $ease-out;
+}
+
+// ── Label ────────────────────────────────────────────────────
+.sidebar__label {
+  font-size: $text-base;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity $duration-fast $ease-out;
+}
+
+// ── Chevron ──────────────────────────────────────────────────
+.sidebar__chevron {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: $neutral-400;
+  transition: transform $duration-base $ease-out, color $duration-fast $ease-out;
+
+  &--open { transform: rotate(180deg); color: $neutral-500; }
+}
+
+// ── Accordion Children ────────────────────────────────────────
+.sidebar__children {
+  margin: 2px 0 2px $space-3;
+  padding-left: $space-4;
+  border-left: 2px solid $neutral-200;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: fadeIn $duration-base $ease-out;
+}
+
+// ── Sub-Item ─────────────────────────────────────────────────
+.sidebar__sub-item {
+  display: block;
+  width: 100%;
+  padding: 9px $space-3;     // Equal padding — consistent with parent items
+  border-radius: $radius-md;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-size: $text-sm;
+  font-weight: 400;
+  color: $text-muted;
+  transition: background $duration-fast $ease-out, color $duration-fast $ease-out;
+  white-space: nowrap;
+  @include focus-ring;
+
+  &:hover {
+    background: $sidebar-hover-bg;
+    color: $text-secondary;
+  }
+
+  &--active {
+    color: $brand-primary;
+    font-weight: 600;
+    background: $sidebar-active-bg;
+  }
+}
+
+// ── Footer / User Area ────────────────────────────────────────
+.sidebar__footer {
+  flex-shrink: 0;
+  border-top: 1px solid $sidebar-border;
+  padding: $space-3 $space-2;
+}
+
+// ── User Badge ────────────────────────────────────────────────
+.sidebar__user-badge {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  padding: $space-3 $space-2;
+  border-radius: $radius-lg;
+  background: transparent;
+  cursor: default;
+  transition: background $duration-fast $ease-out;
+
+  &:hover { background: $sidebar-hover-bg; }
+}
+
+.sidebar__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: $radius-full;
+  background: linear-gradient(135deg, $brand-primary 0%, #6366F1 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: $text-xs;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  letter-spacing: 0.05em;
+}
+
+.sidebar__user-info { overflow: hidden; }
+
+.sidebar__user-name {
+  font-size: $text-sm;
+  font-weight: 600;
+  color: $text-primary;
+  @include truncate;
+  line-height: 1.3;
+}
+
+.sidebar__user-role {
+  font-size: $text-xs;
+  color: $text-muted;
+  font-family: $font-mono;
+  @include truncate;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+}

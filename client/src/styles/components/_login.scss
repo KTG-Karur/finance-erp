@@ -1,0 +1,260 @@
+@use '../mixins' as *;
+
+// ── Login Shell ───────────────────────────────────────────────
+.login-shell {
+  min-height: 100vh;
+  display: flex;
+  font-family: $font-sans;
+  background: $surface-app;
+}
+
+// ── Brand Panel (Left) ────────────────────────────────────────
+.login-brand {
+  width: 42%;
+  min-height: 100vh;
+  background: linear-gradient(160deg, #1E40AF 0%, #1D4ED8 40%, #2563EB 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 3rem;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+
+  @media (max-width: 768px) { display: none; }
+
+  // Subtle grid overlay
+  &::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+  }
+
+  // Glow
+  &::after {
+    content: '';
+    position: absolute; bottom: -15%; right: -15%;
+    width: 60%; height: 60%;
+    background: radial-gradient(circle, rgba(99,102,241,0.3) 0%, transparent 70%);
+    pointer-events: none;
+  }
+}
+
+.login-brand__logo {
+  display: flex; align-items: center; gap: $space-3;
+  position: relative; z-index: 1;
+
+  .logo-badge {
+    width: 44px; height: 44px; border-radius: $radius-xl;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.25);
+    display: flex; align-items: center; justify-content: center;
+    svg { width: 24px; height: 24px; color: #fff; }
+  }
+
+  .logo-text {
+    .logo-name { font-size: $text-lg; font-weight: 800; color: #fff; letter-spacing: -0.02em; }
+    .logo-tag  { font-size: $text-xs; color: rgba(255,255,255,0.6); font-family: $font-mono; letter-spacing: 0.04em; }
+  }
+}
+
+.login-brand__content {
+  position: relative; z-index: 1;
+
+  h2 {
+    font-size: $text-3xl; font-weight: 800;
+    color: #fff; line-height: 1.2;
+    letter-spacing: -0.03em; margin-bottom: $space-4;
+  }
+  p { font-size: $text-base; color: rgba(255,255,255,0.7); line-height: 1.7; max-width: 300px; }
+}
+
+.login-brand__features {
+  display: flex; flex-direction: column; gap: $space-3; margin-top: $space-6;
+
+  .feature-item {
+    display: flex; align-items: center; gap: $space-3;
+    font-size: $text-base; color: rgba(255,255,255,0.75);
+
+    .feature-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: rgba(255,255,255,0.5); flex-shrink: 0;
+    }
+  }
+}
+
+.login-brand__footer {
+  position: relative; z-index: 1;
+  font-size: $text-xs; color: rgba(255,255,255,0.4);
+  font-family: $font-mono;
+}
+
+// ── Form Panel (Right) ────────────────────────────────────────
+.login-form-panel {
+  flex: 1;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 3rem 2rem;
+  overflow-y: auto;
+  @include thin-scrollbar;
+}
+
+.login-card {
+  width: 100%; max-width: 420px;
+  background: $surface-white;
+  border: 1px solid $border-default;
+  border-radius: $radius-2xl;
+  box-shadow: $shadow-md;
+  overflow: hidden;
+  animation: fadeIn $duration-slow $ease-out;
+}
+
+// ── Step Stepper ─────────────────────────────────────────────
+.login-stepper {
+  display: flex; align-items: center; justify-content: center;
+  gap: $space-3; padding: $space-5 $space-6;
+  background: $neutral-50; border-bottom: 1px solid $border-light;
+
+  .step {
+    display: flex; align-items: center; gap: $space-2;
+    font-size: $text-sm; font-weight: 500;
+    color: $text-subtle; transition: color $duration-base $ease-out;
+
+    &--active { color: $text-primary; }
+    &--done   { color: $success-icon; }
+
+    .step-num {
+      width: 24px; height: 24px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: $text-xs; font-weight: 700;
+      background: $neutral-200; color: $text-muted;
+      transition: all $duration-base $ease-out; flex-shrink: 0;
+
+      &--active { background: $brand-primary; color: #fff; box-shadow: 0 0 0 3px $brand-primary-light; }
+      &--done   { background: $success-icon; color: #fff; }
+    }
+  }
+
+  .step-connector {
+    flex: 1; max-width: 48px; height: 2px;
+    background: $neutral-200; border-radius: $radius-full;
+  }
+}
+
+// ── Login Body ───────────────────────────────────────────────
+.login-body {
+  padding: $space-8 $space-6;
+  display: flex; flex-direction: column; gap: $space-5;
+}
+
+.login-title {
+  text-align: center;
+
+  h1 {
+    font-size: $text-2xl; font-weight: 800;
+    color: $text-heading; letter-spacing: -0.03em; line-height: 1.2;
+  }
+  p { font-size: $text-base; color: $text-muted; margin-top: $space-2; line-height: 1.5; }
+}
+
+// ── Login Field ──────────────────────────────────────────────
+.login-field {
+  display: flex; flex-direction: column; gap: $space-2;
+
+  label {
+    font-size: $text-sm; font-weight: 700;
+    color: $text-secondary;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+
+  .input-wrap {
+    position: relative;
+
+    .input-icon {
+      position: absolute; left: 14px; top: 50%;
+      transform: translateY(-50%); color: $neutral-400;
+      pointer-events: none; width: 16px; height: 16px;
+    }
+
+    input { padding-left: 44px; padding-top: 12px; padding-bottom: 12px; }
+  }
+}
+
+// ── Login Submit ─────────────────────────────────────────────
+.login-submit-btn {
+  width: 100%; padding: 13px;
+  background: $brand-primary; border: none;
+  border-radius: $radius-lg; color: #fff;
+  font-size: $text-md; font-weight: 700;
+  cursor: pointer; display: flex;
+  align-items: center; justify-content: center; gap: $space-2;
+  transition: background $duration-fast $ease-out, box-shadow $duration-fast $ease-out, transform $duration-fast $ease-out;
+
+  &:hover:not(:disabled) { background: $brand-primary-hover; box-shadow: $shadow-md; transform: translateY(-1px); }
+  &:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+}
+
+// ── Verified Company ─────────────────────────────────────────
+.verified-company-card {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: $space-4 $space-5; background: $success-bg;
+  border: 1px solid $success-border; border-radius: $radius-xl;
+
+  .verified-info {
+    display: flex; align-items: center; gap: $space-3;
+    svg { color: $success-icon; flex-shrink: 0; }
+
+    .verified-name { font-size: $text-base; font-weight: 700; color: $success-text; }
+    .verified-db   { font-size: $text-xs; color: #047857; font-family: $font-mono; margin-top: 2px; }
+  }
+
+  .verified-change-btn {
+    font-size: $text-sm; font-weight: 600; color: $brand-primary;
+    background: transparent; border: none; cursor: pointer;
+    display: flex; align-items: center; gap: $space-1;
+    &:hover { text-decoration: underline; }
+  }
+}
+
+// ── Demo Hint ────────────────────────────────────────────────
+.demo-hint-box {
+  background: $neutral-50; border: 1px solid $border-light;
+  border-radius: $radius-xl; padding: $space-4;
+
+  &__label {
+    display: block; font-size: $text-xs; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: $text-subtle; margin-bottom: $space-3;
+    padding-bottom: $space-2; border-bottom: 1px solid $border-light;
+    font-family: $font-sans;
+  }
+
+  &__grid { display: grid; grid-template-columns: 1fr 1fr; gap: $space-3; }
+}
+
+.demo-hint-item {
+  background: $surface-white; border: 1px solid $border-default;
+  border-radius: $radius-lg; padding: $space-3 $space-4;
+  cursor: pointer; text-align: left;
+  transition: border-color $duration-fast $ease-out, box-shadow $duration-fast $ease-out;
+
+  &:hover { border-color: $brand-primary; box-shadow: 0 0 0 3px $brand-primary-light; }
+
+  .demo-code { font-size: $text-sm; font-weight: 700; color: $brand-primary-dark; font-family: $font-mono; }
+  .demo-name { font-size: $text-xs; color: $text-muted; margin-top: 2px; }
+}
+
+// ── Error ────────────────────────────────────────────────────
+.login-error {
+  display: flex; align-items: center; gap: $space-3;
+  background: $danger-bg; border: 1px solid $danger-border;
+  color: $danger-text; border-radius: $radius-lg;
+  padding: $space-3 $space-4; font-size: $text-base;
+  animation: fadeIn $duration-base $ease-out;
+
+  svg { flex-shrink: 0; color: $danger-icon; }
+}

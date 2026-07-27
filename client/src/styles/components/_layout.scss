@@ -1,0 +1,414 @@
+@use '../mixins' as *;
+
+// ============================================================
+// LAYOUT — App Shell · Header · Workspace
+// ============================================================
+
+// ── App Shell ─────────────────────────────────────────────────
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: $surface-app;
+  font-family: $font-sans;
+}
+
+// ── Header ────────────────────────────────────────────────────
+.app-header {
+  height: 60px;
+  min-height: 60px;
+  background: $surface-white;
+  border-bottom: 1px solid $border-default;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 $space-6;
+  flex-shrink: 0;
+  z-index: 50;
+}
+
+// ── Header Left ───────────────────────────────────────────────
+.app-header__left {
+  display: flex;
+  align-items: center;
+  gap: $space-5;
+}
+
+// ── Brand/Logo ────────────────────────────────────────────────
+.app-header__brand {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  flex-shrink: 0;
+
+  .app-header__logo {
+    width: 34px;
+    height: 34px;
+    border-radius: $radius-lg;
+    background: $brand-primary;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    svg { width: 18px; height: 18px; color: #fff; }
+  }
+
+  .app-header__tenant-name {
+    font-size: $text-md;
+    font-weight: 700;
+    color: $text-heading;
+    letter-spacing: -0.02em;
+    @include truncate;
+    max-width: 220px;
+  }
+}
+
+// ── Vertical Divider ─────────────────────────────────────────
+.app-header__divider {
+  width: 1px;
+  height: 22px;
+  background: $border-default;
+  flex-shrink: 0;
+}
+
+// ── Meta Chips Row ────────────────────────────────────────────
+.app-header__meta {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+}
+
+.app-header__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: $space-1;
+  padding: 5px 12px;
+  background: $neutral-50;
+  border: 1px solid $border-default;
+  border-radius: $radius-full;
+  font-size: $text-sm;
+  color: $text-muted;
+  font-family: $font-sans;
+  white-space: nowrap;
+
+  strong {
+    font-weight: 600;
+    color: $text-secondary;
+    font-family: $font-sans;
+  }
+}
+
+// ── Header Right ─────────────────────────────────────────────
+.app-header__right {
+  position: relative;
+}
+
+.app-header__user-btn {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  padding: $space-2 $space-3;
+  background: $neutral-50;
+  border: 1px solid $border-default;
+  border-radius: $radius-lg;
+  cursor: pointer;
+  transition: $duration-fast $ease-out;
+
+  &:hover {
+    background: $surface-white;
+    border-color: $border-strong;
+    box-shadow: $shadow-sm;
+  }
+}
+
+.app-header__user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-full;
+  background: linear-gradient(135deg, $brand-primary 0%, #6366F1 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: $text-xs;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  letter-spacing: 0.05em;
+}
+
+.app-header__user-name {
+  font-size: $text-sm;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.app-header__user-role {
+  font-size: $text-xs;
+  color: $text-muted;
+  background: $neutral-100;
+  border-radius: $radius-sm;
+  padding: 1px 6px;
+  font-family: $font-mono;
+  letter-spacing: 0.03em;
+}
+
+.app-header__user-chevron {
+  width: 16px;
+  height: 16px;
+  color: $neutral-400;
+  flex-shrink: 0;
+}
+
+// ── User Dropdown ────────────────────────────────────────────
+.app-header__dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 200px;
+  background: $surface-white;
+  border: 1px solid $border-default;
+  border-radius: $radius-xl;
+  box-shadow: $shadow-lg;
+  padding: $space-2;
+  z-index: $z-dropdown;
+  animation: scaleIn $duration-base $ease-out;
+  transform-origin: top right;
+}
+
+.app-header__dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  width: 100%;
+  padding: 10px $space-3;
+  border-radius: $radius-lg;
+  font-size: $text-base;
+  font-weight: 500;
+  color: $text-secondary;
+  cursor: pointer;
+  transition: background $duration-fast $ease-out;
+  background: transparent;
+  border: none;
+  text-align: left;
+
+  &:hover {
+    background: $neutral-50;
+    color: $text-primary;
+  }
+
+  &--danger {
+    color: $danger-text;
+    border-top: 1px solid $border-light;
+    margin-top: $space-1;
+    border-radius: 0 0 $radius-lg $radius-lg;
+
+    &:hover {
+      background: $danger-bg;
+      color: $danger-text;
+    }
+  }
+
+  svg { width: 16px; height: 16px; flex-shrink: 0; }
+}
+
+// ── App Body (Sidebar + Workspace) ────────────────────────────
+.app-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+// ── Main Workspace ────────────────────────────────────────────
+.app-workspace {
+  flex: 1;
+  overflow-y: auto;
+  background: $surface-app;
+  padding: $space-6;
+  @include thin-scrollbar;
+}
+
+// ── Page Header (within workspace) ────────────────────────────
+.page-header {
+  margin-bottom: $space-6;
+
+  &__title {
+    font-size: $text-2xl;
+    font-weight: 700;
+    color: $text-heading;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+  }
+
+  &__subtitle {
+    font-size: $text-base;
+    color: $text-muted;
+    margin-top: $space-1;
+    line-height: 1.5;
+  }
+
+  &__row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: $space-4;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: $space-3;
+    flex-shrink: 0;
+  }
+}
+
+// ── Card ─────────────────────────────────────────────────────
+.card {
+  background: $surface-white;
+  border: 1px solid $border-default;
+  border-radius: $radius-xl;
+  box-shadow: $shadow-sm;
+  overflow: hidden;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: $space-5 $space-6;
+    border-bottom: 1px solid $border-light;
+
+    h2, h3 {
+      font-size: $text-lg;
+      font-weight: 600;
+      color: $text-heading;
+      letter-spacing: -0.01em;
+    }
+  }
+
+  &__body {
+    padding: $space-6;
+  }
+
+  &__footer {
+    padding: $space-4 $space-6;
+    border-top: 1px solid $border-light;
+    background: $neutral-50;
+  }
+}
+
+// ── Change Password Modal ────────────────────────────────────
+.change-pw-backdrop {
+  position: fixed;
+  inset: 0;
+  @include frosted-overlay;
+  z-index: $z-modal;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: $space-4;
+  animation: fadeIn $duration-base $ease-out;
+}
+
+.change-pw-card {
+  background: $surface-white;
+  border: 1px solid $border-default;
+  border-radius: $radius-2xl;
+  max-width: 440px;
+  width: 100%;
+  box-shadow: $shadow-xl;
+  animation: scaleIn $duration-base $ease-out;
+  overflow: hidden;
+}
+
+.change-pw-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $space-5 $space-6;
+  border-bottom: 1px solid $border-light;
+
+  h3 {
+    font-size: $text-lg;
+    font-weight: 700;
+    color: $text-heading;
+    letter-spacing: -0.01em;
+  }
+}
+
+.change-pw-body {
+  padding: $space-6;
+  display: flex;
+  flex-direction: column;
+  gap: $space-5;
+}
+
+.change-pw-field {
+  display: flex;
+  flex-direction: column;
+  gap: $space-2;
+
+  label {
+    font-size: $text-sm;
+    font-weight: 600;
+    color: $text-secondary;
+  }
+}
+
+.change-pw-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: $space-3;
+  padding: $space-4 $space-6;
+  border-top: 1px solid $border-light;
+  background: $neutral-50;
+}
+
+.modal-close-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-md;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: $text-muted;
+  transition: background $duration-fast $ease-out, color $duration-fast $ease-out;
+
+  &:hover {
+    background: $neutral-100;
+    color: $text-secondary;
+  }
+
+  svg { width: 18px; height: 18px; }
+}
+
+.modal-success {
+  background: $success-bg;
+  border: 1px solid $success-border;
+  color: $success-text;
+  border-radius: $radius-lg;
+  padding: $space-4;
+  font-weight: 600;
+  font-size: $text-base;
+  text-align: center;
+  animation: scaleIn $duration-base $ease-out;
+}
+
+// ── Impersonation Banner ─────────────────────────────────────
+.impersonation-banner {
+  background: $warning-bg;
+  border: 1px solid $warning-border;
+  color: $warning-text;
+  padding: 10px $space-5;
+  border-radius: $radius-lg;
+  font-size: $text-sm;
+  font-family: $font-mono;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: $space-5;
+  box-shadow: $shadow-xs;
+}

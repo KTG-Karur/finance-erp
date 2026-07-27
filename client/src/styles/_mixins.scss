@@ -1,0 +1,97 @@
+@use 'sass:color';
+@forward 'variables';
+@use 'variables' as *;
+
+// ── Flex helpers ─────────────────────────────────────────────
+@mixin flex-center  { display: flex; align-items: center; justify-content: center; }
+@mixin flex-between { display: flex; align-items: center; justify-content: space-between; }
+@mixin flex-col     { display: flex; flex-direction: column; }
+@mixin flex-row     { display: flex; flex-direction: row; align-items: center; }
+
+// ── Typography ───────────────────────────────────────────────
+@mixin tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+// ── Card ─────────────────────────────────────────────────────
+@mixin card($p: $space-6) {
+  background: $surface-white;
+  border: 1px solid $border-default;
+  border-radius: $radius-xl;
+  padding: $p;
+  box-shadow: $shadow-sm;
+}
+
+// ── Truncate ─────────────────────────────────────────────────
+@mixin truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// ── Scrollbar ────────────────────────────────────────────────
+@mixin thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: $neutral-300 transparent;
+  &::-webkit-scrollbar       { width: 6px; height: 6px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: $neutral-300; border-radius: $radius-full; }
+  &::-webkit-scrollbar-thumb:hover { background: $neutral-400; }
+}
+
+// ── Focus ring ───────────────────────────────────────────────
+@mixin focus-ring {
+  &:focus-visible {
+    outline: 2px solid $brand-primary;
+    outline-offset: 2px;
+  }
+}
+
+// ── Badge ────────────────────────────────────────────────────
+@mixin badge($bg, $color, $border: transparent) {
+  display: inline-flex;
+  align-items: center;
+  gap: $space-1;
+  padding: 3px 10px;
+  background: $bg;
+  color: $color;
+  border: 1px solid $border;
+  border-radius: $radius-full;
+  font-size: $text-xs;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+// ── Button base ──────────────────────────────────────────────
+@mixin btn-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: $space-2;
+  border: none;
+  border-radius: $radius-md;
+  font-family: $font-sans;
+  font-size: $text-base;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background $duration-fast $ease-out,
+              color $duration-fast $ease-out,
+              box-shadow $duration-fast $ease-out,
+              border-color $duration-fast $ease-out;
+  white-space: nowrap;
+  @include focus-ring;
+}
+
+// ── Frosted overlay ──────────────────────────────────────────
+@mixin frosted-overlay {
+  background: rgba(17, 24, 39, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+// ── Sidebar transition ────────────────────────────────────────
+@mixin sidebar-transition {
+  transition: width $duration-slow $ease-out;
+}
