@@ -166,7 +166,7 @@ export default function EnterpriseLoanTable({ loans, selectedLoan, onSelectLoan,
                       {loan.status !== 'CLOSED' ? (
                         <button
                           onClick={(e) => { e.stopPropagation(); onCollect(loan); }}
-                          className="px-2.5 py-1 bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-[11px] rounded-md flex items-center justify-center space-x-1 ml-auto shadow-xs"
+                          className="px-2.5 py-1 bg-[#059669] hover:bg-emerald-700 text-white font-bold text-[11px] rounded-md flex items-center justify-center space-x-1 ml-auto shadow-xs"
                         >
                           <Receipt className="w-3 h-3" />
                           <span>Collect</span>

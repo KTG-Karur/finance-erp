@@ -222,7 +222,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
 
                       <button
                         onClick={() => onJumpToTenant(tenant)}
-                        className="px-3 py-1.5 bg-[#2563EB] hover:bg-blue-700 text-white font-bold rounded-md text-xs flex items-center space-x-1 shadow-xs transition"
+                        className="px-3 py-1.5 bg-[#059669] hover:bg-emerald-700 text-white font-bold rounded-md text-xs flex items-center space-x-1 shadow-xs transition"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
                         <span>Jump Into Workspace</span>

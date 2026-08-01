@@ -76,7 +76,7 @@ export function getTenantDbPool(dbName = 'tenant_alpha_db') {
   }
 
   try {
-    const pool = mysql.createPool({
+    const realPool = mysql.createPool({
       host: process.env.DB_HOST || 'localhost',
       port: Number(process.env.DB_PORT) || 3306,
       user: process.env.DB_USER || 'root',
@@ -85,8 +85,34 @@ export function getTenantDbPool(dbName = 'tenant_alpha_db') {
       waitForConnections: true,
       connectionLimit: 10
     });
-    tenantPoolsMap.set(dbName, pool);
-    return pool;
+
+    // Wrap the real pool so a failed connection (e.g. MySQL not running / DB missing)
+    // falls back to the in-memory mock tenant DB instead of throwing on every query.
+    const resilientPool = {
+      async query(sql, params = []) {
+        try {
+          return await realPool.query(sql, params);
+        } catch (err) {
+          console.warn(`⚠️ Tenant DB '${dbName}' unreachable (falling back to in-memory mock):`, err.message);
+          const mockPool = createMockTenantPool(dbName);
+          tenantPoolsMap.set(dbName, mockPool);
+          return mockPool.query(sql, params);
+        }
+      },
+      async execute(sql, params = []) {
+        try {
+          return await realPool.execute(sql, params);
+        } catch (err) {
+          console.warn(`⚠️ Tenant DB '${dbName}' unreachable (falling back to in-memory mock):`, err.message);
+          const mockPool = createMockTenantPool(dbName);
+          tenantPoolsMap.set(dbName, mockPool);
+          return mockPool.execute(sql, params);
+        }
+      }
+    };
+
+    tenantPoolsMap.set(dbName, resilientPool);
+    return resilientPool;
   } catch (err) {
     const mockPool = createMockTenantPool(dbName);
     tenantPoolsMap.set(dbName, mockPool);

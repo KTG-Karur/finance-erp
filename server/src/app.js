@@ -14,6 +14,8 @@ import authRoutes from './modules/auth/auth.routes.js';
 import employeeRoutes from './modules/employee/employee.routes.js';
 import loanRoutes from './modules/loan/loan.routes.js';
 import financeRoutes from './modules/finance/finance.routes.js';
+import borrowerRoutes from './modules/borrower/borrower.routes.js';
+import orgRoutes from './modules/org/org.routes.js';
 
 dotenv.config();
 
@@ -44,6 +46,8 @@ fastify.register(authRoutes, { prefix: '/api/auth' });
 fastify.register(employeeRoutes, { prefix: '/api/employees' });
 fastify.register(loanRoutes, { prefix: '/api' });
 fastify.register(financeRoutes, { prefix: '/api/finance' });
+fastify.register(borrowerRoutes, { prefix: '/api' });
+fastify.register(orgRoutes, { prefix: '/api' });
 
 const PORT = Number(process.env.PORT) || 5000;
 const HOST = process.env.HOST || '0.0.0.0';

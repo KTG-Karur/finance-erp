@@ -1,5 +1,3 @@
-import { getTenantDbPool } from '../../plugins/tenantDb.js';
-
 export async function lookupCompanyByCode(masterDb, companyCode) {
   if (!companyCode) {
     throw new Error('Company Code is required.');
@@ -28,7 +26,7 @@ export async function lookupCompanyByCode(masterDb, companyCode) {
   };
 }
 
-export async function authenticateTenantUserByCode(masterDb, companyCode, email, password) {
+export async function authenticateTenantUserByCode(masterDb, db, companyCode, email, password) {
   if (!companyCode || !email || !password) {
     throw new Error('Company Code, Email, and Password are required.');
   }
@@ -36,22 +34,17 @@ export async function authenticateTenantUserByCode(masterDb, companyCode, email,
   // Step 1: Query master_erp_db.companies for tenant DB name by company_code
   const company = await lookupCompanyByCode(masterDb, companyCode);
 
-  // Step 2: Query tenant database for user credentials
-  const tenantDb = getTenantDbPool(company.dbName);
-  const [userRows] = await tenantDb.execute(
-    'SELECT id, name, email, role FROM users WHERE email = ?',
-    [email]
+  // Step 2: Query the tenant's user directory for a matching account
+  const [companyUsers] = await db.query(
+    'SELECT id, company_id, name, email, role, status FROM users WHERE company_id = ?',
+    [company.companyId]
   );
+  const userData = companyUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
 
-  let userData = userRows && userRows.length > 0 ? userRows[0] : null;
-
-  // Fallback demo user if tenant DB in offline mock mode
   if (!userData) {
-    if (email.includes('admin')) {
-      userData = { id: 1, name: 'John Admin', email, role: 'ADMIN' };
-    } else {
-      userData = { id: 2, name: 'Sarah Collector', email, role: 'COLLECTOR' };
-    }
+    const err = new Error('Invalid email or password.');
+    err.statusCode = 401;
+    throw err;
   }
 
   return {
@@ -65,6 +58,15 @@ export async function authenticateTenantUserByCode(masterDb, companyCode, email,
     email: userData.email,
     isGlobalAdmin: false
   };
+}
+
+export async function resolveUserBranches(db, companyId, userId) {
+  const [assignments] = await db.query('SELECT * FROM user_branches WHERE user_id = ? AND company_id = ?', [userId, companyId]);
+  const [allBranches] = await db.query('SELECT * FROM branches WHERE company_id = ?', [companyId]);
+  return assignments
+    .map(a => allBranches.find(b => b.id == a.branch_id))
+    .filter(Boolean)
+    .map(b => ({ id: b.id, name: b.name, code: b.code, sub_company_id: b.sub_company_id }));
 }
 
 export async function authenticateSuperAdmin(masterDb, email, password) {

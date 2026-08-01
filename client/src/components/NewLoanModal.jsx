@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
-import { X, PlusCircle } from 'lucide-react';
+import { X, Banknote, Clock, ArrowRight, User, Phone, DollarSign, Percent, Calendar, FileText } from 'lucide-react';
 
-export default function NewLoanModal({ isOpen, onClose, onSubmit }) {
+export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBURSE', loanSchemes = [] }) {
   if (!isOpen) return null;
+
+  const isAppMode = mode === 'APPLICATION';
 
   const [form, setForm] = useState({
     borrower_name: '',
     phone: '',
     principal_amount: 50000,
-    monthly_interest_rate: 2.0, // 2% per month
-    tenure_months: 4, // 4 months
-    installment_amount: 500
+    monthly_interest_rate: 2.0,
+    tenure_months: 4,
+    installment_amount: 500,
+    purpose: 'Working Capital',
+    scheme_id: loanSchemes[0]?.id || ''
   });
 
   const [loading, setLoading] = useState(false);
@@ -27,7 +31,7 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit }) {
 
     return {
       totalPayable,
-      dailyEmi: Math.ceil(totalPayable / totalDays),
+      dailyEmi: Math.ceil(totalPayable / Math.max(totalDays, 1)),
       dailyInterestAmt: Math.round(p * (dailyRatePct / 100))
     };
   };
@@ -48,142 +52,302 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit }) {
     setForm(updatedForm);
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await onSubmit({
+      onSubmit({
         ...form,
         principal_amount: parseFloat(form.principal_amount),
         interest_rate: parseFloat(form.monthly_interest_rate),
-        tenure_days: Math.round(parseFloat(form.tenure_months) * 30)
+        tenure_days: Math.round(parseFloat(form.tenure_months) * 30),
+        mode
       });
       onClose();
-    } catch (err) {
-      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
   const calcDetails = calculateInstallment(form.principal_amount, form.monthly_interest_rate, form.tenure_months);
+  const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 flex items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-white erp-border rounded shadow-2xl text-gray-900 overflow-hidden font-sans">
-        <div className="px-4 py-3 bg-gray-50 border-b border-gray-300 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <PlusCircle className="w-4 h-4 text-blue-600" />
-            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-900">Disburse New Loan Account</h3>
+    <div className="saas-modal-backdrop">
+      <div className="saas-modal-card saas-modal-card--lg" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>
+        
+        {/* Header */}
+        <div className="saas-modal-header">
+          <div className="head-left">
+            <div className="head-icon-badge" style={{
+              background: isAppMode ? '#FFFBEB' : '#ECFDF5',
+              borderColor: isAppMode ? '#FDE68A' : '#A7F3D0',
+              color: isAppMode ? '#D97706' : '#059669'
+            }}>
+              {isAppMode ? <Clock style={{ width: 18, height: 18 }} /> : <Banknote style={{ width: 18, height: 18 }} />}
+            </div>
+            <div className="head-titles">
+              <h3 style={{ fontWeight: 600 }}>{isAppMode ? 'Submit New Loan Application' : 'Disburse New Loan Account'}</h3>
+              <p style={{ fontWeight: 400 }}>{isAppMode ? 'Enter applicant details, requested credit amount & terms' : 'Enter customer details & disburse loan terms'}</p>
+            </div>
           </div>
-          <button onClick={onClose} className="p-1 text-gray-500 hover:text-gray-900 rounded">
-            <X className="w-4 h-4" />
+          <button onClick={onClose} className="close-btn" type="button">
+            <X style={{ width: 16, height: 16 }} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-3 text-xs font-sans">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-gray-600 uppercase">Borrower Full Name</label>
-              <input
-                type="text"
-                name="borrower_name"
-                value={form.borrower_name}
-                onChange={handleChange}
-                placeholder="e.g. Rajesh Kumar"
-                required
-                className="w-full bg-white border border-gray-300 rounded p-2 text-xs text-gray-900 focus:border-blue-600 focus:outline-none"
-              />
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+          <div className="saas-modal-body" style={{ padding: '20px 24px', gap: 16 }}>
+            
+            {/* Customer Info Row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="form-group">
+                <label style={{ fontSize: '0.7rem', fontWeight: 500, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                  {isAppMode ? 'Applicant Customer Name' : 'Customer Name'}
+                </label>
+                <input
+                  type="text"
+                  name="borrower_name"
+                  value={form.borrower_name}
+                  onChange={handleChange}
+                  placeholder="e.g. Ramesh Kumar"
+                  required
+                  style={{
+                    width: '100%',
+                    height: 38,
+                    padding: '0 12px',
+                    background: '#F8FAFC',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: 9,
+                    fontSize: '0.8125rem',
+                    color: '#0F172A',
+                    fontFamily: 'inherit',
+                    fontWeight: 400
+                  }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label style={{ fontSize: '0.7rem', fontWeight: 500, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                  Mobile Contact Number
+                </label>
+                <input
+                  type="text"
+                  name="phone"
+                  value={form.phone}
+                  onChange={handleChange}
+                  placeholder="e.g. 9876543210"
+                  required
+                  style={{
+                    width: '100%',
+                    height: 38,
+                    padding: '0 12px',
+                    background: '#F8FAFC',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: 9,
+                    fontSize: '0.8125rem',
+                    color: '#0F172A',
+                    fontFamily: 'inherit',
+                    fontWeight: 400
+                  }}
+                />
+              </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-gray-600 uppercase">Contact Phone</label>
-              <input
-                type="tel"
-                name="phone"
-                value={form.phone}
-                onChange={handleChange}
-                placeholder="10-digit mobile"
-                required
-                className="w-full bg-white border border-gray-300 rounded p-2 text-xs text-gray-900 font-mono focus:border-blue-600 focus:outline-none"
-              />
+
+            {/* Principal & Rate Row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="form-group">
+                <label style={{ fontSize: '0.7rem', fontWeight: 500, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                  {isAppMode ? 'Requested Principal (₹)' : 'Principal Amount (₹)'}
+                </label>
+                <input
+                  type="number"
+                  name="principal_amount"
+                  value={form.principal_amount}
+                  onChange={handleChange}
+                  step="1000"
+                  min="1000"
+                  required
+                  style={{
+                    width: '100%',
+                    height: 38,
+                    padding: '0 12px',
+                    background: '#F8FAFC',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: 9,
+                    fontSize: '0.8125rem',
+                    color: '#0F172A',
+                    fontFamily: 'inherit',
+                    fontWeight: 500,
+                    fontVariantNumeric: 'tabular-nums'
+                  }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label style={{ fontSize: '0.7rem', fontWeight: 500, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                  Monthly Interest Rate (%)
+                </label>
+                <input
+                  type="number"
+                  name="monthly_interest_rate"
+                  value={form.monthly_interest_rate}
+                  onChange={handleChange}
+                  step="0.1"
+                  min="0.5"
+                  max="10"
+                  required
+                  style={{
+                    width: '100%',
+                    height: 38,
+                    padding: '0 12px',
+                    background: '#F8FAFC',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: 9,
+                    fontSize: '0.8125rem',
+                    color: '#0F172A',
+                    fontFamily: 'inherit',
+                    fontWeight: 500,
+                    fontVariantNumeric: 'tabular-nums'
+                  }}
+                />
+              </div>
             </div>
+
+            {/* Loan Scheme */}
+            <div className="form-group">
+              <label style={{ fontSize: '0.7rem', fontWeight: 500, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                Loan Scheme
+              </label>
+              <select
+                name="scheme_id"
+                value={form.scheme_id}
+                onChange={handleChange}
+                style={{
+                  width: '100%',
+                  height: 38,
+                  padding: '0 12px',
+                  background: '#F8FAFC',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: 9,
+                  fontSize: '0.8125rem',
+                  color: '#0F172A',
+                  fontFamily: 'inherit',
+                  fontWeight: 500
+                }}
+              >
+                {loanSchemes.map(s => (
+                  <option key={s.id} value={s.id}>{s.name} (₹{s.unit_base} base)</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Tenure & Purpose */}
+            <div style={{ display: 'grid', gridTemplateColumns: isAppMode ? '1fr 1fr' : '1fr', gap: 14 }}>
+              <div className="form-group">
+                <label style={{ fontSize: '0.7rem', fontWeight: 500, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                  Loan Tenure (Months)
+                </label>
+                <input
+                  type="number"
+                  name="tenure_months"
+                  value={form.tenure_months}
+                  onChange={handleChange}
+                  min="1"
+                  max="36"
+                  required
+                  style={{
+                    width: '100%',
+                    height: 38,
+                    padding: '0 12px',
+                    background: '#F8FAFC',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: 9,
+                    fontSize: '0.8125rem',
+                    color: '#0F172A',
+                    fontFamily: 'inherit',
+                    fontWeight: 500,
+                    fontVariantNumeric: 'tabular-nums'
+                  }}
+                />
+              </div>
+
+              {isAppMode && (
+                <div className="form-group">
+                  <label style={{ fontSize: '0.7rem', fontWeight: 500, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    Loan Purpose / Category
+                  </label>
+                  <input
+                    type="text"
+                    name="purpose"
+                    value={form.purpose}
+                    onChange={handleChange}
+                    placeholder="e.g. Business Expansion"
+                    style={{
+                      width: '100%',
+                      height: 38,
+                      padding: '0 12px',
+                      background: '#F8FAFC',
+                      border: '1px solid #CBD5E1',
+                      borderRadius: 9,
+                      fontSize: '0.8125rem',
+                      color: '#0F172A',
+                      fontFamily: 'inherit',
+                      fontWeight: 400
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Calculation Preview Strip */}
+            <div style={{
+              background: '#F8FAFC',
+              border: '1px solid #E2E8F0',
+              borderRadius: 12,
+              padding: '14px 16px',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 12,
+              marginTop: 4
+            }}>
+              <div>
+                <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', fontWeight: 500, textTransform: 'uppercase' }}>Total Payable Amount</span>
+                <strong style={{ fontSize: '0.95rem', color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>₹{fmt(calcDetails.totalPayable)}</strong>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', fontWeight: 500, textTransform: 'uppercase' }}>Daily Installment (EMI)</span>
+                <strong style={{ fontSize: '0.95rem', color: '#059669', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>₹{fmt(calcDetails.dailyEmi)} / day</strong>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', fontWeight: 500, textTransform: 'uppercase' }}>Tenure Duration</span>
+                <strong style={{ fontSize: '0.95rem', color: '#2563EB', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{Math.round(form.tenure_months * 30)} Days</strong>
+              </div>
+            </div>
+
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-gray-600 uppercase">Principal (₹)</label>
-              <input
-                type="number"
-                name="principal_amount"
-                value={form.principal_amount}
-                onChange={handleChange}
-                required
-                className="w-full bg-white border border-gray-300 rounded p-2 text-xs font-mono text-gray-900 tabular-nums focus:border-blue-600 focus:outline-none"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-gray-600 uppercase">Interest (% / Month)</label>
-              <input
-                type="number"
-                step="0.1"
-                name="monthly_interest_rate"
-                value={form.monthly_interest_rate}
-                onChange={handleChange}
-                required
-                className="w-full bg-white border border-gray-300 rounded p-2 text-xs font-mono text-blue-600 tabular-nums focus:border-blue-600 focus:outline-none font-bold"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-gray-600 uppercase">Tenure (Months)</label>
-              <input
-                type="number"
-                step="0.5"
-                name="tenure_months"
-                value={form.tenure_months}
-                onChange={handleChange}
-                required
-                className="w-full bg-white border border-gray-300 rounded p-2 text-xs font-mono text-gray-900 tabular-nums focus:border-blue-600 focus:outline-none font-bold"
-              />
-            </div>
-          </div>
-
-          {/* Auto-Calculation Preview */}
-          <div className="bg-blue-50/70 border border-blue-200 rounded p-3 space-y-1.5 text-xs font-mono">
-            <div className="flex justify-between text-gray-700">
-              <span>Tenure Duration:</span>
-              <span className="font-bold text-gray-900">{form.tenure_months} Months ({Math.round(form.tenure_months * 30)} Days)</span>
-            </div>
-            <div className="flex justify-between text-gray-700">
-              <span>Daily Interest Amount:</span>
-              <span className="font-bold text-emerald-700">₹{calcDetails.dailyInterestAmt} / day</span>
-            </div>
-            <div className="flex justify-between text-gray-700">
-              <span>Total Payable Amount:</span>
-              <span className="text-gray-900 font-bold tabular-nums">₹{calcDetails.totalPayable.toLocaleString('en-IN')}</span>
-            </div>
-            <div className="flex justify-between text-gray-700 border-t border-blue-200 pt-1">
-              <span>Calculated Daily Installment:</span>
-              <span className="text-red-600 font-bold tabular-nums">₹{calcDetails.dailyEmi} / day</span>
-            </div>
-          </div>
-
-          <div className="pt-2 flex justify-end space-x-2 border-t border-gray-300">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3 py-1.5 rounded text-xs font-bold text-gray-600 hover:bg-gray-100"
-            >
+          {/* Footer */}
+          <div className="saas-modal-footer" style={{ padding: '16px 24px' }}>
+            <button type="button" onClick={onClose} className="btn-cancel" style={{ fontWeight: 500 }}>
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-1.5 bg-[#2563EB] hover:bg-blue-700 text-white font-bold rounded text-xs shadow-sm"
+              className="btn-submit"
+              style={{
+                background: isAppMode ? '#D97706' : '#059669',
+                fontWeight: 500
+              }}
             >
-              {loading ? 'Disbursing...' : 'Confirm Loan Disbursal'}
+              {loading ? 'Processing...' : (isAppMode ? 'Submit Loan Application' : 'Disburse Loan Account')}
+              <ArrowRight style={{ width: 14, height: 14, marginLeft: 6 }} />
             </button>
           </div>
+
         </form>
+
       </div>
     </div>
   );
