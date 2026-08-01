@@ -1,0 +1,457 @@
+@use '../mixins' as *;
+
+// ============================================================
+// ACTIVE LOANS REGISTER MODULE (macOS Native Typography)
+// ============================================================
+
+$font-macos: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+.active-loans-page,
+.active-loans-page *,
+.active-loans-page button,
+.active-loans-page input,
+.active-loans-page select,
+.active-loans-page table,
+.active-loans-page th,
+.active-loans-page td,
+.active-loans-page strong,
+.active-loans-page span {
+  font-family: $font-macos !important;
+  font-weight: 500 !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.active-loans-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  color: #0F172A;
+  font-family: $font-macos !important;
+  -webkit-font-smoothing: antialiased;
+}
+
+// ── Header Card ───────────────────────────────────────────────
+.active-loans-header {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  font-family: $font-macos !important;
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+
+    .header-badge-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: #ECFDF5;
+      border: 1px solid #A7F3D0;
+      color: #059669;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .header-text {
+      display: flex;
+      flex-direction: column;
+
+      h1 {
+        font-size: 1.2rem;
+        font-weight: 600 !important;
+        color: #0F172A;
+        letter-spacing: -0.02em;
+        margin: 0;
+        font-family: $font-macos !important;
+      }
+
+      p {
+        font-size: 0.75rem;
+        color: #64748B;
+        margin: 3px 0 0 0;
+        font-weight: 400 !important;
+        font-family: $font-macos !important;
+      }
+    }
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    .btn-disburse {
+      border: none;
+      background: #059669;
+      color: #FFFFFF !important;
+      font-size: 0.78rem;
+      font-weight: 500 !important;
+      padding: 8px 16px;
+      border-radius: 9px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: $font-macos !important;
+      box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
+      transition: all 0.15s ease;
+
+      &:hover {
+        background: #047857;
+        transform: translateY(-1px);
+      }
+    }
+  }
+}
+
+// ── KPI Grid ──────────────────────────────────────────────────
+.loans-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+
+  @media (max-width: 1024px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.loan-kpi-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  transition: all 0.2s ease;
+  font-family: $font-macos !important;
+
+  &:hover {
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+    transform: translateY(-1px);
+  }
+
+  &__icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    &--blue   { background: #EFF6FF; border: 1px solid #BFDBFE; color: #2563EB; }
+    &--green  { background: #ECFDF5; border: 1px solid #A7F3D0; color: #059669; }
+    &--purple { background: #F3E8FF; border: 1px solid #E9D5FF; color: #7C3AED; }
+    &--orange { background: #FFF7ED; border: 1px solid #FFEDD5; color: #EA580C; }
+  }
+
+  &__info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    span {
+      font-size: 0.72rem;
+      color: #64748B;
+      font-weight: 500 !important;
+      font-family: $font-macos !important;
+    }
+
+    strong {
+      font-size: 1.15rem;
+      font-weight: 600 !important;
+      color: #0F172A;
+      font-family: $font-macos !important;
+      font-variant-numeric: tabular-nums;
+
+      &.red { color: #DC2626; }
+    }
+  }
+}
+
+// ── Toolbar & Filters (Fixed Non-Collapsing Layout) ─────────────
+.loans-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  padding: 12px 18px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  flex-wrap: wrap;
+  font-family: $font-macos !important;
+
+  &__left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 320px;
+    max-width: 100%;
+    flex-shrink: 0;
+
+    input {
+      width: 100%;
+      height: 36px;
+      padding: 0 14px 0 36px;
+      background: #F8FAFC;
+      border: 1px solid #CBD5E1;
+      border-radius: 9px;
+      font-size: 0.8125rem;
+      color: #0F172A;
+      font-weight: 400 !important;
+      font-family: $font-macos !important;
+      transition: all 0.15s ease;
+
+      &:focus {
+        outline: none;
+        background: #FFFFFF;
+        border-color: #059669;
+        box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.15);
+      }
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 11px;
+      color: #94A3B8;
+      pointer-events: none;
+    }
+  }
+
+  &__tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: #F1F5F9;
+    padding: 3px;
+    border-radius: 9px;
+    flex-wrap: wrap;
+  }
+
+  &__tab-btn {
+    border: none;
+    padding: 6px 12px;
+    border-radius: 7px;
+    font-size: 0.75rem;
+    font-weight: 500 !important;
+    color: #64748B;
+    background: transparent;
+    cursor: pointer;
+    font-family: $font-macos !important;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+
+    &:hover {
+      color: #0F172A;
+    }
+
+    &.active {
+      background: #FFFFFF;
+      color: #0F172A;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+  }
+}
+
+// ── Master Table & Workspace Split ──────────────────────────────
+.loans-table-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+
+  .table-responsive {
+    overflow-x: auto;
+    max-height: 580px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 0.8125rem;
+    font-family: $font-macos !important;
+
+    thead {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: #F8FAFC;
+      border-bottom: 1px solid #E2E8F0;
+
+      th {
+        padding: 12px 14px;
+        font-size: 0.68rem;
+        font-weight: 600 !important;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-family: $font-macos !important;
+      }
+    }
+
+    tbody {
+      tr {
+        border-bottom: 1px solid #F1F5F9;
+        transition: background 0.15s ease;
+        cursor: pointer;
+
+        &:hover {
+          background: #F8FAFC;
+        }
+
+        &.selected {
+          background: rgba(236, 253, 245, 0.4);
+        }
+
+        td {
+          padding: 11px 14px;
+          vertical-align: middle;
+          font-family: $font-macos !important;
+          font-weight: 500 !important;
+          font-variant-numeric: tabular-nums;
+        }
+      }
+    }
+  }
+
+  .acc-no {
+    font-family: $font-macos !important;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+    font-weight: 600 !important;
+    color: #059669;
+  }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 500 !important;
+    font-family: $font-macos !important;
+
+    &--active {
+      background: #ECFDF5;
+      color: #047857;
+      border: 1px solid #A7F3D0;
+    }
+
+    &--overdue {
+      background: #FEF2F2;
+      color: #991B1B;
+      border: 1px solid #FECACA;
+    }
+
+    &--closed {
+      background: #F1F5F9;
+      color: #475569;
+      border: 1px solid #CBD5E1;
+    }
+  }
+
+  .btn-collect-sm {
+    border: none;
+    background: #059669;
+    color: #FFFFFF !important;
+    font-size: 0.72rem;
+    font-weight: 500 !important;
+    padding: 5px 12px;
+    border-radius: 7px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: $font-macos !important;
+    box-shadow: 0 1px 3px rgba(5, 150, 105, 0.2);
+    transition: all 0.15s ease;
+
+    &:hover {
+      background: #047857;
+    }
+  }
+}
+
+// ── Table Pagination Bar ─────────────────────────────────────────
+.table-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: #FFFFFF;
+  border-top: 1px solid #E2E8F0;
+  font-size: 0.75rem;
+  color: #64748B;
+  font-family: $font-macos !important;
+
+  &__info {
+    font-weight: 500 !important;
+
+    strong {
+      color: #0F172A;
+      font-weight: 600 !important;
+    }
+  }
+
+  &__controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    button {
+      border: 1px solid #CBD5E1;
+      background: #FFFFFF;
+      color: #334155;
+      padding: 5px 12px;
+      border-radius: 7px;
+      font-size: 0.72rem;
+      font-weight: 500 !important;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+
+      &:hover:not(:disabled) {
+        background: #F8FAFC;
+        border-color: #94A3B8;
+        color: #0F172A;
+      }
+
+      &:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+    }
+
+    .page-indicator {
+      font-weight: 500 !important;
+      color: #0F172A;
+      padding: 0 6px;
+    }
+  }
+}

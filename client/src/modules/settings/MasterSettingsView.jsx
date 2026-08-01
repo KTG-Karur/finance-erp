@@ -1,22 +1,70 @@
 import React, { useState, useEffect } from 'react';
-import UnifiedPageHeader from '../../components/UnifiedPageHeader';
 import PermissionMatrix from '../../components/PermissionMatrix';
-import { Settings, Users, Shield, Building2, Save, Plus, Check, Percent } from 'lucide-react';
+import BorrowersView from '../borrowers/BorrowersView';
+import OrganizationHierarchyView from './OrganizationHierarchyView';
+import LoanSchemeMasterView from './LoanSchemeMasterView';
+import AccountingMastersView from './AccountingMastersView';
+import {
+  Settings,
+  Users,
+  Shield,
+  Building2,
+  Save,
+  Plus,
+  Check,
+  Search,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Trash2,
+  X
+} from 'lucide-react';
 
-export default function MasterSettingsView({ 
-  initialTab = 'staff-directory',
-  tenant, 
-  user, 
-  employees, 
-  onSavePermissions, 
-  onCreateEmployee, 
-  onQuickAction 
+export default function MasterSettingsView({
+  initialTab = 'interest-details',
+  tenant,
+  user,
+  employees,
+  onSavePermissions,
+  onCreateEmployee,
+  onQuickAction,
+  borrowers,
+  loans,
+  onCreateBorrower,
+  onUpdateBorrower,
+  onDeleteBorrower,
+  onOpenKycReview,
+  subCompanies,
+  branchesList,
+  orgLoading,
+  orgError,
+  onCreateSubCompany,
+  onUpdateSubCompany,
+  onDeleteSubCompany,
+  onCreateBranch,
+  onUpdateBranch,
+  onDeleteBranch,
+  loanSchemes,
+  onCreateLoanScheme,
+  onUpdateLoanScheme,
+  onDeleteLoanScheme,
+  expenseCategories,
+  onCreateExpenseCategory,
+  onUpdateExpenseCategory,
+  onDeleteExpenseCategory,
+  chartOfAccounts,
+  onCreateAccount,
+  onUpdateAccount,
+  onDeleteAccount
 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [activeModal, setActiveModal] = useState(null); // 'STAFF' | null
   const [selectedEmployee, setSelectedEmployee] = useState(employees[0] || null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newEmp, setNewEmp] = useState({ name: '', email: '', role: 'COLLECTOR' });
+  const [newEmp, setNewEmp] = useState({ name: '', email: '', role: 'COLLECTOR', branch_ids: [] });
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   useEffect(() => {
     if (initialTab && initialTab !== 'calculator') {
@@ -24,19 +72,8 @@ export default function MasterSettingsView({
     }
   }, [initialTab]);
 
-  // Master Interest Rate Settings State
-  const [interestMaster, setInterestMaster] = useState({
-    defaultRate: 14.0,
-    minRate: 10.0,
-    maxRate: 24.0,
-    defaultTenureDays: 110,
-    interestType: 'REDUCING_BALANCE',
-    repaymentFrequency: 'DAILY',
-    penaltyRatePct: 2.0
-  });
-
   const [companyForm, setCompanyForm] = useState({
-    name: tenant.name || 'Alpha Financial Services Ltd',
+    name: tenant?.name || 'Alpha Financial Services Ltd',
     code: 'ALPHA',
     db_name: 'tenant_alpha_db',
     gstin: '33AAAAA0000A1Z5',
@@ -69,246 +106,313 @@ export default function MasterSettingsView({
     emp.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Pagination Calculation
+  const totalPages = Math.ceil(filteredEmployees.length / pageSize) || 1;
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedEmployees = filteredEmployees.slice(startIndex, startIndex + pageSize);
+
+  if (activeTab === 'customer-details') {
+    return (
+      <BorrowersView
+        borrowers={borrowers}
+        loans={loans}
+        branches={branchesList}
+        onCreateBorrower={onCreateBorrower}
+        onUpdateBorrower={onUpdateBorrower}
+        onDeleteBorrower={onDeleteBorrower}
+        onOpenKycReview={onOpenKycReview}
+      />
+    );
+  }
+
+  if (activeTab === 'interest-details' || activeTab === 'interest-master') {
+    return (
+      <LoanSchemeMasterView
+        schemes={loanSchemes}
+        onCreateScheme={onCreateLoanScheme}
+        onUpdateScheme={onUpdateLoanScheme}
+        onDeleteScheme={onDeleteLoanScheme}
+      />
+    );
+  }
+
+  if (activeTab === 'accounting-masters') {
+    return (
+      <AccountingMastersView
+        expenseCategories={expenseCategories}
+        onCreateExpenseCategory={onCreateExpenseCategory}
+        onUpdateExpenseCategory={onUpdateExpenseCategory}
+        onDeleteExpenseCategory={onDeleteExpenseCategory}
+        chartOfAccounts={chartOfAccounts}
+        onCreateAccount={onCreateAccount}
+        onUpdateAccount={onUpdateAccount}
+        onDeleteAccount={onDeleteAccount}
+      />
+    );
+  }
+
+  if (activeTab === 'org-hierarchy' || activeTab === 'company-info') {
+    return (
+      <OrganizationHierarchyView
+        subCompanies={subCompanies}
+        branches={branchesList}
+        loading={orgLoading}
+        error={orgError}
+        onCreateSubCompany={onCreateSubCompany}
+        onUpdateSubCompany={onUpdateSubCompany}
+        onDeleteSubCompany={onDeleteSubCompany}
+        onCreateBranch={onCreateBranch}
+        onUpdateBranch={onUpdateBranch}
+        onDeleteBranch={onDeleteBranch}
+        companyForm={companyForm}
+        setCompanyForm={setCompanyForm}
+        onSaveCompany={handleCompanySave}
+        savedSuccess={savedSuccess}
+      />
+    );
+  }
+
   return (
-    <div className="space-y-3 font-sans text-xs">
-      {/* Sub-Tab Navigation Bar */}
-      <div className="bg-white border border-gray-200 rounded p-1.5 flex items-center space-x-2 font-semibold">
-        <button
-          onClick={() => setActiveTab('staff-directory')}
-          className={`px-3 py-1.5 rounded flex items-center space-x-1.5 transition ${
-            activeTab === 'staff-directory' ? 'bg-blue-600 text-white font-bold' : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <Users className="w-3.5 h-3.5" />
-          <span>Staff Directory</span>
-        </button>
+    <div className="active-loans-page">
+      
+      {/* ── 1. Executive Single-Page Top Header ──────────── */}
+      <div className="active-loans-header">
+        <div className="header-left">
+          <div className="header-badge-icon" style={{ background: '#F1F5F9', borderColor: '#CBD5E1', color: '#334155' }}>
+            <Settings style={{ width: 20, height: 20 }} />
+          </div>
+          <div className="header-text">
+            <h1 style={{ fontWeight: 600 }}>
+              {activeTab === 'staff-directory' && 'Staff Directory'}
+              {activeTab === 'rbac-matrix' && 'Roles & Permissions (RBAC)'}
+            </h1>
+            <p style={{ fontWeight: 400 }}>
+              {activeTab === 'staff-directory' && 'Manage enterprise staff members and system user accounts'}
+              {activeTab === 'rbac-matrix' && 'Define role-level permissions matrix for Super Admin, Manager, Field Collector, and Accountant'}
+            </p>
+          </div>
+        </div>
 
-        <button
-          onClick={() => setActiveTab('rbac-matrix')}
-          className={`px-3 py-1.5 rounded flex items-center space-x-1.5 transition ${
-            activeTab === 'rbac-matrix' ? 'bg-blue-600 text-white font-bold' : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <Shield className="w-3.5 h-3.5" />
-          <span>RBAC Matrix</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('interest-master')}
-          className={`px-3 py-1.5 rounded flex items-center space-x-1.5 transition ${
-            activeTab === 'interest-master' ? 'bg-blue-600 text-white font-bold' : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <Percent className="w-3.5 h-3.5" />
-          <span>Interest Rate Master</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('company-info')}
-          className={`px-3 py-1.5 rounded flex items-center space-x-1.5 transition ${
-            activeTab === 'company-info' ? 'bg-blue-600 text-white font-bold' : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <Building2 className="w-3.5 h-3.5" />
-          <span>Company & Branch Info</span>
-        </button>
+        <div className="header-actions">
+          {activeTab === 'staff-directory' && (
+            <button
+              className="btn-disburse"
+              onClick={() => setActiveModal('STAFF')}
+              style={{ background: '#0F172A', fontWeight: 600 }}
+            >
+              <Plus style={{ width: 15, height: 15 }} />
+              <span>Add Staff Member</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Sub-Tab Content Views */}
-
-      {/* INTEREST RATE MASTER CONFIGURATION */}
-      {activeTab === 'interest-master' && (
-        <form onSubmit={handleCompanySave} className="bg-white border border-gray-200 rounded p-4 space-y-4 font-sans">
-          <div className="border-b border-gray-200 pb-2 flex justify-between items-center">
-            <div>
-              <h3 className="text-sm font-bold text-gray-900 uppercase">Company Finance Interest & Policy Master</h3>
-              <p className="text-xs text-gray-500 font-mono">Configure default loan product interest rates, calculation type, and penalty fine rules</p>
-            </div>
-            {savedSuccess && (
-              <span className="px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded font-bold text-xs flex items-center space-x-1">
-                <Check className="w-4 h-4 text-emerald-600" />
-                <span>Master Rates Saved!</span>
-              </span>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            <div className="space-y-1">
-              <label className="font-bold text-gray-700">Default Annual Interest Rate (% P.A.)</label>
-              <input
-                type="number"
-                step="0.1"
-                value={interestMaster.defaultRate}
-                onChange={(e) => setInterestMaster({ ...interestMaster, defaultRate: parseFloat(e.target.value) })}
-                required
-                className="w-full bg-white border border-gray-200 rounded p-2 text-gray-900 font-bold font-mono"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-bold text-gray-700">Minimum Allowed Interest Rate (%)</label>
-              <input
-                type="number"
-                step="0.1"
-                value={interestMaster.minRate}
-                onChange={(e) => setInterestMaster({ ...interestMaster, minRate: parseFloat(e.target.value) })}
-                required
-                className="w-full bg-white border border-gray-200 rounded p-2 text-gray-900 font-mono"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-bold text-gray-700">Maximum Interest Rate Cap (%)</label>
-              <input
-                type="number"
-                step="0.1"
-                value={interestMaster.maxRate}
-                onChange={(e) => setInterestMaster({ ...interestMaster, maxRate: parseFloat(e.target.value) })}
-                required
-                className="w-full bg-white border border-gray-200 rounded p-2 text-gray-900 font-mono"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-bold text-gray-700">Interest Calculation Method</label>
-              <select
-                value={interestMaster.interestType}
-                onChange={(e) => setInterestMaster({ ...interestMaster, interestType: e.target.value })}
-                className="w-full bg-white border border-gray-200 rounded p-2 text-gray-900 font-bold"
-              >
-                <option value="REDUCING_BALANCE">Reducing Balance (Standard Banking)</option>
-                <option value="FLAT_RATE">Flat Rate (Microfinance Fixed)</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-bold text-gray-700">Default Repayment Frequency</label>
-              <select
-                value={interestMaster.repaymentFrequency}
-                onChange={(e) => setInterestMaster({ ...interestMaster, repaymentFrequency: e.target.value })}
-                className="w-full bg-white border border-gray-200 rounded p-2 text-gray-900 font-bold"
-              >
-                <option value="DAILY">Daily Installments</option>
-                <option value="WEEKLY">Weekly Installments</option>
-                <option value="MONTHLY">Monthly Installments</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-bold text-gray-700">Overdue Late Fine Rate (% Per Month)</label>
-              <input
-                type="number"
-                step="0.1"
-                value={interestMaster.penaltyRatePct}
-                onChange={(e) => setInterestMaster({ ...interestMaster, penaltyRatePct: parseFloat(e.target.value) })}
-                required
-                className="w-full bg-white border border-gray-200 rounded p-2 text-red-600 font-bold font-mono"
-              />
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-gray-200 flex justify-end">
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded flex items-center space-x-1.5"
-            >
-              <Save className="w-4 h-4" />
-              <span>Save Interest Master Policy</span>
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* STAFF & EMPLOYEE DIRECTORY */}
+      {/* ── Sub-Tab 5: Staff Directory View ──────────────────────── */}
       {activeTab === 'staff-directory' && (
-        <div className="space-y-3 font-sans">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {showAddForm && (
-            <form onSubmit={handleAddSubmit} className="bg-white border border-gray-200 rounded p-3 flex flex-col md:flex-row gap-3 items-end">
-              <div className="flex-1 space-y-1">
-                <label className="text-[11px] font-bold text-gray-600">Full Name</label>
+            <form onSubmit={handleAddSubmit} style={{
+              background: '#FFFFFF',
+              border: '1px solid #CBD5E1',
+              borderRadius: 12,
+              padding: 16,
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 180px auto',
+              gap: 12,
+              alignItems: 'end'
+            }}>
+              <div>
+                <label style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 4 }}>Full Staff Name</label>
                 <input
                   type="text"
                   value={newEmp.name}
                   onChange={(e) => setNewEmp({ ...newEmp, name: e.target.value })}
                   required
                   placeholder="e.g. David Manager"
-                  className="w-full bg-white border border-gray-200 rounded p-2 text-xs text-gray-900"
+                  style={{
+                    width: '100%',
+                    height: 38,
+                    padding: '0 12px',
+                    borderRadius: 8,
+                    border: '1px solid #CBD5E1',
+                    fontSize: '0.82rem',
+                    color: '#0F172A',
+                    fontWeight: 500
+                  }}
                 />
               </div>
-              <div className="flex-1 space-y-1">
-                <label className="text-[11px] font-bold text-gray-600">Email Address</label>
+
+              <div>
+                <label style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 4 }}>Email Address</label>
                 <input
                   type="email"
                   value={newEmp.email}
                   onChange={(e) => setNewEmp({ ...newEmp, email: e.target.value })}
                   required
                   placeholder="david@company.com"
-                  className="w-full bg-white border border-gray-200 rounded p-2 text-xs text-gray-900 font-mono"
+                  style={{
+                    width: '100%',
+                    height: 38,
+                    padding: '0 12px',
+                    borderRadius: 8,
+                    border: '1px solid #CBD5E1',
+                    fontSize: '0.82rem',
+                    color: '#0F172A',
+                    fontWeight: 500
+                  }}
                 />
               </div>
-              <div className="w-40 space-y-1">
-                <label className="text-[11px] font-bold text-gray-600">Role</label>
+
+              <div>
+                <label style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 4 }}>System Role</label>
                 <select
                   value={newEmp.role}
                   onChange={(e) => setNewEmp({ ...newEmp, role: e.target.value })}
-                  className="w-full bg-white border border-gray-200 rounded p-2 text-xs text-gray-900 font-semibold"
+                  style={{
+                    width: '100%',
+                    height: 38,
+                    padding: '0 12px',
+                    borderRadius: 8,
+                    border: '1px solid #CBD5E1',
+                    fontSize: '0.82rem',
+                    color: '#0F172A',
+                    fontWeight: 500
+                  }}
                 >
                   <option value="COLLECTOR">COLLECTOR</option>
                   <option value="MANAGER">MANAGER</option>
                   <option value="ADMIN">ADMIN</option>
                 </select>
               </div>
+
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded transition"
+                style={{
+                  height: 38,
+                  background: '#059669',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '0 16px',
+                  fontSize: '0.78rem',
+                  fontWeight: 500,
+                  cursor: 'pointer'
+                }}
               >
-                Save Staff Member
+                Save Staff
               </button>
             </form>
           )}
 
-          <div className="bg-white border border-gray-200 rounded p-3 space-y-3">
-            <div className="flex items-center justify-between border-b border-gray-200 pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-900">Tenant Staff Members Register</h3>
-              <button
-                onClick={() => setShowAddForm(!showAddForm)}
-                className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded flex items-center space-x-1"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>+ Add Staff Member</span>
-              </button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse font-sans">
+          <div className="loans-table-card">
+            <div className="table-responsive">
+              <table>
                 <thead>
-                  <tr className="border-b border-gray-200 text-gray-700 uppercase font-bold bg-gray-50 text-[10px]">
-                    <th className="py-2.5 px-3">Staff Member</th>
-                    <th className="py-2.5 px-3 font-mono">Email Address</th>
-                    <th className="py-2.5 px-3">Assigned Role</th>
-                    <th className="py-2.5 px-3 text-center">Status</th>
-                    <th className="py-2.5 px-3 text-right">Actions</th>
+                  <tr>
+                    <th style={{ width: 50, textAlign: 'center' }}>S.No</th>
+                    <th>Staff Member Name</th>
+                    <th>Email Address</th>
+                    <th>System Role</th>
+                    <th>Branch Access</th>
+                    <th style={{ textAlign: 'center' }}>Account Status</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredEmployees.map((emp) => (
-                    <tr key={emp.id} className="hover:bg-gray-50 transition h-10">
-                      <td className="py-2 px-3 font-bold text-gray-900">
-                        {emp.name}
+                <tbody>
+                  {paginatedEmployees.map((emp, idx) => (
+                    <tr key={emp.id}>
+                      <td style={{ textAlign: 'center', color: '#64748B', fontWeight: 500 }}>
+                        {startIndex + idx + 1}
                       </td>
-                      <td className="py-2 px-3 font-mono text-gray-600">{emp.email}</td>
-                      <td className="py-2 px-3 font-mono font-bold text-blue-600">{emp.role}</td>
-                      <td className="py-2 px-3 text-center">
-                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded text-[10px] font-bold font-mono">
+
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: '50%',
+                            background: '#EFF6FF',
+                            border: '1px solid #BFDBFE',
+                            color: '#2563EB',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.75rem',
+                            fontWeight: 600
+                          }}>
+                            {emp.name.charAt(0)}
+                          </div>
+                          <span style={{ color: '#0F172A', fontSize: '0.82rem', fontWeight: 600 }}>
+                            {emp.name}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td>
+                        <span style={{ color: '#64748B', fontSize: '0.78rem', fontWeight: 500 }}>
+                          {emp.email}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span style={{
+                          padding: '3px 10px',
+                          borderRadius: 20,
+                          fontSize: '0.7rem',
+                          fontWeight: 500,
+                          background: '#F3E8FF',
+                          color: '#7C3AED',
+                          border: '1px solid #E9D5FF'
+                        }}>
+                          {emp.role}
+                        </span>
+                      </td>
+
+                      <td>
+                        {emp.branchScope === 'GLOBAL' ? (
+                          <span style={{ fontSize: '0.72rem', color: '#059669', fontWeight: 600 }}>All Branches</span>
+                        ) : (emp.branches && emp.branches.length > 0) ? (
+                          <span style={{ fontSize: '0.72rem', color: '#334155' }}>
+                            {emp.branches.map(b => b.code).join(', ')}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.72rem', color: '#94A3B8' }}>Unassigned</span>
+                        )}
+                      </td>
+
+                      <td style={{ textAlign: 'center' }}>
+                        <span style={{
+                          padding: '3px 10px',
+                          borderRadius: 20,
+                          fontSize: '0.7rem',
+                          fontWeight: 500,
+                          background: '#ECFDF5',
+                          color: '#047857',
+                          border: '1px solid #A7F3D0'
+                        }}>
                           ACTIVE
                         </span>
                       </td>
-                      <td className="py-2 px-3 text-right">
+
+                      <td style={{ textAlign: 'right' }}>
                         <button
                           onClick={() => { setSelectedEmployee(emp); setActiveTab('rbac-matrix'); }}
-                          className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-800 font-bold text-[11px] rounded"
+                          style={{
+                            border: '1px solid #CBD5E1',
+                            background: '#FFFFFF',
+                            color: '#334155',
+                            fontSize: '0.72rem',
+                            fontWeight: 500,
+                            padding: '5px 12px',
+                            borderRadius: 7,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4
+                          }}
                         >
-                          Configure RBAC
+                          <Shield style={{ width: 12, height: 12 }} />
+                          <span>Configure RBAC</span>
                         </button>
                       </td>
                     </tr>
@@ -316,117 +420,160 @@ export default function MasterSettingsView({
                 </tbody>
               </table>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* RBAC PERMISSION MATRIX */}
-      {activeTab === 'rbac-matrix' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-          <div className="bg-white border border-gray-200 rounded p-3 space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700 border-b border-gray-200 pb-2">Select Staff Member</h3>
-            <div className="space-y-2">
-              {employees.map((emp) => {
-                const isSelected = selectedEmployee?.id === emp.id;
-                return (
-                  <div
-                    key={emp.id}
-                    onClick={() => setSelectedEmployee(emp)}
-                    className={`p-2.5 rounded border cursor-pointer transition flex items-center justify-between ${
-                      isSelected ? 'bg-blue-50 border-blue-500' : 'bg-white border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <div>
-                      <h4 className="text-xs font-bold text-gray-900">{emp.name}</h4>
-                      <p className="text-[11px] text-gray-500 font-mono">{emp.email}</p>
-                    </div>
-                    <span className="text-[10px] font-mono font-bold text-purple-700 uppercase">{emp.role}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="lg:col-span-2">
-            {selectedEmployee ? (
-              <PermissionMatrix
-                key={selectedEmployee.id}
-                employee={selectedEmployee}
-                onSave={onSavePermissions}
-              />
-            ) : (
-              <div className="bg-white border border-gray-200 rounded p-12 text-center text-gray-500 font-mono">
-                Select an employee to configure permissions.
+            {/* Table Pagination */}
+            <div className="table-pagination">
+              <div className="table-pagination__info">
+                Showing <strong>{filteredEmployees.length === 0 ? 0 : startIndex + 1}</strong> to <strong>{Math.min(startIndex + pageSize, filteredEmployees.length)}</strong> of <strong>{filteredEmployees.length}</strong> entries
               </div>
-            )}
+              <div className="table-pagination__controls">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft style={{ width: 14, height: 14 }} />
+                  <span>Previous</span>
+                </button>
+                <span className="page-indicator">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  <span>Next</span>
+                  <ChevronRight style={{ width: 14, height: 14 }} />
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       )}
 
-      {/* COMPANY & BRANCH INFO */}
-      {activeTab === 'company-info' && (
-        <form onSubmit={handleCompanySave} className="bg-white border border-gray-200 rounded p-5 space-y-4">
-          <div className="border-b border-gray-200 pb-3 flex justify-between items-center">
-            <div>
-              <h3 className="text-sm font-bold text-gray-900 uppercase">Tenant Organization & Branch Profile</h3>
-              <p className="text-xs text-gray-500 font-mono">Master Settings for company tax registration, branch locations, and isolated database</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-sans">
-            <div className="space-y-1">
-              <label className="font-bold text-gray-700">Company Name</label>
-              <input
-                type="text"
-                value={companyForm.name}
-                onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })}
-                required
-                className="w-full bg-white border border-gray-200 rounded p-2 text-gray-900 font-bold"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-bold text-gray-700">GSTIN Registration No</label>
-              <input
-                type="text"
-                value={companyForm.gstin}
-                onChange={(e) => setCompanyForm({ ...companyForm, gstin: e.target.value })}
-                className="w-full bg-white border border-gray-200 rounded p-2 text-gray-900 font-mono"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-bold text-gray-700">Company PAN Number</label>
-              <input
-                type="text"
-                value={companyForm.pan}
-                onChange={(e) => setCompanyForm({ ...companyForm, pan: e.target.value })}
-                className="w-full bg-white border border-gray-200 rounded p-2 text-gray-900 font-mono"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-bold text-gray-700">Contact Phone</label>
-              <input
-                type="text"
-                value={companyForm.phone}
-                onChange={(e) => setCompanyForm({ ...companyForm, phone: e.target.value })}
-                className="w-full bg-white border border-gray-200 rounded p-2 text-gray-900"
-              />
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-gray-200 flex justify-end">
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded flex items-center space-x-1.5"
-            >
-              <Save className="w-4 h-4" />
-              <span>Save Master Settings</span>
-            </button>
-          </div>
-        </form>
+      {/* ── SECTION 6: Roles & Permissions Matrix View ──────────────────────── */}
+      {activeTab === 'rbac-matrix' && (
+        <div>
+          <PermissionMatrix onSave={onSavePermissions} />
+        </div>
       )}
+
+      {/* ── MODALS FOR ALL MASTER ENTITIES ── */}
+
+      {/* 5. Staff Member Modal */}
+      {activeModal === 'STAFF' && (
+        <div className="saas-modal-backdrop">
+          <div className="saas-modal-card" style={{ maxWidth: 520 }}>
+            <div className="saas-modal-header">
+              <div className="head-left">
+                <div className="head-icon-badge" style={{ background: '#F1F5F9', color: '#0F172A' }}>
+                  <Users style={{ width: 18, height: 18 }} />
+                </div>
+                <div className="head-titles">
+                  <h3 style={{ fontWeight: 600 }}>Add New Staff Member</h3>
+                  <p>Create staff profile & assign organizational role</p>
+                </div>
+              </div>
+              <button onClick={() => setActiveModal(null)} className="close-btn" type="button">
+                <X style={{ width: 16, height: 16 }} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                try {
+                  await onCreateEmployee(newEmp);
+                  setNewEmp({ name: '', email: '', role: 'COLLECTOR', branch_ids: [] });
+                  setActiveModal(null);
+                } catch (err) {
+                  console.error(err);
+                }
+              }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '20px 24px' }}
+            >
+              <div className="form-group">
+                <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase', marginBottom: 4, display: 'block' }}>Full Staff Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={newEmp.name}
+                  onChange={e => setNewEmp({ ...newEmp, name: e.target.value })}
+                  placeholder="e.g. David Manager"
+                  style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', color: '#0F172A' }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase', marginBottom: 4, display: 'block' }}>Email Address *</label>
+                <input
+                  type="email"
+                  required
+                  value={newEmp.email}
+                  onChange={e => setNewEmp({ ...newEmp, email: e.target.value })}
+                  placeholder="david@company.com"
+                  style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', color: '#0F172A' }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase', marginBottom: 4, display: 'block' }}>Role Assignment *</label>
+                <select
+                  value={newEmp.role}
+                  onChange={e => setNewEmp({ ...newEmp, role: e.target.value })}
+                  style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', color: '#0F172A', background: '#FFF' }}
+                >
+                  <option value="COLLECTOR">Field Collector Agent</option>
+                  <option value="MANAGER">Branch Manager</option>
+                  <option value="ADMIN">System Administrator</option>
+                </select>
+              </div>
+
+              {newEmp.role !== 'ADMIN' && (
+                <div className="form-group">
+                  <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase', marginBottom: 4, display: 'block' }}>
+                    Branch Access {newEmp.branch_ids.length === 0 && <span style={{ textTransform: 'none', fontWeight: 400, color: '#94A3B8' }}>(none selected = full company-wide access)</span>}
+                  </label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 160, overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: 8, padding: 10 }}>
+                    {(branchesList || []).length === 0 ? (
+                      <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>No branches configured yet — set them up under Organization Hierarchy.</span>
+                    ) : branchesList.map(b => (
+                      <label key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.8rem', color: '#334155', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={newEmp.branch_ids.includes(b.id)}
+                          onChange={(e) => {
+                            setNewEmp(prev => ({
+                              ...prev,
+                              branch_ids: e.target.checked
+                                ? [...prev.branch_ids, b.id]
+                                : prev.branch_ids.filter(id => id !== b.id)
+                            }));
+                          }}
+                        />
+                        <span>{b.name} <span style={{ color: '#94A3B8', fontFamily: 'monospace', fontSize: '0.7rem' }}>({b.code})</span></span>
+                      </label>
+                    ))}
+                  </div>
+                  <p style={{ fontSize: '0.68rem', color: '#94A3B8', margin: '4px 0 0 0' }}>
+                    Selecting 2+ branches means this staff member will choose a working branch at login. 1 branch auto-selects it.
+                  </p>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                <button type="button" onClick={() => setActiveModal(null)} style={{ background: '#F1F5F9', color: '#475569', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer' }}>
+                  Cancel
+                </button>
+                <button type="submit" style={{ background: '#0F172A', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+                  Save Staff Member
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

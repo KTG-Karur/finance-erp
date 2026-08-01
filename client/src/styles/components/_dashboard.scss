@@ -1,0 +1,839 @@
+// ============================================================
+// DASHBOARD — Finance ERP · Sleek Dual Pillars & Spacious Banner
+// Font: macOS SF Pro system stack
+// ============================================================
+
+$font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+$green:  #059669;
+$greenDark: #047857;
+$greenLight: #ECFDF5;
+$orange: #F97316;
+$red:    #EF4444;
+$blue:   #3B82F6;
+$purple: #8B5CF6;
+$text1:  #0F172A;
+$text2:  #475569;
+$text3:  #94A3B8;
+$border: #E8EFF5;
+$bg:     #F8FAFC;
+$white:  #FFFFFF;
+
+// ── Root Layout ──────────────────────────────────────────────
+.db-root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100%;
+  font-family: $font;
+  color: $text1;
+  padding-bottom: 8px;
+}
+
+// ── Single Row Welcome Banner with 3D Coins Chart ──────────────
+.db-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: linear-gradient(135deg, #065F46 0%, #047857 60%, #059669 100%);
+  border-radius: 14px;
+  padding: 12px 20px;
+  flex-wrap: nowrap;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(6, 95, 70, 0.18);
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(52, 211, 153, 0.2) 0%, transparent 70%);
+    pointer-events: none;
+  }
+}
+
+.db-banner__left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: nowrap;
+  z-index: 1;
+}
+
+.db-banner__title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.db-banner__greeting {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.db-banner__date {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.db-banner__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.db-banner__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+
+  &--green  { background: rgba(255, 255, 255, 0.16); color: #A7F3D0; }
+  &--orange { background: rgba(249, 115, 22, 0.25);  color: #FED7AA; }
+  &--blue   { background: rgba(255, 255, 255, 0.12); color: rgba(255, 255, 255, 0.9); }
+}
+
+.db-banner__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.db-banner__action-group {
+  display: flex;
+  gap: 6px;
+}
+
+.db-banner__btn {
+  font-family: $font;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 7px 13px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+
+  &--primary {
+    background: #FFFFFF;
+    color: #065F46;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
+
+    &:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+      transform: translateY(-1px);
+    }
+  }
+
+  &--ghost {
+    background: rgba(255, 255, 255, 0.14);
+    color: #FFFFFF;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.22);
+    }
+  }
+}
+
+.db-banner__quick-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 9px;
+  padding: 6px 12px;
+}
+
+.db-banner__qs {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+
+  span {
+    font-size: 0.58rem;
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  strong {
+    font-size: 0.8125rem;
+    color: #FFFFFF;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.db-banner__qs-div {
+  width: 1px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.db-banner__chart-img-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+}
+
+.db-banner__chart-img {
+  height: 72px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.22));
+  transition: transform 0.25s ease;
+
+  &:hover {
+    transform: scale(1.06) rotate(1deg);
+  }
+}
+
+// ── Compact KPI Cards Row ──────────────────────────────────────
+.db-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.db-kpi {
+  background: $white;
+  border: 1px solid $border;
+  border-radius: 10px;
+  padding: 11px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &:hover {
+    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.08);
+    border-color: #A7F3D0;
+    transform: translateY(-2px);
+  }
+}
+
+.db-kpi__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.db-kpi__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+
+  &--green  { background: #ECFDF5; border: 1px solid #A7F3D0; }
+  &--orange { background: #FFF7ED; border: 1px solid #FED7AA; }
+  &--blue   { background: #EFF6FF; border: 1px solid #BFDBFE; }
+  &--purple { background: #F5F3FF; border: 1px solid #DDD6FE; }
+}
+
+.db-kpi:hover .db-kpi__icon {
+  transform: scale(1.08);
+}
+
+.db-kpi__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 20px;
+  font-size: 0.65rem;
+  font-weight: 600;
+
+  &--up      { background: #ECFDF5; color: $green; }
+  &--down    { background: #FFF7ED; color: $orange; }
+  &--neutral { background: $bg; color: $text3; }
+}
+
+.db-kpi__value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: $text1;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.db-kpi__label {
+  font-size: 0.7rem;
+  color: $text3;
+  font-weight: 500;
+}
+
+.db-kpi__spark {
+  margin-top: 4px;
+}
+
+// ── Mid Row Layout ─────────────────────────────────────────────
+.db-mid-row {
+  display: grid;
+  grid-template-columns: 1fr 270px;
+  gap: 10px;
+}
+
+.db-card {
+  background: $white;
+  border: 1px solid $border;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+
+  &--chart { display: flex; flex-direction: column; }
+  &--donut { display: flex; flex-direction: column; }
+}
+
+.db-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid $border;
+  gap: 10px;
+}
+
+.db-card__title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: $text1;
+}
+
+.db-card__subtitle {
+  font-size: 0.7rem;
+  color: $text3;
+  margin-top: 1px;
+}
+
+// ── REDESIGNED DUAL FLOATING PILLARS MATRIX STYLING ─────────────
+.db-matrix-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+}
+
+.db-matrix-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.db-matrix-tabs {
+  display: flex;
+  gap: 4px;
+  background: $bg;
+  border: 1px solid $border;
+  padding: 2px;
+  border-radius: 6px;
+}
+
+.db-mtab {
+  font-family: $font;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: $text2;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover { color: $text1; }
+
+  &--active {
+    background: $white;
+    color: $greenDark;
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
+}
+
+.db-matrix-legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.68rem;
+  color: $text2;
+}
+
+.db-mleg-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.db-mdot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+
+  &--green  { background: $green; }
+  &--orange { background: $orange; }
+}
+
+.db-pillars-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.db-pillars-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 6px;
+  height: 125px;
+  align-items: flex-end;
+  padding: 6px 2px 2px;
+}
+
+.db-pillar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  justify-content: flex-end;
+  cursor: pointer;
+  padding: 4px 2px;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+
+  &:hover, &--selected {
+    background: rgba(5, 150, 105, 0.07);
+  }
+
+  &--selected .db-pillar-label {
+    color: $greenDark;
+    font-weight: 700;
+  }
+}
+
+.db-dual-bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  height: 100%;
+  width: 100%;
+}
+
+.db-bar-wrap {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  max-width: 10px;
+}
+
+.db-dual-bar {
+  width: 100%;
+  border-radius: 4px 4px 2px 2px;
+  transition: height 0.35s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s ease;
+
+  &--green {
+    background: linear-gradient(180deg, #10B981 0%, #059669 100%);
+    box-shadow: 0 1px 3px rgba(16, 185, 129, 0.2);
+  }
+
+  &--orange {
+    background: linear-gradient(180deg, #FB923C 0%, #F97316 100%);
+    box-shadow: 0 1px 3px rgba(249, 115, 22, 0.2);
+  }
+}
+
+.db-pillar-col:hover .db-dual-bar {
+  transform: scaleY(1.05);
+  transform-origin: bottom;
+}
+
+.db-pillar-label {
+  font-size: 0.65rem;
+  color: $text3;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+// Interactive Inspector for Active Month
+.db-month-inspector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 8px 14px;
+  animation: fadeIn 0.2s ease;
+}
+
+.db-mi-left {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.db-mi-month {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: $text1;
+}
+
+.db-mi-rate-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #047857;
+}
+
+.db-mi-stats {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.db-mi-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+
+  span {
+    font-size: 0.625rem;
+    color: $text3;
+  }
+
+  strong {
+    font-size: 0.85rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.db-mi-div {
+  width: 1px;
+  height: 24px;
+  background: #E2E8F0;
+}
+
+// ── VELOCITY WAVE VIEW ─────────────────────────────────────────
+.db-velocity-view {
+  padding: 4px 0;
+}
+
+.db-vel-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.db-vel-card {
+  background: $bg;
+  border: 1px solid $border;
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.db-vel-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.db-vel-month {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: $text1;
+}
+
+.db-vel-pct {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: $green;
+}
+
+.db-vel-progress {
+  width: 100%;
+  height: 5px;
+  background: #E2E8F0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.db-vel-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10B981 0%, #059669 100%);
+  border-radius: 10px;
+  transition: width 0.4s ease;
+}
+
+.db-vel-sub {
+  font-size: 0.625rem;
+  color: $text3;
+  font-variant-numeric: tabular-nums;
+}
+
+// ── Donut Card & Real Operational Summary ─────────────────────
+.db-donut-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 8px 0 0;
+  position: relative;
+}
+
+.db-donut-label {
+  position: absolute;
+  text-align: center;
+  pointer-events: none;
+}
+
+.db-donut-num {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: $text1;
+  line-height: 1.1;
+}
+
+.db-donut-sub {
+  font-size: 0.625rem;
+  color: $text3;
+  font-weight: 500;
+}
+
+.db-donut-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 14px;
+  border-top: 1px solid $border;
+  margin-top: 2px;
+}
+
+.db-dleg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.725rem;
+  color: $text2;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+
+  &:hover, &--active {
+    background: $bg;
+    color: $text1;
+  }
+
+  &__dot   { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  &__label { flex: 1; }
+  &__count { font-weight: 600; color: $text1; }
+  &__pct   { font-size: 0.65rem; color: $text3; min-width: 26px; text-align: right; }
+}
+
+.db-real-summary {
+  margin: 6px 10px 10px;
+  padding: 8px 10px;
+  background: $bg;
+  border: 1px solid $border;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.db-real-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: $text2;
+
+  strong {
+    font-weight: 700;
+    color: $greenDark;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// ── Table Card & Control Bar ──────────────────────────────────
+.db-tbl-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.db-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: $bg;
+  border: 1px solid $border;
+  border-radius: 6px;
+  padding: 5px 9px;
+
+  input {
+    font-family: $font;
+    font-size: 0.75rem;
+    border: none;
+    background: transparent;
+    outline: none;
+    color: $text1;
+    width: 150px;
+
+    &::placeholder { color: $text3; }
+  }
+}
+
+.db-filter-btn {
+  font-family: $font;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: $text2;
+  background: $bg;
+  border: 1px solid $border;
+  border-radius: 6px;
+  padding: 5px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  outline: none;
+  transition: all 0.12s ease;
+
+  &:hover { background: #F1F5F9; color: $text1; }
+}
+
+// ── Table ──────────────────────────────────────────────────────
+.db-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: $font;
+
+  thead tr { background: $bg; }
+
+  th {
+    padding: 8px 12px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: $text3;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    text-align: left;
+    white-space: nowrap;
+    border-bottom: 1px solid $border;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid #F8FAFC;
+    transition: background 0.1s ease;
+    &:hover { background: $bg; }
+    &:last-child { border-bottom: none; }
+  }
+
+  td {
+    padding: 8px 12px;
+    font-size: 0.775rem;
+    color: $text2;
+    vertical-align: middle;
+  }
+}
+
+.db-bor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  &__av {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #059669 0%, #0D9488 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  &__name  { font-weight: 600; color: $text1; font-size: 0.775rem; }
+  &__phone { font-size: 0.68rem; color: $text3; }
+}
+
+.db-mono  { font-variant-numeric: tabular-nums; }
+.db-muted { color: $text3; }
+.db-green { color: $green; font-weight: 500; }
+.db-orange { color: $orange; font-weight: 500; }
+
+.db-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-size: 0.65rem;
+  font-weight: 600;
+
+  &--active  { background: #ECFDF5; color: #065F46; }
+  &--overdue { background: #FEF3C7; color: #92400E; }
+  &--closed  { background: #F1F5F9; color: #475569; }
+}
+
+.db-collect-btn {
+  font-family: $font;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #059669;
+  color: #FFFFFF;
+  border: none;
+  cursor: pointer;
+  transition: all 0.12s ease;
+
+  &:hover {
+    background: #047857;
+    transform: translateY(-1px);
+  }
+}

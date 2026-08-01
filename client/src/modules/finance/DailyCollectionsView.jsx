@@ -1,10 +1,28 @@
 import React, { useState } from 'react';
-import UnifiedPageHeader from '../../components/UnifiedPageHeader';
-import { Receipt, Printer, DollarSign, CreditCard, TrendingUp, Calendar, UserCheck } from 'lucide-react';
+import {
+  Receipt,
+  Printer,
+  Search,
+  Plus,
+  TrendingUp,
+  Banknote,
+  Smartphone,
+  Building,
+  CheckCircle2,
+  X,
+  FileSpreadsheet,
+  Calendar,
+  Eye,
+  ChevronLeft,
+  ChevronRight
+} from 'lucide-react';
 
 export default function DailyCollectionsView({ collections, loans, onOpenCollectDrawer, onQuickAction }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [modeFilter, setModeFilter] = useState('ALL');
+  const [selectedReceipt, setSelectedReceipt] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   const filteredCollections = collections.filter(c => {
     const q = searchQuery.toLowerCase().trim();
@@ -17,146 +35,263 @@ export default function DailyCollectionsView({ collections, loans, onOpenCollect
     return matchesSearch && matchesMode;
   });
 
+  // Calculate Pagination
+  const totalPages = Math.ceil(filteredCollections.length / pageSize) || 1;
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedCollections = filteredCollections.slice(startIndex, startIndex + pageSize);
+
   const totalToday = collections.reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0);
   const cashToday = collections.filter(c => c.payment_mode === 'CASH').reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0);
-  const upiToday = collections.filter(c => c.payment_mode === 'UPI').reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0);
+  const upiToday = collections.filter(c => c.payment_mode === 'UPI' || c.payment_mode === 'BANK_TRANSFER').reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0);
+
+  const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
   return (
-    <div className="space-y-3 font-sans">
-      {/* 1. Shared Unified Header */}
-      <UnifiedPageHeader
-        title="Daily Collections Center & Cash Vouchers"
-        subtitle="Manage daily agent field collections, cash drawer reconciliation, and official receipt printing"
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        statusFilter={modeFilter}
-        setStatusFilter={setModeFilter}
-        statusOptions={['ALL', 'CASH', 'UPI', 'BANK_TRANSFER']}
-        onQuickAction={onQuickAction}
-        onRefresh={() => { setSearchQuery(''); setModeFilter('ALL'); }}
-      />
-
-      {/* 2. Collection Summary Metrics Strip */}
-      <div className="bg-white border border-gray-200/90 rounded-lg px-4 py-2.5 flex items-center justify-between shadow-xs h-[58px] text-xs font-sans">
-        <div className="flex items-center space-x-6">
-          <div>
-            <span className="text-[10px] uppercase font-bold text-gray-500 block leading-tight">Total Daily Collections</span>
-            <span className="text-sm font-bold text-emerald-700 font-mono tabular-nums">
-              ₹{totalToday.toLocaleString('en-IN')}
-            </span>
+    <div className="active-loans-page">
+      
+      {/* ── 1. Executive Top Header with Logo Badge Icon ──────────── */}
+      <div className="active-loans-header">
+        <div className="header-left">
+          <div className="header-badge-icon" style={{ background: '#ECFDF5', borderColor: '#A7F3D0', color: '#059669' }}>
+            <Receipt style={{ width: 20, height: 20 }} />
           </div>
-
-          <div className="h-6 w-px bg-gray-200" />
-
-          <div>
-            <span className="text-[10px] uppercase font-bold text-gray-500 block leading-tight">Cash Collections</span>
-            <span className="text-sm font-bold text-gray-900 font-mono tabular-nums">
-              ₹{cashToday.toLocaleString('en-IN')}
-            </span>
-          </div>
-
-          <div className="h-6 w-px bg-gray-200" />
-
-          <div>
-            <span className="text-[10px] uppercase font-bold text-gray-500 block leading-tight">Digital / UPI Receipts</span>
-            <span className="text-sm font-bold text-blue-700 font-mono tabular-nums">
-              ₹{upiToday.toLocaleString('en-IN')}
-            </span>
+          <div className="header-text">
+            <h1 style={{ fontWeight: 600 }}>Daily Collection Center</h1>
+            <p style={{ fontWeight: 400 }}>Track field collector receipts, daily cash drawer reconciliation, and print official vouchers</p>
           </div>
         </div>
 
-        <button
-          onClick={() => {
-            const activeLoan = loans.find(l => l.status === 'ACTIVE');
-            if (activeLoan) onOpenCollectDrawer(activeLoan);
-          }}
-          className="px-4 py-2 bg-[#15803D] hover:bg-emerald-800 text-white font-bold rounded-md text-xs flex items-center space-x-1.5 shadow-xs transition"
-        >
-          <Receipt className="w-4 h-4" />
-          <span>New Daily Collection Voucher</span>
-        </button>
+        <div className="header-actions">
+          <button
+            className="btn-disburse"
+            onClick={() => {
+              const activeLoan = loans.find(l => l.status === 'ACTIVE') || loans[0];
+              if (activeLoan) onOpenCollectDrawer(activeLoan);
+            }}
+            style={{ background: '#059669', fontWeight: 500 }}
+          >
+            <Plus style={{ width: 15, height: 15 }} />
+            <span>Record Daily Collection</span>
+          </button>
+        </div>
       </div>
 
-      {/* 3. Daily Receipts Journal Grid */}
-      <div className="bg-white border border-gray-200/90 rounded-lg overflow-hidden shadow-xs">
-        <div className="overflow-x-auto max-h-[560px]">
-          <table className="w-full text-left text-xs border-collapse">
+      {/* ── 2. Top Summary KPI Strip ───────────────────────────── */}
+      <div className="loans-kpi-grid">
+        <div className="loan-kpi-card">
+          <div className="loan-kpi-card__icon loan-kpi-card__icon--green">
+            <TrendingUp style={{ width: 20, height: 20 }} />
+          </div>
+          <div className="loan-kpi-card__info">
+            <span>Total Daily Collections</span>
+            <strong style={{ fontWeight: 600 }}>₹{fmt(totalToday)}</strong>
+          </div>
+        </div>
+
+        <div className="loan-kpi-card">
+          <div className="loan-kpi-card__icon loan-kpi-card__icon--blue">
+            <Banknote style={{ width: 20, height: 20 }} />
+          </div>
+          <div className="loan-kpi-card__info">
+            <span>Cash Collections</span>
+            <strong style={{ fontWeight: 600 }}>₹{fmt(cashToday)}</strong>
+          </div>
+        </div>
+
+        <div className="loan-kpi-card">
+          <div className="loan-kpi-card__icon loan-kpi-card__icon--purple">
+            <Smartphone style={{ width: 20, height: 20 }} />
+          </div>
+          <div className="loan-kpi-card__info">
+            <span>UPI & Online Digital Receipts</span>
+            <strong style={{ fontWeight: 600 }}>₹{fmt(upiToday)}</strong>
+          </div>
+        </div>
+
+        <div className="loan-kpi-card">
+          <div className="loan-kpi-card__icon loan-kpi-card__icon--orange">
+            <FileSpreadsheet style={{ width: 20, height: 20 }} />
+          </div>
+          <div className="loan-kpi-card__info">
+            <span>Total Vouchers Issued</span>
+            <strong style={{ fontWeight: 600 }}>{collections.length} Receipts</strong>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 3. Interactive Toolbar & Search (Non-collapsing) ─────────── */}
+      <div className="loans-toolbar">
+        <div className="loans-toolbar__left">
+          <div className="loans-toolbar__search">
+            <Search className="search-icon" style={{ width: 15, height: 15 }} />
+            <input
+              type="text"
+              placeholder="Search by receipt no, customer name, or collector agent..."
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+            />
+          </div>
+
+          <div className="loans-toolbar__tabs">
+            <button
+              className={`loans-toolbar__tab-btn ${modeFilter === 'ALL' ? 'active' : ''}`}
+              onClick={() => { setModeFilter('ALL'); setCurrentPage(1); }}
+              style={{ fontWeight: 500 }}
+            >
+              All Receipts ({filteredCollections.length})
+            </button>
+            <button
+              className={`loans-toolbar__tab-btn ${modeFilter === 'CASH' ? 'active' : ''}`}
+              onClick={() => { setModeFilter('CASH'); setCurrentPage(1); }}
+              style={{ fontWeight: 500 }}
+            >
+              Cash Payments
+            </button>
+            <button
+              className={`loans-toolbar__tab-btn ${modeFilter === 'UPI' ? 'active' : ''}`}
+              onClick={() => { setModeFilter('UPI'); setCurrentPage(1); }}
+              style={{ fontWeight: 500 }}
+            >
+              UPI Digital
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 4. Master Receipts Data Table with S.No & Pagination ──────── */}
+      <div className="loans-table-card">
+        <div className="table-responsive">
+          <table>
             <thead>
-              <tr className="border-b border-gray-200/90 text-gray-700 uppercase font-bold bg-[#F8FAFC] text-[10px]">
-                <th className="py-2.5 px-3">Receipt No</th>
-                <th className="py-2.5 px-3">Borrower Account</th>
-                <th className="py-2.5 px-3">Collector Agent</th>
-                <th className="py-2.5 px-3 text-right">Principal Paid</th>
-                <th className="py-2.5 px-3 text-right">Interest Earned</th>
-                <th className="py-2.5 px-3 text-right">Late Penalty</th>
-                <th className="py-2.5 px-3 text-right">Total Amount</th>
-                <th className="py-2.5 px-3 text-center">Payment Mode</th>
-                <th className="py-2.5 px-3">Collection Date</th>
-                <th className="py-2.5 px-3 text-right">Action</th>
+              <tr>
+                <th style={{ width: 50, textAlign: 'center' }}>S.No</th>
+                <th>Receipt No</th>
+                <th>Customer Name</th>
+                <th>Collector Agent</th>
+                <th style={{ textAlign: 'right' }}>Principal Portion</th>
+                <th style={{ textAlign: 'right' }}>Interest Portion</th>
+                <th style={{ textAlign: 'right' }}>Total Amount (₹)</th>
+                <th style={{ textAlign: 'center' }}>Payment Mode</th>
+                <th>Collection Date</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200/80 font-mono">
-              {filteredCollections.length === 0 ? (
+            <tbody>
+              {paginatedCollections.length === 0 ? (
                 <tr>
-                  <td colSpan="10" className="py-8 text-center text-gray-500 font-sans">
-                    No daily collection vouchers recorded yet.
+                  <td colSpan="10" style={{ textAlign: 'center', padding: 40, color: '#94A3B8' }}>
+                    No daily collection receipts recorded yet.
                   </td>
                 </tr>
               ) : (
-                filteredCollections.map((c) => {
+                paginatedCollections.map((c, idx) => {
                   const amount = parseFloat(c.amount) || 0;
-                  const interestPortion = Math.round(amount * 0.15);
-                  const principalPortion = amount - interestPortion;
-                  const penalty = c.penalty || 0;
+                  const interestPortion = c.interestPaid || Math.round(amount * 0.15);
+                  const principalPortion = c.principalPaid || (amount - interestPortion);
 
                   return (
-                    <tr key={c.id} className="hover:bg-[#F8FAFC] transition h-10 border-b border-gray-200/60">
-                      <td className="py-2 px-3 text-blue-700 font-bold">
-                        {c.receipt_no}
+                    <tr key={c.id}>
+                      <td style={{ textAlign: 'center', color: '#64748B', fontWeight: 500 }}>
+                        {startIndex + idx + 1}
                       </td>
 
-                      <td className="py-2 px-3 font-sans">
-                        <div className="font-bold text-gray-900">{c.borrower_name || `Loan #${c.loan_id}`}</div>
+                      <td>
+                        <span className="acc-no" style={{ color: '#2563EB', fontWeight: 600 }}>
+                          {c.receipt_no}
+                        </span>
                       </td>
 
-                      <td className="py-2 px-3 font-sans text-gray-700">
-                        {c.collector_name || 'Sarah Collector'}
+                      <td>
+                        <span style={{ color: '#0F172A', fontSize: '0.82rem', fontWeight: 500 }}>
+                          {c.borrower_name || `Loan #${c.loan_id}`}
+                        </span>
                       </td>
 
-                      <td className="py-2 px-3 text-right tabular-nums text-gray-800">
-                        ₹{principalPortion.toLocaleString('en-IN')}
+                      <td>
+                        <span style={{ color: '#64748B', fontSize: '0.75rem', fontWeight: 500 }}>
+                          {c.collector_name || 'Sarah Collector'}
+                        </span>
                       </td>
 
-                      <td className="py-2 px-3 text-right tabular-nums text-blue-800 font-bold">
-                        ₹{interestPortion.toLocaleString('en-IN')}
+                      <td style={{ textAlign: 'right', color: '#334155', fontWeight: 500 }}>
+                        ₹{fmt(principalPortion)}
                       </td>
 
-                      <td className="py-2 px-3 text-right tabular-nums text-red-700">
-                        ₹{penalty.toLocaleString('en-IN')}
+                      <td style={{ textAlign: 'right', color: '#2563EB', fontWeight: 500 }}>
+                        ₹{fmt(interestPortion)}
                       </td>
 
-                      <td className="py-2 px-3 text-right tabular-nums text-emerald-700 font-bold text-sm">
-                        ₹{(amount + penalty).toLocaleString('en-IN')}
+                      <td style={{ textAlign: 'right', color: '#059669', fontWeight: 600 }}>
+                        ₹{fmt(amount)}
                       </td>
 
-                      <td className="py-2 px-3 text-center font-sans">
-                        <span className="px-2 py-0.5 bg-gray-100 border border-gray-300 text-gray-800 rounded-md text-[10px] font-bold">
+                      <td style={{ textAlign: 'center' }}>
+                        <span style={{
+                          padding: '3px 10px',
+                          borderRadius: 20,
+                          fontSize: '0.7rem',
+                          fontWeight: 500,
+                          background: c.payment_mode === 'CASH' ? '#F1F5F9' : '#EFF6FF',
+                          color: c.payment_mode === 'CASH' ? '#334155' : '#1D4ED8',
+                          border: `1px solid ${c.payment_mode === 'CASH' ? '#CBD5E1' : '#BFDBFE'}`
+                        }}>
                           {c.payment_mode}
                         </span>
                       </td>
 
-                      <td className="py-2 px-3 text-gray-600 text-[11px]">
-                        {c.collection_date}
+                      <td>
+                        <span style={{ color: '#64748B', fontSize: '0.75rem', fontWeight: 500 }}>
+                          {c.collection_date || new Date().toISOString().slice(0, 10)}
+                        </span>
                       </td>
 
-                      <td className="py-2 px-3 text-right font-sans">
-                        <button
-                          onClick={() => window.print()}
-                          className="p-1 rounded bg-white border border-gray-300 hover:bg-gray-50 text-gray-700"
-                          title="Print Receipt"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                        </button>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedReceipt(c)}
+                            style={{
+                              border: '1px solid #BFDBFE',
+                              background: '#EFF6FF',
+                              color: '#1D4ED8',
+                              fontSize: '0.72rem',
+                              fontWeight: 500,
+                              padding: '5px 10px',
+                              borderRadius: 7,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}
+                            title="Inspect Receipt Details"
+                          >
+                            <Eye style={{ width: 12, height: 12 }} />
+                            <span>View</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setSelectedReceipt(c)}
+                            style={{
+                              border: 'none',
+                              background: '#059669',
+                              color: '#FFFFFF',
+                              fontSize: '0.72rem',
+                              fontWeight: 500,
+                              padding: '5px 10px',
+                              borderRadius: 7,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              boxShadow: '0 1px 3px rgba(5, 150, 105, 0.2)'
+                            }}
+                            title="Print Official Receipt Voucher"
+                          >
+                            <Printer style={{ width: 12, height: 12 }} />
+                            <span>Print</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -165,7 +300,124 @@ export default function DailyCollectionsView({ collections, loans, onOpenCollect
             </tbody>
           </table>
         </div>
+
+        {/* Table Pagination Footer */}
+        <div className="table-pagination">
+          <div className="table-pagination__info">
+            Showing <strong>{filteredCollections.length === 0 ? 0 : startIndex + 1}</strong> to <strong>{Math.min(startIndex + pageSize, filteredCollections.length)}</strong> of <strong>{filteredCollections.length}</strong> entries
+          </div>
+          <div className="table-pagination__controls">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft style={{ width: 14, height: 14 }} />
+              <span>Previous</span>
+            </button>
+            <span className="page-indicator">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              <span>Next</span>
+              <ChevronRight style={{ width: 14, height: 14 }} />
+            </button>
+          </div>
+        </div>
+
       </div>
+
+      {/* ── 5. Official Receipt Voucher Preview Modal ────────────────── */}
+      {selectedReceipt && (
+        <div className="saas-modal-backdrop">
+          <div className="saas-modal-card">
+            
+            <div className="saas-modal-header">
+              <div className="head-left">
+                <div className="head-icon-badge" style={{ background: '#ECFDF5', color: '#059669' }}>
+                  <Receipt style={{ width: 18, height: 18 }} />
+                </div>
+                <div className="head-titles">
+                  <h3 style={{ fontWeight: 600 }}>Official Payment Receipt</h3>
+                  <p style={{ fontWeight: 400 }}>Knock The Globe Technologies • Finance ERP</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedReceipt(null)} className="close-btn" type="button">
+                <X style={{ width: 16, height: 16 }} />
+              </button>
+            </div>
+
+            <div className="saas-modal-body" style={{ padding: 20 }}>
+              <div style={{
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                borderRadius: 12,
+                padding: 16,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2E8F0', paddingBottom: 10 }}>
+                  <div>
+                    <span style={{ fontSize: '0.68rem', color: '#64748B', textTransform: 'uppercase' }}>Receipt Number</span>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#059669' }}>{selectedReceipt.receipt_no}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '0.68rem', color: '#64748B', textTransform: 'uppercase' }}>Date</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 500, color: '#0F172A' }}>{selectedReceipt.collection_date}</div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <span style={{ fontSize: '0.68rem', color: '#64748B', textTransform: 'uppercase' }}>Customer Name</span>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0F172A' }}>{selectedReceipt.borrower_name}</div>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.68rem', color: '#64748B', textTransform: 'uppercase' }}>Collector Agent</span>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#334155' }}>{selectedReceipt.collector_name || 'Sarah Collector'}</div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, paddingTop: 8, borderTop: '1px solid #E2E8F0' }}>
+                  <div>
+                    <span style={{ fontSize: '0.68rem', color: '#64748B', textTransform: 'uppercase' }}>Payment Mode</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 500, color: '#2563EB' }}>{selectedReceipt.payment_mode}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '0.68rem', color: '#64748B', textTransform: 'uppercase' }}>Amount Collected</span>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#059669' }}>₹{fmt(selectedReceipt.amount)}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="saas-modal-footer" style={{ padding: '14px 20px' }}>
+              <button
+                type="button"
+                onClick={() => setSelectedReceipt(null)}
+                className="btn-cancel"
+                style={{ fontWeight: 500 }}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="btn-submit"
+                style={{ background: '#059669', fontWeight: 500 }}
+              >
+                <Printer style={{ width: 14, height: 14, marginRight: 6 }} />
+                <span>Print Official Voucher</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

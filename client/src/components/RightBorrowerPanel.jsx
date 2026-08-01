@@ -78,7 +78,7 @@ export default function RightBorrowerPanel({ loan, onCollect }) {
         {loan.status !== 'CLOSED' && (
           <button
             onClick={() => onCollect(loan)}
-            className="w-full py-2 bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-xs rounded-md shadow-xs flex items-center justify-center space-x-1.5 transition"
+            className="w-full py-2 bg-[#059669] hover:bg-emerald-700 text-white font-bold text-xs rounded-md shadow-xs flex items-center justify-center space-x-1.5 transition"
           >
             <Receipt className="w-4 h-4" />
             <span>Collect Payment Voucher</span>

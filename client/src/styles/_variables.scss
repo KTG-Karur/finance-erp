@@ -1,31 +1,46 @@
 // ============================================================
-// FINANCIAL ERP — PROFESSIONAL LIGHT-MODE DESIGN SYSTEM
-// Modern SaaS · Full Light Theme · ERP Grade
+// FINANCIAL ERP — MODERN SAAS LIGHT THEME & MACOS SYSTEM SYSTEM
+// macOS Native Fonts · High-Density Compact Scaling · Professional Light Theme
 // ============================================================
 
-// ── Brand ────────────────────────────────────────────────────
-$brand-primary:        #2563EB;   // Indigo-Blue (trustworthy, professional)
-$brand-primary-light:  #EFF6FF;   // Blue-50 — active bg
-$brand-primary-hover:  #1D4ED8;   // Blue-700
-$brand-primary-dark:   #1E40AF;   // Blue-800
+// ── Typography — macOS Native Font Stack ─────────────────────
+$font-sans:   -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+$font-mono:   SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
-// ── Neutral Palette (Slate-based, crisp) ──────────────────────
-$neutral-50:           #F9FAFB;
-$neutral-100:          #F3F4F6;
-$neutral-200:          #E5E7EB;
-$neutral-300:          #D1D5DB;
-$neutral-400:          #9CA3AF;
-$neutral-500:          #6B7280;
-$neutral-600:          #4B5563;
-$neutral-700:          #374151;
-$neutral-800:          #1F2937;
-$neutral-900:          #111827;
+// Compact SaaS Font Scale (crisp, dense, readable)
+$text-xs:     0.6875rem; // 11px
+$text-sm:     0.75rem;   // 12px
+$text-base:   0.8125rem; // 13px ← Standard SaaS body text
+$text-md:     0.875rem;  // 14px
+$text-lg:     0.9375rem; // 15px
+$text-xl:     1.0625rem; // 17px
+$text-2xl:    1.25rem;   // 20px
+$text-3xl:    1.375rem;  // 22px
+$text-4xl:    1.625rem;  // 26px
 
-// ── Semantic Status ──────────────────────────────────────────
-$success-bg:           #ECFDF5;
-$success-text:         #065F46;
-$success-border:       #A7F3D0;
-$success-icon:         #10B981;
+// ── Brand Accent (Emerald Fintech Palette — Stripe/Ramp/Wise style) ──
+$brand-primary:        #059669;   // Emerald 600 (trustworthy, modern finance)
+$brand-primary-light:  #ECFDF5;   // Emerald 50 active background
+$brand-primary-hover:  #047857;   // Rich Hover Emerald 700
+$brand-primary-dark:   #064E3B;   // Deep Header Emerald 900
+
+// ── Slate Palette (Crisp Light Theme Neutral) ─────────────────
+$neutral-50:           #F8FAFC;
+$neutral-100:          #F1F5F9;
+$neutral-200:          #E2E8F0;
+$neutral-300:          #CBD5E1;
+$neutral-400:          #94A3B8;
+$neutral-500:          #64748B;
+$neutral-600:          #475569;
+$neutral-700:          #334155;
+$neutral-800:          #1E293B;
+$neutral-900:          #0F172A;
+
+// ── Semantic Status Colors ────────────────────────────────────
+$success-bg:           #F0FDF4;
+$success-text:         #166534;
+$success-border:       #BBF7D0;
+$success-icon:         #22C55E;
 
 $warning-bg:           #FFFBEB;
 $warning-text:         #92400E;
@@ -37,80 +52,64 @@ $danger-text:          #991B1B;
 $danger-border:        #FECACA;
 $danger-icon:          #EF4444;
 
-$info-bg:              #EFF6FF;
-$info-text:            #1E40AF;
-$info-border:          #BFDBFE;
-$info-icon:            #3B82F6;
+$info-bg:              #ECFDF5;
+$info-text:            #065F46;
+$info-border:          #A7F3D0;
+$info-icon:            #059669;
 
-// ── Surface / Layout ─────────────────────────────────────────
-$surface-app:          #F3F4F6;   // App background (light gray)
-$surface-white:        #FFFFFF;   // Cards, panels
-$surface-raised:       #FFFFFF;   // Elevated panels
+// ── Surface & Layout ─────────────────────────────────────────
+$surface-app:          #F8FAFC;   // Clean slate app canvas
+$surface-white:        #FFFFFF;   // Cards, panels, tables
+$surface-raised:       #FFFFFF;   // Elevated dialogs & popovers
 
-// ── Sidebar — Light Mode ──────────────────────────────────────
+// ── Sidebar — Modern Light SaaS ──────────────────────────────
 $sidebar-bg:           #FFFFFF;
-$sidebar-border:       #E5E7EB;
-$sidebar-width-full:   240px;
-$sidebar-width-mini:   64px;
-$sidebar-text:         #4B5563;    // Gray-600
-$sidebar-text-hover:   #111827;    // Gray-900
+$sidebar-border:       #E2E8F0;
+$sidebar-width-full:   220px;     // Compact sidebar width
+$sidebar-width-mini:   56px;      // Compact collapsed sidebar width
+$sidebar-text:         #475569;
+$sidebar-text-hover:   #0F172A;
 $sidebar-text-active:  $brand-primary;
-$sidebar-hover-bg:     #F9FAFB;   // Very subtle
-$sidebar-active-bg:    $brand-primary-light;
-$sidebar-group-label:  #9CA3AF;    // Gray-400
+$sidebar-hover-bg:     #F1F5F9;
+$sidebar-active-bg:    #EFF6FF;
+$sidebar-group-label:  #94A3B8;
 
 // ── Text Hierarchy ────────────────────────────────────────────
-$text-heading:         #111827;   // H1, strong labels
-$text-primary:         #1F2937;   // Primary body
-$text-secondary:       #374151;   // Secondary body
-$text-muted:           #6B7280;   // Hints, placeholders
-$text-subtle:          #9CA3AF;   // Very light
+$text-heading:         #0F172A;   // High-contrast slate title
+$text-primary:         #1E293B;   // Primary slate body text
+$text-secondary:       #475569;   // Secondary text & labels
+$text-muted:           #64748B;   // Subtitles, hints, placeholders
+$text-subtle:          #94A3B8;   // Subtle borders / caption text
 
-// ── Borders ──────────────────────────────────────────────────
-$border-default:       #E5E7EB;   // Standard borders
-$border-strong:        #D1D5DB;   // Emphasized borders
-$border-light:         #F3F4F6;   // Subtle dividers
+// ── Borders & Dividers ────────────────────────────────────────
+$border-default:       #E2E8F0;   // Clean subtle gray border
+$border-strong:        #CBD5E1;   // Defined border
+$border-light:         #F1F5F9;   // Soft inner dividers
 
-// ── Shadows ──────────────────────────────────────────────────
-$shadow-xs:   0 1px 2px rgba(0,0,0,0.04);
-$shadow-sm:   0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
-$shadow-md:   0 4px 8px -2px rgba(0,0,0,0.08), 0 2px 4px -2px rgba(0,0,0,0.04);
-$shadow-lg:   0 12px 24px -6px rgba(0,0,0,0.1), 0 4px 8px -4px rgba(0,0,0,0.06);
-$shadow-xl:   0 24px 48px -12px rgba(0,0,0,0.14);
-$shadow-sidebar: 1px 0 0 0 #E5E7EB;  // Right border shadow for sidebar
+// ── Shadows (Native macOS Floating Depth) ─────────────────────
+$shadow-xs:   0 1px 2px 0 rgba(0, 0, 0, 0.03);
+$shadow-sm:   0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+$shadow-md:   0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+$shadow-lg:   0 10px 15px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+$shadow-xl:   0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+$shadow-sidebar: 1px 0 0 0 #E2E8F0;
 
-// ── Typography ───────────────────────────────────────────────
-$font-sans:   'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-$font-mono:   'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
-
-// Scale (medium professional — not too small, not too large)
-$text-xs:     0.75rem;    // 12px
-$text-sm:     0.8125rem;  // 13px
-$text-base:   0.875rem;   // 14px  ← Primary body text
-$text-md:     0.9375rem;  // 15px
-$text-lg:     1rem;       // 16px
-$text-xl:     1.125rem;   // 18px
-$text-2xl:    1.25rem;    // 20px
-$text-3xl:    1.5rem;     // 24px
-$text-4xl:    1.875rem;   // 30px
-
-// ── Spacing Scale ─────────────────────────────────────────────
-// Based on 4px grid. Generous — not compact.
-$space-1:   0.25rem;   //  4px
-$space-2:   0.5rem;    //  8px
-$space-3:   0.75rem;   // 12px
-$space-4:   1rem;      // 16px
-$space-5:   1.25rem;   // 20px
-$space-6:   1.5rem;    // 24px
-$space-8:   2rem;      // 32px
-$space-10:  2.5rem;    // 40px
-$space-12:  3rem;      // 48px
+// ── Compact SaaS Spacing Scale (4px Grid) ─────────────────────
+$space-1:   0.2rem;    //  3.2px
+$space-2:   0.4rem;    //  6.4px
+$space-3:   0.6rem;    //  9.6px
+$space-4:   0.8rem;    // 12.8px
+$space-5:   1rem;      // 16px
+$space-6:   1.25rem;   // 20px
+$space-8:   1.6rem;    // 25.6px
+$space-10:  2rem;      // 32px
+$space-12:  2.5rem;    // 40px
 
 // ── Border Radius ─────────────────────────────────────────────
 $radius-sm:   4px;
-$radius-md:   6px;
-$radius-lg:   8px;
-$radius-xl:   12px;
+$radius-md:   6px;     // Standard SaaS input/button radius
+$radius-lg:   8px;     // Card / container radius
+$radius-xl:   12px;    // Dialog radius
 $radius-2xl:  16px;
 $radius-full: 9999px;
 
@@ -121,18 +120,19 @@ $z-modal:     300;
 $z-toast:     400;
 
 // ── Transitions ──────────────────────────────────────────────
-$ease-out:    cubic-bezier(0.4, 0, 0.2, 1);
-$duration-fast:   120ms;
-$duration-base:   200ms;
-$duration-slow:   300ms;
+$ease-out:    cubic-bezier(0.16, 1, 0.3, 1); // Crisp macOS spring feeling
+$duration-fast:   100ms;
+$duration-base:   160ms;
+$duration-slow:   250ms;
 
-// ── Table ────────────────────────────────────────────────────
-$table-row-height:       52px;  // Professional row height — not cramped
-$table-cell-px:          20px;  // Horizontal cell padding
-$table-cell-py:          14px;  // Vertical cell padding
-$table-header-bg:        #F9FAFB;
-$table-header-text:      #374151;
-$table-row-hover:        #F0F7FF;
-$table-row-selected:     $brand-primary-light;
-$table-border:           #E5E7EB;
+// ── Compact High-Density SaaS Table Scale ─────────────────────
+$table-row-height:       36px;   // High data density compact row height
+$table-cell-px:          12px;   // Horizontal padding
+$table-cell-py:          7px;    // Vertical padding
+$table-header-bg:        #F8FAFC;
+$table-header-text:      #475569;
+$table-row-hover:        #F1F5F9;
+$table-row-selected:     #EFF6FF;
+$table-border:           #E2E8F0;
 $table-stripe:           #FAFAFA;
+
