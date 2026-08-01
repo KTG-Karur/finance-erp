@@ -19,4 +19,9 @@ export default async function employeeRoutes(fastify, options) {
   fastify.put('/:userId/permissions', {
     preHandler: fastify.moduleGuard('EMPLOYEES', 'MANAGE')
   }, employeeController.updatePermissionsHandler);
+
+  // Update employee branch assignments
+  fastify.put('/:userId/branches', {
+    preHandler: fastify.moduleGuard('EMPLOYEES', 'MANAGE')
+  }, employeeController.updateBranchesHandler);
 }

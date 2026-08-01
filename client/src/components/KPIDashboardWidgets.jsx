@@ -13,7 +13,7 @@ const WIDGETS = [
   { label: "Overdue Loans",       icon: AlertTriangle,key:'overdueLoans',     def:8,     suffix:' Accounts', subKey:'overdueAmount', subDef:94000, accent:'#EF4444', bg:'#FEF2F2', color:'#B91C1C' },
   { label: "Active Loans",        icon: PieChart,     key:'activeLoans',      def:142,   suffix:' Accounts', subKey:'activeVolume', subDef:2850000, accent:'#3B82F6', bg:'#EFF6FF', color:'#1D4ED8' },
   { label: "Closed Loans",        icon: CheckCircle,  key:'closedLoans',      def:64,    suffix:' Accounts', accent:'#6B7280', bg:'#F9FAFB', color:'#374151' },
-  { label: "Total Borrowers",     icon: Users,        key:'totalBorrowers',   def:186,   suffix:' Active', accent:'#A855F7', bg:'#FAF5FF', color:'#7E22CE' },
+  { label: "Total Customers",     icon: Users,        key:'totalBorrowers',   def:186,   suffix:' Active', accent:'#A855F7', bg:'#FAF5FF', color:'#7E22CE' },
   { label: "Pending Approvals",   icon: Clock,        key:'pendingApprovals', def:4,     suffix:' Files', accent:'#F59E0B', bg:'#FFFBEB', color:'#92400E' },
   { label: "Late Collections",    icon: FileText,     key:'lateCollections',  def:5,     suffix:' Receipts', accent:'#F97316', bg:'#FFF7ED', color:'#C2410C' },
   { label: "Today's Expenses",    icon: MinusCircle,  key:'todaysExpenses',   def:1250,  fmt:true, prefix:'₹', accent:'#EF4444', bg:'#FEF2F2', color:'#B91C1C' },

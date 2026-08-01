@@ -33,3 +33,19 @@ export async function updatePermissionsHandler(request, reply) {
     return reply.code(500).send({ error: 'Server Error', message: err.message });
   }
 }
+
+export async function updateBranchesHandler(request, reply) {
+  try {
+    const { userId } = request.params;
+    const { branch_ids = [] } = request.body || {};
+    const result = await employeeService.updateEmployeeBranches(
+      request.server.db,
+      request.companyId,
+      Number(userId),
+      branch_ids
+    );
+    return reply.send(result);
+  } catch (err) {
+    return reply.code(500).send({ error: 'Server Error', message: err.message });
+  }
+}
