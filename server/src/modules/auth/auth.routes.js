@@ -10,6 +10,9 @@ export default async function authRoutes(fastify, options) {
   // Super Admin Dedicated Login (POST /api/v1/auth/superadmin/login)
   fastify.post('/superadmin/login', authController.superAdminLoginHandler);
 
+  // Super Admin Provision New Tenant Company (POST /api/v1/auth/superadmin/companies)
+  fastify.post('/superadmin/companies', authController.provisionCompanyHandler);
+
   // General Login Endpoint
   fastify.post('/login', authController.loginHandler);
 

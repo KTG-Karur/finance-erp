@@ -1,11 +1,11 @@
 import fp from 'fastify-plugin';
-import { getDbPool } from '../config/db.js';
 
 async function dbPlugin(fastify, options) {
-  const pool = await getDbPool();
-  fastify.decorate('db', pool);
+  // Decorate fastify.db with fastify.masterDb for master database queries
+  fastify.decorate('db', fastify.masterDb);
 }
 
 export default fp(dbPlugin, {
-  name: 'db'
+  name: 'db',
+  dependencies: ['masterDb']
 });

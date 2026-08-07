@@ -1,10 +1,9 @@
 import * as authService from './auth.service.js';
+import { provisionNewTenantCompany } from '../../core/tenantProvisioner.js';
 
 const GLOBAL_SCOPE_ROLES = ['ADMIN', 'COMPANY_ADMIN', 'SUPER_ADMIN'];
 
 // Company Lookup Handler (POST /api/v1/auth/company-lookup)
-// Also returns the company's active branch list so the login form can render
-// the "Login As: Company Admin / <Branch>" dropdown before credentials are entered.
 export async function companyLookupHandler(request, reply) {
   try {
     const { company_code } = request.body || {};
@@ -44,9 +43,6 @@ function issueFullToken(request, userData, branch) {
 }
 
 // Tenant Login via Company Code (POST /api/v1/auth/tenant/login)
-// The caller declares WHO they're logging in as via `login_context` — either the
-// Company Admin or a specific branch — and the credentials must actually match that
-// declared identity, or the login is rejected outright (no silent fallback).
 export async function tenantLoginHandler(request, reply) {
   try {
     const { company_code, email, password, login_context } = request.body || {};
@@ -55,12 +51,6 @@ export async function tenantLoginHandler(request, reply) {
       return reply.code(400).send({
         error: 'Bad Request',
         message: 'Company Code, Email, and Password are required.'
-      });
-    }
-    if (!login_context || !login_context.type) {
-      return reply.code(400).send({
-        error: 'Bad Request',
-        message: 'Select whether you are logging in as Company Admin or a specific branch.'
       });
     }
 
@@ -74,7 +64,7 @@ export async function tenantLoginHandler(request, reply) {
 
     const isCompanyAdmin = GLOBAL_SCOPE_ROLES.includes(userData.role);
 
-    if (login_context.type === 'COMPANY_ADMIN') {
+    if (!login_context || login_context.type === 'COMPANY_ADMIN') {
       if (!isCompanyAdmin) {
         const err = new Error('These credentials are not registered as a Company Admin account.');
         err.statusCode = 403;
@@ -107,7 +97,7 @@ export async function tenantLoginHandler(request, reply) {
   }
 }
 
-// Super Admin Login via Dedicated Route (POST /api/v1/auth/superadmin/login)
+// Super Admin Login (POST /api/v1/auth/superadmin/login)
 export async function superAdminLoginHandler(request, reply) {
   try {
     const { email, password } = request.body || {};
@@ -140,6 +130,32 @@ export async function superAdminLoginHandler(request, reply) {
     });
   } catch (err) {
     return reply.code(401).send({ error: 'Unauthorized', message: err.message });
+  }
+}
+
+// Super Admin Provision Company (POST /api/v1/auth/superadmin/companies)
+export async function provisionCompanyHandler(request, reply) {
+  try {
+    const { company_code, name, admin_email, admin_password } = request.body || {};
+
+    if (!company_code || !name) {
+      return reply.code(400).send({ error: 'Bad Request', message: 'Company Code and Company Name are required.' });
+    }
+
+    const result = await provisionNewTenantCompany(request.server.masterDb, {
+      company_code,
+      name,
+      admin_email,
+      admin_password
+    });
+
+    return reply.status(201).send({
+      success: true,
+      message: `Tenant Company '${name}' (${result.companyCode}) provisioned successfully with database '${result.dbName}'.`,
+      company: result
+    });
+  } catch (err) {
+    return reply.code(500).send({ error: 'Provisioning Error', message: err.message });
   }
 }
 

@@ -21,7 +21,7 @@ export default function CompanyCodePage({ onVerified }) {
     setError(null);
 
     try {
-      const res = await api.post('/auth/company-lookup', { company_code: companyCode.trim() });
+      const res = await api.post('/v1/auth/company-lookup', { company_code: companyCode.trim() });
       setLoading(false);
       onVerified(res.data.company);
     } catch (err) {
@@ -68,65 +68,42 @@ export default function CompanyCodePage({ onVerified }) {
           </div>
 
           {/* Module Ecosystem Strip */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {ECOSYSTEM_MODULES.map((m) => {
-              const Icon = m.icon;
+          <div className="fluid-ecosystem-grid">
+            {ECOSYSTEM_MODULES.map((m, i) => {
+              const IconComp = m.icon;
               return (
-                <div
-                  key={m.title}
-                  title={m.title}
-                  style={{
-                    width: 34, height: 34, borderRadius: 10, flexShrink: 0,
-                    background: m.bg, border: `1px solid ${m.border}`, color: m.color,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                  }}
-                >
-                  <Icon style={{ width: 16, height: 16 }} />
+                <div key={i} className="ecosystem-chip" style={{ '--chip-bg': m.bg, '--chip-border': m.border }}>
+                  <div className="chip-icon-wrap" style={{ color: m.color }}>
+                    <IconComp style={{ width: 14, height: 14 }} />
+                  </div>
+                  <span className="chip-title">{m.title}</span>
                 </div>
               );
             })}
           </div>
 
-          <div className="live-indicator">
-            <span className="live-dot" />
-            <span>Multi-Tenant Engine Online</span>
-          </div>
-
         </div>
 
-        {/* ── Right Column: Sleek Modern SaaS Form Card ─────────── */}
-        <div className="fluid-form-col">
-          <div className="modern-saas-card">
+        {/* ── Right Column: Floating Auth Form ────────────────────── */}
+        <div className="fluid-auth-col">
+          <div className="saas-card shadow-2xl">
 
-            {/* Minimal Segmented Tab Switcher */}
-            <div className="saas-segmented-tabs">
-              <button type="button" className="saas-tab saas-tab--active">
-                <span className="tab-num">1</span>
-                <span>Organization</span>
-              </button>
-              <button type="button" className="saas-tab">
-                <span className="tab-num">2</span>
-                <span>Module</span>
-              </button>
-              <button type="button" className="saas-tab">
-                <span className="tab-num">3</span>
-                <span>Credentials</span>
-              </button>
+            {/* Form Top Header */}
+            <div className="saas-card-header">
+              <div className="saas-badge theme-badge font-mono">STEP 1 OF 3</div>
+              <h3 className="saas-title">Enter Company Code</h3>
+              <p className="saas-sub font-mono">Input your unique organization code to resolve your workspace.</p>
             </div>
 
-            {/* Error Alert */}
             {error && (
-              <div className="saas-error-alert">
-                <AlertCircle style={{ width: 14, height: 14 }} />
+              <div className="saas-alert-banner alert-danger font-mono" style={{ margin: '0 0 16px 0' }}>
+                <AlertCircle className="alert-icon" />
                 <span>{error}</span>
               </div>
             )}
 
+            {/* Company Lookup Form */}
             <form onSubmit={handleCompanyLookup} className="saas-form">
-              <div className="saas-form-head">
-                <h3>Enter Organization</h3>
-                <p>Lookup your isolated workspace to continue</p>
-              </div>
 
               <div className="saas-input-group">
                 <label htmlFor="company-code">Company Code</label>
@@ -139,7 +116,7 @@ export default function CompanyCodePage({ onVerified }) {
                     onChange={(e) => setCompanyCode(e.target.value)}
                     required
                     autoFocus
-                    placeholder="e.g. Alpha"
+                    placeholder="e.g. ALPHA"
                   />
                 </div>
               </div>
@@ -169,7 +146,7 @@ export default function CompanyCodePage({ onVerified }) {
 
       </div>
 
-      {/* ── Page Footer: Rights Reserved ───────────────────────────── */}
+      {/* ── Page Footer ───────────────────────────── */}
       <div className="fluid-page-footer">
         <span>© {new Date().getFullYear()} Knock The Globe Technologies Pvt. Ltd. All rights reserved.</span>
       </div>

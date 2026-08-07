@@ -1,0 +1,108 @@
+{
+  "users": [
+    { "id": 1, "name": "John Admin", "email": "admin@alpha.com", "role": "ADMIN" },
+    { "id": 2, "name": "Sarah Collector", "email": "sarah@alpha.com", "role": "COLLECTOR" }
+  ],
+  "employees": [
+    { "id": 1, "employee_code": "EMP-001", "first_name": "John", "last_name": "Admin", "email": "admin@alpha.com", "department": "Executive" },
+    { "id": 2, "employee_code": "EMP-002", "first_name": "Sarah", "last_name": "Collector", "email": "sarah@alpha.com", "department": "Field Recovery" }
+  ],
+  "chart_of_accounts": [
+    { "id": 1001, "account_code": "1001", "account_name": "Cash in Hand", "account_type": "ASSET", "category": "CURRENT_ASSETS", "balance": 150000.0, "is_active": true },
+    { "id": 1002, "account_code": "1002", "account_name": "HDFC Bank Account", "account_type": "ASSET", "category": "BANK_ACCOUNTS", "balance": 500000.0, "is_active": true },
+    { "id": 1100, "account_code": "1100", "account_name": "Loan Receivables Portfolio", "account_type": "ASSET", "category": "LOAN_PORTFOLIO", "balance": 85000.0, "is_active": true },
+    { "id": 2001, "account_code": "2001", "account_name": "Promoter Share Capital", "account_type": "EQUITY", "category": "CAPITAL", "balance": 650000.0, "is_active": true },
+    { "id": 4001, "account_code": "4001", "account_name": "Loan Interest Income", "account_type": "REVENUE", "category": "OPERATING_INCOME", "balance": 12000.0, "is_active": true },
+    { "id": 4002, "account_code": "4002", "account_name": "Loan Penalty Income", "account_type": "REVENUE", "category": "OTHER_INCOME", "balance": 0.0, "is_active": true },
+    { "id": 5001, "account_code": "5001", "account_name": "Bad Debt Provision Expense", "account_type": "EXPENSE", "category": "PROVISIONS", "balance": 0.0, "is_active": true }
+  ],
+  "borrowers": [
+    {
+      "id": 1,
+      "borrower_code": "BR-0001",
+      "full_name": "Rajesh Kumar",
+      "phone": "9876543210",
+      "email": "rajesh@example.com",
+      "aadhaar": "458912348971",
+      "pan": "ABCDE1234F",
+      "address": "Main St 123, Chennai",
+      "guarantor_name": "Mahesh Kumar",
+      "kyc_status": "VERIFIED",
+      "created_at": "2026-05-01"
+    },
+    {
+      "id": 2,
+      "borrower_code": "BR-0002",
+      "full_name": "Priya Sharma",
+      "phone": "9812345678",
+      "email": "priya@example.com",
+      "aadhaar": "891234567890",
+      "pan": "XYZPD9876K",
+      "address": "Market Road 45, Chennai",
+      "guarantor_name": "Sunil Sharma",
+      "kyc_status": "VERIFIED",
+      "created_at": "2026-04-15"
+    }
+  ],
+  "loans": [
+    {
+      "id": 101,
+      "borrower_id": 1,
+      "loan_account_no": "LN-2026-001",
+      "borrower_name": "Rajesh Kumar",
+      "phone": "9876543210",
+      "principal_amount": 50000,
+      "total_payable": 55000,
+      "collected_amount": 22000,
+      "pending_amount": 33000,
+      "installment_amount": 500,
+      "monthly_interest_rate": 10,
+      "tenure_days": 110,
+      "repayment_method": "EMI",
+      "interest_calculation": "CONSTANT_FLAT",
+      "repayment_frequency": "DAILY",
+      "dpd_days": 0,
+      "npa_status": "STANDARD",
+      "status": "ACTIVE",
+      "loan_date": "2026-05-01"
+    },
+    {
+      "id": 102,
+      "borrower_id": 2,
+      "loan_account_no": "LN-2026-002",
+      "borrower_name": "Priya Sharma",
+      "phone": "9812345678",
+      "principal_amount": 100000,
+      "total_payable": 112000,
+      "collected_amount": 60000,
+      "pending_amount": 52000,
+      "installment_amount": 1000,
+      "monthly_interest_rate": 12,
+      "tenure_days": 112,
+      "repayment_method": "EMI",
+      "interest_calculation": "FLEXIBLE_REDUCING",
+      "repayment_frequency": "DAILY",
+      "dpd_days": 45,
+      "npa_status": "SUB_STANDARD",
+      "status": "OVERDUE",
+      "loan_date": "2026-04-15"
+    }
+  ],
+  "collections": [
+    {
+      "id": 501,
+      "loan_id": 101,
+      "receipt_no": "REC-20260723-01",
+      "borrower_name": "Rajesh Kumar",
+      "collector_name": "Sarah Collector",
+      "amount": 500,
+      "principal_paid": 450,
+      "interest_paid": 50,
+      "penalty": 0,
+      "payment_mode": "CASH",
+      "collection_date": "2026-07-23"
+    }
+  ],
+  "journal_entries": [],
+  "journal_lines": []
+}

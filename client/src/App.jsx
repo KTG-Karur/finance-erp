@@ -475,9 +475,9 @@ export default function App() {
   const fetchData = async () => {
     try {
       const [loansRes, empsRes, colRes] = await Promise.all([
-        api.get('/loans'),
+        api.get('/finance/loans'),
         api.get('/employees'),
-        api.get('/collections')
+        api.get('/finance/collections')
       ]);
       if (loansRes.data?.data) setLoans(loansRes.data.data);
       if (empsRes.data?.data) setEmployees(empsRes.data.data);
@@ -1031,7 +1031,7 @@ export default function App() {
     let synced = false;
 
     try {
-      const res = await api.post('/collections', {
+      const res = await api.post('/finance/collections', {
         loan_id: payload.loan_id,
         amount: totalAmt,
         payment_mode: payload.payment_mode || 'CASH',
@@ -1409,8 +1409,8 @@ export default function App() {
     );
   }
 
-  // Route 1: Dedicated Super Admin Login Page (/superadmin/login)
-  if (path === '/superadmin/login') {
+  // Route 1: Dedicated Super Admin Login Page (/superadmin/login or /superadmin)
+  if (path === '/superadmin/login' || path === '/superadmin') {
     return <SuperAdminLoginPage onLoginSuccess={handleLoginSuccess} />;
   }
 
