@@ -1,8 +1,20 @@
 import React, { useState } from 'react';
 import { X, Plus, UserPlus, CreditCard, BookOpen, ArrowRight } from 'lucide-react';
+import { useLanguage } from '../i18n/LanguageContext';
+
+function tp(t, key, vars) {
+  let str = t(key);
+  Object.keys(vars || {}).forEach(k => {
+    str = str.replace(`{${k}}`, vars[k]);
+  });
+  return str;
+}
 
 export default function QuickActionModal({ type, isOpen, onClose, onSubmit, expenseCategories = [] }) {
+  const { t } = useLanguage();
   if (!isOpen) return null;
+
+  const activeCategories = expenseCategories.filter(c => c.status === 'ACTIVE');
 
   const [form, setForm] = useState({
     name: '',
@@ -10,25 +22,30 @@ export default function QuickActionModal({ type, isOpen, onClose, onSubmit, expe
     aadhaar: '',
     pan: '',
     payee: '',
-    category: expenseCategories[0]?.name || '',
+    category_id: activeCategories[0]?.id || '',
     amount: '',
     notes: '',
     type: 'CASH_IN'
   });
 
-  const selectedCategory = expenseCategories.find(c => c.name === form.category);
-  const requiresApproval = type === 'EXPENSE' && selectedCategory && Number(form.amount) > selectedCategory.approval_threshold;
+  const selectedCategory = expenseCategories.find(c => String(c.id) === String(form.category_id));
+  const amountEntered = Number(form.amount) || 0;
+  const insufficientBalance = type === 'EXPENSE' && selectedCategory && amountEntered > selectedCategory.balance;
+  const canSubmitExpense = type !== 'EXPENSE' || (selectedCategory && amountEntered > 0 && !insufficientBalance);
 
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (type === 'EXPENSE' && !canSubmitExpense) return;
     setLoading(true);
+    setError('');
     try {
       await onSubmit(type, form);
       onClose();
     } catch (err) {
-      console.error(err);
+      setError(err.message || t('qa.err_save_generic'));
     } finally {
       setLoading(false);
     }
@@ -36,10 +53,10 @@ export default function QuickActionModal({ type, isOpen, onClose, onSubmit, expe
 
   const getTitle = () => {
     switch(type) {
-      case 'BORROWER': return 'Add New Customer Master';
-      case 'EXPENSE': return 'Record Expense Voucher';
-      case 'CASH_ENTRY': return 'Record Cash Book Entry';
-      default: return 'Quick Action Entry';
+      case 'BORROWER': return t('qa.title_borrower');
+      case 'EXPENSE': return t('qa.title_expense');
+      case 'CASH_ENTRY': return t('qa.title_cash_entry');
+      default: return t('qa.title_default');
     }
   };
 
@@ -66,7 +83,7 @@ export default function QuickActionModal({ type, isOpen, onClose, onSubmit, expe
             </div>
             <div className="head-titles">
               <h3>{getTitle()}</h3>
-              <p>Enter record details below</p>
+              <p>{t('qa.subtitle')}</p>
             </div>
           </div>
           <button onClick={onClose} className="close-btn" type="button">
@@ -80,7 +97,7 @@ export default function QuickActionModal({ type, isOpen, onClose, onSubmit, expe
             {type === 'BORROWER' && (
               <>
                 <div className="form-group">
-                  <label>Customer Full Name</label>
+                  <label>{t('qa.customer_full_name')}</label>
                   <input
                     type="text"
                     required
@@ -93,7 +110,7 @@ export default function QuickActionModal({ type, isOpen, onClose, onSubmit, expe
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Mobile Phone</label>
+                    <label>{t('qa.mobile_phone')}</label>
                     <input
                       type="tel"
                       required
@@ -105,7 +122,7 @@ export default function QuickActionModal({ type, isOpen, onClose, onSubmit, expe
                   </div>
 
                   <div className="form-group">
-                    <label>Aadhaar No</label>
+                    <label>{t('qa.aadhaar_no')}</label>
                     <input
                       type="text"
                       value={form.aadhaar}
@@ -117,7 +134,7 @@ export default function QuickActionModal({ type, isOpen, onClose, onSubmit, expe
                 </div>
 
                 <div className="form-group">
-                  <label>PAN Card Number</label>
+                  <label>{t('qa.pan_card_number')}</label>
                   <input
                     type="text"
                     value={form.pan}
@@ -133,7 +150,7 @@ export default function QuickActionModal({ type, isOpen, onClose, onSubmit, expe
             {type === 'EXPENSE' && (
               <>
                 <div className="form-group">
-                  <label>Payee</label>
+                  <label>{t('qa.payee')}</label>
                   <input
                     type="text"
                     required
@@ -145,38 +162,54 @@ export default function QuickActionModal({ type, isOpen, onClose, onSubmit, expe
                 </div>
 
                 <div className="form-group">
-                  <label>Expense Head Category</label>
-                  <select
-                    value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    className="input-control"
-                  >
-                    {expenseCategories.map(cat => (
-                      <option key={cat.id} value={cat.name}>{cat.name}</option>
-                    ))}
-                  </select>
+                  <label>{t('qa.expense_account_category')}</label>
+                  {activeCategories.length === 0 ? (
+                    <div className="form-alert form-alert--warning">
+                      {t('qa.no_active_expense_accounts')}
+                    </div>
+                  ) : (
+                    <select
+                      value={form.category_id}
+                      onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+                      className="input-control"
+                    >
+                      {activeCategories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name} — ₹{cat.balance.toLocaleString('en-IN')} {t('qa.available_suffix')}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div className="form-group">
-                  <label>Voucher Amount (₹)</label>
+                  <label>{t('qa.voucher_amount_rs')}</label>
                   <input
                     type="number"
                     required
+                    min="0"
                     value={form.amount}
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
                     placeholder="0.00"
                     className="input-control mono"
                   />
+                  {selectedCategory && (
+                    <span style={{ fontSize: '0.72rem', color: '#64748B', marginTop: 4, display: 'block' }}>
+                      {t('qa.available_balance_prefix')} ₹{selectedCategory.balance.toLocaleString('en-IN')}
+                    </span>
+                  )}
                 </div>
 
-                {requiresApproval && (
+                {insufficientBalance && (
                   <div className="form-alert form-alert--warning">
-                    Amount exceeds the ₹{selectedCategory.approval_threshold.toLocaleString('en-IN')} threshold for {selectedCategory.name} — this voucher will be marked Pending Approval.
+                    {t('qa.exceeds_balance_prefix')} (₹{selectedCategory.balance.toLocaleString('en-IN')}) {tp(t, 'qa.exceeds_balance_suffix', { name: selectedCategory.name })}
                   </div>
                 )}
 
+                {error && (
+                  <div className="form-alert form-alert--error">{error}</div>
+                )}
+
                 <div className="form-group">
-                  <label>Expense Notes / Remarks</label>
+                  <label>{t('qa.expense_notes_remarks')}</label>
                   <textarea
                     rows="2"
                     value={form.notes}
@@ -192,27 +225,27 @@ export default function QuickActionModal({ type, isOpen, onClose, onSubmit, expe
             {type === 'CASH_ENTRY' && (
               <>
                 <div className="form-group">
-                  <label>Entry Type</label>
+                  <label>{t('qa.entry_type')}</label>
                   <div className="segmented-switch">
                     <button
                       type="button"
                       onClick={() => setForm({ ...form, type: 'CASH_IN' })}
                       className={`seg-btn ${form.type === 'CASH_IN' ? 'active' : ''}`}
                     >
-                      Cash In (+)
+                      {t('qa.cash_in')}
                     </button>
                     <button
                       type="button"
                       onClick={() => setForm({ ...form, type: 'CASH_OUT' })}
                       className={`seg-btn ${form.type === 'CASH_OUT' ? 'active' : ''}`}
                     >
-                      Cash Out (-)
+                      {t('qa.cash_out')}
                     </button>
                   </div>
                 </div>
 
                 <div className="form-group">
-                  <label>Transaction Amount (₹)</label>
+                  <label>{t('qa.transaction_amount_rs')}</label>
                   <input
                     type="number"
                     required
@@ -224,7 +257,7 @@ export default function QuickActionModal({ type, isOpen, onClose, onSubmit, expe
                 </div>
 
                 <div className="form-group">
-                  <label>Ledger Particulars / Narration</label>
+                  <label>{t('qa.ledger_particulars')}</label>
                   <textarea
                     rows="2"
                     value={form.notes}
@@ -242,17 +275,17 @@ export default function QuickActionModal({ type, isOpen, onClose, onSubmit, expe
           {/* Footer */}
           <div className="saas-modal-footer">
             <button type="button" onClick={onClose} className="btn-cancel">
-              Cancel
+              {t('btn.cancel')}
             </button>
-            <button type="submit" disabled={loading} className="btn-submit">
+            <button type="submit" disabled={loading || (type === 'EXPENSE' && !canSubmitExpense)} className="btn-submit">
               {loading ? (
                 <>
                   <span className="loader loader--white"></span>
-                  <span>Saving Record...</span>
+                  <span>{t('qa.saving_record')}</span>
                 </>
               ) : (
                 <>
-                  <span>Save Record</span>
+                  <span>{t('qa.save_record')}</span>
                   <ArrowRight style={{ width: 14, height: 14 }} />
                 </>
               )}

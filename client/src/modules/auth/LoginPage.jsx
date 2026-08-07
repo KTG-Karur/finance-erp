@@ -3,13 +3,7 @@ import {
   Lock, ArrowRight, AlertCircle,
   ArrowLeft, CheckCircle2, Eye, EyeOff, Check, User, ChevronDown, ShieldCheck
 } from 'lucide-react';
-import { findUser } from '../../data/mockAuthData';
-
-const ROLE_LABELS = {
-  COMPANY_ADMIN: 'Company Admin',
-  BRANCH_ADMIN: 'Branch Admin',
-  EMPLOYEE: 'Employee'
-};
+import api from '../../api/client';
 
 export default function LoginPage({ company, module, onLoginSuccess, onBackToModules }) {
   const [loginContext, setLoginContext] = useState('COMPANY_ADMIN'); // 'COMPANY_ADMIN' or a branch id (string)
@@ -34,60 +28,30 @@ export default function LoginPage({ company, module, onLoginSuccess, onBackToMod
     }, 1450);
   };
 
-  const handleTenantLogin = (e) => {
+  const handleTenantLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    setTimeout(() => {
-      const user = findUser(company.companyCode, email, password);
+    const login_context = loginContext === 'COMPANY_ADMIN'
+      ? { type: 'COMPANY_ADMIN' }
+      : { type: 'BRANCH', branch_id: Number(loginContext) };
 
-      if (!user) {
-        setError('Invalid email or password.');
-        setLoading(false);
-        return;
-      }
+    try {
+      const res = await api.post('/auth/tenant/login', {
+        company_code: company.companyCode,
+        email,
+        password,
+        login_context
+      });
 
-      const baseUser = {
-        userId: user.userId,
-        companyId: company.companyId,
-        companyCode: company.companyCode,
-        companyName: company.companyName,
-        dbName: company.dbName,
-        moduleId: module.id,
-        moduleName: module.title,
-        role: user.role,
-        name: user.name,
-        email: user.email
-      };
-
-      if (loginContext === 'COMPANY_ADMIN') {
-        if (user.role !== 'COMPANY_ADMIN') {
-          setError(`These credentials belong to a ${ROLE_LABELS[user.role]} account, not a Company Admin. Select the correct branch instead.`);
-          setLoading(false);
-          return;
-        }
-        setLoading(false);
-        finalizeLogin({ ...baseUser, branchId: null, branchName: null }, `mock_jwt_${user.userId}_${Date.now()}`);
-        return;
-      }
-
-      // loginContext is a branch id here
-      const selectedBranch = company.branches.find(b => String(b.id) === String(loginContext));
-      if (user.role === 'COMPANY_ADMIN') {
-        setError(`This is a Company Admin account — select "Company Admin" above to sign in, not a branch.`);
-        setLoading(false);
-        return;
-      }
-      if (String(user.branchId) !== String(loginContext)) {
-        setError(`These credentials are not authorized to log in to ${selectedBranch?.name || 'the selected branch'}.`);
-        setLoading(false);
-        return;
-      }
-
+      const { token, user } = res.data;
       setLoading(false);
-      finalizeLogin({ ...baseUser, branchId: selectedBranch.id, branchName: selectedBranch.name }, `mock_jwt_${user.userId}_${Date.now()}`);
-    }, 500);
+      finalizeLogin({ ...user, moduleId: module.id, moduleName: module.title }, token);
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Invalid email or password.');
+      setLoading(false);
+    }
   };
 
   return (

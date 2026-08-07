@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Building2, ArrowRight, AlertCircle, Landmark, Coins, Receipt, ShieldCheck } from 'lucide-react';
-import { findCompanyByCode } from '../../data/mockAuthData';
+import api from '../../api/client';
 
 const ECOSYSTEM_MODULES = [
   { title: 'Financial ERP', icon: Landmark, color: '#059669', bg: '#ECFDF5', border: '#A7F3D0' },
@@ -14,23 +14,20 @@ export default function CompanyCodePage({ onVerified }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const handleCompanyLookup = (e) => {
+  const handleCompanyLookup = async (e) => {
     e.preventDefault();
     if (!companyCode.trim()) return;
     setLoading(true);
     setError(null);
 
-    // Simulated network delay for a realistic feel — this is mock-data only, no backend call.
-    setTimeout(() => {
-      const company = findCompanyByCode(companyCode);
-      if (!company) {
-        setError(`Company Code '${companyCode.trim()}' not found. Please check and try again.`);
-        setLoading(false);
-        return;
-      }
+    try {
+      const res = await api.post('/auth/company-lookup', { company_code: companyCode.trim() });
       setLoading(false);
-      onVerified(company);
-    }, 500);
+      onVerified(res.data.company);
+    } catch (err) {
+      setError(err?.response?.data?.message || `Company Code '${companyCode.trim()}' not found. Please check and try again.`);
+      setLoading(false);
+    }
   };
 
   return (

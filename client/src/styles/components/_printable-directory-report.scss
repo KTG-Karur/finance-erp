@@ -1,0 +1,196 @@
+// ── Black & White Official A4 Customer Master Directory Print & Preview Sheet Styling ──
+
+.directory-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 0.68rem;
+  line-height: 1.25;
+  color: #000000;
+  background: #FFFFFF;
+
+  thead {
+    display: table-header-group;
+
+    tr {
+      th {
+        border: 1px solid #000000;
+        background: #F1F5F9;
+        color: #000000;
+        padding: 5px 6px;
+        font-weight: 700;
+        font-size: 0.68rem;
+        text-align: left;
+      }
+    }
+  }
+
+  tbody {
+    tr {
+      page-break-inside: avoid;
+      break-inside: avoid;
+
+      td {
+        border: 1px solid #000000;
+        padding: 4px 6px;
+        color: #000000;
+        vertical-align: middle;
+        background: #FFFFFF;
+      }
+
+      &:nth-child(even) {
+        td {
+          background: #FAFAFA;
+        }
+      }
+    }
+  }
+}
+
+// ISO A4 Paper Sheet Styling (100% Identical On-Screen Preview & Print Output)
+.paper-sheet-a4-directory {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 12mm 14mm;
+  margin: 20px auto;
+  background: #FFFFFF !important;
+  color: #000000 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+
+  .bank-header-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #000000;
+    margin-bottom: 12px;
+
+    .bank-logo-col {
+      .bank-emblem {
+        width: 46px;
+        height: 46px;
+        border: 2px solid #000000;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 1rem;
+        color: #000000;
+        background: #FFFFFF;
+      }
+    }
+
+    .bank-title-col {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+
+      .bank-company-name {
+        font-size: 1rem;
+        font-weight: 800;
+        color: #000000;
+        margin: 0;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+      }
+
+      .bank-tagline {
+        font-size: 0.68rem;
+        font-weight: 600;
+        color: #000000;
+        margin: 0;
+      }
+
+      .bank-contact-line {
+        font-size: 0.65rem;
+        color: #000000;
+        margin: 0;
+      }
+
+      .bank-cin-line {
+        font-size: 0.62rem;
+        font-family: monospace;
+        color: #000000;
+        margin: 0;
+      }
+    }
+  }
+
+  .bank-title-banner {
+    background: #000000;
+    color: #FFFFFF;
+    text-align: center;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 10px;
+  }
+
+  .bank-meta-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 10px;
+
+    td {
+      border: 1px solid #000000;
+      padding: 4px 8px;
+      font-size: 0.7rem;
+
+      &.meta-lbl {
+        background: #F1F5F9;
+        font-weight: 700;
+        width: 15%;
+      }
+
+      &.meta-val {
+        font-weight: 600;
+        width: 18%;
+      }
+    }
+  }
+}
+
+// Standard ISO A4 Print Stylesheet
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 10mm;
+  }
+
+  html, body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    font-size: 10px !important;
+  }
+
+  .paper-sheet-a4-directory {
+    width: 100% !important;
+    min-height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .directory-report-table {
+    thead {
+      display: table-header-group !important;
+    }
+
+    tbody {
+      tr {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+
+        td {
+          padding: 3px 5px !important;
+          font-size: 0.64rem !important;
+        }
+      }
+    }
+  }
+}

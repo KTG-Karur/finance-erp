@@ -4,19 +4,19 @@
 // ============================================================
 
 $font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
-$green:  #059669;
+$green: #059669;
 $greenDark: #047857;
 $greenLight: #ECFDF5;
 $orange: #F97316;
-$red:    #EF4444;
-$blue:   #3B82F6;
+$red: #EF4444;
+$blue: #3B82F6;
 $purple: #8B5CF6;
-$text1:  #0F172A;
-$text2:  #475569;
-$text3:  #94A3B8;
+$text1: #0F172A;
+$text2: #475569;
+$text3: #94A3B8;
 $border: #E8EFF5;
-$bg:     #F8FAFC;
-$white:  #FFFFFF;
+$bg: #F8FAFC;
+$white: #FFFFFF;
 
 // ── Root Layout ──────────────────────────────────────────────
 .db-root {
@@ -35,13 +35,14 @@ $white:  #FFFFFF;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  background: linear-gradient(135deg, #065F46 0%, #047857 60%, #059669 100%);
+  background: #04564b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
   padding: 12px 20px;
   flex-wrap: nowrap;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 4px 18px rgba(6, 95, 70, 0.18);
+  box-shadow: 0 4px 18px rgba(6, 44, 39, 0.25);
 
   &::before {
     content: '';
@@ -51,7 +52,7 @@ $white:  #FFFFFF;
     width: 220px;
     height: 220px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(52, 211, 153, 0.2) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(52, 211, 153, 0.15) 0%, transparent 70%);
     pointer-events: none;
   }
 }
@@ -102,9 +103,20 @@ $white:  #FFFFFF;
   font-weight: 600;
   white-space: nowrap;
 
-  &--green  { background: rgba(255, 255, 255, 0.16); color: #A7F3D0; }
-  &--orange { background: rgba(249, 115, 22, 0.25);  color: #FED7AA; }
-  &--blue   { background: rgba(255, 255, 255, 0.12); color: rgba(255, 255, 255, 0.9); }
+  &--green {
+    background: rgba(255, 255, 255, 0.16);
+    color: #A7F3D0;
+  }
+
+  &--orange {
+    background: rgba(249, 115, 22, 0.25);
+    color: #FED7AA;
+  }
+
+  &--blue {
+    background: rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.9);
+  }
 }
 
 .db-banner__right {
@@ -212,10 +224,10 @@ $white:  #FFFFFF;
   }
 }
 
-// ── Compact KPI Cards Row ──────────────────────────────────────
+// ── Compact KPI Cards Row (Single Row of 5 Cards) ─────────────
 .db-kpi-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 10px;
 }
 
@@ -223,17 +235,15 @@ $white:  #FFFFFF;
   background: $white;
   border: 1px solid $border;
   border-radius: 10px;
-  padding: 11px 14px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 5px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.15s ease;
 
   &:hover {
-    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.08);
-    border-color: #A7F3D0;
-    transform: translateY(-2px);
+    border-color: #CBD5E1;
   }
 }
 
@@ -245,51 +255,77 @@ $white:  #FFFFFF;
 }
 
 .db-kpi__icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.2s ease;
 
-  &--green  { background: #ECFDF5; border: 1px solid #A7F3D0; }
-  &--orange { background: #FFF7ED; border: 1px solid #FED7AA; }
-  &--blue   { background: #EFF6FF; border: 1px solid #BFDBFE; }
-  &--purple { background: #F5F3FF; border: 1px solid #DDD6FE; }
-}
+  &--green {
+    background: #F8FAFC;
+    border: 1px solid #CBD5E1;
+    color: #0F172A;
+  }
 
-.db-kpi:hover .db-kpi__icon {
-  transform: scale(1.08);
+  &--orange {
+    background: #F8FAFC;
+    border: 1px solid #CBD5E1;
+    color: #0F172A;
+  }
+
+  &--blue {
+    background: #F8FAFC;
+    border: 1px solid #CBD5E1;
+    color: #0F172A;
+  }
+
+  &--purple {
+    background: #F8FAFC;
+    border: 1px solid #CBD5E1;
+    color: #0F172A;
+  }
 }
 
 .db-kpi__badge {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: 1px 6px;
-  border-radius: 20px;
-  font-size: 0.65rem;
-  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 500;
 
-  &--up      { background: #ECFDF5; color: $green; }
-  &--down    { background: #FFF7ED; color: $orange; }
-  &--neutral { background: $bg; color: $text3; }
+  &--up {
+    background: #ECFDF5;
+    color: #047857;
+  }
+
+  &--down {
+    background: #FEF2F2;
+    color: #991B1B;
+  }
+
+  &--neutral {
+    background: $bg;
+    color: $text3;
+  }
 }
 
 .db-kpi__value {
-  font-size: 1.2rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: 1.25rem;
+  font-weight: 600; // Semibold style for KPI value alone
+  letter-spacing: -0.01em;
   color: $text1;
+  font-family: $font;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
 }
 
 .db-kpi__label {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   color: $text3;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .db-kpi__spark {
@@ -310,8 +346,15 @@ $white:  #FFFFFF;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
 
-  &--chart { display: flex; flex-direction: column; }
-  &--donut { display: flex; flex-direction: column; }
+  &--chart {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &--donut {
+    display: flex;
+    flex-direction: column;
+  }
 }
 
 .db-card__header {
@@ -374,7 +417,9 @@ $white:  #FFFFFF;
   cursor: pointer;
   transition: all 0.15s ease;
 
-  &:hover { color: $text1; }
+  &:hover {
+    color: $text1;
+  }
 
   &--active {
     background: $white;
@@ -403,8 +448,13 @@ $white:  #FFFFFF;
   height: 6px;
   border-radius: 50%;
 
-  &--green  { background: $green; }
-  &--orange { background: $orange; }
+  &--green {
+    background: $green;
+  }
+
+  &--orange {
+    background: $orange;
+  }
 }
 
 .db-pillars-container {
@@ -417,7 +467,7 @@ $white:  #FFFFFF;
   display: grid;
   grid-template-columns: repeat(12, 1fr);
   gap: 6px;
-  height: 125px;
+  height: 155px;
   align-items: flex-end;
   padding: 6px 2px 2px;
 }
@@ -434,7 +484,8 @@ $white:  #FFFFFF;
   border-radius: 8px;
   transition: all 0.15s ease;
 
-  &:hover, &--selected {
+  &:hover,
+  &--selected {
     background: rgba(5, 150, 105, 0.07);
   }
 
@@ -659,15 +710,34 @@ $white:  #FFFFFF;
   border-radius: 4px;
   transition: all 0.15s ease;
 
-  &:hover, &--active {
+  &:hover,
+  &--active {
     background: $bg;
     color: $text1;
   }
 
-  &__dot   { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-  &__label { flex: 1; }
-  &__count { font-weight: 600; color: $text1; }
-  &__pct   { font-size: 0.65rem; color: $text3; min-width: 26px; text-align: right; }
+  &__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  &__label {
+    flex: 1;
+  }
+
+  &__count {
+    font-weight: 600;
+    color: $text1;
+  }
+
+  &__pct {
+    font-size: 0.65rem;
+    color: $text3;
+    min-width: 26px;
+    text-align: right;
+  }
 }
 
 .db-real-summary {
@@ -720,7 +790,9 @@ $white:  #FFFFFF;
     color: $text1;
     width: 150px;
 
-    &::placeholder { color: $text3; }
+    &::placeholder {
+      color: $text3;
+    }
   }
 }
 
@@ -741,7 +813,10 @@ $white:  #FFFFFF;
   outline: none;
   transition: all 0.12s ease;
 
-  &:hover { background: #F1F5F9; color: $text1; }
+  &:hover {
+    background: #F1F5F9;
+    color: $text1;
+  }
 }
 
 // ── Table ──────────────────────────────────────────────────────
@@ -750,7 +825,9 @@ $white:  #FFFFFF;
   border-collapse: collapse;
   font-family: $font;
 
-  thead tr { background: $bg; }
+  thead tr {
+    background: $bg;
+  }
 
   th {
     padding: 8px 12px;
@@ -767,8 +844,14 @@ $white:  #FFFFFF;
   tbody tr {
     border-bottom: 1px solid #F8FAFC;
     transition: background 0.1s ease;
-    &:hover { background: $bg; }
-    &:last-child { border-bottom: none; }
+
+    &:hover {
+      background: $bg;
+    }
+
+    &:last-child {
+      border-bottom: none;
+    }
   }
 
   td {
@@ -798,14 +881,35 @@ $white:  #FFFFFF;
     flex-shrink: 0;
   }
 
-  &__name  { font-weight: 600; color: $text1; font-size: 0.775rem; }
-  &__phone { font-size: 0.68rem; color: $text3; }
+  &__name {
+    font-weight: 600;
+    color: $text1;
+    font-size: 0.775rem;
+  }
+
+  &__phone {
+    font-size: 0.68rem;
+    color: $text3;
+  }
 }
 
-.db-mono  { font-variant-numeric: tabular-nums; }
-.db-muted { color: $text3; }
-.db-green { color: $green; font-weight: 500; }
-.db-orange { color: $orange; font-weight: 500; }
+.db-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+.db-muted {
+  color: $text3;
+}
+
+.db-green {
+  color: $green;
+  font-weight: 500;
+}
+
+.db-orange {
+  color: $orange;
+  font-weight: 500;
+}
 
 .db-badge {
   display: inline-flex;
@@ -815,9 +919,20 @@ $white:  #FFFFFF;
   font-size: 0.65rem;
   font-weight: 600;
 
-  &--active  { background: #ECFDF5; color: #065F46; }
-  &--overdue { background: #FEF3C7; color: #92400E; }
-  &--closed  { background: #F1F5F9; color: #475569; }
+  &--active {
+    background: #ECFDF5;
+    color: #065F46;
+  }
+
+  &--overdue {
+    background: #FEF3C7;
+    color: #92400E;
+  }
+
+  &--closed {
+    background: #F1F5F9;
+    color: #475569;
+  }
 }
 
 .db-collect-btn {

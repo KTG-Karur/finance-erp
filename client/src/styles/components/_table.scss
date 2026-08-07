@@ -140,13 +140,13 @@
   padding: 0 $table-cell-px;
   background: $table-header-bg;
   font-size: $text-xs;
-  font-weight: 600;
+  font-weight: 500;
   color: $table-header-text;
   text-align: left;
   white-space: nowrap;
   user-select: none;
   border-bottom: 1px solid $table-border;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.02em;
 
   &--right  { text-align: right; }
   &--center { text-align: center; }
@@ -190,13 +190,13 @@
   &--account {
     font-family: $font-mono;
     font-size: $text-sm;
-    font-weight: 600;
+    font-weight: 500;
     color: $brand-primary;
     letter-spacing: 0.01em;
   }
 
   &--name {
-    font-weight: 600;
+    font-weight: 500;
     color: $text-primary;
     font-size: $text-base;
   }

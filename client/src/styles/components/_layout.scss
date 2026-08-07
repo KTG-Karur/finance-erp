@@ -40,7 +40,7 @@
   border-bottom: 1px solid #E8EFF5;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   padding: 0 1.25rem;
   gap: 0.5rem;
   flex-shrink: 0;
@@ -52,7 +52,44 @@
 .app-header__left {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 1.25rem;
+  margin-right: auto;
+}
+
+// ── Language Switch (EN / தமிழ்) ─────────────────────────────
+.app-header__lang-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 20px;
+  padding: 3px;
+}
+
+.app-header__lang-btn {
+  border: none;
+  background: transparent;
+  color: #64748B;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    color: #0F172A;
+  }
+
+  &--active {
+    background: #059669;
+    color: #FFFFFF;
+
+    &:hover {
+      color: #FFFFFF;
+    }
+  }
 }
 
 // ── Brand/Logo & Tenant Info ──────────────────────────────────

@@ -5,19 +5,24 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
   if (!isOpen) return null;
 
   const isAppMode = mode === 'APPLICATION';
+  // Only active schemes can be picked for a new loan — inactive ones stay in Loan Scheme
+  // Master for reference but shouldn't be offered here.
+  const activeSchemes = loanSchemes.filter(s => s.is_active);
+  const initialScheme = activeSchemes[0] || null;
 
   const [form, setForm] = useState({
     borrower_name: '',
     phone: '',
     principal_amount: 50000,
-    monthly_interest_rate: 2.0,
+    monthly_interest_rate: initialScheme?.rate_per_unit ?? 2.0,
     tenure_months: 4,
     installment_amount: 500,
     purpose: 'Working Capital',
-    scheme_id: loanSchemes[0]?.id || ''
+    scheme_id: initialScheme?.id || ''
   });
 
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const calculateInstallment = (principal, monthlyRate, tenureMonths) => {
     const p = parseFloat(principal) || 0;
@@ -40,10 +45,17 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
     const { name, value } = e.target;
     const updatedForm = { ...form, [name]: value };
 
-    if (name === 'principal_amount' || name === 'monthly_interest_rate' || name === 'tenure_months') {
+    // Selecting a scheme re-derives the interest rate from it, so the scheme actually
+    // drives the loan terms instead of being a disconnected label.
+    if (name === 'scheme_id') {
+      const scheme = activeSchemes.find(s => String(s.id) === String(value));
+      if (scheme) updatedForm.monthly_interest_rate = scheme.rate_per_unit;
+    }
+
+    if (name === 'principal_amount' || name === 'monthly_interest_rate' || name === 'tenure_months' || name === 'scheme_id') {
       const calc = calculateInstallment(
         name === 'principal_amount' ? value : form.principal_amount,
-        name === 'monthly_interest_rate' ? value : form.monthly_interest_rate,
+        name === 'scheme_id' ? updatedForm.monthly_interest_rate : (name === 'monthly_interest_rate' ? value : form.monthly_interest_rate),
         name === 'tenure_months' ? value : form.tenure_months
       );
       updatedForm.installment_amount = calc.dailyEmi;
@@ -54,6 +66,7 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setError('');
     setLoading(true);
     try {
       onSubmit({
@@ -64,6 +77,8 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
         mode
       });
       onClose();
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || 'Could not save this loan.');
     } finally {
       setLoading(false);
     }
@@ -98,7 +113,13 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
           <div className="saas-modal-body" style={{ padding: '20px 24px', gap: 16 }}>
-            
+
+            {error && (
+              <div className="form-alert form-alert--error">
+                <span>{error}</span>
+              </div>
+            )}
+
             {/* Customer Info Row */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div className="form-group">
@@ -236,8 +257,11 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
                   fontWeight: 500
                 }}
               >
-                {loanSchemes.map(s => (
-                  <option key={s.id} value={s.id}>{s.name} (₹{s.unit_base} base)</option>
+                {activeSchemes.length === 0 && (
+                  <option value="">No active loan schemes available</option>
+                )}
+                {activeSchemes.map(s => (
+                  <option key={s.id} value={s.id}>{s.name} ({s.rate_per_unit}% p.m.)</option>
                 ))}
               </select>
             </div>

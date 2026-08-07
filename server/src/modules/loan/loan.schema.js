@@ -9,7 +9,12 @@ export const createLoanSchema = {
       principal_amount: { type: 'number', minimum: 1 },
       interest_rate: { type: 'number', minimum: 0, default: 10 },
       tenure_days: { type: 'integer', minimum: 1 },
-      installment_amount: { type: 'number', minimum: 1 }
+      installment_amount: { type: 'number', minimum: 1 },
+      monthly_interest_rate: { type: 'number', minimum: 0 },
+      repayment_method: { type: 'string', enum: ['EMI', 'INTEREST_ONLY'], default: 'EMI' },
+      interest_calculation: { type: 'string', enum: ['CONSTANT_FLAT', 'FLEXIBLE_REDUCING'], default: 'CONSTANT_FLAT' },
+      repayment_frequency: { type: 'string', enum: ['DAILY', 'WEEKLY', 'MONTHLY'], default: 'DAILY' },
+      scheme_id: { type: ['integer', 'null'] }
     }
   }
 };
@@ -22,7 +27,8 @@ export const recordCollectionSchema = {
       loan_id: { type: 'integer' },
       amount: { type: 'number', minimum: 1 },
       payment_mode: { type: 'string', enum: ['CASH', 'UPI', 'BANK_TRANSFER', 'CHEQUE'], default: 'CASH' },
-      notes: { type: 'string' }
+      notes: { type: 'string' },
+      payment_date: { type: 'string' }
     }
   }
 };
