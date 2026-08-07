@@ -29,7 +29,6 @@ import FixedDepositReportView from './modules/reports/FixedDepositReportView';
 import FinancialStatementsReportView from './modules/reports/FinancialStatementsReportView';
 import StaffPerformanceReportView from './modules/reports/StaffPerformanceReportView';
 import MasterSettingsView from './modules/settings/MasterSettingsView';
-import AuditLogView from './modules/settings/AuditLogView';
 import CollectionDrawer from './components/CollectionDrawer';
 import NewLoanModal from './components/NewLoanModal';
 import QuickActionModal from './components/QuickActionModal';
@@ -92,18 +91,18 @@ const INITIAL_EMPLOYEES = [
 ];
 
 const INITIAL_COLLECTIONS = [
-  { id: 501, company_id: 1, loan_id: 101, borrower_name: 'Rajesh Kumar', collector_name: 'Sarah Collector', amount: 5000, principalPaid: 4667, interestPaid: 333, penalty: 0, collection_date: '2026-05-20', payment_mode: 'CASH', receipt_no: 'REC-20260520-01' },
-  { id: 502, company_id: 1, loan_id: 101, borrower_name: 'Rajesh Kumar', collector_name: 'Sarah Collector', amount: 8000, principalPaid: 7516, interestPaid: 484, penalty: 0, collection_date: '2026-06-05', payment_mode: 'CASH', receipt_no: 'REC-20260605-01' },
-  { id: 503, company_id: 1, loan_id: 101, borrower_name: 'Rajesh Kumar', collector_name: 'Sarah Collector', amount: 9000, principalPaid: 8546, interestPaid: 454, penalty: 0, collection_date: '2026-06-23', payment_mode: 'CASH', receipt_no: 'REC-20260623-01' },
-  { id: 504, company_id: 1, loan_id: 102, borrower_name: 'Priya Sharma', collector_name: 'Sarah Collector', amount: 17853, principalPaid: 15853, interestPaid: 2000, penalty: 0, collection_date: '2026-03-15', payment_mode: 'UPI', receipt_no: 'REC-20260315-01' },
-  { id: 505, company_id: 1, loan_id: 102, borrower_name: 'Priya Sharma', collector_name: 'Sarah Collector', amount: 17853, principalPaid: 16170, interestPaid: 1683, penalty: 0, collection_date: '2026-04-15', payment_mode: 'UPI', receipt_no: 'REC-20260415-01' },
-  { id: 506, company_id: 1, loan_id: 103, borrower_name: 'Anil Verma', collector_name: 'Sarah Collector', amount: 12700, principalPaid: 12320, interestPaid: 380, penalty: 0, collection_date: '2026-02-20', payment_mode: 'CASH', receipt_no: 'REC-20260220-01' },
-  { id: 507, company_id: 1, loan_id: 103, borrower_name: 'Anil Verma', collector_name: 'Sarah Collector', amount: 12700, principalPaid: 12340, interestPaid: 360, penalty: 0, collection_date: '2026-03-10', payment_mode: 'CASH', receipt_no: 'REC-20260310-01' },
-  { id: 508, company_id: 1, loan_id: 103, borrower_name: 'Anil Verma', collector_name: 'Sarah Collector', amount: 5640, principalPaid: 5340, interestPaid: 300, penalty: 0, collection_date: '2026-03-25', payment_mode: 'CASH', receipt_no: 'REC-20260325-01' },
-  { id: 509, company_id: 1, loan_id: 104, borrower_name: 'Suresh Patel', collector_name: 'Sarah Collector', amount: 14000, principalPaid: 12500, interestPaid: 1500, penalty: 0, collection_date: '2026-05-01', payment_mode: 'BANK_TRANSFER', receipt_no: 'REC-20260501-01' },
-  { id: 510, company_id: 1, loan_id: 104, borrower_name: 'Suresh Patel', collector_name: 'Sarah Collector', amount: 14000, principalPaid: 12500, interestPaid: 1500, penalty: 0, collection_date: '2026-06-01', payment_mode: 'BANK_TRANSFER', receipt_no: 'REC-20260601-02' },
-  { id: 511, company_id: 1, loan_id: 105, borrower_name: 'Meena Reddy', collector_name: 'Sarah Collector', amount: 2000, principalPaid: 1733, interestPaid: 267, penalty: 0, collection_date: '2026-06-25', payment_mode: 'CASH', receipt_no: 'REC-20260625-01' },
-  { id: 512, company_id: 1, loan_id: 105, borrower_name: 'Meena Reddy', collector_name: 'Sarah Collector', amount: 2000, principalPaid: 1745, interestPaid: 255, penalty: 0, collection_date: '2026-07-05', payment_mode: 'CASH', receipt_no: 'REC-20260705-01' }
+  { id: 501, company_id: 1, loan_id: 101, borrower_name: 'Rajesh Kumar', collector_name: 'Sarah Collector', amount: 5000, principalPaid: 4667, interestPaid: 333, penalty: 0, collection_date: '2026-05-20', payment_mode: 'CASH', voucher_no: 'JE-20260520-01' },
+  { id: 502, company_id: 1, loan_id: 101, borrower_name: 'Rajesh Kumar', collector_name: 'Sarah Collector', amount: 8000, principalPaid: 7516, interestPaid: 484, penalty: 0, collection_date: '2026-06-05', payment_mode: 'CASH', voucher_no: 'JE-20260605-01' },
+  { id: 503, company_id: 1, loan_id: 101, borrower_name: 'Rajesh Kumar', collector_name: 'Sarah Collector', amount: 9000, principalPaid: 8546, interestPaid: 454, penalty: 0, collection_date: '2026-06-23', payment_mode: 'CASH', voucher_no: 'JE-20260623-01' },
+  { id: 504, company_id: 1, loan_id: 102, borrower_name: 'Priya Sharma', collector_name: 'Sarah Collector', amount: 17853, principalPaid: 15853, interestPaid: 2000, penalty: 0, collection_date: '2026-03-15', payment_mode: 'UPI', voucher_no: 'JE-20260315-01' },
+  { id: 505, company_id: 1, loan_id: 102, borrower_name: 'Priya Sharma', collector_name: 'Sarah Collector', amount: 17853, principalPaid: 16170, interestPaid: 1683, penalty: 0, collection_date: '2026-04-15', payment_mode: 'UPI', voucher_no: 'JE-20260415-01' },
+  { id: 506, company_id: 1, loan_id: 103, borrower_name: 'Anil Verma', collector_name: 'Sarah Collector', amount: 12700, principalPaid: 12320, interestPaid: 380, penalty: 0, collection_date: '2026-02-20', payment_mode: 'CASH', voucher_no: 'JE-20260220-01' },
+  { id: 507, company_id: 1, loan_id: 103, borrower_name: 'Anil Verma', collector_name: 'Sarah Collector', amount: 12700, principalPaid: 12340, interestPaid: 360, penalty: 0, collection_date: '2026-03-10', payment_mode: 'CASH', voucher_no: 'JE-20260310-01' },
+  { id: 508, company_id: 1, loan_id: 103, borrower_name: 'Anil Verma', collector_name: 'Sarah Collector', amount: 5640, principalPaid: 5340, interestPaid: 300, penalty: 0, collection_date: '2026-03-25', payment_mode: 'CASH', voucher_no: 'JE-20260325-01' },
+  { id: 509, company_id: 1, loan_id: 104, borrower_name: 'Suresh Patel', collector_name: 'Sarah Collector', amount: 14000, principalPaid: 12500, interestPaid: 1500, penalty: 0, collection_date: '2026-05-01', payment_mode: 'BANK_TRANSFER', voucher_no: 'JE-20260501-01' },
+  { id: 510, company_id: 1, loan_id: 104, borrower_name: 'Suresh Patel', collector_name: 'Sarah Collector', amount: 14000, principalPaid: 12500, interestPaid: 1500, penalty: 0, collection_date: '2026-06-01', payment_mode: 'BANK_TRANSFER', voucher_no: 'JE-20260601-02' },
+  { id: 511, company_id: 1, loan_id: 105, borrower_name: 'Meena Reddy', collector_name: 'Sarah Collector', amount: 2000, principalPaid: 1733, interestPaid: 267, penalty: 0, collection_date: '2026-06-25', payment_mode: 'CASH', voucher_no: 'JE-20260625-01' },
+  { id: 512, company_id: 1, loan_id: 105, borrower_name: 'Meena Reddy', collector_name: 'Sarah Collector', amount: 2000, principalPaid: 1745, interestPaid: 255, penalty: 0, collection_date: '2026-07-05', payment_mode: 'CASH', voucher_no: 'JE-20260705-01' }
 ];
 
 const INITIAL_BORROWERS = [
@@ -210,9 +209,15 @@ export default function App() {
     })
   ]);
 
-  const postJournal = (narration, lines, refType, refId, date, branch, voucherType, createdBy) => {
+  // A single voucher number is the one identifier for any posted entry —
+  // callers that need to show/print that same number elsewhere (e.g. a
+  // collection's printed slip) should generate it with this and pass it in
+  // as `id` rather than let postJournal mint its own.
+  const generateVoucherNo = () => `JE-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+  const postJournal = (narration, lines, refType, refId, date, branch, voucherType, createdBy, id) => {
     setJournalEntries(prev => [...prev, buildJournalEntry({
-      id: `JE-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: id || generateVoucherNo(),
       date: date || new Date().toISOString().slice(0, 10),
       narration,
       lines,
@@ -1027,7 +1032,6 @@ export default function App() {
     let principalPaid = payload.principal_portion || 0;
     let interestPaid = payload.interest_portion || 0;
     let newPendingFromServer;
-    let receiptNo;
     let synced = false;
 
     try {
@@ -1043,14 +1047,17 @@ export default function App() {
         principalPaid = data.principal_portion;
         interestPaid = data.interest_portion;
         newPendingFromServer = data.new_pending_balance;
-        receiptNo = data.receipt_no;
         synced = true;
       }
     } catch (err) {
       console.warn('Collection not synced to server — recording locally only:', err.message);
     }
 
-    receiptNo = receiptNo || `REC-${collectionDate.replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
+    // One voucher number for the whole transaction — it's minted here so the
+    // same id ends up on both the collection record and the auto-voucher
+    // journal entry posted below, instead of each side generating its own
+    // separate number (the old REC-xxxx "receipt no" concept).
+    const voucherNo = generateVoucherNo();
     const penaltyAmt = payload.penalty || 0;
 
     const newReceipt = {
@@ -1070,7 +1077,7 @@ export default function App() {
       branch: payload.branch || '',
       received_at: payload.received_at || 'BRANCH_COUNTER',
       notes: payload.notes || '',
-      receipt_no: receiptNo,
+      voucher_no: voucherNo,
       collection_date: collectionDate,
       synced,
       // Proof-of-payment + field GPS stamp — both optional; nothing blocks
@@ -1132,7 +1139,7 @@ export default function App() {
     setCollections(prev => [newReceipt, ...prev]);
     logAudit('COLLECTION', newReceipt.id, 'PAYMENT_RECORDED', null, {
       loan_id: payload.loan_id, amount: totalAmt, principal_portion: principalPaid,
-      interest_portion: interestPaid, receipt_no: receiptNo, payment_mode: newReceipt.payment_mode
+      interest_portion: interestPaid, voucher_no: voucherNo, payment_mode: newReceipt.payment_mode
     });
 
     // Cash in from the borrower splits straight back out to what it settles: the
@@ -1146,7 +1153,8 @@ export default function App() {
     postJournal(
       `Collection received — ${newReceipt.loan_account_no || 'Loan #' + payload.loan_id} (${newReceipt.borrower_name})`,
       glLines, 'COLLECTION', newReceipt.id, collectionDate,
-      payload.branch || loans.find(l => l.id === payload.loan_id)?.branch
+      payload.branch || loans.find(l => l.id === payload.loan_id)?.branch,
+      undefined, undefined, voucherNo
     );
 
     return { data: newReceipt };
@@ -1224,6 +1232,7 @@ export default function App() {
       reference_no: updates.reference_no,
       collector_name: updates.collector_name,
       collection_date: updates.collection_date,
+      branch: updates.branch,
       notes: updates.notes,
       ...clearanceUpdate,
       edited_by: user?.name || 'Admin',
@@ -1387,7 +1396,6 @@ export default function App() {
     if (tabStr.includes('interest')) return 'interest-details';
     if (tabStr.includes('staff')) return 'staff-directory';
     if (tabStr.includes('rbac')) return 'rbac-matrix';
-    if (tabStr.includes('audit-log')) return 'audit-log';
     if (tabStr.includes('company')) return 'company-info';
     return 'interest-details';
   };
@@ -1566,6 +1574,7 @@ export default function App() {
           borrowers={borrowers}
           loanSchemes={loanSchemes}
           user={user}
+          tenant={tenant}
           onOpenCollectDrawer={(loan) => setSelectedLoanForCollection(loan)}
           onRecordCollection={handleRecordCollection}
           onQuickAction={handleQuickAction}
@@ -1637,7 +1646,7 @@ export default function App() {
             onCreateBorrower={handleCreateBorrower}
             onUpdateBorrower={handleUpdateBorrower}
             onDeleteBorrower={handleDeleteBorrower}
-            onOpenKycReview={(id) => setKycReviewBorrowerId(id)}
+            onOpenKycReview={(b) => setKycReviewBorrowerId(b.id)}
           />
         )
       )}
@@ -1680,7 +1689,6 @@ export default function App() {
             tenant={tenant}
             user={user}
             employees={employees}
-            auditLogs={auditLogs}
             onSavePermissions={handleSavePermissions}
             onCreateEmployee={handleCreateEmployee}
             onUpdateEmployee={handleUpdateEmployee}
@@ -1724,6 +1732,7 @@ export default function App() {
         allLoans={loans}
         branchesList={branchesList}
         currentUserName={user?.name}
+        tenant={tenant}
         onSubmit={handleRecordCollection}
       />
 

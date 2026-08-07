@@ -36,7 +36,7 @@ export default function PrintablePaymentHistorySheet({
     const penaltyAmt = Number(r.penalty || r.late_fee || 0);
     return {
       sno: idx + 1,
-      receipt_no: r.receipt_no || r.receiptNo || `REC-${loan.loan_account_no?.replace('LN-', '') || '101'}-00${idx + 1}`,
+      voucher_no: r.voucher_no || `JE-${loan.loan_account_no?.replace('LN-', '') || '101'}-00${idx + 1}`,
       date: r.collection_date || r.date || '2026-08-01',
       time: r.time || (idx % 2 === 0 ? '10:30 AM' : '04:15 PM'),
       mode: r.payment_mode || r.mode || 'CASH',
@@ -54,7 +54,7 @@ export default function PrintablePaymentHistorySheet({
   }) : [
     {
       sno: 1,
-      receipt_no: `REC-${loan.loan_account_no?.replace('LN-', '') || '101'}-001`,
+      voucher_no: `JE-${loan.loan_account_no?.replace('LN-', '') || '101'}-001`,
       date: '2026-07-15',
       time: '11:30 AM',
       mode: 'CASH',
@@ -71,7 +71,7 @@ export default function PrintablePaymentHistorySheet({
     },
     {
       sno: 2,
-      receipt_no: `REC-${loan.loan_account_no?.replace('LN-', '') || '101'}-002`,
+      voucher_no: `JE-${loan.loan_account_no?.replace('LN-', '') || '101'}-002`,
       date: '2026-07-28',
       time: '03:45 PM',
       mode: 'UPI',
@@ -118,7 +118,7 @@ export default function PrintablePaymentHistorySheet({
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif',
+          fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif',
           color: '#0F172A',
           boxSizing: 'border-box'
         }}>
@@ -149,7 +149,7 @@ export default function PrintablePaymentHistorySheet({
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 500, color: '#0F172A', letterSpacing: '-0.01em' }}>
-                  Complete Payment Ledger & Receipt History
+                  Complete Payment Ledger & Voucher History
                 </h3>
                 <span style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 400 }}>
                   Borrower: {loan.borrower_name || borrower.full_name} · Account: <span style={{ color: '#059669', fontFamily: 'monospace', fontWeight: 500 }}>{loan.loan_account_no}</span>
@@ -216,7 +216,7 @@ export default function PrintablePaymentHistorySheet({
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <span style={{ fontSize: '0.78rem', color: '#475569', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                  Itemized Collection Receipt Records ({historyItems.length})
+                  Itemized Collection Voucher Records ({historyItems.length})
                 </span>
                 <span style={{ fontSize: '0.72rem', color: '#94A3B8', fontWeight: 400 }}>
                   Showing full transaction dates & timestamps
@@ -229,7 +229,7 @@ export default function PrintablePaymentHistorySheet({
                     <thead>
                       <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', position: 'sticky', top: 0, zIndex: 1 }}>
                         <th style={{ padding: '10px 12px', width: 34, textAlign: 'center', fontWeight: 500 }}>#</th>
-                        <th style={{ padding: '10px 12px', fontWeight: 500 }}>Receipt No</th>
+                        <th style={{ padding: '10px 12px', fontWeight: 500 }}>Voucher No</th>
                         <th style={{ padding: '10px 12px', fontWeight: 500 }}>Date & Time</th>
                         <th style={{ padding: '10px 12px', fontWeight: 500 }}>Mode</th>
                         <th style={{ padding: '10px 12px', fontWeight: 500 }}>Txn / Ref No</th>
@@ -246,7 +246,7 @@ export default function PrintablePaymentHistorySheet({
                       {historyItems.map((item, idx) => (
                         <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
                           <td style={{ padding: '10px 12px', textAlign: 'center', color: '#94A3B8' }}>{item.sno}</td>
-                          <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontWeight: 500, color: '#2563EB' }}>{item.receipt_no}</td>
+                          <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontWeight: 500, color: '#2563EB' }}>{item.voucher_no}</td>
                           <td style={{ padding: '10px 12px', color: '#0F172A' }}>
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                               <span style={{ fontWeight: 500 }}>{item.date}</span>
@@ -385,7 +385,7 @@ export default function PrintablePaymentHistorySheet({
         background: '#FFFFFF',
         boxShadow: '0 25px 60px -15px rgba(15, 23, 42, 0.3)',
         color: '#000000',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
+        fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between'
@@ -501,7 +501,7 @@ export default function PrintablePaymentHistorySheet({
               <thead>
                 <tr style={{ background: '#F1F5F9', border: '1.5px solid #000' }}>
                   <th style={{ padding: '8px 10px', border: '1px solid #000', fontWeight: 500 }}>Txn Date & Time</th>
-                  <th style={{ padding: '8px 10px', border: '1px solid #000', fontWeight: 500 }}>Receipt No</th>
+                  <th style={{ padding: '8px 10px', border: '1px solid #000', fontWeight: 500 }}>Voucher No</th>
                   <th style={{ padding: '8px 10px', border: '1px solid #000', fontWeight: 500 }}>Mode & Ref</th>
                   <th style={{ padding: '8px 10px', border: '1px solid #000', fontWeight: 500 }}>Collector Agent</th>
                   <th style={{ padding: '8px 10px', border: '1px solid #000', textAlign: 'right', fontWeight: 500 }}>Credit (₹)</th>
@@ -512,7 +512,7 @@ export default function PrintablePaymentHistorySheet({
                 {historyItems.map((item, idx) => (
                   <tr key={idx} style={{ borderBottom: '1px solid #000' }}>
                     <td style={{ padding: '8px 10px', border: '1px solid #000' }}>{item.date} {item.time}</td>
-                    <td style={{ padding: '8px 10px', border: '1px solid #000', fontFamily: 'monospace' }}>{item.receipt_no}</td>
+                    <td style={{ padding: '8px 10px', border: '1px solid #000', fontFamily: 'monospace' }}>{item.voucher_no}</td>
                     <td style={{ padding: '8px 10px', border: '1px solid #000' }}>{item.mode} ({item.txn_ref})</td>
                     <td style={{ padding: '8px 10px', border: '1px solid #000' }}>{item.collector}</td>
                     <td style={{ padding: '8px 10px', border: '1px solid #000', textAlign: 'right', color: '#047857', fontWeight: 500 }}>₹{fmt(item.paid)}</td>

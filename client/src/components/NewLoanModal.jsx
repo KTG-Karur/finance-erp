@@ -89,7 +89,7 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
 
   return (
     <div className="saas-modal-backdrop">
-      <div className="saas-modal-card saas-modal-card--lg" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>
+      <div className="saas-modal-card saas-modal-card--lg" style={{ fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>
         
         {/* Header */}
         <div className="saas-modal-header">

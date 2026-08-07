@@ -638,7 +638,7 @@ export default function EODProcessView({
               {/* Opening Balance Card */}
               <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 4, boxShadow: '0 2px 6px rgba(15,23,42,0.03)' }}>
                 <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Opening Cash Balance</span>
-                <strong style={{ fontSize: '1.35rem', fontWeight: 600, color: '#0F172A', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>
+                <strong style={{ fontSize: '1.35rem', fontWeight: 600, color: '#0F172A', fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>
                   ₹{fmt(openingBalance)}
                 </strong>
                 <span style={{ fontSize: '0.68rem', color: '#94A3B8' }}>Vault Cash at start of day</span>
@@ -647,7 +647,7 @@ export default function EODProcessView({
               {/* Expected Closing Balance Card */}
               <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 12, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 4, boxShadow: '0 2px 6px rgba(5,150,105,0.06)' }}>
                 <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#047857', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Expected Closing Balance</span>
-                <strong style={{ fontSize: '1.35rem', fontWeight: 600, color: '#047857', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>
+                <strong style={{ fontSize: '1.35rem', fontWeight: 600, color: '#047857', fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>
                   ₹{fmt(closingBalance)}
                 </strong>
                 <span style={{ fontSize: '0.68rem', color: '#059669' }}>Ledger balance required at day-end</span>

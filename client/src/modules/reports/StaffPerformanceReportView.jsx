@@ -85,7 +85,7 @@ export default function StaffPerformanceReportView({ employees = [], loans = [],
     const out = [];
     filtered.forEach(r => {
       r.empCollections.forEach(c => out.push([
-        r.name, t('fin.collections_count_label'), c.collection_date, fmtTime(timeMap[`COLLECTION:${c.id}`]), c.receipt_no, c.borrower_name, fmt(c.amount)
+        r.name, t('fin.collections_count_label'), c.collection_date, fmtTime(timeMap[`COLLECTION:${c.id}`]), c.voucher_no, c.borrower_name, fmt(c.amount)
       ]));
       r.empLoans.forEach(l => out.push([
         r.name, t('fin.loans_disbursed_count_label'), l.loan_date, fmtTime(timeMap[`DISBURSAL:${l.id}`]), l.loan_account_no, l.borrower_name, fmt(l.principal_amount)

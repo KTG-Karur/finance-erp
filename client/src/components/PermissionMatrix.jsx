@@ -194,7 +194,7 @@ export default function PermissionMatrix({ initialRole = 'MANAGER', selectedStaf
       border: '1px solid #E2E8F0',
       borderRadius: 14,
       padding: 24,
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       color: '#0F172A',
       boxSizing: 'border-box'
     }}>

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Receipt,
-  Printer,
   Search,
   Plus,
   X,
@@ -12,12 +11,6 @@ import {
   Pencil,
   CheckCircle2,
   XCircle,
-  MapPin,
-  ImageOff,
-  Calendar,
-  User,
-  Hash,
-  Wallet,
   AlertTriangle,
   Smartphone,
   Banknote,
@@ -26,6 +19,7 @@ import {
   StickyNote
 } from 'lucide-react';
 import CustomerProfileModal from '../borrowers/CustomerProfileModal';
+import ThermalVoucherModal from '../../components/ThermalVoucherModal';
 import NewCollectionEntryPage from './NewCollectionEntryPage';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 
@@ -83,6 +77,7 @@ export default function DailyCollectionsView({
   borrowers = [],
   loanSchemes = [],
   user,
+  tenant,
   onRecordCollection,
   onQuickAction,
   onRevertCollection,
@@ -142,7 +137,7 @@ export default function DailyCollectionsView({
   const searchFiltered = collections.filter(c => {
     const q = searchQuery.toLowerCase().trim();
     return !q || (
-      (c.receipt_no && c.receipt_no.toLowerCase().includes(q)) ||
+      (c.voucher_no && c.voucher_no.toLowerCase().includes(q)) ||
       (c.borrower_name && c.borrower_name.toLowerCase().includes(q)) ||
       (c.collector_name && c.collector_name.toLowerCase().includes(q)) ||
       (c.loan_account_no && c.loan_account_no.toLowerCase().includes(q))
@@ -181,17 +176,22 @@ export default function DailyCollectionsView({
       reference_no: c.reference_no || '',
       collector_name: c.collector_name || '',
       collection_date: c.collection_date || '',
+      branch: c.branch || '',
       notes: c.notes || ''
     });
+  };
+
+  const closeEdit = () => {
+    setEditTarget(null);
+    setEditForm(null);
+    setEditError('');
   };
 
   const submitEdit = (e) => {
     e.preventDefault();
     try {
       onUpdateCollection(editTarget.id, editForm);
-      setEditTarget(null);
-      setEditForm(null);
-      setEditError('');
+      closeEdit();
       closeReceiptModal();
     } catch (err) {
       setEditError(err?.message || 'Could not save these changes.');
@@ -229,8 +229,6 @@ export default function DailyCollectionsView({
       setBounceError(err?.message || 'Could not mark this cheque as bounced.');
     }
   };
-
-  const mapsUrl = (lat, lng) => `https://www.google.com/maps?q=${lat},${lng}`;
 
   const modeIcon = (mode) => {
     if (mode === 'UPI') return <Smartphone style={{ width: 12, height: 12 }} />;
@@ -357,7 +355,7 @@ export default function DailyCollectionsView({
                       <span
                         style={{ color: '#059669', fontWeight: 600, cursor: 'pointer', ...textDecor }}
                         onClick={() => setSelectedReceipt(c)}
-                        title="Click to view Official Receipt Voucher"
+                        title="Click to view Official Collection Voucher"
                       >
                         {loanAccNo}
                       </span>
@@ -437,180 +435,109 @@ export default function DailyCollectionsView({
         </div>
       </div>
 
-      {/* ── Official Receipt Voucher Modal ──────────────────────── */}
+      {/* ── Official Collection Receipt — same 80mm thermal template used
+          right after recording a new collection ─────────────────── */}
       {selectedReceipt && (() => {
         const linkedBorrower = getLinkedBorrower(selectedReceipt);
+        const modalBtnStyle = (tone) => {
+          const tones = {
+            good: { bg: '#ECFDF5', border: '#A7F3D0', color: '#059669' },
+            bad: { bg: '#FEF2F2', border: '#FECACA', color: '#DC2626' },
+            neutral: { bg: '#FFFFFF', border: '#CBD5E1', color: '#334155' }
+          };
+          const c = tones[tone];
+          return { border: `1px solid ${c.border}`, background: c.bg, color: c.color, padding: '8px 16px', borderRadius: 10, fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 };
+        };
+
+        const statusButtons = [];
+        if (!selectedReceipt.reverted && selectedReceipt.payment_mode === 'CHEQUE' && selectedReceipt.clearance_status === 'PENDING_CLEARANCE' && canControl) {
+          statusButtons.push(
+            <button key="clear" type="button" style={modalBtnStyle('good')} onClick={() => { onMarkChequeCleared(selectedReceipt.id); closeReceiptModal(); }}>
+              <CheckCircle2 style={{ width: 14, height: 14 }} />
+              <span>{t('coll.mark_cleared')}</span>
+            </button>,
+            <button key="bounce" type="button" style={modalBtnStyle('bad')} onClick={() => { setBounceTarget(selectedReceipt); setSelectedReceipt(null); }}>
+              <XCircle style={{ width: 14, height: 14 }} />
+              <span>{t('coll.mark_bounced')}</span>
+            </button>
+          );
+        }
+        if (!selectedReceipt.reverted && canControl) {
+          statusButtons.push(
+            <button key="edit" type="button" style={modalBtnStyle('neutral')} onClick={() => { openEdit(selectedReceipt); setSelectedReceipt(null); }}>
+              <Pencil style={{ width: 14, height: 14 }} />
+              <span>{t('coll.edit_collection')}</span>
+            </button>,
+            <button key="revert" type="button" style={modalBtnStyle('bad')} onClick={() => { setRevertTarget(selectedReceipt); setSelectedReceipt(null); }}>
+              <Undo2 style={{ width: 14, height: 14 }} />
+              <span>{t('coll.revert_collection')}</span>
+            </button>
+          );
+        }
+
+        const isVoid = selectedReceipt.reverted || selectedReceipt.clearance_status === 'BOUNCED';
+
         return (
-        <div className="saas-modal-backdrop" style={{ zIndex: 999999 }}>
-          <div className="saas-modal-card" style={{ maxWidth: 560, borderRadius: 20, overflow: 'hidden', padding: 0 }}>
-
-            <div style={{
-              padding: '22px 24px', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-              display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <Avatar name={selectedReceipt.borrower_name} photo={linkedBorrower.profile_image || linkedBorrower.photo} size={46} />
-                <div>
-                  <h3 style={{ fontWeight: 700, margin: 0, fontSize: '1.05rem', color: '#FFFFFF' }}>{selectedReceipt.borrower_name}</h3>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                    <span className="code" style={{ color: '#D1FAE5', fontSize: '0.76rem', fontWeight: 600 }}>{selectedReceipt.receipt_no}</span>
-                    {selectedReceipt.reverted && <span style={{ background: 'rgba(255,255,255,0.2)', color: '#FFFFFF', fontSize: '0.62rem', fontWeight: 700, padding: '2px 8px', borderRadius: 999 }}>{t('coll.reverted_badge')}</span>}
-                    {!selectedReceipt.reverted && selectedReceipt.clearance_status === 'BOUNCED' && <span style={{ background: 'rgba(255,255,255,0.2)', color: '#FFFFFF', fontSize: '0.62rem', fontWeight: 700, padding: '2px 8px', borderRadius: 999 }}>{t('coll.bounced_badge')}</span>}
-                    {!selectedReceipt.reverted && selectedReceipt.clearance_status === 'PENDING_CLEARANCE' && <span style={{ background: 'rgba(255,255,255,0.2)', color: '#FFFFFF', fontSize: '0.62rem', fontWeight: 700, padding: '2px 8px', borderRadius: 999 }}>{t('coll.pending_clearance_badge')}</span>}
-                  </div>
-                </div>
-              </div>
-              <button onClick={closeReceiptModal} type="button" style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <X style={{ width: 15, height: 15 }} />
-              </button>
-            </div>
-
-            <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {selectedReceipt.reverted && (
-                <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '10px 14px', fontSize: '0.78rem', color: '#991B1B' }}>
-                  <strong>{t('coll.reverted_badge')}</strong> — {selectedReceipt.revert_reason || '—'}
-                  <div style={{ fontSize: '0.7rem', color: '#B91C1C', marginTop: 3 }}>{t('coll.reverted_by_prefix')} {selectedReceipt.reverted_by} · {selectedReceipt.reverted_at ? new Date(selectedReceipt.reverted_at).toLocaleString('en-IN') : ''}</div>
-                </div>
-              )}
-              {!selectedReceipt.reverted && selectedReceipt.clearance_status === 'BOUNCED' && (
-                <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '10px 14px', fontSize: '0.78rem', color: '#991B1B' }}>
-                  <strong>{t('coll.bounced_badge')}</strong> — {selectedReceipt.bounce_reason || '—'}
-                  <div style={{ fontSize: '0.7rem', color: '#B91C1C', marginTop: 3 }}>{t('coll.bounced_by_prefix')} {selectedReceipt.bounced_by} · {selectedReceipt.bounced_at ? new Date(selectedReceipt.bounced_at).toLocaleString('en-IN') : ''}</div>
-                </div>
-              )}
-
-              {/* Hero amount */}
-              <div style={{
-                background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 14,
-                padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-              }}>
-                <div>
-                  <span style={{ fontSize: '0.66rem', color: '#047857', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.03em' }}>Total Collected</span>
-                  <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#047857', marginTop: 2 }}>₹{fmt(selectedReceipt.amount)}</div>
-                </div>
-                <span className="fin-badge" style={{ background: '#FFFFFF', border: '1px solid #A7F3D0', color: '#047857' }}>{selectedReceipt.payment_mode}</span>
-              </div>
-
-              {/* Details — a single card, not a grid of boxes-within-boxes */}
-              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 14, padding: '4px 18px' }}>
-                {[
-                  [Calendar, t('col.date_time'), selectedReceipt.collection_date],
-                  [User, t('col.collector'), selectedReceipt.collector_name || 'Field Officer'],
-                  [Hash, t('coll.reference_no_label'), selectedReceipt.reference_no || '—', true],
-                  [Wallet, t('col.balance'), `₹${fmt(selectedReceipt.newPrincipalBalance ?? selectedReceipt.new_principal_balance)}`, false, (selectedReceipt.newPrincipalBalance ?? selectedReceipt.new_principal_balance) > 0 ? '#DC2626' : '#059669']
-                ].map(([Icon, label, value, isCode, color], i, arr) => (
-                  <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 0', borderBottom: i < arr.length - 1 ? '1px solid #E2E8F0' : 'none' }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: '0.76rem', color: '#64748B', fontWeight: 500 }}>
-                      <Icon style={{ width: 13, height: 13, color: '#94A3B8' }} />
-                      {label}
-                    </span>
-                    <span className={isCode ? 'code' : undefined} style={{ fontSize: '0.82rem', fontWeight: 600, color: color || '#0F172A' }}>{value}</span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Proof + Location */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 500 }}>{t('coll.proof_of_payment')}:</span>
-                  {selectedReceipt.proof_image ? (
-                    <img
-                      src={selectedReceipt.proof_image}
-                      alt="Proof"
-                      onClick={() => setPreviewImage(selectedReceipt.proof_image)}
-                      style={{ width: 34, height: 34, borderRadius: 7, objectFit: 'cover', border: '1px solid #A7F3D0', cursor: 'pointer' }}
-                    />
-                  ) : (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.74rem', color: '#94A3B8' }}>
-                      <ImageOff style={{ width: 12, height: 12 }} />
-                      {t('coll.no_proof')}
-                    </span>
-                  )}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 500 }}>{t('coll.location_label')}:</span>
-                  {selectedReceipt.latitude && selectedReceipt.longitude ? (
-                    <a
-                      href={mapsUrl(selectedReceipt.latitude, selectedReceipt.longitude)}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.76rem', color: '#059669', fontWeight: 600, textDecoration: 'none' }}
-                    >
-                      <MapPin style={{ width: 12, height: 12 }} />
-                      {t('coll.view_on_map')}
-                    </a>
-                  ) : (
-                    <span style={{ fontSize: '0.76rem', color: '#94A3B8' }}>{t('coll.no_location')}</span>
-                  )}
-                </div>
-              </div>
-
-              {!selectedReceipt.reverted && selectedReceipt.payment_mode === 'CHEQUE' && selectedReceipt.clearance_status === 'PENDING_CLEARANCE' && canControl && (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <ActionPill icon={<CheckCircle2 style={{ width: 12, height: 12 }} />} label={t('coll.mark_cleared')} tone="good" onClick={() => { onMarkChequeCleared(selectedReceipt.id); closeReceiptModal(); }} />
-                  <ActionPill icon={<XCircle style={{ width: 12, height: 12 }} />} label={t('coll.mark_bounced')} tone="bad" onClick={() => { setBounceTarget(selectedReceipt); setSelectedReceipt(null); }} />
-                </div>
-              )}
-
-              {!selectedReceipt.reverted && canControl && (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <ActionPill icon={<Pencil style={{ width: 12, height: 12 }} />} label={t('coll.edit_collection')} onClick={() => { openEdit(selectedReceipt); setSelectedReceipt(null); }} />
-                  <ActionPill icon={<Undo2 style={{ width: 12, height: 12 }} />} label={t('coll.revert_collection')} tone="bad" onClick={() => { setRevertTarget(selectedReceipt); setSelectedReceipt(null); }} />
-                </div>
-              )}
-            </div>
-
-            <div style={{ padding: '16px 24px', borderTop: '1px solid #E2E8F0', background: '#F8FAFC', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button
-                type="button"
-                onClick={closeReceiptModal}
-                className="btn-cancel"
-                style={{ fontWeight: 500, border: '1px solid #CBD5E1', background: '#FFF', padding: '8px 16px', borderRadius: 10, cursor: 'pointer', fontSize: '0.8rem' }}
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="btn-submit"
-                style={{ background: '#059669', fontWeight: 500, color: '#FFF', border: 'none', padding: '8px 18px', borderRadius: 10, cursor: 'pointer', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              >
-                <Printer style={{ width: 14, height: 14 }} />
-                <span>Print Official Voucher</span>
-              </button>
-            </div>
-
-          </div>
-        </div>
+          <ThermalVoucherModal
+            company={tenant}
+            receipt={{
+              voucher_no: selectedReceipt.voucher_no,
+              date: selectedReceipt.collection_date,
+              loan_account_no: selectedReceipt.loan_account_no,
+              branch: selectedReceipt.branch || linkedBorrower.branch,
+              borrower_name: selectedReceipt.borrower_name,
+              phone: linkedBorrower.phone,
+              payment_mode: selectedReceipt.payment_mode,
+              reference_no: selectedReceipt.reference_no,
+              amount: selectedReceipt.amount,
+              principal_paid: selectedReceipt.principalPaid,
+              interest_paid: selectedReceipt.interestPaid,
+              pending_balance: selectedReceipt.newPrincipalBalance ?? selectedReceipt.new_principal_balance,
+              collector_name: selectedReceipt.collector_name
+            }}
+            voidInfo={isVoid ? {
+              label: selectedReceipt.reverted ? t('coll.reverted_badge') : t('coll.bounced_badge'),
+              reason: selectedReceipt.reverted ? selectedReceipt.revert_reason : selectedReceipt.bounce_reason,
+              by: selectedReceipt.reverted ? selectedReceipt.reverted_by : selectedReceipt.bounced_by,
+              at: selectedReceipt.reverted ? selectedReceipt.reverted_at : selectedReceipt.bounced_at
+            } : null}
+            proofImage={selectedReceipt.proof_image}
+            location={selectedReceipt.latitude && selectedReceipt.longitude ? { lat: selectedReceipt.latitude, lng: selectedReceipt.longitude } : null}
+            onViewProof={setPreviewImage}
+            onClose={closeReceiptModal}
+            extraActions={statusButtons.length > 0 ? statusButtons : null}
+          />
         );
       })()}
 
-      {/* ── Edit Collection — same field styling (form-group/input-control,
-          3-col rows) as the New Collection Entry page, just in a modal. ── */}
-      {editTarget && (
+      {/* ── Edit Collection — standard modal shell (saas-modal-header/body/
+          footer), same field styling (form-group/input-control) as the New
+          Collection Entry page. Fields are pre-filled straight from the
+          collection record via openEdit(), and both close paths (header X
+          and footer Cancel) route through closeEdit() so editTarget and
+          editForm are always cleared together. ── */}
+      {editTarget && editForm && (
         <div className="saas-modal-backdrop" style={{ zIndex: 1000000 }}>
-          <div className="saas-modal-card" style={{ maxWidth: 500, borderRadius: 18, overflow: 'hidden', padding: 0 }}>
-            <div style={{ padding: '18px 22px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 38, height: 38, borderRadius: 10, background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Pencil style={{ width: 17, height: 17 }} />
+          <div className="saas-modal-card" style={{ maxWidth: 520 }}>
+            <div className="saas-modal-header">
+              <div className="head-left">
+                <div className="head-icon-badge" style={{ background: '#ECFDF5', borderColor: '#A7F3D0', color: '#059669' }}>
+                  <Pencil style={{ width: 16, height: 16 }} />
                 </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 700, color: '#0F172A' }}>{t('coll.edit_collection')}</h3>
-                  <p style={{ margin: '2px 0 0 0', fontSize: '0.74rem', color: '#64748B' }} className="code">{editTarget.receipt_no} — {editTarget.borrower_name}</p>
+                <div className="head-titles">
+                  <h3>{t('coll.edit_collection')}</h3>
+                  <p>{editTarget.voucher_no} — {editTarget.borrower_name}</p>
                 </div>
               </div>
-              <button onClick={() => setEditTarget(null)} type="button" style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <X style={{ width: 15, height: 15 }} />
-              </button>
+              <button onClick={closeEdit} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>
             </div>
             <form onSubmit={submitEdit}>
-              <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div className="saas-modal-body">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '12px 16px' }}>
                   <Avatar name={editTarget.borrower_name} photo={getLinkedBorrower(editTarget).profile_image || getLinkedBorrower(editTarget).photo} size={38} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>{editTarget.borrower_name}</div>
-                    <div className="code" style={{ fontSize: '0.7rem', color: '#94A3B8' }}>{editTarget.receipt_no}</div>
+                    <div className="code" style={{ fontSize: '0.7rem', color: '#94A3B8' }}>{editTarget.loan_account_no || editTarget.voucher_no}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <span style={{ fontSize: '0.62rem', color: '#94A3B8', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>{t('col.paid_rs')}</span>
@@ -648,6 +575,10 @@ export default function DailyCollectionsView({
                     <label>{t('coll.reference_no_label')}</label>
                     <input type="text" value={editForm.reference_no} onChange={e => setEditForm(f => ({ ...f, reference_no: e.target.value }))} className="input-control mono" placeholder="Reference number" />
                   </div>
+                  <div className="form-group">
+                    <label>{t('fin.branch_label')}</label>
+                    <input type="text" value={editForm.branch} onChange={e => setEditForm(f => ({ ...f, branch: e.target.value }))} className="input-control" placeholder="Branch" />
+                  </div>
                 </div>
 
                 <div className="form-row">
@@ -657,8 +588,8 @@ export default function DailyCollectionsView({
                   </div>
                 </div>
               </div>
-              <div style={{ padding: '14px 22px', borderTop: '1px solid #E2E8F0', background: '#F8FAFC', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                <button type="button" onClick={() => setEditTarget(null)} className="btn-cancel">{t('btn.cancel')}</button>
+              <div className="saas-modal-footer">
+                <button type="button" onClick={closeEdit} className="btn-cancel">{t('btn.cancel')}</button>
                 <button type="submit" className="btn-submit" style={{ background: '#059669' }}>{t('form.save_changes')}</button>
               </div>
             </form>
@@ -677,7 +608,7 @@ export default function DailyCollectionsView({
                 </div>
                 <div className="head-titles">
                   <h3>{t('coll.revert_confirm_title')}</h3>
-                  <p>{revertTarget.receipt_no} — {revertTarget.borrower_name}</p>
+                  <p>{revertTarget.voucher_no} — {revertTarget.borrower_name}</p>
                 </div>
               </div>
               <button onClick={() => { setRevertTarget(null); setRevertError(''); }} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>
@@ -722,7 +653,7 @@ export default function DailyCollectionsView({
                 </div>
                 <div className="head-titles">
                   <h3>{t('coll.bounce_confirm_title')}</h3>
-                  <p>{bounceTarget.receipt_no} — {bounceTarget.borrower_name}</p>
+                  <p>{bounceTarget.voucher_no} — {bounceTarget.borrower_name}</p>
                 </div>
               </div>
               <button onClick={() => { setBounceTarget(null); setBounceError(''); }} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>

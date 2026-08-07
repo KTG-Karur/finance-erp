@@ -89,7 +89,7 @@ export default function ReportPreviewModal({
         }
       `}</style>
 
-      <div className="report-preview-paper" style={{ padding: '16mm', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", Arial, sans-serif', color: '#000000' }}>
+      <div className="report-preview-paper" style={{ padding: '16mm', fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", Arial, sans-serif', color: '#000000' }}>
         {/* Centered letterhead */}
         <div style={{ textAlign: 'center', borderBottom: '2px solid #000000', paddingBottom: 12, marginBottom: 16 }}>
           {company.logo && <img src={company.logo} alt="" style={{ width: 48, height: 48, objectFit: 'contain', margin: '0 auto 6px auto', display: 'block' }} />}

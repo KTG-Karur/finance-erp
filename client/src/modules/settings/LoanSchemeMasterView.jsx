@@ -135,7 +135,7 @@ function SchemeModal({ isOpen, initialData, schemes, onClose, onSubmit }) {
 
   return (
     <div className="saas-modal-backdrop">
-      <div className="saas-modal-card saas-modal-card--lg" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif' }}>
+      <div className="saas-modal-card saas-modal-card--lg" style={{ fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif' }}>
         <div className="saas-modal-header">
           <div className="head-left">
             <div className="head-icon-badge" style={{ background: '#F8FAFC', color: '#0F172A', border: '1px solid #E2E8F0' }}>
@@ -265,7 +265,7 @@ export default function LoanSchemeMasterView({ schemes = [], onCreateScheme, onU
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif' }}>
       <div className="active-loans-header">
         <div className="header-left">
           <div className="header-text">
@@ -325,12 +325,24 @@ export default function LoanSchemeMasterView({ schemes = [], onCreateScheme, onU
                     </span>
                   </td>
                   <td style={{ textAlign: 'right' }}>
-                    <div style={{ display: 'inline-flex', gap: 6 }}>
-                      <button onClick={() => { setEditing(s); setModalOpen(true); }} style={{ border: '1px solid #E2E8F0', background: '#FFFFFF', color: '#334155', borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}>
-                        <Pencil style={{ width: 12, height: 12 }} />
+                    <div style={{ display: 'inline-flex', gap: 8 }}>
+                      <button
+                        onClick={() => { setEditing(s); setModalOpen(true); }}
+                        title={t('btn.edit')}
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, border: '1px solid #E2E8F0', background: '#FFFFFF', color: '#334155', borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s ease' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.borderColor = '#94A3B8'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.borderColor = '#E2E8F0'; }}
+                      >
+                        <Pencil style={{ width: 16, height: 16 }} />
                       </button>
-                      <button onClick={() => { setDeleteTarget(s); setDeleteError(''); }} style={{ border: 'none', background: '#FEE2E2', color: '#DC2626', borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}>
-                        <Trash2 style={{ width: 12, height: 12 }} />
+                      <button
+                        onClick={() => { setDeleteTarget(s); setDeleteError(''); }}
+                        title={t('btn.delete')}
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, border: '1px solid transparent', background: '#FEE2E2', color: '#DC2626', borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s ease' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#FECACA'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#FEE2E2'; }}
+                      >
+                        <Trash2 style={{ width: 16, height: 16 }} />
                       </button>
                     </div>
                   </td>

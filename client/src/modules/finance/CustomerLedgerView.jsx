@@ -43,7 +43,7 @@ export default function CustomerLedgerView({ borrowers = [], loans = [], collect
       id: `disbursal-${l.id}`,
       date: l.loan_date,
       loan_account_no: l.loan_account_no,
-      receipt_no: '—',
+      voucher_no: '—',
       type: 'DISBURSAL',
       mode: '—',
       amount: l.principal_amount
@@ -54,7 +54,7 @@ export default function CustomerLedgerView({ borrowers = [], loans = [], collect
         id: c.id,
         date: c.collection_date,
         loan_account_no: c.loan_account_no,
-        receipt_no: c.receipt_no || '—',
+        voucher_no: c.voucher_no || '—',
         type: 'COLLECTION',
         mode: c.payment_mode || '—',
         amount: c.amount
@@ -146,7 +146,7 @@ export default function CustomerLedgerView({ borrowers = [], loans = [], collect
               <th>{t('col.date')}</th>
               <th>{t('col.loan_acc')}</th>
               <th>{t('fin.voucher_type_col')}</th>
-              <th>{t('col.receipt_no')}</th>
+              <th>{t('col.voucher_no')}</th>
               <th>{t('col.mode')}</th>
               <th className="num">{t('col.amount_rs')}</th>
             </tr>
@@ -159,7 +159,7 @@ export default function CustomerLedgerView({ borrowers = [], loans = [], collect
                 <td>{row.date}</td>
                 <td className="code">{row.loan_account_no}</td>
                 <td><span className="fin-tag">{row.type === 'DISBURSAL' ? t('fin.ref_disbursal') : t('fin.ref_collection')}</span></td>
-                <td className="code">{row.receipt_no}</td>
+                <td className="code">{row.voucher_no}</td>
                 <td>{row.mode}</td>
                 <td className="num" style={{ fontWeight: 600, color: '#0F172A' }}>₹{fmt(row.amount)}</td>
               </tr>

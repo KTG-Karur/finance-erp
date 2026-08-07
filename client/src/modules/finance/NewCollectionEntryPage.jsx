@@ -276,7 +276,7 @@ export default function NewCollectionEntryPage({
       };
 
       const res = await onRecordCollection?.(payload);
-      setLastReceipt(res?.data || { ...payload, receipt_no: `REC-${collectionDate.replace(/-/g, '')}` });
+      setLastReceipt(res?.data || { ...payload, voucher_no: `JE-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` });
       setShowTickAnimation(true);
 
       setTxnRef('');
@@ -292,7 +292,7 @@ export default function NewCollectionEntryPage({
   };
 
   return (
-    <div className="active-loans-page" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif', paddingBottom: 60 }}>
+    <div className="active-loans-page" style={{ fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif', paddingBottom: 60 }}>
 
       {/* ── Header ──────────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
@@ -794,7 +794,7 @@ export default function NewCollectionEntryPage({
                 <thead>
                   <tr style={{ borderBottom: '1px solid #E2E8F0' }}>
                     <th style={{ textAlign: 'left', padding: '6px 8px', color: '#64748B', fontWeight: 500 }}>Date</th>
-                    <th style={{ textAlign: 'left', padding: '6px 8px', color: '#64748B', fontWeight: 500 }}>Receipt No</th>
+                    <th style={{ textAlign: 'left', padding: '6px 8px', color: '#64748B', fontWeight: 500 }}>Voucher No</th>
                     <th style={{ textAlign: 'right', padding: '6px 8px', color: '#64748B', fontWeight: 500 }}>Amount</th>
                     <th style={{ textAlign: 'right', padding: '6px 8px', color: '#64748B', fontWeight: 500 }}>Principal</th>
                     <th style={{ textAlign: 'right', padding: '6px 8px', color: '#64748B', fontWeight: 500 }}>Interest</th>
@@ -805,7 +805,7 @@ export default function NewCollectionEntryPage({
                   {loanHistory.map(rec => (
                     <tr key={rec.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
                       <td style={{ padding: '7px 8px', color: '#334155' }}>{rec.collection_date}</td>
-                      <td style={{ padding: '7px 8px', color: '#2563EB', fontFamily: 'monospace' }}>{rec.receipt_no}</td>
+                      <td style={{ padding: '7px 8px', color: '#2563EB', fontFamily: 'monospace' }}>{rec.voucher_no}</td>
                       <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 600, color: '#0F172A' }}>₹{fmt(rec.amount)}</td>
                       <td style={{ padding: '7px 8px', textAlign: 'right', color: '#0F172A' }}>₹{fmt(rec.principalPaid)}</td>
                       <td style={{ padding: '7px 8px', textAlign: 'right', color: '#7C3AED' }}>₹{fmt(rec.interestPaid)}</td>
@@ -924,7 +924,7 @@ export default function NewCollectionEntryPage({
             </div>
 
             <div style={{ borderBottom: '1px dashed #000000', paddingBottom: 8, marginBottom: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Receipt No:</span><strong>{lastReceipt.receipt_no}</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Voucher No:</span><strong>{lastReceipt.voucher_no}</strong></div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Date:</span><span>{lastReceipt.collection_date || collectionDate}</span></div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Account No:</span><strong>{targetLoan?.loan_account_no}</strong></div>
             </div>
@@ -950,7 +950,7 @@ export default function NewCollectionEntryPage({
               <div style={{ margin: '8px 0 4px 0', borderTop: '1px dashed #000000', paddingTop: 6 }}>*** THANK YOU - PAID SUCCESSFULLY ***</div>
             </div>
 
-            <div className="no-print" style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16, paddingTop: 12, borderTop: '1px solid #000000', fontFamily: '-apple-system, sans-serif' }}>
+            <div className="no-print" style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16, paddingTop: 12, borderTop: '1px solid #000000', fontFamily: 'InterVariable, Inter, -apple-system, sans-serif' }}>
               <button type="button" onClick={() => window.print()} style={{ border: '1.5px solid #000000', background: '#000000', color: '#FFFFFF', padding: '8px 16px', borderRadius: 4, fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <Printer style={{ width: 14, height: 14 }} />
                 <span>Print</span>
