@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import {
   ArrowLeft, User, ShieldCheck, Receipt, Wallet, PieChart,
   Phone, MapPin, CreditCard, Building2, Calendar, Clock,
-  CheckCircle2, AlertTriangle, FileText, Download, TrendingUp, History,
-  Check, FileCheck
+  CheckCircle2, AlertTriangle, FileText, Download, TrendingUp, TrendingDown, History,
+  Check, FileCheck, CalendarClock
 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 
@@ -156,7 +156,7 @@ export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }
     const penaltyAmt = Number(r.penalty || r.late_fee || 0);
     return {
       id: r.id || idx,
-      receipt_no: r.receipt_no || r.receiptNo || `REC-${loan.loan_account_no?.replace('LN-', '') || '100'}-00${idx + 1}`,
+      voucher_no: r.voucher_no || `JE-${loan.loan_account_no?.replace('LN-', '') || '100'}-00${idx + 1}`,
       date: r.collection_date || r.date || '2026-08-01',
       time: r.time || '10:30 AM',
       mode: r.payment_mode || r.mode || 'CASH',
@@ -174,7 +174,7 @@ export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }
   }) : [
     {
       id: 1,
-      receipt_no: `REC-${loan.loan_account_no?.replace('LN-', '') || '100'}-001`,
+      voucher_no: `JE-${loan.loan_account_no?.replace('LN-', '') || '100'}-001`,
       date: '2026-07-20',
       time: '11:15 AM',
       mode: 'CASH',
@@ -191,7 +191,7 @@ export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }
     },
     {
       id: 2,
-      receipt_no: `REC-${loan.loan_account_no?.replace('LN-', '') || '100'}-002`,
+      voucher_no: `JE-${loan.loan_account_no?.replace('LN-', '') || '100'}-002`,
       date: '2026-07-28',
       time: '04:30 PM',
       mode: 'UPI',
@@ -227,7 +227,7 @@ export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }
   return (
     <div className="loan-detail-page-container">
 
-      {/* Redesigned Header with Customer Profile Photo */}
+      {/* Header with Customer Profile Photo */}
       <div className="loan-detail-header-card">
         <div className="nav-top-row">
           <button type="button" onClick={onBack} className="btn-detail-back">
@@ -258,16 +258,17 @@ export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }
               <div className="title-name-row">
                 <h2>{loan.borrower_name}</h2>
                 <span className="status-tag-pill" style={{ background: sc.bg, color: sc.color, borderColor: sc.border }}>
+                  <span className="status-dot" style={{ background: sc.color }} />
                   {sc.label}{isOverdue && loan.daysOverdue ? ` · ${loan.daysOverdue} ${t('ld.days_overdue_suffix')}` : ''}
                 </span>
               </div>
 
               <div className="meta-pills-row">
-                <span className="info-chip">{t('ld.loan_account')} {loan.loan_account_no}</span>
-                <span className="info-chip">{t('ld.customer_id')} {borrower?.borrower_code || 'KTG-CUST'}</span>
-                <span className="info-chip">{t('col.branch')}: {loan.branch || 'Karur Main'}</span>
-                <span className="info-chip">{t('ld.officer')} {loan.collector || '—'}</span>
-                <span className="info-chip">{t('col.phone')}: {loan.phone || borrower?.phone || '—'}</span>
+                <span className="info-chip"><CreditCard style={{ width: 12, height: 12 }} />{loan.loan_account_no}</span>
+                <span className="info-chip"><User style={{ width: 12, height: 12 }} />{borrower?.borrower_code || 'KTG-CUST'}</span>
+                <span className="info-chip"><Building2 style={{ width: 12, height: 12 }} />{loan.branch || 'Karur Main'}</span>
+                <span className="info-chip"><FileCheck style={{ width: 12, height: 12 }} />{loan.collector || '—'}</span>
+                <span className="info-chip"><Phone style={{ width: 12, height: 12 }} />{loan.phone || borrower?.phone || '—'}</span>
               </div>
             </div>
           </div>
@@ -276,38 +277,57 @@ export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }
 
       {/* KPI Cards Grid */}
       <div className="loan-detail-kpi-grid">
-        <div className="kpi-detail-card">
-          <span className="lbl">{t('ld.sanctioned_principal')}</span>
-          <span className="val text-blue">₹{fmt(loan.principal_amount)}</span>
-          <span className="sub">{t('ld.base_loan_amount')}</span>
+        <div className="kpi-detail-card accent-blue">
+          <div className="kpi-icon-badge badge-blue"><Wallet style={{ width: 18, height: 18 }} /></div>
+          <div className="kpi-body">
+            <span className="lbl">{t('ld.sanctioned_principal')}</span>
+            <span className="val text-blue">₹{fmt(loan.principal_amount)}</span>
+            <span className="sub">{t('ld.base_loan_amount')}</span>
+          </div>
         </div>
 
-        <div className="kpi-detail-card">
-          <span className="lbl">{t('ld.total_collected')}</span>
-          <span className="val text-emerald">₹{fmt(loan.collected_amount)}</span>
-          <span className="sub">{progressPct}% {t('ld.repaid_suffix')}</span>
+        <div className="kpi-detail-card accent-emerald">
+          <div className="kpi-icon-badge badge-emerald"><TrendingUp style={{ width: 18, height: 18 }} /></div>
+          <div className="kpi-body">
+            <span className="lbl">{t('ld.total_collected')}</span>
+            <span className="val text-emerald">₹{fmt(loan.collected_amount)}</span>
+            <span className="sub trend-up">{progressPct}% {t('ld.repaid_suffix')}</span>
+          </div>
         </div>
 
-        <div className="kpi-detail-card">
-          <span className="lbl">{t('ld.pending_balance')}</span>
-          <span className={`val ${loan.pending_amount > 0 ? 'text-rose' : 'text-emerald'}`}>
-            ₹{fmt(loan.pending_amount)}
-          </span>
-          <span className="sub">{t('ld.outstanding_amount')}</span>
+        <div className={`kpi-detail-card ${loan.pending_amount > 0 ? 'accent-rose' : 'accent-emerald'}`}>
+          <div className={`kpi-icon-badge ${loan.pending_amount > 0 ? 'badge-rose' : 'badge-emerald'}`}>
+            {loan.pending_amount > 0 ? <TrendingDown style={{ width: 18, height: 18 }} /> : <CheckCircle2 style={{ width: 18, height: 18 }} />}
+          </div>
+          <div className="kpi-body">
+            <span className="lbl">{t('ld.pending_balance')}</span>
+            <span className={`val ${loan.pending_amount > 0 ? 'text-rose' : 'text-emerald'}`}>
+              ₹{fmt(loan.pending_amount)}
+            </span>
+            <span className="sub">{t('ld.outstanding_amount')}</span>
+          </div>
         </div>
 
-        <div className="kpi-detail-card">
-          <span className="lbl">{t('ld.daily_installment_emi')}</span>
-          <span className="val">₹{fmt(loan.installment_amount)}</span>
-          <span className="sub">{t('ld.per_day_word')}</span>
+        <div className="kpi-detail-card accent-violet">
+          <div className="kpi-icon-badge badge-violet"><Clock style={{ width: 18, height: 18 }} /></div>
+          <div className="kpi-body">
+            <span className="lbl">{t('ld.daily_installment_emi')}</span>
+            <span className="val">₹{fmt(loan.installment_amount)}</span>
+            <span className="sub">{t('ld.per_day_word')}</span>
+          </div>
         </div>
 
-        <div className="kpi-detail-card">
-          <span className="lbl">{t('ld.repayment_status')}</span>
-          <span className={`val ${isOverdue ? 'text-rose' : 'text-emerald'}`}>
-            {isOverdue ? `${loan.daysOverdue || 0} ${t('ld.days_late_suffix')}` : t('ld.on_schedule')}
-          </span>
-          <span className="sub">{t('ld.due_date')} {loan.next_due || '—'}</span>
+        <div className={`kpi-detail-card ${isOverdue ? 'accent-rose' : 'accent-emerald'}`}>
+          <div className={`kpi-icon-badge ${isOverdue ? 'badge-rose' : 'badge-emerald'}`}>
+            {isOverdue ? <AlertTriangle style={{ width: 18, height: 18 }} /> : <CalendarClock style={{ width: 18, height: 18 }} />}
+          </div>
+          <div className="kpi-body">
+            <span className="lbl">{t('ld.repayment_status')}</span>
+            <span className={`val ${isOverdue ? 'text-rose' : 'text-emerald'}`}>
+              {isOverdue ? `${loan.daysOverdue || 0} ${t('ld.days_late_suffix')}` : t('ld.on_schedule')}
+            </span>
+            <span className="sub">{t('ld.due_date')} {loan.next_due || '—'}</span>
+          </div>
         </div>
       </div>
 
@@ -506,7 +526,7 @@ export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }
                   <thead>
                     <tr>
                       <th>#</th>
-                      <th>{t('col.receipt_no')}</th>
+                      <th>{t('col.voucher_no')}</th>
                       <th>{t('col.date_time')}</th>
                       <th>{t('col.mode')}</th>
                       <th>{t('ld.txn_ref')}</th>
@@ -524,7 +544,7 @@ export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }
                     {loanReceipts.map((r, idx) => (
                       <tr key={r.id || idx}>
                         <td className="sno-col">{idx + 1}</td>
-                        <td><span className="receipt-code">{r.receipt_no}</span></td>
+                        <td><span className="receipt-code">{r.voucher_no}</span></td>
                         <td>
                           <div className="date-time-cell">
                             <span className="date-str">{r.date}</span>

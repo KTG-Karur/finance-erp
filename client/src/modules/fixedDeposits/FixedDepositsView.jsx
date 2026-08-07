@@ -4,7 +4,7 @@ import {
   UserCheck, ChevronLeft, ChevronRight, Search
 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
-import { openPrintableCertificate } from '../../utils/printCertificate';
+import FixedDepositCertificateModal from '../../components/FixedDepositCertificateModal';
 
 const FORM_MAX_WIDTH = 780;
 
@@ -42,8 +42,6 @@ function BookFdScreen({ borrowers, onCancel, onSubmit }) {
     interest_rate: 8.5,
     scheme: 'CUMULATIVE',
     payment_mode: 'CASH',
-    nominee_name: '',
-    nominee_phone: '',
     notes: ''
   });
   const [error, setError] = useState('');
@@ -73,8 +71,6 @@ function BookFdScreen({ borrowers, onCancel, onSubmit }) {
         interest_rate: parseFloat(form.interest_rate),
         scheme: form.scheme,
         payment_mode: form.payment_mode,
-        nominee_name: form.nominee_name,
-        nominee_phone: form.nominee_phone,
         notes: form.notes,
         booking_date: bookingDate.toISOString().slice(0, 10),
         maturity_date: maturityDate.toISOString().slice(0, 10),
@@ -174,17 +170,7 @@ function BookFdScreen({ borrowers, onCancel, onSubmit }) {
           <div className="cf-pane-title" style={{ paddingBottom: 12 }}>
             <UserCheck style={{ width: 16, height: 16, color: '#059669' }} />
             <div>
-              <h3>{t('fd.section_nominee_title')}</h3>
-            </div>
-          </div>
-          <div className="form-row form-row--3">
-            <div className="form-group">
-              <label>{t('fd.nominee_name_label')}</label>
-              <input type="text" value={form.nominee_name} onChange={e => setField('nominee_name', e.target.value)} className="input-control" placeholder="Full name" />
-            </div>
-            <div className="form-group">
-              <label>{t('fd.nominee_phone_label')}</label>
-              <input type="text" value={form.nominee_phone} onChange={e => setField('nominee_phone', e.target.value)} className="input-control mono" placeholder="10-digit mobile" />
+              <h3>{t('fd.section_notes_title')}</h3>
             </div>
           </div>
           <div className="form-row">
@@ -298,6 +284,7 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
   const [statusTab, setStatusTab] = useState('ACTIVE');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
+  const [certificateFd, setCertificateFd] = useState(null);
   const pageSize = 8;
 
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
@@ -312,35 +299,28 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
     );
   }
 
-  const printCertificate = (fd) => {
-    openPrintableCertificate({
-      company: tenant,
-      fd,
-      labels: {
-        title: t('fdc.title'),
-        certificateNo: t('fdc.certificate_no'),
-        fdAccountNo: t('col.fd_account_no'),
-        customer: t('col.customer'),
-        principal: t('fdc.principal_amount').replace(/:$/, ''),
-        rate: t('fdc.interest_rate').replace(/:$/, ''),
-        tenure: t('col.tenure'),
-        months: t('fdc.months'),
-        scheme: t('fdc.scheme').replace(/:$/, ''),
-        cumulative: t('fdc.cumulative'),
-        monthlyPayout: t('fdc.monthly_payout'),
-        bookingDate: t('fdc.booking_date').replace(/:$/, ''),
-        maturityDate: t('col.maturity_date'),
-        nominee: t('fd.nominee_name_label'),
-        status: t('col.status'),
-        statusText: tStatus(fd.status),
-        maturityValue: t('fdc.maturity_value').replace(/:$/, ''),
-        payoutAfterPenalty: t('fdc.payout_after_penalty').replace(/:$/, ''),
-        customerSignature: t('fdc.customer_signature'),
-        authorizedSignatory: t('fdc.authorized_signatory'),
-        generatedOn: t('fdc.generated_on')
-      }
-    });
-  };
+  const certificateLabels = (fd) => ({
+    title: t('fdc.title'),
+    certificateNo: t('fdc.certificate_no'),
+    fdAccountNo: t('col.fd_account_no'),
+    customer: t('col.customer'),
+    principal: t('fdc.principal_amount').replace(/:$/, ''),
+    rate: t('fdc.interest_rate').replace(/:$/, ''),
+    tenure: t('col.tenure'),
+    months: t('fdc.months'),
+    scheme: t('fdc.scheme').replace(/:$/, ''),
+    cumulative: t('fdc.cumulative'),
+    monthlyPayout: t('fdc.monthly_payout'),
+    bookingDate: t('fdc.booking_date').replace(/:$/, ''),
+    maturityDate: t('col.maturity_date'),
+    status: t('col.status'),
+    statusText: tStatus(fd.status),
+    maturityValue: t('fdc.maturity_value').replace(/:$/, ''),
+    payoutAfterPenalty: t('fdc.payout_after_penalty').replace(/:$/, ''),
+    customerSignature: t('fdc.customer_signature'),
+    authorizedSignatory: t('fdc.authorized_signatory'),
+    generatedOn: t('fdc.generated_on')
+  });
 
   const totalPrincipal = fixedDeposits.reduce((acc, f) => acc + (f.status === 'ACTIVE' ? f.principal_amount : 0), 0);
   const totalMaturityLiability = fixedDeposits.reduce((acc, f) => acc + (f.status === 'ACTIVE' ? f.maturity_value : 0), 0);
@@ -446,7 +426,7 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
                 <td style={{ textAlign: 'center' }}><span className={statusBadgeCls(fd.status)}>{tStatus(fd.status)}</span></td>
                 <td style={{ textAlign: 'right' }}>
                   <div style={{ display: 'inline-flex', gap: 6 }}>
-                    <ActionPill icon={<Eye style={{ width: 11, height: 11 }} />} label={t('fd.view_certificate')} onClick={() => printCertificate(fd)} />
+                    <ActionPill icon={<Eye style={{ width: 11, height: 11 }} />} label={t('fd.view_certificate')} onClick={() => setCertificateFd(fd)} />
                     {fd.status === 'ACTIVE' && (
                       <>
                         <ActionPill icon={<CheckCircle2 style={{ width: 11, height: 11 }} />} label={t('fd.mark_matured')} tone="good" onClick={() => setConfirmAction({ type: 'MATURE', fd })} />
@@ -521,6 +501,15 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
           </div>
         );
       })()}
+
+      {certificateFd && (
+        <FixedDepositCertificateModal
+          company={tenant}
+          fd={certificateFd}
+          labels={certificateLabels(certificateFd)}
+          onClose={() => setCertificateFd(null)}
+        />
+      )}
     </div>
   );
 }

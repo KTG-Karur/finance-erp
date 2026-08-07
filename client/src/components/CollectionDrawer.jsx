@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Receipt, CheckCircle2, Printer, FileText, Phone, MapPin, ShieldCheck, User } from 'lucide-react';
+import { X, Receipt, CheckCircle2, FileText } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
 import { calculatePaymentAllocation } from '../utils/loanCalculations';
+import ThermalVoucherModal from './ThermalVoucherModal';
 
-export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = [], onSubmit }) {
+export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = [], tenant, onSubmit }) {
   const { t } = useLanguage();
   if (!isOpen || !loan) return null;
 
@@ -104,7 +105,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
       });
 
       setReceipt(res?.data || {
-        receipt_no: `REC-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.floor(1000 + Math.random() * 9000)}`,
+        voucher_no: `JE-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         amount: receivedVal,
         updatedCollectedAmt,
         updatedPendingBal,
@@ -145,7 +146,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
         overflow: 'hidden',
         display: 'grid',
         gridTemplateColumns: '320px 1fr',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+        fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
       }}>
 
         {/* ── LEFT PANEL: Borrower Image & Full Profile Details ─────────── */}
@@ -352,7 +353,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                 {t('cd.recorded_successfully')}
               </h3>
               <p style={{ fontSize: '0.82rem', color: '#64748B', marginTop: 6, fontWeight: 400 }}>
-                {t('cd.receipt_number')} <span style={{ color: '#059669', fontFamily: 'monospace', fontWeight: 500 }}>{receipt.receipt_no}</span>
+                {t('cd.voucher_number')} <span style={{ color: '#059669', fontFamily: 'monospace', fontWeight: 500 }}>{receipt.voucher_no}</span>
               </p>
 
               <div style={{
@@ -401,7 +402,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                   }}
                 >
                   <FileText style={{ width: 17, height: 17, color: '#0F172A' }} />
-                  <span>{t('cd.preview_print_receipt')}</span>
+                  <span>{t('cd.preview_print_voucher')}</span>
                 </button>
 
                 <button
@@ -722,183 +723,30 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
     </div>
   );
 
-  {/* ── DEDICATED POS THERMAL RECEIPT MACHINE PRINT SHEET MODAL ────────── */}
   const paperReceiptModal = showReceiptModal && receipt && (
-    <div className="paper-receipt-printable-overlay" style={{
-      position: 'fixed',
-      inset: 0,
-      zIndex: 9999999,
-      background: 'rgba(0, 0, 0, 0.75)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 20
-    }}>
-      <div className="paper-receipt-document" style={{
-        background: '#FFFFFF',
-        color: '#000000',
-        borderRadius: 2,
-        boxShadow: '0 20px 50px rgba(0, 0, 0, 0.4)',
-        width: 320,
-        maxWidth: '100%',
-        maxHeight: '94vh',
-        overflowY: 'auto',
-        border: '1px solid #000000',
-        fontFamily: '"Courier New", Courier, monospace, monospace',
-        padding: '20px 16px',
-        boxSizing: 'border-box',
-        position: 'relative',
-        fontSize: '0.78rem',
-        lineHeight: 1.45
-      }}>
-        {/* Close Button Top Right (hidden in print) */}
-        <button
-          type="button"
-          className="no-print"
-          onClick={() => setShowReceiptModal(false)}
-          style={{
-            position: 'absolute',
-            right: 12,
-            top: 12,
-            background: '#FFFFFF',
-            border: '1px solid #000000',
-            color: '#000000',
-            width: 24,
-            height: 24,
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer'
-          }}
-        >
-          <X style={{ width: 12, height: 12 }} />
-        </button>
-
-        {/* POS Thermal Header */}
-        <div style={{ textAlign: 'center', borderBottom: '1px dashed #000000', paddingBottom: 10, marginBottom: 10 }}>
-          <div style={{ fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-            KARUR THANGAMAYIL FINANCE
-          </div>
-          <div style={{ fontSize: '0.68rem', marginTop: 2 }}>
-            No. 123, Kovai Main Road, Karur
-          </div>
-          <div style={{ fontSize: '0.65rem' }}>
-            RBI Regd NBFC | Lic: B-07.01234
-          </div>
-          <div style={{ marginTop: 6, fontWeight: 700, border: '1px solid #000000', display: 'inline-block', padding: '2px 8px', fontSize: '0.7rem' }}>
-            PAYMENT COLLECTION RECEIPT
-          </div>
-        </div>
-
-        {/* Receipt Key Fields */}
-        <div style={{ borderBottom: '1px dashed #000000', paddingBottom: 8, marginBottom: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Receipt No:</span>
-            <strong>{receipt.receipt_no}</strong>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Date:</span>
-            <span>{receipt.collection_date}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Account No:</span>
-            <strong>{currentLoan.loan_account_no}</strong>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Branch:</span>
-            <span>{branchLoc}</span>
-          </div>
-        </div>
-
-        {/* Customer Information */}
-        <div style={{ borderBottom: '1px dashed #000000', paddingBottom: 8, marginBottom: 8 }}>
-          <div>Borrower: <strong>{borrowerName}</strong></div>
-          <div>Mobile  : <span>{phoneNo}</span></div>
-          <div>Mode    : <span>{paymentMode} {receipt.mode_ref ? `(${receipt.mode_ref})` : ''}</span></div>
-        </div>
-
-        {/* Financial Collection Itemization */}
-        <div style={{ borderBottom: '1px dashed #000000', paddingBottom: 10, marginBottom: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', fontWeight: 700, padding: '4px 0', borderBottom: '1px solid #000000' }}>
-            <span>TODAY RECEIVED:</span>
-            <span>Rs. {fmt(receipt.amount || receivedVal)}</span>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-            <span>Principal Sanctioned:</span>
-            <span>Rs. {fmt(principalAmt)}</span>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-            <span>Total Paid Amount:</span>
-            <strong>Rs. {fmt(updatedCollectedAmt)}</strong>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontWeight: 700 }}>
-            <span>Pending Balance:</span>
-            <span>Rs. {fmt(updatedPendingBal)}</span>
-          </div>
-        </div>
-
-        {/* Staff & Computer Generated Note */}
-        <div style={{ textAlign: 'center', fontSize: '0.68rem' }}>
-          <div>Collector Agent: <strong>{collectorName}</strong></div>
-          <div style={{ margin: '8px 0 4px 0', borderTop: '1px dashed #000000', paddingTop: 6 }}>
-            *** THANK YOU - PAID SUCCESSFULLY ***
-          </div>
-          <div style={{ fontSize: '0.6rem', color: '#444444' }}>Computer Generated Receipt</div>
-        </div>
-
-        {/* Action Controls (hidden in print) */}
-        <div className="no-print" style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16, paddingTop: 12, borderTop: '1px solid #000000', fontFamily: '-apple-system, sans-serif' }}>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            style={{
-              border: '1.5px solid #000000',
-              background: '#000000',
-              color: '#FFFFFF',
-              padding: '8px 16px',
-              borderRadius: 4,
-              fontSize: '0.8rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6
-            }}
-          >
-            <Printer style={{ width: 14, height: 14 }} />
-            <span>Print Thermal Receipt</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowReceiptModal(false)}
-            style={{
-              border: '1px solid #000000',
-              background: '#FFFFFF',
-              color: '#000000',
-              padding: '8px 14px',
-              borderRadius: 4,
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            Close
-          </button>
-        </div>
-
-      </div>
-    </div>
+    <ThermalVoucherModal
+      company={tenant}
+      receipt={{
+        voucher_no: receipt.voucher_no,
+        date: receipt.collection_date,
+        loan_account_no: currentLoan.loan_account_no,
+        branch: branchLoc,
+        borrower_name: borrowerName,
+        phone: phoneNo,
+        payment_mode: paymentMode,
+        reference_no: receipt.mode_ref,
+        amount: receipt.amount || receivedVal,
+        pending_balance: updatedPendingBal,
+        collector_name: collectorName
+      }}
+      onClose={() => setShowReceiptModal(false)}
+    />
   );
 
   return (
     <>
       {createPortal(mainModal, document.body)}
-      {paperReceiptModal && createPortal(paperReceiptModal, document.body)}
+      {paperReceiptModal}
     </>
   );
 }

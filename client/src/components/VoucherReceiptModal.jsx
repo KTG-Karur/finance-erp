@@ -116,7 +116,7 @@ export default function VoucherReceiptModal({ company = {}, voucher, accountName
         
         {/* Onscreen Header Action Bar */}
         <div className="printable-form-header-bar" style={{ padding: '14px 20px', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#FFFFFF' }}>
-          <h3 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 600, color: '#0F172A', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+          <h3 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 600, color: '#0F172A', fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
             Thermal Receipt Preview
           </h3>
 

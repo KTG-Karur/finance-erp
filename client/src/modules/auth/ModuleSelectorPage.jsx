@@ -72,7 +72,7 @@ export default function ModuleSelectorPage({ company, onSelectModule, onBack }) 
       position: 'relative',
       backgroundColor: '#F8FAFC',
       color: '#0F172A',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
+      fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',

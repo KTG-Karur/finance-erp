@@ -4,7 +4,6 @@ import BorrowersView from '../borrowers/BorrowersView';
 import OrganizationHierarchyView from './OrganizationHierarchyView';
 import LoanSchemeMasterView from './LoanSchemeMasterView';
 import ExpenseAllocationView from './ExpenseAllocationView';
-import AuditLogView from './AuditLogView';
 import {
   Settings,
   Users,
@@ -67,8 +66,7 @@ export default function MasterSettingsView({
   expenseAllocationRequests,
   onRequestExpenseAllocation,
   onApproveExpenseAllocation,
-  onRejectExpenseAllocation,
-  auditLogs = []
+  onRejectExpenseAllocation
 }) {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -262,10 +260,6 @@ export default function MasterSettingsView({
         onRejectExpenseAllocation={onRejectExpenseAllocation}
       />
     );
-  }
-
-  if (activeTab === 'audit-log') {
-    return <AuditLogView auditLogs={auditLogs} />;
   }
 
   if (activeTab === 'org-hierarchy' || activeTab === 'company-info') {
@@ -576,7 +570,7 @@ export default function MasterSettingsView({
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+            fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
           }}>
             {/* Modal Header Bar */}
             <div style={{
@@ -657,7 +651,7 @@ export default function MasterSettingsView({
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+            fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
           }}>
 
             {/* Header Strip */}

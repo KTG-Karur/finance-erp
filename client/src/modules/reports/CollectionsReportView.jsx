@@ -57,7 +57,7 @@ export default function CollectionsReportView({ collections = [], loans = [], br
 
   const filtered = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    return byMode.filter(c => !q || c.borrower_name.toLowerCase().includes(q) || c.receipt_no.toLowerCase().includes(q))
+    return byMode.filter(c => !q || c.borrower_name.toLowerCase().includes(q) || c.voucher_no.toLowerCase().includes(q))
       .slice()
       .sort((a, b) => (a.collection_date < b.collection_date ? 1 : a.collection_date > b.collection_date ? -1 : 0));
   }, [byMode, searchQuery]);
@@ -71,14 +71,14 @@ export default function CollectionsReportView({ collections = [], loans = [], br
   const totalCollected = filtered.reduce((s, c) => s + (c.amount || 0), 0);
 
   const PDF_COLUMNS = [
-    { label: t('col.receipt_no') }, { label: t('col.date') }, { label: t('col.date_time') },
+    { label: t('col.voucher_no') }, { label: t('col.date') }, { label: t('col.date_time') },
     { label: t('col.loan_account') }, { label: t('col.customer_name') }, { label: t('fin.branch_label') },
     { label: t('col.collector') }, { label: t('col.principal'), align: 'right' }, { label: t('col.interest'), align: 'right' },
     { label: t('fin.penalty_label'), align: 'right' }, { label: t('col.amount_rs'), align: 'right' }, { label: t('col.payment_mode') }
   ];
 
   const buildRows = () => filtered.map(c => [
-    c.receipt_no, c.collection_date, collectedAt(c), loanAccMap[c.loan_id] || '—', c.borrower_name,
+    c.voucher_no, c.collection_date, collectedAt(c), loanAccMap[c.loan_id] || '—', c.borrower_name,
     loanBranchMap[c.loan_id] || '—', c.collector_name, fmt(c.principalPaid), fmt(c.interestPaid),
     fmt(c.penalty), fmt(c.amount), c.payment_mode
   ]);
@@ -185,7 +185,7 @@ export default function CollectionsReportView({ collections = [], loans = [], br
         <table className="fin-grid-table">
           <thead>
             <tr>
-              <th>{t('col.receipt_no')}</th>
+              <th>{t('col.voucher_no')}</th>
               <th>{t('col.date')}</th>
               <th>{t('col.date_time')}</th>
               <th>{t('col.loan_account')}</th>
@@ -204,7 +204,7 @@ export default function CollectionsReportView({ collections = [], loans = [], br
               <tr><td colSpan="12" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>{hasBranchSelected ? t('fin.no_results_hint') : t('fin.select_branch_hint')}</td></tr>
             ) : pagedRows.map(c => (
               <tr key={c.id}>
-                <td className="code">{c.receipt_no}</td>
+                <td className="code">{c.voucher_no}</td>
                 <td>{c.collection_date}</td>
                 <td>{collectedAt(c)}</td>
                 <td className="code">{loanAccMap[c.loan_id] || '—'}</td>

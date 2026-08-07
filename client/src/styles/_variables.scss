@@ -3,8 +3,11 @@
 // macOS Native Fonts · High-Density Compact Scaling · Professional Light Theme
 // ============================================================
 
-// ── Typography — macOS Native Font Stack ─────────────────────
-$font-sans:   -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+// ── Typography — self-hosted Inter first, so the look is identical
+//    on every OS/browser instead of depending on locally installed
+//    system fonts; falls back to native system UI fonts only if the
+//    self-hosted font somehow fails to load ─────────────────────
+$font-sans:   'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
 $font-mono:   SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
 // Compact SaaS Font Scale (crisp, dense, readable)

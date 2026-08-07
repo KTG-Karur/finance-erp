@@ -95,7 +95,7 @@ export default function RightBorrowerPanel({ loan, onCollect }) {
           <div className="space-y-1.5 font-mono text-[11px]">
             <div className="bg-gray-50/80 border border-gray-200/80 rounded-md p-2 flex justify-between items-center">
               <div>
-                <span className="font-bold text-gray-900 block">REC-20260723-01</span>
+                <span className="font-bold text-gray-900 block">JE-20260723-01</span>
                 <span className="text-[10px] text-gray-500">23 Jul 2026 • CASH</span>
               </div>
               <span className="font-bold text-emerald-700 tabular-nums">₹500</span>
@@ -103,7 +103,7 @@ export default function RightBorrowerPanel({ loan, onCollect }) {
 
             <div className="bg-gray-50/80 border border-gray-200/80 rounded-md p-2 flex justify-between items-center">
               <div>
-                <span className="font-bold text-gray-900 block">REC-20260722-04</span>
+                <span className="font-bold text-gray-900 block">JE-20260722-04</span>
                 <span className="text-[10px] text-gray-500">22 Jul 2026 • UPI</span>
               </div>
               <span className="font-bold text-emerald-700 tabular-nums">₹500</span>

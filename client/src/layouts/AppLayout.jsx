@@ -25,7 +25,6 @@ import {
   Search,
   MapPin,
   Languages,
-  History,
   Scale,
   PenLine,
   Calculator,
@@ -105,7 +104,7 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
   const hasLoanMatches = match('Loans') || match('Active Loans') || match('Loan Applications') || match('Closed Loans') || match('Collections') || match('Investor Capital') || match('Fixed Deposits') || match('Customer Directory');
   const hasFinanceMatches = match('Ledger') || match('General Ledger') || match('Loan Ledger') || match('Customer Ledger') || match('Trial Balance') || match('Vouchers') || match('Auto Vouchers') || match('Manual Vouchers') || match('Day-End Closing');
   const hasReportsMatches = match('Reports') || match('Loan Portfolio') || match('Collections Report') || match('Borrower') || match('KYC') || match('Investor Capital Report') || match('Fixed Deposits Report') || match('Financial Statements') || match('Staff Performance');
-  const hasSettingsMatches = match('Master Settings') || match('Loan Scheme Master') || match('Organization & Company') || match('Expense Allocation') || match('Staff Directory') || match('RBAC Matrix') || match('Audit Log');
+  const hasSettingsMatches = match('Master Settings') || match('Loan Scheme Master') || match('Organization & Company') || match('Expense Allocation') || match('Staff Directory') || match('RBAC Matrix');
 
   const hasAnyMatches = hasWorkspaceMatches || hasLoanMatches || hasFinanceMatches || hasReportsMatches || hasSettingsMatches;
 
@@ -658,15 +657,6 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                                   <span>{t('nav.rbac_matrix')}</span>
                                 </button>
                               )}
-                              {match('Audit Log') && (
-                                <button id="nav-audit-log"
-                                  className={subCls(isSet('audit-log'))}
-                                  onClick={() => setActiveTab('master-settings/audit-log')}
-                                >
-                                  <History className="sidebar__sub-icon" />
-                                  <span>{t('nav.audit_log')}</span>
-                                </button>
-                              )}
                               {match('Loan Scheme Master') && (
                                 <button id="nav-interest-details"
                                   className={subCls(isSet('interest-details') || isSet('interest-master'))}
@@ -711,13 +701,6 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                             title={t('nav.rbac_matrix')}
                           >
                             <Shield className="sidebar__item-icon" />
-                          </button>
-                          <button
-                            className={itemCls(isSet('audit-log'))}
-                            onClick={() => setActiveTab('master-settings/audit-log')}
-                            title={t('nav.audit_log')}
-                          >
-                            <History className="sidebar__item-icon" />
                           </button>
                           <button
                             className={itemCls(isSet('interest-master'))}
@@ -901,185 +884,47 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
         </div>
       )}
 
-      {/* ── Confirm Logout Modal (Ultra-Modern SaaS Theme) ─────────── */}
+      {/* ── Confirm Logout Modal ─────────── */}
       {isConfirmLogoutOpen && (
         <div
           className="saas-modal-backdrop"
-          style={{
-            backdropFilter: 'blur(6px)',
-            WebkitBackdropFilter: 'blur(6px)',
-            background: 'rgba(15, 23, 42, 0.45)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000
-          }}
           onClick={(e) => { if (e.target === e.currentTarget) setIsConfirmLogoutOpen(false); }}
         >
-          <div
-            className="saas-modal-card"
-            style={{
-              maxWidth: 430,
-              width: '90%',
-              borderRadius: 20,
-              padding: '28px 24px 24px',
-              background: '#FFFFFF',
-              border: '1px solid #E2E8F0',
-              boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.22)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              textAlign: 'center',
-              position: 'relative',
-              gap: 16
-            }}
-          >
-            {/* Close Button */}
-            <button
-              onClick={() => setIsConfirmLogoutOpen(false)}
-              className="close-btn"
-              type="button"
-              style={{
-                position: 'absolute',
-                top: 16,
-                right: 16,
-                border: 'none',
-                background: '#F1F5F9',
-                borderRadius: '50%',
-                width: 28,
-                height: 28,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#64748B',
-                cursor: 'pointer'
-              }}
-            >
-              <X style={{ width: 14, height: 14 }} />
-            </button>
-
-            {/* Centered Glowing Hero Badge */}
-            <div style={{
-              width: 58,
-              height: 58,
-              borderRadius: '50%',
-              background: '#FEF2F2',
-              border: '1px solid #FEE2E2',
-              color: '#EF4444',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 0 0 8px rgba(254, 226, 226, 0.55)'
-            }}>
-              <LogOut style={{ width: 26, height: 26, marginLeft: 2 }} />
+          <div className="saas-modal-card" style={{ maxWidth: 400 }}>
+            <div className="saas-modal-header">
+              <div className="head-left">
+                <div className="head-icon-badge" style={{ background: '#FEF2F2', borderColor: '#FECACA', color: '#DC2626' }}>
+                  <LogOut style={{ width: 16, height: 16 }} />
+                </div>
+                <div className="head-titles">
+                  <h3>{t('modal.logout_title')}</h3>
+                  <p>{user?.name || 'Admin'} · {user?.role || 'ADMIN'}</p>
+                </div>
+              </div>
+              <button onClick={() => setIsConfirmLogoutOpen(false)} className="close-btn" type="button">
+                <X style={{ width: 16, height: 16 }} />
+              </button>
             </div>
 
-            {/* Title & Subtitle */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
-              <h3 style={{ fontSize: '1.18rem', fontWeight: 600, color: '#0F172A', margin: 0, letterSpacing: '-0.01em' }}>
-                {t('modal.logout_title')}
-              </h3>
-              <p style={{ fontSize: '0.8125rem', color: '#64748B', margin: 0, fontWeight: 400, lineHeight: 1.45 }}>
+            <div className="saas-modal-body">
+              <p style={{ fontSize: '0.85rem', color: '#334155', margin: 0, lineHeight: 1.5 }}>
                 {t('modal.logout_subtitle')}
               </p>
             </div>
 
-            {/* User Session Profile Strip */}
-            <div style={{
-              width: '100%',
-              background: '#F8FAFC',
-              border: '1px solid #E2E8F0',
-              borderRadius: 14,
-              padding: '12px 14px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              textAlign: 'left'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
-                  color: '#FFFFFF',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '0.85rem',
-                  fontWeight: 600
-                }}>
-                  {getInitials(user?.name || 'Admin')}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0F172A' }}>
-                    {user?.name || 'John Admin'}
-                  </span>
-                  <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 400 }}>
-                    {user?.email || 'admin@alpha.com'}
-                  </span>
-                </div>
-              </div>
-              <span style={{
-                padding: '3px 10px',
-                borderRadius: 20,
-                fontSize: '0.68rem',
-                fontWeight: 600,
-                background: '#F3E8FF',
-                color: '#7C3AED',
-                border: '1px solid #E9D5FF'
-              }}>
-                {user?.role || 'ADMIN'}
-              </span>
-            </div>
-
-            {/* 50/50 Action Buttons */}
-            <div style={{ display: 'flex', gap: 12, width: '100%', marginTop: 6 }}>
-              <button
-                type="button"
-                onClick={() => setIsConfirmLogoutOpen(false)}
-                style={{
-                  flex: 1,
-                  height: 42,
-                  border: '1px solid #CBD5E1',
-                  background: '#FFFFFF',
-                  color: '#334155',
-                  fontSize: '0.8125rem',
-                  fontWeight: 500,
-                  borderRadius: 12,
-                  cursor: 'pointer'
-                }}
-              >
+            <div className="saas-modal-footer">
+              <button type="button" onClick={() => setIsConfirmLogoutOpen(false)} className="btn-cancel">
                 {t('btn.cancel')}
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setIsConfirmLogoutOpen(false);
-                  onSignOut();
-                }}
-                style={{
-                  flex: 1,
-                  height: 42,
-                  border: 'none',
-                  background: '#EF4444',
-                  color: '#FFFFFF',
-                  fontSize: '0.8125rem',
-                  fontWeight: 500,
-                  borderRadius: 12,
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 14px rgba(239, 68, 68, 0.32)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8
-                }}
+                onClick={() => { setIsConfirmLogoutOpen(false); onSignOut(); }}
+                className="btn-submit"
+                style={{ background: '#DC2626', boxShadow: '0 2px 6px rgba(220, 38, 38, 0.3)' }}
               >
-                <LogOut style={{ width: 15, height: 15 }} />
-                <span>{t('btn.yes_sign_out')}</span>
+                {t('btn.yes_sign_out')}
               </button>
             </div>
-
           </div>
         </div>
       )}

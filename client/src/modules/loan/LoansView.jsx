@@ -324,7 +324,7 @@ export default function LoansView({
                         <thead>
                           <tr>
                             <th>{t('col.date')}</th>
-                            <th>{t('col.receipt_no')}</th>
+                            <th>{t('col.voucher_no')}</th>
                             <th className="num">{t('col.amount')}</th>
                             <th className="num">{t('col.principal')}</th>
                             <th className="num">{t('col.interest')}</th>
@@ -335,7 +335,7 @@ export default function LoansView({
                           {history.map(rec => (
                             <tr key={rec.id}>
                               <td>{rec.collection_date}</td>
-                              <td className="code">{rec.receipt_no}</td>
+                              <td className="code">{rec.voucher_no}</td>
                               <td className="num" style={{ fontWeight: 600 }}>₹{fmt(rec.amount)}</td>
                               <td className="num">₹{fmt(rec.principalPaid)}</td>
                               <td className="num">₹{fmt(rec.interestPaid)}</td>

@@ -42,7 +42,7 @@ export default function LoanLedgerView({ loans = [], collections = [], branchesL
       id: `disbursal-${selectedLoan.id}`,
       date: selectedLoan.loan_date,
       type: 'DISBURSAL',
-      receipt_no: '—',
+      voucher_no: '—',
       principal: selectedLoan.principal_amount,
       interest: 0,
       penalty: 0,
@@ -56,7 +56,7 @@ export default function LoanLedgerView({ loans = [], collections = [], branchesL
         id: c.id,
         date: c.collection_date,
         type: 'COLLECTION',
-        receipt_no: c.receipt_no || '—',
+        voucher_no: c.voucher_no || '—',
         principal: c.principalPaid || 0,
         interest: c.interestPaid || 0,
         penalty: c.penalty || 0,
@@ -144,7 +144,7 @@ export default function LoanLedgerView({ loans = [], collections = [], branchesL
             <tr>
               <th>{t('col.date')}</th>
               <th>{t('fin.voucher_type_col')}</th>
-              <th>{t('col.receipt_no')}</th>
+              <th>{t('col.voucher_no')}</th>
               <th className="num">{t('col.principal')}</th>
               <th className="num">{t('col.interest')}</th>
               <th className="num">{t('fin.penalty_label')}</th>
@@ -159,7 +159,7 @@ export default function LoanLedgerView({ loans = [], collections = [], branchesL
               <tr key={row.id}>
                 <td>{row.date}</td>
                 <td><span className="fin-tag">{row.type === 'DISBURSAL' ? t('fin.ref_disbursal') : t('fin.ref_collection')}</span></td>
-                <td className="code">{row.receipt_no}</td>
+                <td className="code">{row.voucher_no}</td>
                 <td className="num">{row.principal ? `₹${fmt(row.principal)}` : '—'}</td>
                 <td className="num">{row.interest ? `₹${fmt(row.interest)}` : '—'}</td>
                 <td className="num">{row.penalty ? `₹${fmt(row.penalty)}` : '—'}</td>

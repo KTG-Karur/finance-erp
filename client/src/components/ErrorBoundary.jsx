@@ -24,7 +24,7 @@ export default class ErrorBoundary extends React.Component {
       return (
         <div style={{
           minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: '#F8FAFC', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif', padding: 24
+          background: '#F8FAFC', fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif', padding: 24
         }}>
           <div style={{ maxWidth: 440, textAlign: 'center', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 18, padding: '36px 32px', boxShadow: '0 20px 50px -15px rgba(15, 23, 42, 0.15)' }}>
             <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
