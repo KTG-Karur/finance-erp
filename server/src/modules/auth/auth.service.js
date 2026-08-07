@@ -36,12 +36,12 @@ export async function authenticateTenantUserByCode(masterDb, db, companyCode, em
 
   // Step 2: Query the tenant's user directory for a matching account
   const [companyUsers] = await db.query(
-    'SELECT id, company_id, name, email, role, status FROM users WHERE company_id = ?',
+    'SELECT id, company_id, name, email, password, role, status FROM users WHERE company_id = ?',
     [company.companyId]
   );
   const userData = companyUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
 
-  if (!userData) {
+  if (!userData || userData.password !== password) {
     const err = new Error('Invalid email or password.');
     err.statusCode = 401;
     throw err;

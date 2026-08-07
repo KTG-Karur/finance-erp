@@ -1,15 +1,15 @@
 @use '../mixins' as *;
 
 // ============================================================
-// SIDEBAR — Modern SaaS · Emerald Fintech · Proper Spacing
+// SIDEBAR — Executive Midnight Emerald Fintech Theme
 // ============================================================
 
 // ── Sidebar Root ─────────────────────────────────────────────
 .sidebar {
   position: relative;
   height: 100%;
-  background: #FFFFFF;
-  border-right: 1px solid #E8EFF5;
+  background: #062C27;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -19,12 +19,12 @@
 
   // Full width state
   &--full {
-    width: 232px;
+    width: 236px;
   }
 
   // Collapsed / mini state (icon only)
   &--mini {
-    width: 56px;
+    width: 58px;
 
     // Hide text labels
     .sidebar__label,
@@ -65,21 +65,24 @@
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  padding: 0 12px;
-  height: 52px;
-  border-bottom: 1px solid #F1F5F9;
+  padding: 0 14px;
+  height: 56px;
+  background: #031E1B;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
 
   .sidebar__brand-logo {
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     border-radius: 8px;
-    background: #ECFDF5;
-    border: 1px solid #A7F3D0;
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    border: 1px solid #047857;
+    color: #FFFFFF;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(5, 150, 105, 0.3);
   }
 
   .sidebar__brand-text {
@@ -89,9 +92,9 @@
     overflow: hidden;
 
     .sidebar__brand-name {
-      font-size: 0.8125rem;
+      font-size: 0.82rem;
       font-weight: 500;
-      color: #0F172A;
+      color: #FFFFFF;
       letter-spacing: -0.01em;
       white-space: nowrap;
       overflow: hidden;
@@ -99,7 +102,7 @@
     }
 
     .sidebar__brand-sub {
-      font-size: 0.6875rem;
+      font-size: 0.68rem;
       font-weight: 400;
       color: #64748B;
       white-space: nowrap;
@@ -117,8 +120,8 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  border: 1px solid #E2E8F0;
-  background: #F8FAFC;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
   border-radius: 7px;
   cursor: pointer;
   transition: all 0.12s ease;
@@ -127,10 +130,9 @@
   margin-left: auto;
 
   &:hover {
-    background: #FFFFFF;
-    border-color: #CBD5E1;
-    color: #334155;
-    box-shadow: 0 2px 4px rgba(15, 23, 42, 0.04);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #FFFFFF;
   }
 
   svg {
@@ -151,25 +153,25 @@
     width: 100%;
     height: 34px;
     padding: 0 28px 0 32px;
-    background: #F8FAFC;
-    border: 1px solid #E2E8F0;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
     font-size: 0.75rem;
-    color: #0F172A;
+    color: #FFFFFF;
     font-weight: 500 !important;
     font-family: inherit;
     transition: all 0.15s ease;
 
     &::placeholder {
-      color: #94A3B8;
+      color: #64748B;
       font-weight: 400;
     }
 
     &:focus {
       outline: none;
-      background: #FFFFFF;
-      border-color: #2563EB;
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+      background: rgba(255, 255, 255, 0.08);
+      border-color: #059669;
+      box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.2);
     }
   }
 
@@ -180,7 +182,7 @@
     transform: translateY(-50%);
     width: 14px;
     height: 14px;
-    color: #94A3B8;
+    color: #64748B;
     pointer-events: none;
     margin-top: 3px;
   }
@@ -192,7 +194,7 @@
     transform: translateY(-50%);
     border: none;
     background: transparent;
-    color: #94A3B8;
+    color: #64748B;
     cursor: pointer;
     padding: 2px;
     display: flex;
@@ -202,8 +204,8 @@
     margin-top: 3px;
 
     &:hover {
-      color: #0F172A;
-      background: #E2E8F0;
+      color: #FFFFFF;
+      background: rgba(255, 255, 255, 0.1);
     }
   }
 }
@@ -224,7 +226,7 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #B0BEC5;
+  color: #475569;
   white-space: nowrap;
   user-select: none;
 }
@@ -244,48 +246,37 @@
   gap: 8px;
   width: 100%;
   padding: 7px 10px;
-  height: 34px;
-  border-radius: 7px;
+  height: 36px;
+  border-radius: 8px;
   border: none;
   background: transparent;
   cursor: pointer;
   text-align: left;
-  color: #475569;
-  transition: background 0.12s ease, color 0.12s ease;
+  color: #CBD5E1;
+  transition: all 0.15s ease;
   position: relative;
   @include focus-ring;
 
   &:hover {
-    background: #F8FAFC;
-    color: #0F172A;
+    background: rgba(255, 255, 255, 0.06);
+    color: #FFFFFF;
 
     .sidebar__item-icon {
-      color: #334155;
+      color: #FFFFFF;
     }
   }
 
   &--active {
-    background: #F0FDF8;
-    color: #047857;
+    background: #047857 !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 2px 8px rgba(4, 120, 87, 0.35);
 
     .sidebar__item-icon {
-      color: #059669;
+      color: #FFFFFF !important;
     }
 
     .sidebar__label {
-      font-weight: 600;
-    }
-
-    // Left accent bar
-    &::before {
-      content: '';
-      position: absolute;
-      left: -8px;
-      top: 22%;
-      bottom: 22%;
-      width: 3px;
-      background: #059669;
-      border-radius: 0 3px 3px 0;
+      font-weight: 500;
     }
   }
 
@@ -300,6 +291,8 @@
   align-items: center;
   gap: 8px;
   overflow: hidden;
+  flex: 1;
+  min-width: 0;
 }
 
 // ── Icon ─────────────────────────────────────────────────────
@@ -319,6 +312,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   color: inherit;
+  flex: 1;
+  min-width: 0;
 }
 
 // ── Chevron ──────────────────────────────────────────────────
@@ -326,7 +321,7 @@
   width: 14px;
   height: 14px;
   flex-shrink: 0;
-  color: #CBD5E1;
+  color: #64748B;
   transition: transform 0.18s ease, color 0.12s ease;
 
   &--open {
@@ -338,8 +333,8 @@
 // ── Accordion Children ────────────────────────────────────────────
 .sidebar__children {
   margin: 3px 0 3px 10px;
-  padding-left: 16px;
-  border-left: 1px solid #E8EFF5;
+  padding-left: 14px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -352,35 +347,44 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 8px 10px;
-  border-radius: 6px;
+  padding: 7px 10px;
+  border-radius: 7px;
   border: none;
   background: transparent;
   cursor: pointer;
   text-align: left;
   font-size: 0.8125rem;
   font-weight: 400;
-  color: #64748B;
-  transition: background 0.12s ease, color 0.12s ease;
+  color: #94A3B8;
+  transition: all 0.12s ease;
   white-space: nowrap;
+  overflow: hidden;
   @include focus-ring;
 
+  span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   &:hover {
-    background: #F8FAFC;
-    color: #334155;
+    background: rgba(255, 255, 255, 0.06);
+    color: #FFFFFF;
 
     .sidebar__sub-icon {
-      color: #475569;
+      color: #FFFFFF;
     }
   }
 
   &--active {
-    color: #059669;
-    font-weight: 600;
-    background: #F0FDF8;
+    color: #FFFFFF !important;
+    font-weight: 500;
+    background: #047857 !important;
 
     .sidebar__sub-icon {
-      color: #059669;
+      color: #FFFFFF !important;
     }
   }
 }
@@ -390,14 +394,14 @@
   width: 13px;
   height: 13px;
   flex-shrink: 0;
-  color: #B0BEC5;
+  color: #64748B;
   transition: color 0.12s ease;
 }
 
 // ── Sidebar Footer ───────────────────────────────────────────
 .sidebar__footer {
-  padding: 8px;
-  border-top: 1px solid #F1F5F9;
+  padding: 10px 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
 }
 
@@ -406,14 +410,14 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 8px;
-  border-radius: 8px;
-  background: #F8FAFC;
-  border: 1px solid #F1F5F9;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #031E1B;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   transition: background 0.12s ease;
 
   &:hover {
-    background: #F1F5F9;
+    background: #052622;
   }
 }
 
@@ -422,7 +426,7 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #059669 0%, #0D9488 100%);
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -439,12 +443,13 @@
   flex-direction: column;
   gap: 1px;
   overflow: hidden;
+  flex: 1;
 }
 
 .sidebar__user-name {
   font-size: 0.775rem;
-  font-weight: 600;
-  color: #0F172A;
+  font-weight: 500;
+  color: #FFFFFF;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -453,6 +458,6 @@
 .sidebar__user-role {
   font-size: 0.675rem;
   font-weight: 600;
-  color: #047857;
+  color: #34D399;
   letter-spacing: 0.03em;
 }

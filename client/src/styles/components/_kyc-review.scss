@@ -1,0 +1,625 @@
+// ============================================================
+// MACOS ENTERPRISE KYC VERIFICATION REVIEW PAGE SYSTEM
+// ============================================================
+
+$font-macos: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+.kyc-review-root {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+  font-family: $font-macos;
+  color: #0F172A;
+  -webkit-font-smoothing: antialiased;
+
+  // Top Header Navigation Bar
+  .kyc-review-header {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+
+    .hdr-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+
+      .btn-back {
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        border: 1px solid #E2E8F0;
+        background: #F8FAFC;
+        color: #334155;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.15s ease;
+
+        &:hover {
+          background: #F1F5F9;
+          border-color: #CBD5E1;
+        }
+      }
+
+      .hdr-title-box {
+        h1 {
+          font-size: 1.1rem;
+          font-weight: 600;
+          color: #0F172A;
+          margin: 0;
+          letter-spacing: -0.01em;
+        }
+        p {
+          font-size: 0.74rem;
+          color: #64748B;
+          margin: 1px 0 0 0;
+        }
+      }
+    }
+
+    .hdr-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+  }
+
+  // 2-Column Split Workspace
+  .kyc-split-workspace {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+
+    @media (max-width: 1024px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  // Left Column: Interactive Document Viewer Vault
+  .kyc-doc-vault {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+
+    .vault-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #F1F5F9;
+      padding-bottom: 10px;
+
+      .vault-title {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #0F172A;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+    }
+
+    // Document Tabs Switcher
+    .doc-tabs-row {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+
+      .doc-tab {
+        padding: 6px 12px;
+        border-radius: 8px;
+        border: 1px solid #E2E8F0;
+        background: #F8FAFC;
+        color: #64748B;
+        font-size: 0.74rem;
+        font-weight: 500;
+        cursor: pointer;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.15s ease;
+
+        &:hover {
+          background: #F1F5F9;
+          color: #1E293B;
+        }
+
+        &.doc-tab--active {
+          background: #F0FDF4;
+          border-color: #BBF7D0;
+          color: #166534;
+          font-weight: 600;
+        }
+      }
+    }
+
+    // Canvas Frame
+    .canvas-frame {
+      position: relative;
+      width: 100%;
+      height: 380px;
+      background: #0F172A;
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #1E293B;
+
+      img {
+        max-width: 90%;
+        max-height: 90%;
+        object-fit: contain;
+        transition: transform 0.2s ease;
+      }
+
+      .empty-canvas-text {
+        color: #94A3B8;
+        font-size: 0.8rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+      }
+
+      // Canvas Control Toolbar
+      .canvas-toolbar {
+        position: absolute;
+        bottom: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(15, 23, 42, 0.88);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 20px;
+        padding: 4px 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #FFFFFF;
+
+        button {
+          background: transparent;
+          border: none;
+          color: #E2E8F0;
+          cursor: pointer;
+          padding: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 4px;
+
+          &:hover {
+            color: #10B981;
+          }
+        }
+
+        .zoom-level {
+          font-size: 0.72rem;
+          font-family: monospace;
+          font-weight: 500;
+          color: #94A3B8;
+        }
+      }
+    }
+  }
+
+  // Right Column: Details & Verification Action Pane
+  .kyc-details-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+
+    // Overview Card
+    .profile-overview-card {
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+
+      .user-info-flex {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+
+        .avatar-circle {
+          width: 46px;
+          height: 46px;
+          border-radius: 50%;
+          overflow: hidden;
+          background: #F0FDF4;
+          border: 1.5px solid #BBF7D0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
+        }
+
+        .user-text {
+          h3 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #0F172A;
+            margin: 0;
+          }
+          p {
+            font-size: 0.74rem;
+            color: #64748B;
+            margin: 1px 0 0 0;
+          }
+        }
+      }
+    }
+
+    // Data Cards
+    .data-card {
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 14px 18px;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+
+      .card-title {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #0F172A;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #F1F5F9;
+        margin-bottom: 10px;
+      }
+
+      .data-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+
+        .field-box {
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+
+          .lbl {
+            font-size: 0.65rem;
+            font-weight: 500;
+            color: #64748B;
+            text-transform: uppercase;
+          }
+
+          .val {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #0F172A;
+          }
+
+          .val-mono {
+            font-family: monospace;
+            font-weight: 500;
+          }
+        }
+      }
+    }
+
+    // Status Banner Cards (Verified & Rejected States)
+    .status-banner-card {
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+
+      &--verified {
+        border-color: #BBF7D0;
+        background: #F0FDF4;
+        .banner-icon {
+          background: #FFFFFF;
+          border: 1px solid #A7F3D0;
+          color: #15803D;
+        }
+      }
+
+      &--rejected {
+        border-color: #FEE2E2;
+        background: #FEF2F2;
+        .banner-icon {
+          background: #FFFFFF;
+          border: 1px solid #FECACA;
+          color: #DC2626;
+        }
+      }
+
+      .banner-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+
+        svg {
+          display: block;
+          flex-shrink: 0;
+        }
+      }
+
+      .banner-content {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        flex: 1;
+
+        .banner-head-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+
+          h4 {
+            font-size: 0.92rem;
+            font-weight: 600;
+            color: #0F172A;
+            margin: 0;
+            line-height: 1.3;
+          }
+        }
+
+        p {
+          font-size: 0.78rem;
+          color: #475569;
+          margin: 0;
+          line-height: 1.4;
+        }
+
+        .meta-pills-row {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin-top: 4px;
+          flex-wrap: wrap;
+
+          .pill {
+            font-size: 0.7rem;
+            font-family: monospace;
+            font-weight: 500;
+            color: #475569;
+            background: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            padding: 2px 8px;
+            border-radius: 6px;
+          }
+
+          .btn-re-evaluate {
+            border: 1px solid #CBD5E1;
+            background: #FFFFFF;
+            color: #0F172A;
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.15s ease;
+
+            &:hover {
+              background: #FFFFFF;
+              border-color: #059669;
+              color: #047857;
+              box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+            }
+          }
+        }
+      }
+    }
+
+    // Decision Action Bar (Pending Review State)
+    .kyc-decision-bar {
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 14px 18px;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+
+      .dec-title {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #0F172A;
+      }
+
+      .dec-buttons {
+        display: flex;
+        gap: 10px;
+
+        button {
+          flex: 1;
+          height: 36px;
+          border-radius: 8px;
+          font-size: 0.78rem;
+          font-weight: 600;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          border: none;
+          transition: all 0.15s ease;
+        }
+
+        .btn-verify {
+          background: #059669;
+          color: #FFFFFF;
+          box-shadow: 0 1px 4px rgba(5, 150, 105, 0.2);
+          &:hover { background: #047857; }
+        }
+
+        .btn-reject {
+          background: #FFFFFF;
+          border: 1px solid #FEE2E2;
+          color: #DC2626;
+          &:hover { background: #FEF2F2; }
+        }
+      }
+
+      // Confirm Approve Card
+      .confirm-approve-box {
+        background: #F0FDF4;
+        border: 1px solid #BBF7D0;
+        border-radius: 10px;
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+
+        p {
+          font-size: 0.78rem;
+          color: #166534;
+          margin: 0;
+          font-weight: 500;
+        }
+
+        .btn-group-right {
+          display: flex;
+          gap: 8px;
+          justify-content: flex-end;
+
+          button {
+            height: 32px;
+            padding: 0 14px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+          }
+
+          .btn-cancel {
+            background: #FFFFFF;
+            border: 1px solid #CBD5E1;
+            color: #475569;
+            &:hover { background: #F8FAFC; }
+          }
+
+          .btn-confirm {
+            background: #059669;
+            color: #FFFFFF;
+            &:hover { background: #047857; }
+          }
+        }
+      }
+
+      // Rejection Box
+      .confirm-reject-box {
+        background: #FEF2F2;
+        border: 1px solid #FEE2E2;
+        border-radius: 10px;
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+
+        label {
+          font-size: 0.68rem;
+          font-weight: 600;
+          color: #991B1B;
+          text-transform: uppercase;
+        }
+
+        select.input-select {
+          width: 100%;
+          height: 34px;
+          border: 1px solid #FECACA;
+          border-radius: 6px;
+          background: #FFFFFF;
+          padding: 0 10px;
+          font-size: 0.76rem;
+          color: #0F172A;
+          font-family: $font-macos;
+          outline: none;
+        }
+
+        textarea.input-remark {
+          width: 100%;
+          border: 1px solid #FECACA;
+          border-radius: 6px;
+          background: #FFFFFF;
+          padding: 8px 10px;
+          font-size: 0.76rem;
+          color: #0F172A;
+          font-family: $font-macos;
+          outline: none;
+          resize: vertical;
+        }
+
+        .btn-group-right {
+          display: flex;
+          gap: 8px;
+          justify-content: flex-end;
+
+          button {
+            height: 32px;
+            padding: 0 14px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+          }
+
+          .btn-cancel {
+            background: #FFFFFF;
+            border: 1px solid #CBD5E1;
+            color: #475569;
+            &:hover { background: #F8FAFC; }
+          }
+
+          .btn-reject-confirm {
+            background: #DC2626;
+            color: #FFFFFF;
+            &:hover { background: #B91C1C; }
+          }
+        }
+      }
+    }
+  }
+}

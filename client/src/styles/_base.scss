@@ -58,6 +58,43 @@ button, input, select, textarea { font: inherit; }
   to { transform: rotate(360deg); }
 }
 
+// ── Option 3: Ripple Wave & Text Dissolve Language Transition ─────
+@keyframes rippleExpand {
+  0% {
+    transform: scale(0);
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+
+.lang-ripple-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+
+  .lang-ripple-circle {
+    width: 600px;
+    height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(5, 150, 105, 0.35) 0%, rgba(15, 23, 42, 0.25) 50%, transparent 75%);
+    backdrop-filter: blur(4px);
+    animation: rippleExpand 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+}
+
+
+
 // ── Global Form Controls ──────────────────────────────────────
 input[type="text"],
 input[type="number"],
@@ -160,11 +197,11 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 10px;
-  border-radius: $radius-full;
-  font-size: $text-xs;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  padding: 2px 9px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
   white-space: nowrap;
   border: 1px solid transparent;
 
@@ -178,11 +215,11 @@ button {
     flex-shrink: 0;
   }
 
-  &--active  { background: $success-bg; color: $success-text; border-color: $success-border; }
-  &--overdue { background: $danger-bg;  color: $danger-text;  border-color: $danger-border; }
-  &--closed  { background: $neutral-100; color: $neutral-500; border-color: $neutral-200; }
-  &--pending { background: $warning-bg; color: $warning-text; border-color: $warning-border; }
-  &--info    { background: $info-bg;    color: $info-text;    border-color: $info-border; }
+  &--active  { background: #ECFDF5; color: #047857; border-color: #A7F3D0; }
+  &--overdue { background: #FEF2F2; color: #991B1B; border-color: #FECACA; }
+  &--closed  { background: #EFF6FF; color: #1D4ED8; border-color: #BFDBFE; }
+  &--pending { background: #FFFBEB; color: #B45309; border-color: #FDE68A; }
+  &--info    { background: #F8FAFC; color: #475569; border-color: #CBD5E1; }
 }
 
 // ── Utility — Layout ─────────────────────────────────────────

@@ -1,0 +1,464 @@
+// ── Finance & Accounting — one shared design for every page ──────
+// Cash Book, General Ledger, Trial Balance, Balance Sheet, Income Statement, and
+// Expense Vouchers all use these same building blocks: a proper header card with
+// real numbers in it, a filter bar you apply with Search, and a ruled table after.
+// Tables stay neutral (gray/white) so they read as a professional ledger — green is
+// reserved for buttons, active filters, and positive amounts, not painted across
+// every row and header cell.
+
+.fin-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  color: #1E293B;
+}
+
+// ── Header card — title + action, and real numbers underneath ────
+
+.fin-header-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.fin-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.fin-page-header__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fin-page-header__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.fin-page-header__title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #0F172A;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.fin-page-header__subtitle {
+  font-size: 0.76rem;
+  font-weight: 400;
+  color: #94A3B8;
+  margin: 2px 0 0;
+}
+
+.fin-header-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-top: 1px solid #F1F5F9;
+  padding-top: 12px;
+}
+
+.fin-header-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  white-space: nowrap;
+}
+
+.fin-header-stat__label {
+  font-size: 0.7rem;
+  color: #94A3B8;
+  font-weight: 400;
+}
+
+.fin-header-stat__value {
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: #0F172A;
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-header-stat__value--good { color: #059669; }
+.fin-header-stat__value--bad { color: #DC2626; }
+
+// ── Primary action button (Record Entry / New Voucher, etc.) ─────
+
+.fin-btn-primary {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 6px;
+  border: none;
+  background: #059669;
+  color: #FFFFFF;
+  font-size: 0.8rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s;
+}
+
+.fin-btn-primary:hover {
+  background: #047857;
+}
+
+.fin-btn-primary--red {
+  background: #DC2626;
+}
+
+.fin-btn-primary--red:hover {
+  background: #B91C1C;
+}
+
+// ── Filter bar — light box, explicit Search, quick presets ───────
+
+.fin-filterbar {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.fin-filterbar__label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94A3B8;
+  font-weight: 700;
+  width: 100%;
+  margin-bottom: -4px;
+}
+
+.fin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fin-field label {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #64748B;
+  font-weight: 600;
+}
+
+.fin-input,
+.fin-select {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid #CBD5E1;
+  background: #FFFFFF;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: #1E293B;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.fin-input:focus,
+.fin-select:focus {
+  border-color: #059669;
+  box-shadow: 0 0 0 1px #059669;
+}
+
+.fin-select {
+  cursor: pointer;
+}
+
+.fin-daterange {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fin-search-btn {
+  height: 36px;
+  padding: 0 18px;
+  border-radius: 6px;
+  border: none;
+  background: #059669;
+  color: #FFFFFF;
+  font-size: 0.8rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.fin-search-btn:hover {
+  background: #047857;
+}
+
+.fin-search-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.fin-quickrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.fin-quickrow__label {
+  font-size: 0.7rem;
+  color: #94A3B8;
+  margin-right: 2px;
+}
+
+.fin-quick-pill {
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid #CBD5E1;
+  background: #FFFFFF;
+  color: #475569;
+  font-size: 0.71rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.fin-quick-pill:hover {
+  background: #F8FAFC;
+}
+
+.fin-quick-pill--active {
+  background: #059669;
+  border-color: #059669;
+  color: #FFFFFF;
+}
+
+// ── Empty state (before Search is applied / no rows found) ───────
+
+.fin-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 52px 20px;
+  color: #94A3B8;
+  text-align: center;
+  background: #F8FAFC;
+  border: 1px dashed #E2E8F0;
+  font-size: 0.85rem;
+}
+
+// ── Badge ──────────────────────────────────────────────────────
+
+.fin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 11px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.fin-badge--ok {
+  background: #ECFDF5;
+  color: #047857;
+  border: 1px solid #A7F3D0;
+}
+
+.fin-badge--warn {
+  background: #FEF2F2;
+  color: #DC2626;
+  border: 1px solid #FECACA;
+}
+
+.fin-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  color: #64748B;
+}
+
+// ── Instant search box (quick client-side filter on loaded rows) ─
+
+.fin-instant-search {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.fin-instant-search input {
+  width: 260px;
+  max-width: 100%;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid #CBD5E1;
+  background: #FFFFFF;
+  font-size: 0.78rem;
+  font-family: inherit;
+  outline: none;
+}
+
+.fin-instant-search input:focus {
+  border-color: #059669;
+}
+
+// ── Table — square box, fully ruled, neutral professional tone ───
+
+.fin-tablewrap {
+  border: 1px solid #CBD5E1;
+  overflow: auto;
+  max-height: 65vh;
+}
+
+.fin-grid-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.fin-grid-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  padding: 9px 14px;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #475569;
+  font-weight: 600;
+  background: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  white-space: nowrap;
+}
+
+.fin-grid-table thead th.num {
+  text-align: right;
+}
+
+.fin-grid-table tbody td {
+  padding: 9px 14px;
+  border: 1px solid #EEF2F6;
+  color: #334155;
+  white-space: nowrap;
+}
+
+.fin-grid-table tbody tr:nth-child(even) {
+  background: #FAFBFC;
+}
+
+.fin-grid-table tbody tr:hover {
+  background: #F8FAFC;
+}
+
+.fin-grid-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-grid-table td.code {
+  font-family: 'SF Mono', Consolas, monospace;
+  color: #94A3B8;
+  font-size: 0.75rem;
+}
+
+.fin-grid-table tr.fin-row-total td {
+  background: #F1F5F9;
+  font-weight: 700;
+  color: #0F172A;
+  border-top: 2px solid #CBD5E1;
+}
+
+.fin-grid-table td.amount-in { color: #059669; }
+.fin-grid-table td.amount-out { color: #DC2626; }
+.fin-grid-table td.amount-muted { color: #CBD5E1; }
+
+.fin-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 500;
+  background: #F1F5F9;
+  color: #334155;
+}
+
+// ── Two-column layout (Balance Sheet) ─────────────────────────────
+
+.fin-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 760px) {
+  .fin-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+// ── Net result bar (Income Statement) ─────────────────────────────
+
+.fin-net-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border: 1px solid;
+  margin-top: 10px;
+}
+
+.fin-net-bar--profit {
+  background: #ECFDF5;
+  border-color: #A7F3D0;
+}
+
+.fin-net-bar--loss {
+  background: #FEF2F2;
+  border-color: #FECACA;
+}
+
+.fin-net-bar__label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.fin-net-bar__value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-net-bar__value--profit { color: #047857; }
+.fin-net-bar__value--loss { color: #DC2626; }

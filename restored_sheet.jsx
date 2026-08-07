@@ -1,0 +1,924 @@
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Printer, ArrowLeft, Send, FileText, CheckCircle2, XCircle, X } from 'lucide-react';
+import DigitalStampSeal from '../../components/DigitalStampSeal';
+
+export default function PrintableLoanApplicationSheet({
+  applicationData: rawApp,
+  borrowerData: rawBorrower,
+  onClose,
+  onConfirmSubmit,
+  onApprove,
+  onReject,
+  initialMode = 'VIEW',
+  companyInfo = {
+    name: 'KARUR THANGAMAYIL FINANCE PRIVATE LIMITED',
+    tagline: '(A Non-Banking Financial Company Registered with Reserve Bank of India)',
+    address: 'Regd Office: No. 123, Main Road, Near Bus Stand, Karur, Tamil Nadu - 639001',
+    contact: 'Tel: +91 4324 234567 | Email: customercare@ktgfinance.com | Website: www.ktgfinance.com',
+    reg: 'CIN: U65929TN2023PTC123456 | RBI Reg. No: B-07.01234'
+  }
+}) {
+  const applicationData = rawApp || {};
+  const borrowerData = rawBorrower || {};
+
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const appNo = applicationData.loan_account_no || `KTG/LN-APP/${new Date().getFullYear()}/${Math.floor(10000 + Math.random() * 90000)}`;
+  const appDate = applicationData.loan_date || new Date().toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+
+  const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
+
+  const { nominee, security } = applicationData;
+
+  // Gather all uploaded document files from nominee / security sections
+  const uploadedFiles = [
+    ...(nominee?.files || []),
+    ...(security?.details?.files || [])
+  ];
+
+  const modalContent = (
+    <div className="printable-form-overlay">
+
+      {/* Floating Action Controls for Preview Sheet (Hidden when Printing) */}
+      <div className="printable-form-floating-btns">
+        <button type="button" onClick={onClose} className="btn-close" title="Close Preview">
+          <ArrowLeft style={{ width: 15, height: 15 }} />
+          <span>Back to List</span>
+        </button>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button type="button" onClick={handlePrint} className="btn-close" style={{ background: '#FFFFFF', color: '#0F172A' }}>
+            <Printer style={{ width: 15, height: 15, color: '#2563EB' }} />
+            <span>Print Form / Save PDF</span>
+          </button>
+
+          {onReject && (
+            <button type="button" onClick={() => setShowRejectModal(true)} className="btn-close" style={{ background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA' }}>
+              <XCircle style={{ width: 15, height: 15 }} />
+              <span>Reject Application</span>
+            </button>
+          )}
+
+          {onApprove && (
+            <button type="button" onClick={() => setShowApproveModal(true)} className="btn-print" style={{ background: '#059669', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.3)' }}>
+              <CheckCircle2 style={{ width: 15, height: 15 }} />
+              <span>Approve & Disburse Loan</span>
+            </button>
+          )}
+
+          {onConfirmSubmit && !onApprove && (
+            <button type="button" onClick={onConfirmSubmit} className="btn-print" style={{ background: '#059669', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.3)' }}>
+              <Send style={{ width: 15, height: 15 }} />
+              <span>Confirm & Submit Application</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ISO A4 Paper Sheet (Black & White Printing Format - Natural Medium Readable Font) */}
+      <div className="paper-sheet bank-form-paper">
+
+        {/* 1. Official Bank Letterhead Header */}
+        <div className="bank-header-row">
+          <div className="bank-logo-col">
+            <div className="bank-emblem">KTG</div>
+          </div>
+
+          <div className="bank-title-col">
+            <h1 className="bank-company-name">{companyInfo.name}</h1>
+            <p className="bank-tagline">{companyInfo.tagline}</p>
+            <p className="bank-contact-line">{companyInfo.address}</p>
+            <p className="bank-contact-line">{companyInfo.contact}</p>
+            <p className="bank-cin-line">{companyInfo.reg}</p>
+          </div>
+
+          {/* Applicant Passport Photo Box */}
+          <div className="bank-photo-container borderless-photo">
+            {borrowerData?.profile_image ? (
+              <img src={borrowerData.profile_image} alt="Applicant Photo" />
+            ) : (
+              <div className="photo-instructions">
+                Affix Passport Size Photo Here
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 2. Main Title Banner */}
+        <div className="bank-title-banner">
+          <span>Official Loan Credit Sanction & Application Form</span>
+        </div>
+
+        {/* 3. Form Meta Table */}
+        <table className="bank-meta-table">
+          <tbody>
+            <tr>
+              <td className="meta-lbl">Application No:</td>
+              <td className="meta-val">{appNo}</td>
+              <td className="meta-lbl">Date:</td>
+              <td className="meta-val">{appDate}</td>
+              <td className="meta-lbl">Branch:</td>
+              <td className="meta-val">{borrowerData?.branch || applicationData?.branch || 'Karur Main'}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* 4. Section A: Applicant Profile Details */}
+        <div className="bank-section">
+          <div className="section-header-bar">Section A: Applicant Customer Profile Details</div>
+
+          <table className="bank-grid-table">
+            <tbody>
+              <tr>
+                <td className="field-lbl" style={{ width: '22%' }}>Full Name</td>
+                <td className="field-val" style={{ width: '28%' }}>{borrowerData?.full_name || applicationData?.borrower_name || '—'}</td>
+                <td className="field-lbl" style={{ width: '22%' }}>Customer Code</td>
+                <td className="field-val" style={{ width: '28%' }}>{borrowerData?.borrower_code || applicationData?.loan_account_no || 'KTG-CUST'}</td>
+              </tr>
+              <tr>
+                <td className="field-lbl">Father / Spouse / Guarantor</td>
+                <td className="field-lbl">Father / Spouse / Guarantor</td>
+                <td className="field-val">{borrowerData?.father_spouse_name || applicationData?.guarantor || 'Self / Not Provided'}</td>
+                <td className="field-lbl">Mobile Phone</td>
+                <td className="field-val">{borrowerData?.phone || applicationData?.phone || '—'}</td>
+              </tr>
+              <tr>
+                <td className="field-lbl">DOB / Gender</td>
+                <td className="field-val">{borrowerData?.dob || '1990-05-15'} ({borrowerData?.gender || 'MALE'})</td>
+                <td className="field-lbl">KYC Status</td>
+                <td className="field-val" style={{ fontWeight: 700 }}>{borrowerData?.kyc_status || 'VERIFIED'}</td>
+              </tr>
+              <tr>
+                <td className="field-lbl">Aadhaar UID Number</td>
+                <td className="field-val">{borrowerData?.aadhaar_number || applicationData?.aadhaar || '—'}</td>
+                <td className="field-lbl">PAN Card Number</td>
+                <td className="field-val" style={{ textTransform: 'uppercase' }}>{borrowerData?.pan_number || applicationData?.pan || '—'}</td>
+              </tr>
+              <tr>
+                <td className="field-lbl">Residential Address</td>
+                <td className="field-val" colSpan={3}>
+                  {[borrowerData?.address_line1 || borrowerData?.street_address, borrowerData?.city, borrowerData?.state, borrowerData?.pincode].filter(Boolean).join(', ') || applicationData?.branch || 'Karur, Tamil Nadu'}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* 5. Section B: Requested Loan Credit Terms */}
+        <div className="bank-section">
+          <div className="section-header-bar">Section B: Requested Loan Credit Terms & EMI Calculation</div>
+
+          <table className="bank-grid-table">
+            <tbody>
+              <tr>
+                <td className="field-lbl" style={{ width: '22%' }}>Requested Principal</td>
+                <td className="field-val" style={{ width: '28%', fontWeight: 700 }}>₹{fmt(applicationData?.principal_amount)}</td>
+                <td className="field-lbl" style={{ width: '22%' }}>Monthly Interest Rate</td>
+                <td className="field-val" style={{ width: '28%' }}>{applicationData?.monthly_interest_rate || 2}% per month</td>
+              </tr>
+              <tr>
+                <td className="field-lbl">Tenure Period</td>
+                <td className="field-val">{applicationData?.tenure_days ? `${applicationData.tenure_days} Days` : `${applicationData?.tenure_months || 3} Months`} (Daily Schedule)</td>
+                <td className="field-lbl">Installment Frequency</td>
+                <td className="field-val" style={{ fontWeight: 600 }}>{applicationData?.repayment_frequency || 'DAILY'} EMI</td>
+              </tr>
+              <tr>
+                <td className="field-lbl">Calculated Installment</td>
+                <td className="field-val" style={{ fontWeight: 700 }}>₹{fmt(applicationData?.installment_amount || 500)} / day</td>
+                <td className="field-lbl">Loan Purpose</td>
+                <td className="field-val">{applicationData?.purpose || 'Working Capital'}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* 6. Section C: Nominee Details (If Provided) */}
+        {nominee && nominee.name && (
+          <div className="bank-section">
+            <div className="section-header-bar">Section C: Nominee Required Details</div>
+
+            <table className="bank-grid-table">
+              <tbody>
+                <tr>
+                  <td className="field-lbl" style={{ width: '22%' }}>Nominee Name</td>
+                  <td className="field-val" style={{ width: '28%' }}>{nominee.name}</td>
+                  <td className="field-lbl" style={{ width: '22%' }}>Relationship</td>
+                  <td className="field-val" style={{ width: '28%' }}>{nominee.final_relationship || nominee.relationship}</td>
+                </tr>
+                <tr>
+                  <td className="field-lbl">Date of Birth (DOB)</td>
+                  <td className="field-val">{nominee.dob || '—'}</td>
+                  <td className="field-lbl">Mobile Phone</td>
+                  <td className="field-val">{nominee.mobile || '—'}</td>
+                </tr>
+                <tr>
+                  <td className="field-lbl">ID Proof Type</td>
+                  <td className="field-val">{nominee.id_proof_type || 'Aadhaar Card'}</td>
+                  <td className="field-lbl">ID Document Number</td>
+                  <td className="field-val" style={{ fontWeight: 600 }}>
+                    {nominee.id_proof_number || '—'}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* 7. Section D: Security & Collateral Document Details */}
+        {security && security.type && security.type !== 'NONE' && (
+          <div className="bank-section">
+            <div className="section-header-bar">Section D: Security & Collateral Document Verification</div>
+
+            <table className="bank-grid-table">
+              <tbody>
+                <tr>
+                  <td className="field-lbl" style={{ width: '22%' }}>Security Category</td>
+                  <td className="field-val" colSpan={3} style={{ fontWeight: 700 }}>
+                    {security.type === 'PROPERTY' && 'Property Document (Land / House Deed)'}
+                    {security.type === 'VEHICLE' && 'Vehicle RC (Registration Certificate)'}
+                    {security.type === 'CHEQUE' && 'Cheque Leaf (Post-Dated Cheques / PDC)'}
+                    {security.type === 'OTHERS' && 'Other Security Document & Notes'}
+                  </td>
+                </tr>
+                {security.type === 'PROPERTY' && (
+                  <>
+                    <tr>
+                      <td className="field-lbl">Property Type</td>
+                      <td className="field-val">{security.details?.final_type || security.details?.type || 'Residential'}</td>
+                      <td className="field-lbl">Survey / Doc No</td>
+                      <td className="field-val" style={{ fontWeight: 600 }}>{security.details?.survey_number || '—'}</td>
+                    </tr>
+                    <tr>
+                      <td className="field-lbl">Estimated Market Value</td>
+                      <td className="field-val" colSpan={3} style={{ fontWeight: 700 }}>₹{fmt(security.details?.market_value)}</td>
+                    </tr>
+                  </>
+                )}
+                {security.type === 'VEHICLE' && (
+                  <>
+                    <tr>
+                      <td className="field-lbl">RC Registration No</td>
+                      <td className="field-val" style={{ fontWeight: 600 }}>{security.details?.rc_number || '—'}</td>
+                      <td className="field-lbl">Make & Model</td>
+                      <td className="field-val">{security.details?.make_model || '—'}</td>
+                    </tr>
+                    <tr>
+                      <td className="field-lbl">RC Owner Name</td>
+                      <td className="field-val" colSpan={3}>{security.details?.rc_owner_name || '—'}</td>
+                    </tr>
+                  </>
+                )}
+                {security.type === 'CHEQUE' && (
+                  <>
+                    <tr>
+                      <td className="field-lbl">Bank Name & Branch</td>
+                      <td className="field-val">{security.details?.bank_name || '—'}</td>
+                      <td className="field-lbl">Bank Account No</td>
+                      <td className="field-val" style={{ fontWeight: 600 }}>{security.details?.account_number || '—'}</td>
+                    </tr>
+                    <tr>
+                      <td className="field-lbl">Cheque Leaf Range</td>
+                      <td className="field-val">{security.details?.cheque_number_range || '—'}</td>
+                      <td className="field-lbl">Signed Cheques Count</td>
+                      <td className="field-val">{security.details?.cheques_count || 0} Cheques</td>
+                    </tr>
+                  </>
+                )}
+                {security.type === 'OTHERS' && (
+                  <tr>
+                    <td className="field-lbl">Security Notes</td>
+                    <td className="field-val" colSpan={3}>{security.details?.description || 'No description provided.'}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* 8. Section E: Uploaded Document & Image Attachments Gallery (Printed & Previewed) */}
+        {uploadedFiles.length > 0 && (
+          <div className="bank-section">
+            <div className="section-header-bar">Section E: Uploaded Verification Document & Image Attachments</div>
+            <div className="printed-attachments-container">
+              {uploadedFiles.map((fileObj, idx) => {
+                const isImg = fileObj.type?.startsWith('image/') || fileObj.name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+                return (
+                  <div key={idx} className="printed-attachment-card">
+                    {isImg ? (
+                      <img src={fileObj.url} alt={fileObj.name} className="attached-img-print" />
+                    ) : (
+                      <div className="attached-doc-badge">
+                        <FileText style={{ width: 24, height: 24, color: '#000000' }} />
+                        <span>PDF / Document</span>
+                      </div>
+                    )}
+                    <span className="attached-caption">{fileObj.name}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 9. Terms, Declaration & Signatures Box */}
+        <div className="bank-declaration-box">
+          <div className="dec-title" style={{ fontSize: '0.88rem', fontWeight: 700 }}>Applicant Declaration & Credit Agreement</div>
+          <p className="bank-declaration-text" style={{ marginTop: 4 }}>
+            I hereby declare that all particulars and details furnished in this loan application form are true, correct, and complete to the best of my knowledge and belief. I agree to abide by the rules, interest rates, and repayment terms specified by Karur Thangamayil Finance Private Limited.
+          </p>
+
+          <div className="bank-signatures-container">
+            <div className="sig-box">
+              <div className="sig-space"></div>
+              <div className="sig-title">Applicant Borrower Signature</div>
+              <div className="sig-date">Date: {appDate}</div>
+            </div>
+
+            <div className="bank-seal-box">
+              {applicationData.status === 'ACTIVE' ? (
+                <DigitalStampSeal date={appDate} size={82} />
+              ) : (
+                <span>Branch Seal & Stamp</span>
+              )}
+            </div>
+
+            <div className="sig-box">
+              <div className="sig-space"></div>
+              <div className="sig-title">Sanctioning Manager Signature</div>
+              <div className="sig-date">Approved & Sanctioned</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Approval Confirmation Dialog Overlay */}
+      {showApproveModal && (
+        <div className="saas-modal-backdrop" style={{ zIndex: 100000 }}>
+          <div className="saas-modal-card" style={{ maxWidth: 480 }}>
+            <div className="saas-modal-header">
+              <div className="head-left">
+                <div className="head-icon-badge" style={{ background: '#ECFDF5', color: '#059669' }}>
+                  <CheckCircle2 style={{ width: 20, height: 20 }} />
+                </div>
+                <div className="head-titles">
+                  <h3>Confirm Loan Approval</h3>
+                  <p>Disburse funds & convert to active loan</p>
+                </div>
+              </div>
+              <button onClick={() => setShowApproveModal(false)} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>
+            </div>
+            <div className="saas-modal-body" style={{ padding: 18 }}>
+              <p style={{ fontSize: '0.85rem', color: '#334155', lineHeight: 1.5 }}>
+                Are you sure you want to approve loan application <strong>{appNo}</strong> for <strong>{applicationData.borrower_name || borrowerData.full_name}</strong>?
+                <br /><br />
+                Requested Principal: <strong>₹{fmt(applicationData.principal_amount)}</strong>
+                <br />
+                Daily EMI: <strong>₹{fmt(applicationData.installment_amount || 500)}/day</strong>
+              </p>
+            </div>
+            <div className="saas-modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button type="button" onClick={() => setShowApproveModal(false)} style={{ border: '1px solid #CBD5E1', background: '#FFF', color: '#334155', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: '0.78rem' }}>Cancel</button>
+              <button type="button" onClick={() => { setShowApproveModal(false); onApprove?.(rawApp); }} style={{ background: '#059669', color: '#FFF', border: 'none', padding: '8px 18px', borderRadius: 8, cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>Confirm & Disburse Loan</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rejection Confirmation Dialog Overlay */}
+      {showRejectModal && (
+        <div className="saas-modal-backdrop" style={{ zIndex: 100000 }}>
+          <div className="saas-modal-card" style={{ maxWidth: 480 }}>
+            <div className="saas-modal-header">
+              <div className="head-left">
+                <div className="head-icon-badge" style={{ background: '#FEF2F2', color: '#DC2626' }}>
+                  <XCircle style={{ width: 20, height: 20 }} />
+                </div>
+                <div className="head-titles">
+                  <h3>Confirm Application Rejection</h3>
+                  <p>Reject loan credit application</p>
+                </div>
+              </div>
+              <button onClick={() => setShowRejectModal(false)} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>
+            </div>
+            <div className="saas-modal-body" style={{ padding: 18 }}>
+              <p style={{ fontSize: '0.85rem', color: '#991B1B', marginBottom: 12 }}>
+                Are you sure you want to reject application <strong>{appNo}</strong> for <strong>{applicationData.borrower_name || borrowerData.full_name}</strong>?
+              </p>
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#991B1B', textTransform: 'uppercase' }}>Rejection Reason *</label>
+              <textarea
+                rows={2}
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="e.g. KYC mismatch, insufficient income, high risk score..."
+                style={{ width: '100%', marginTop: 6, padding: '8px 12px', border: '1px solid #FCA5A5', borderRadius: 8 }}
+              />
+            </div>
+            <div className="saas-modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button type="button" onClick={() => setShowRejectModal(false)} style={{ border: '1px solid #CBD5E1', background: '#FFF', color: '#334155', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: '0.78rem' }}>Cancel</button>
+              <button
+                type="button"
+                disabled={!rejectReason.trim()}
+                onClick={() => { setShowRejectModal(false); onReject?.(rawApp, rejectReason.trim()); }}
+                style={{ background: '#DC2626', color: '#FFF', border: 'none', padding: '8px 18px', borderRadius: 8, cursor: rejectReason.trim() ? 'pointer' : 'not-allowed', opacity: rejectReason.trim() ? 1 : 0.5, fontSize: '0.78rem', fontWeight: 700 }}
+              >
+                Confirm Rejection
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+
+  return createPortal(modalContent, document.body);
+}
+
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
+import {
+  Printer, ArrowLeft, Send, FileText, CheckCircle2, XCircle, X,
+  User, ShieldCheck, Phone, CreditCard, MapPin, Calendar, Wallet,
+  Clock, Award, Building2, Car, Landmark, Eye, Download, FileCheck,
+  Sparkles, Check, AlertCircle, AlertTriangle
+} from 'lucide-react';
+import DigitalStampSeal from '../../components/DigitalStampSeal';
+
+export default function PrintableLoanApplicationSheet({
+  applicationData: rawApp,
+  borrowerData: rawBorrower,
+  onClose,
+  onConfirmSubmit,
+  onApprove,
+  onReject,
+  initialMode = 'VIEW',
+  companyInfo = {
+    name: 'KARUR THANGAMAYIL FINANCE PRIVATE LIMITED',
+    tagline: '(A Non-Banking Financial Company Registered with Reserve Bank of India)',
+    address: 'Regd Office: No. 123, Main Road, Near Bus Stand, Karur, Tamil Nadu - 639001',
+    contact: 'Tel: +91 4324 234567 | Email: customercare@ktgfinance.com | Website: www.ktgfinance.com',
+    reg: 'CIN: U65929TN2023PTC123456 | RBI Reg. No: B-07.01234'
+  }
+}) {
+  const applicationData = rawApp || {};
+  const borrowerData = rawBorrower || {};
+
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'BORROWER' | 'LOAN' | 'SECURITY' | 'DOCS'
+  const [previewImage, setPreviewImage] = useState(null);
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const appNo = applicationData.loan_account_no || `KTG/LN-APP/${new Date().getFullYear()}/${Math.floor(10000 + Math.random() * 90000)}`;
+  const appDate = applicationData.loan_date || new Date().toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+
+  const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
+
+  const { nominee, security } = applicationData;
+
+  // Gather all uploaded document files from nominee / security sections
+  const uploadedFiles = [
+    ...(nominee?.files || []),
+    ...(security?.details?.files || [])
+  ];
+
+  const appStatus = applicationData.status || 'PENDING';
+  const statusConfig = {
+    PENDING: { label: 'Pending Review', bg: '#FEF3C7', color: '#D97706', border: '#FDE68A', icon: Clock },
+    APPROVED: { label: 'Approved & Active', bg: '#D1FAE5', color: '#059669', border: '#A7F3D0', icon: CheckCircle2 },
+    ACTIVE: { label: 'Active Loan', bg: '#D1FAE5', color: '#059669', border: '#A7F3D0', icon: CheckCircle2 },
+    REJECTED: { label: 'Application Rejected', bg: '#FEE2E2', color: '#DC2626', border: '#FCA5A5', icon: XCircle }
+  };
+  const sc = statusConfig[appStatus] || statusConfig.PENDING;
+  const StatusIcon = sc.icon;
+
+  const modalContent = (
+    <div className="printable-form-overlay modern-loan-app-overlay">
+
+      {/* Floating Action Header Bar (Screen Only) */}
+      <div className="modern-loan-app-header no-print">
+        <div className="header-left-group">
+          <button type="button" onClick={onClose} className="btn-modern-back" title="Close & Return to List">
+            <ArrowLeft style={{ width: 16, height: 16 }} />
+            <span>Back to Applications</span>
+          </button>
+          <div className="divider-line" />
+          <div className="app-title-block">
+            <div className="app-account-no">
+              <span>{appNo}</span>
+              <span className="status-pill-badge" style={{ background: sc.bg, color: sc.color, borderColor: sc.border }}>
+                <StatusIcon style={{ width: 12, height: 12 }} />
+                {sc.label}
+              </span>
+            </div>
+            <p className="app-subtitle">
+              Submitted by <strong>{borrowerData?.full_name || applicationData?.borrower_name || 'Applicant'}</strong> · {appDate}
+            </p>
+          </div>
+        </div>
+
+        <div className="header-right-actions">
+          <button type="button" onClick={handlePrint} className="btn-modern-secondary">
+            <Printer style={{ width: 15, height: 15, color: '#2563EB' }} />
+            <span>Print / Export PDF</span>
+          </button>
+
+          {onReject && appStatus === 'PENDING' && (
+            <button type="button" onClick={() => setShowRejectModal(true)} className="btn-modern-danger">
+              <XCircle style={{ width: 15, height: 15 }} />
+              <span>Reject Application</span>
+            </button>
+          )}
+
+          {onApprove && appStatus === 'PENDING' && (
+            <button type="button" onClick={() => setShowApproveModal(true)} className="btn-modern-success">
+              <CheckCircle2 style={{ width: 16, height: 16 }} />
+              <span>Approve & Disburse</span>
+            </button>
+          )}
+
+          {onConfirmSubmit && !onApprove && (
+            <button type="button" onClick={onConfirmSubmit} className="btn-modern-primary">
+              <Send style={{ width: 15, height: 15 }} />
+              <span>Submit Application</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Floating Action Header Bar (Screen Only) */}
+      <div className="modern-loan-app-header no-print">
+        <div className="header-left-group">
+          <button type="button" onClick={onClose} className="btn-modern-back" title="Close & Return to List">
+            <ArrowLeft style={{ width: 16, height: 16 }} />
+            <span>Back to Applications</span>
+          </button>
+          <div className="divider-line" />
+          <div className="app-title-block">
+            <div className="app-account-no">
+              <span>{appNo}</span>
+              <span className="status-pill-badge" style={{ background: sc.bg, color: sc.color, borderColor: sc.border }}>
+                <StatusIcon style={{ width: 12, height: 12 }} />
+                {sc.label}
+              </span>
+            </div>
+            <p className="app-subtitle">
+              Submitted by <strong>{borrowerData?.full_name || applicationData?.borrower_name || 'Applicant'}</strong> · {appDate}
+            </p>
+          </div>
+        </div>
+
+        <div className="header-right-actions">
+          <button type="button" onClick={handlePrint} className="btn-modern-secondary">
+            <Printer style={{ width: 15, height: 15, color: '#2563EB' }} />
+            <span>Print / Export PDF</span>
+          </button>
+
+          {onReject && appStatus === 'PENDING' && (
+            <button type="button" onClick={() => setShowRejectModal(true)} className="btn-modern-danger">
+              <XCircle style={{ width: 15, height: 15 }} />
+              <span>Reject Application</span>
+            </button>
+          )}
+
+          {onApprove && appStatus === 'PENDING' && (
+            <button type="button" onClick={() => setShowApproveModal(true)} className="btn-modern-success">
+              <CheckCircle2 style={{ width: 16, height: 16 }} />
+              <span>Approve & Disburse</span>
+            </button>
+          )}
+
+          {onConfirmSubmit && !onApprove && (
+            <button type="button" onClick={onConfirmSubmit} className="btn-modern-primary">
+              <Send style={{ width: 15, height: 15 }} />
+              <span>Submit Application</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Modern Screen UI Dashboard Container */}
+      <div className="modern-loan-app-container">
+
+        {/* Hero Banner Card */}
+        <div className="hero-app-card">
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Printer, ArrowLeft, Send, FileText, CheckCircle2, XCircle, X } from 'lucide-react';
+import DigitalStampSeal from '../../components/DigitalStampSeal';
+
+export default function PrintableLoanApplicationSheet({
+  applicationData: rawApp,
+  borrowerData: rawBorrower,
+  onClose,
+  onConfirmSubmit,
+  onApprove,
+  onReject,
+  initialMode = 'VIEW',
+  companyInfo = {
+    name: 'KARUR THANGAMAYIL FINANCE PRIVATE LIMITED',
+    tagline: '(A Non-Banking Financial Company Registered with Reserve Bank of India)',
+    address: 'Regd Office: No. 123, Main Road, Near Bus Stand, Karur, Tamil Nadu - 639001',
+    contact: 'Tel: +91 4324 234567 | Email: customercare@ktgfinance.com | Website: www.ktgfinance.com',
+    reg: 'CIN: U65929TN2023PTC123456 | RBI Reg. No: B-07.01234'
+  }
+}) {
+  const applicationData = rawApp || {};
+  const borrowerData = rawBorrower || {};
+
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const appNo = applicationData.loan_account_no || `KTG/LN-APP/${new Date().getFullYear()}/${Math.floor(10000 + Math.random() * 90000)}`;
+  const appDate = applicationData.loan_date || new Date().toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+
+  const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
+
+  const { nominee, security } = applicationData;
+
+  // Gather all uploaded document files from nominee / security sections
+  const uploadedFiles = [
+    ...(nominee?.files || []),
+    ...(security?.details?.files || [])
+  ];
+
+  const modalContent = (
+    <div className="printable-form-overlay">
+
+      {/* Floating Action Controls for Preview Sheet (Hidden when Printing) */}
+      <div className="printable-form-floating-btns">
+        <button type="button" onClick={onClose} className="btn-close" title="Close Preview">
+          <ArrowLeft style={{ width: 15, height: 15 }} />
+          <span>Back to List</span>
+        </button>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button type="button" onClick={handlePrint} className="btn-close" style={{ background: '#FFFFFF', color: '#0F172A' }}>
+            <Printer style={{ width: 15, height: 15, color: '#2563EB' }} />
+            <span>Print Form / Save PDF</span>
+          </button>
+
+          {onReject && (
+            <button type="button" onClick={() => setShowRejectModal(true)} className="btn-close" style={{ background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA' }}>
+              <XCircle style={{ width: 15, height: 15 }} />
+              <span>Reject Application</span>
+            </button>
+          )}
+
+          {onApprove && (
+            <button type="button" onClick={() => setShowApproveModal(true)} className="btn-print" style={{ background: '#059669', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.3)' }}>
+              <CheckCircle2 style={{ width: 15, height: 15 }} />
+              <span>Approve & Disburse Loan</span>
+            </button>
+          )}
+
+          {onConfirmSubmit && !onApprove && (
+            <button type="button" onClick={onConfirmSubmit} className="btn-print" style={{ background: '#059669', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.3)' }}>
+              <Send style={{ width: 15, height: 15 }} />
+              <span>Confirm & Submit Application</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ISO A4 Paper Sheet (Black & White Printing Format - Natural Medium Readable Font) */}
+      <div className="paper-sheet bank-form-paper">
+
+        {/* 1. Official Bank Letterhead Header */}
+        <div className="bank-header-row">
+          <div className="bank-logo-col">
+            <div className="bank-emblem">KTG</div>
+          </div>
+
+          <div className="bank-title-col">
+            <h1 className="bank-company-name">{companyInfo.name}</h1>
+            <p className="bank-tagline">{companyInfo.tagline}</p>
+            <p className="bank-contact-line">{companyInfo.address}</p>
+            <p className="bank-contact-line">{companyInfo.contact}</p>
+            <p className="bank-cin-line">{companyInfo.reg}</p>
+          </div>
+
+          {/* Applicant Passport Photo Box */}
+          <div className="bank-photo-container borderless-photo">
+            {borrowerData?.profile_image ? (
+              <img src={borrowerData.profile_image} alt="Applicant Photo" />
+            ) : (
+              <div className="photo-instructions">
+                Affix Passport Size Photo Here
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 2. Main Title Banner */}
+        <div className="bank-title-banner">
+          <span>Official Loan Credit Sanction & Application Form</span>
+        </div>
+
+        {/* 3. Form Meta Table */}
+        <table className="bank-meta-table">
+          <tbody>
+            <tr>
+              <td className="meta-lbl">Application No:</td>
+              <td className="meta-val">{appNo}</td>
+              <td className="meta-lbl">Date:</td>
+              <td className="meta-val">{appDate}</td>
+              <td className="meta-lbl">Branch:</td>
+              <td className="meta-val">{borrowerData?.branch || applicationData?.branch || 'Karur Main'}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* 4. Section A: Applicant Profile Details */}
+        <div className="bank-section">
+          <div className="section-header-bar">Section A: Applicant Customer Profile Details</div>
+
+          <table className="bank-grid-table">
+            <tbody>
+              <tr>
+                <td className="field-lbl" style={{ width: '22%' }}>Full Name</td>
+                <td className="field-val" style={{ width: '28%' }}>{borrowerData?.full_name || applicationData?.borrower_name || '—'}</td>
+                <td className="field-lbl" style={{ width: '22%' }}>Customer Code</td>
+                <td className="field-val" style={{ width: '28%' }}>{borrowerData?.borrower_code || applicationData?.loan_account_no || 'KTG-CUST'}</td>
+              </tr>
+              <tr>
+                <td className="field-lbl">Father / Spouse / Guarantor</td>
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Printer, ArrowLeft, Send, FileText, CheckCircle2, XCircle, X } from 'lucide-react';
+import DigitalStampSeal from '../../components/DigitalStampSeal';
+
+export default function PrintableLoanApplicationSheet({
+  applicationData: rawApp,
+  borrowerData: rawBorrower,
+  onClose,
+  onConfirmSubmit,
+  onApprove,
+  onReject,
+  initialMode = 'VIEW',
+  companyInfo = {
+    name: 'KARUR THANGAMAYIL FINANCE PRIVATE LIMITED',
+    tagline: '(A Non-Banking Financial Company Registered with Reserve Bank of India)',
+    address: 'Regd Office: No. 123, Main Road, Near Bus Stand, Karur, Tamil Nadu - 639001',
+    contact: 'Tel: +91 4324 234567 | Email: customercare@ktgfinance.com | Website: www.ktgfinance.com',
+    reg: 'CIN: U65929TN2023PTC123456 | RBI Reg. No: B-07.01234'
+  }
+}) {
+  const applicationData = rawApp || {};
+  const borrowerData = rawBorrower || {};
+
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const appNo = applicationData.loan_account_no || `KTG/LN-APP/${new Date().getFullYear()}/${Math.floor(10000 + Math.random() * 90000)}`;
+  const appDate = applicationData.loan_date || new Date().toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+
+  const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
+
+  const { nominee, security } = applicationData;
+
+  // Gather all uploaded document files from nominee / security sections
+  const uploadedFiles = [
+    ...(nominee?.files || []),
+    ...(security?.details?.files || [])
+  ];
+
+  const modalContent = (
+    <div className="printable-form-overlay">
+
+      {/* Floating Action Controls for Preview Sheet (Hidden when Printing) */}
+      <div className="printable-form-floating-btns">
+        <button type="button" onClick={onClose} className="btn-close" title="Close Preview">
+          <ArrowLeft style={{ width: 15, height: 15 }} />
+          <span>Back to List</span>
+        </button>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button type="button" onClick={handlePrint} className="btn-close" style={{ background: '#FFFFFF', color: '#0F172A' }}>
+            <Printer style={{ width: 15, height: 15, color: '#2563EB' }} />
+            <span>Print Form / Save PDF</span>
+          </button>
+
+          {onReject && (
+            <button type="button" onClick={() => setShowRejectModal(true)} className="btn-close" style={{ background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA' }}>
+              <XCircle style={{ width: 15, height: 15 }} />
+              <span>Reject Application</span>
+            </button>
+          )}
+
+          {onApprove && (
+            <button type="button" onClick={() => setShowApproveModal(true)} className="btn-print" style={{ background: '#059669', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.3)' }}>
+              <CheckCircle2 style={{ width: 15, height: 15 }} />
+              <span>Approve & Disburse Loan</span>
+            </button>
+          )}
+
+          {onConfirmSubmit && !onApprove && (
+            <button type="button" onClick={onConfirmSubmit} className="btn-print" style={{ background: '#059669', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.3)' }}>
+              <Send style={{ width: 15, height: 15 }} />
+              <span>Confirm & Submit Application</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ISO A4 Paper Sheet (Black & White Printing Format - Natural Medium Readable Font) */}
+      <div className="paper-sheet bank-form-paper">
+
+        {/* 1. Official Bank Letterhead Header */}
+        <div className="bank-header-row">
+          <div className="bank-logo-col">
+            <div className="bank-emblem">KTG</div>
+          </div>
+
+          <div className="bank-title-col">
+            <h1 className="bank-company-name">{companyInfo.name}</h1>
+            <p className="bank-tagline">{companyInfo.tagline}</p>
+            <p className="bank-contact-line">{companyInfo.address}</p>
+            <p className="bank-contact-line">{companyInfo.contact}</p>
+            <p className="bank-cin-line">{companyInfo.reg}</p>
+          </div>
+
+          {/* Applicant Passport Photo Box */}
+          <div className="bank-photo-container borderless-photo">
+            {borrowerData?.profile_image ? (
+              <img src={borrowerData.profile_image} alt="Applicant Photo" />
+            ) : (
+              <div className="photo-instructions">
+                Affix Passport Size Photo Here
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 2. Main Title Banner */}
+        <div className="bank-title-banner">
+          <span>Official Loan Credit Sanction & Application Form</span>
+        </div>
+
+        {/* 3. Form Meta Table */}
+        <table className="bank-meta-table">
+          <tbody>
+            <tr>
+              <td className="meta-lbl">Application No:</td>
+              <td className="meta-val">{appNo}</td>
+              <td className="meta-lbl">Date:</td>
+              <td className="meta-val">{appDate}</td>
+              <td className="meta-lbl">Branch:</td>
+              <td className="meta-val">{borrowerData?.branch || applicationData?.branch || 'Karur Main'}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* 4. Section A: Applicant Profile Details */}
+        <div className="bank-section">
+          <div className="section-header-bar">Section A: Applicant Customer Profile Details</div>
+
+          <table className="bank-grid-table">
+            <tbody>
+              <tr>
+                <td className="field-lbl" style={{ width: '22%' }}>Full Name</td>
+                <td className="field-val" style={{ width: '28%' }}>{borrowerData?.full_name || applicationData?.borrower_name || '—'}</td>
+                <td className="field-lbl" style={{ width: '22%' }}>Customer Code</td>
+                <td className="field-val" style={{ width: '28%' }}>{borrowerData?.borrower_code || applicationData?.loan_account_no || 'KTG-CUST'}</td>
+              </tr>
+              <tr>
+                <td className="field-lbl">Father / Spouse / Guarantor</td>

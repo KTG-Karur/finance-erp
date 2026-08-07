@@ -7,36 +7,37 @@ import {
   User,
   Phone,
   MapPin,
-  Briefcase,
-  Users,
   FileCheck2,
   FileWarning,
   CheckCircle2,
   XCircle,
   AlertTriangle,
-  Loader2
+  Loader2,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
+  Maximize2,
+  Download,
+  Eye,
+  Check,
+  FileText
 } from 'lucide-react';
-
-const ID_PROOF_LABELS = {
-  AADHAAR: 'Aadhaar Card',
-  VOTER_ID: 'Voter ID',
-  PASSPORT: 'Passport',
-  DRIVING_LICENSE: 'Driving License'
-};
+import { useLanguage } from '../../i18n/LanguageContext.jsx';
 
 function StatusBadge({ status }) {
+  const { t } = useLanguage();
   const map = {
-    VERIFIED: { bg: '#ECFDF5', color: '#047857', border: '#A7F3D0', icon: ShieldCheck, label: 'VERIFIED' },
-    REJECTED: { bg: '#FEF2F2', color: '#B91C1C', border: '#FECACA', icon: ShieldAlert, label: 'REJECTED' },
-    PENDING: { bg: '#FFFBEB', color: '#92400E', border: '#FDE68A', icon: ShieldQuestion, label: 'PENDING REVIEW' }
+    VERIFIED: { bg: '#ECFDF5', color: '#047857', border: '#A7F3D0', icon: ShieldCheck, label: t('kyc.verified') },
+    REJECTED: { bg: '#FEF2F2', color: '#B91C1C', border: '#FECACA', icon: ShieldAlert, label: t('kyc.rejected') },
+    PENDING: { bg: '#FFFBEB', color: '#92400E', border: '#FDE68A', icon: ShieldQuestion, label: t('kyc.pending_review') }
   };
   const cfg = map[status] || map.PENDING;
   const Icon = cfg.icon;
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderRadius: 20,
+      display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 20,
       fontSize: '0.75rem', fontWeight: 700, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`,
-      letterSpacing: '0.02em'
+      letterSpacing: '0.02em', textTransform: 'uppercase'
     }}>
       <Icon style={{ width: 14, height: 14 }} />
       <span>{cfg.label}</span>
@@ -44,123 +45,112 @@ function StatusBadge({ status }) {
   );
 }
 
-function Section({ icon: Icon, title, children }) {
-  return (
-    <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, padding: '18px 20px', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
-        <Icon style={{ width: 15, height: 15, color: '#059669' }} />
-        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0F172A' }}>{title}</span>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, value }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
-      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0F172A' }}>{value || '—'}</span>
-    </div>
-  );
-}
-
-function DocRow({ label, present }) {
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '10px 14px', background: '#F8FAFC', border: '1px solid #F1F5F9', borderRadius: 10
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {present ? <FileCheck2 style={{ width: 15, height: 15, color: '#059669' }} /> : <FileWarning style={{ width: 15, height: 15, color: '#CBD5E1' }} />}
-        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#334155' }}>{label}</span>
-      </div>
-      <span style={{
-        fontSize: '0.68rem', fontWeight: 700, padding: '2px 9px', borderRadius: 20,
-        background: present ? '#ECFDF5' : '#F1F5F9', color: present ? '#047857' : '#94A3B8',
-        border: `1px solid ${present ? '#A7F3D0' : '#E2E8F0'}`
-      }}>
-        {present ? 'ON FILE' : 'NOT PROVIDED'}
-      </span>
-    </div>
-  );
-}
-
 export default function CustomerKycReviewPage({ borrower, onBack, onVerify, onReject }) {
+  const { t } = useLanguage();
+  const REJECTION_CATEGORIES = [
+    { id: 'BLURRY_DOCUMENT', label: t('kycr.cat_blurry') },
+    { id: 'NAME_MISMATCH', label: t('kycr.cat_name_mismatch') },
+    { id: 'EXPIRED_PROOF', label: t('kycr.cat_expired') },
+    { id: 'INCOMPLETE_ATTACHMENT', label: t('kycr.cat_incomplete') },
+    { id: 'OTHER', label: t('kycr.cat_other') }
+  ];
   const [confirmingVerify, setConfirmingVerify] = useState(false);
   const [rejecting, setRejecting] = useState(false);
+  const [allowReEvaluate, setAllowReEvaluate] = useState(false);
+  const [rejectCategory, setRejectCategory] = useState('BLURRY_DOCUMENT');
   const [rejectReason, setRejectReason] = useState('');
   const [rejectError, setRejectError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState('');
 
+  // Interactive Document Viewer State
+  const [selectedDocKey, setSelectedDocKey] = useState('profile'); // 'profile' | 'aadhaar_front' | 'aadhaar_back' | 'pan' | 'passbook'
+  const [zoomScale, setZoomScale] = useState(1);
+  const [rotation, setRotation] = useState(0);
+
   if (!borrower) return null;
+
+  const docs = borrower.documents || [];
+  const getDocUrl = (category) => {
+    const d = docs.find(item => item.category === category);
+    return d?.url || d?.dataUrl || null;
+  };
+
+  const docSources = {
+    profile: borrower.profile_image,
+    aadhaar_front: getDocUrl('AADHAAR_FRONT'),
+    aadhaar_back: getDocUrl('AADHAAR_BACK'),
+    pan: getDocUrl('PAN_CARD'),
+    passbook: getDocUrl('BANK_PASSBOOK')
+  };
+
+  const activeDocSrc = docSources[selectedDocKey] || null;
+
+  const handleZoomIn = () => setZoomScale(prev => Math.min(prev + 0.25, 2.5));
+  const handleZoomOut = () => setZoomScale(prev => Math.max(prev - 0.25, 0.75));
+  const handleRotate = () => setRotation(prev => (prev + 90) % 360);
+  const handleResetCanvas = () => {
+    setZoomScale(1);
+    setRotation(0);
+  };
 
   const fullAddress = [borrower.address_line1, borrower.address_line2, borrower.city, borrower.state, borrower.pincode].filter(Boolean).join(', ');
 
-  const handleVerify = async () => {
+  const handleVerifySubmit = async () => {
     setSubmitting(true);
     setActionError('');
     try {
       await onVerify(borrower.id);
       setConfirmingVerify(false);
+      setAllowReEvaluate(false);
     } catch (err) {
-      setActionError(err?.response?.data?.message || 'Unable to verify KYC. Please try again.');
+      setActionError(err?.response?.data?.message || t('kycr.verify_error'));
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleReject = async () => {
-    if (!rejectReason.trim() || rejectReason.trim().length < 5) {
-      setRejectError('Please provide a rejection reason (at least 5 characters).');
-      return;
-    }
+  const handleRejectSubmit = async () => {
+    const categoryLabel = REJECTION_CATEGORIES.find(c => c.id === rejectCategory)?.label || rejectCategory;
+    const finalReason = rejectReason.trim() ? `${categoryLabel}: ${rejectReason.trim()}` : categoryLabel;
+
     setSubmitting(true);
     setActionError('');
     try {
-      await onReject(borrower.id, rejectReason.trim());
+      await onReject(borrower.id, finalReason);
       setRejecting(false);
+      setAllowReEvaluate(false);
       setRejectReason('');
     } catch (err) {
-      setActionError(err?.response?.data?.message || 'Unable to reject KYC. Please try again.');
+      setActionError(err?.response?.data?.message || t('kycr.reject_error'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div className="kyc-review-root">
 
-      {/* Header */}
-      <div style={{
-        background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, padding: '16px 20px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 3px rgba(15,23,42,0.04)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <button
-            onClick={onBack}
-            style={{
-              width: 36, height: 36, borderRadius: 10, border: '1px solid #E2E8F0', background: '#F8FAFC',
-              color: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
-            }}
-            title="Back to Customer Directory"
-          >
+      {/* ── Top Header Navigation Bar ── */}
+      <div className="kyc-review-header">
+        <div className="hdr-left">
+          <button type="button" onClick={onBack} className="btn-back" title={t('kycr.back_to_directory')}>
             <ArrowLeft style={{ width: 16, height: 16 }} />
           </button>
-          <div>
+          <div className="hdr-title-box">
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <h1 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#0F172A', margin: 0, letterSpacing: '-0.02em' }}>
-                {borrower.full_name}
-              </h1>
-              <span style={{ fontSize: '0.72rem', color: '#94A3B8', fontFamily: 'monospace', fontWeight: 600 }}>{borrower.borrower_code}</span>
+              <h1>{t('kycr.title')}</h1>
+              <span style={{ fontSize: '0.72rem', color: '#059669', background: '#ECFDF5', border: '1px solid #A7F3D0', padding: '2px 8px', borderRadius: 12, fontWeight: 700, fontFamily: 'monospace' }}>
+                {borrower.borrower_code || 'KTG-CUST-001'}
+              </span>
             </div>
-            <p style={{ fontSize: '0.75rem', color: '#64748B', margin: '3px 0 0 0' }}>KYC Verification Review</p>
+            <p>{t('kycr.subtitle')} {borrower.full_name}</p>
           </div>
         </div>
-        <StatusBadge status={borrower.kyc_status} />
+
+        <div className="hdr-actions">
+          <StatusBadge status={borrower.kyc_status} />
+        </div>
       </div>
 
       {actionError && (
@@ -170,165 +160,339 @@ export default function CustomerKycReviewPage({ borrower, onBack, onVerify, onRe
         </div>
       )}
 
-      {borrower.kyc_status === 'REJECTED' && borrower.kyc_rejection_reason && (
-        <div className="form-alert" style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', margin: 0 }}>
-          <ShieldAlert style={{ width: 14, height: 14 }} />
-          <span><strong>Rejection reason:</strong> {borrower.kyc_rejection_reason}{borrower.kyc_reviewed_by ? ` — reviewed by ${borrower.kyc_reviewed_by}` : ''}{borrower.kyc_reviewed_at ? ` on ${borrower.kyc_reviewed_at}` : ''}</span>
-        </div>
-      )}
+      {/* ── 2-Column Split Workspace ── */}
+      <div className="kyc-split-workspace">
 
-      {borrower.kyc_status === 'VERIFIED' && (
-        <div className="form-alert" style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#047857', margin: 0 }}>
-          <ShieldCheck style={{ width: 14, height: 14 }} />
-          <span>
-            Verified{borrower.kyc_reviewed_by ? ` by ${borrower.kyc_reviewed_by}` : ''} on {borrower.kyc_verified_at || '—'}
-            {borrower.kyc_expiry_date ? ` · Valid until ${borrower.kyc_expiry_date}` : ''}
-          </span>
-        </div>
-      )}
-
-      <Section icon={User} title="Personal Details">
-        <Field label="Full Name" value={borrower.full_name} />
-        <Field label="Date of Birth" value={borrower.dob} />
-        <Field label="Gender" value={borrower.gender} />
-        <Field label="Occupation" value={borrower.occupation} />
-        <Field label="Monthly Income" value={borrower.monthly_income ? `₹${Number(borrower.monthly_income).toLocaleString('en-IN')}` : ''} />
-        <Field label="Employer" value={borrower.employer_name} />
-      </Section>
-
-      <Section icon={Phone} title="Contact Details">
-        <Field label="Mobile Phone" value={borrower.phone} />
-        <Field label="Alternate Phone" value={borrower.alt_phone} />
-        <Field label="Email" value={borrower.email} />
-        <Field label="Branch" value={borrower.branch} />
-      </Section>
-
-      <Section icon={MapPin} title="Address">
-        <Field label="Full Address" value={fullAddress} />
-        <Field label="City" value={borrower.city} />
-        <Field label="State" value={borrower.state} />
-        <Field label="Pincode" value={borrower.pincode} />
-      </Section>
-
-      <Section icon={Users} title="Guarantor & Nominee">
-        <Field label="Guarantor Name" value={borrower.guarantor_name} />
-        <Field label="Guarantor Phone" value={borrower.guarantor_phone} />
-        <Field label="Nominee Name" value={borrower.nominee_name} />
-        <Field label="Nominee Relation" value={borrower.nominee_relation} />
-      </Section>
-
-      {/* KYC Documents */}
-      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, padding: '18px 20px', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
-          <FileCheck2 style={{ width: 15, height: 15, color: '#059669' }} />
-          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0F172A' }}>KYC Identity Documents</span>
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <Field label="Primary ID Proof Submitted" value={ID_PROOF_LABELS[borrower.id_proof_type] || 'Aadhaar Card'} />
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginBottom: 12 }}>
-          <DocRow label={`Aadhaar Card ${borrower.aadhaar_number ? `(•• ${borrower.aadhaar_number.slice(-4)})` : ''}`} present={Boolean(borrower.aadhaar_number)} />
-          <DocRow label={`PAN Card ${borrower.pan_number ? `(${borrower.pan_number})` : ''}`} present={Boolean(borrower.pan_number)} />
-          <DocRow label="Address Proof" present={Boolean(borrower.address_line1)} />
-        </div>
-        <p style={{ fontSize: '0.72rem', color: '#94A3B8', margin: 0, fontStyle: 'italic' }}>
-          Document image upload/storage is not yet available — verification should be performed against the physical or scanned copies collected during onboarding.
-        </p>
-      </div>
-
-      {/* Action Bar */}
-      {borrower.kyc_status === 'PENDING' && (
-        <div style={{
-          background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, padding: '18px 20px',
-          display: 'flex', flexDirection: 'column', gap: 14, boxShadow: '0 1px 3px rgba(15,23,42,0.04)'
-        }}>
-          <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0F172A' }}>KYC Decision</div>
-
-          {!confirmingVerify && !rejecting && (
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                onClick={() => { setConfirmingVerify(true); setRejecting(false); }}
-                style={{
-                  flex: 1, height: 42, border: 'none', background: '#059669', color: '#FFFFFF', borderRadius: 10,
-                  fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
-                  justifyContent: 'center', gap: 8, boxShadow: '0 2px 6px rgba(5,150,105,0.25)'
-                }}
-              >
-                <CheckCircle2 style={{ width: 16, height: 16 }} />
-                <span>Verify KYC</span>
-              </button>
-              <button
-                onClick={() => { setRejecting(true); setConfirmingVerify(false); }}
-                style={{
-                  flex: 1, height: 42, border: '1px solid #FECACA', background: '#FFFFFF', color: '#DC2626', borderRadius: 10,
-                  fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
-                  justifyContent: 'center', gap: 8
-                }}
-              >
-                <XCircle style={{ width: 16, height: 16 }} />
-                <span>Reject KYC</span>
-              </button>
+        {/* LEFT COLUMN: Interactive Document Inspection Vault */}
+        <div className="kyc-doc-vault">
+          <div className="vault-head">
+            <div className="vault-title">
+              <Eye style={{ width: 16, height: 16, color: '#059669' }} />
+              <span>{t('cp.canvas_title')}</span>
             </div>
-          )}
+            <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#64748B' }}>
+              {t('kycr.canvas_hint')}
+            </span>
+          </div>
 
-          {confirmingVerify && (
-            <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <p style={{ fontSize: '0.8rem', color: '#065F46', margin: 0, fontWeight: 500 }}>
-                Confirm that all KYC documents for <strong>{borrower.full_name}</strong> have been reviewed and are valid. This will mark the customer as KYC Verified for 2 years.
-              </p>
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                <button onClick={() => setConfirmingVerify(false)} disabled={submitting} className="btn-cancel" style={{ padding: '8px 16px' }}>
-                  Cancel
-                </button>
-                <button
-                  onClick={handleVerify}
-                  disabled={submitting}
-                  style={{
-                    border: 'none', background: '#059669', color: '#FFFFFF', borderRadius: 8, padding: '8px 18px',
-                    fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6
-                  }}
-                >
-                  {submitting ? <Loader2 className="spin" style={{ width: 14, height: 14 }} /> : <CheckCircle2 style={{ width: 14, height: 14 }} />}
-                  <span>{submitting ? 'Verifying...' : 'Confirm Verification'}</span>
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Document Tabs Switcher */}
+          <div className="doc-tabs-row">
+            <button
+              type="button"
+              className={`doc-tab ${selectedDocKey === 'profile' ? 'doc-tab--active' : ''}`}
+              onClick={() => { setSelectedDocKey('profile'); handleResetCanvas(); }}
+            >
+              <User style={{ width: 13, height: 13 }} /> {t('kycr.tab_photo')}
+            </button>
+            <button
+              type="button"
+              className={`doc-tab ${selectedDocKey === 'aadhaar_front' ? 'doc-tab--active' : ''}`}
+              onClick={() => { setSelectedDocKey('aadhaar_front'); handleResetCanvas(); }}
+            >
+              <FileCheck2 style={{ width: 13, height: 13 }} /> {t('kycr.tab_aadhaar_front')}
+            </button>
+            <button
+              type="button"
+              className={`doc-tab ${selectedDocKey === 'aadhaar_back' ? 'doc-tab--active' : ''}`}
+              onClick={() => { setSelectedDocKey('aadhaar_back'); handleResetCanvas(); }}
+            >
+              <FileCheck2 style={{ width: 13, height: 13 }} /> {t('kycr.tab_aadhaar_back')}
+            </button>
+            <button
+              type="button"
+              className={`doc-tab ${selectedDocKey === 'pan' ? 'doc-tab--active' : ''}`}
+              onClick={() => { setSelectedDocKey('pan'); handleResetCanvas(); }}
+            >
+              <FileText style={{ width: 13, height: 13 }} /> {t('kycr.tab_pan')}
+            </button>
+            <button
+              type="button"
+              className={`doc-tab ${selectedDocKey === 'passbook' ? 'doc-tab--active' : ''}`}
+              onClick={() => { setSelectedDocKey('passbook'); handleResetCanvas(); }}
+            >
+              <FileText style={{ width: 13, height: 13 }} /> {t('kycr.tab_passbook')}
+            </button>
+          </div>
 
-          {rejecting && (
-            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#991B1B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Rejection Reason *
-              </label>
-              <textarea
-                rows={3}
-                value={rejectReason}
-                onChange={(e) => { setRejectReason(e.target.value); setRejectError(''); }}
-                placeholder="e.g. Aadhaar photo mismatch, PAN number does not match records, address proof expired..."
-                className="input-control"
-                style={{ height: 'auto', padding: '10px 12px', background: '#FFFFFF' }}
+          {/* High-Tech Canvas Frame */}
+          <div className="canvas-frame">
+            {activeDocSrc ? (
+              <img
+                src={activeDocSrc}
+                alt="Document Preview"
+                style={{
+                  transform: `scale(${zoomScale}) rotate(${rotation}deg)`
+                }}
               />
-              {rejectError && <span className="field-error">{rejectError}</span>}
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                <button onClick={() => { setRejecting(false); setRejectReason(''); setRejectError(''); }} disabled={submitting} className="btn-cancel" style={{ padding: '8px 16px' }}>
-                  Cancel
+            ) : (
+              <div className="empty-canvas-text">
+                <FileWarning style={{ width: 32, height: 32, color: '#475569' }} />
+                <span>{t('kycr.no_doc_uploaded')}</span>
+              </div>
+            )}
+
+            {/* Interactive Canvas Toolbar */}
+            {activeDocSrc && (
+              <div className="canvas-toolbar">
+                <button type="button" onClick={handleZoomIn} title={t('cp.zoom_in')}>
+                  <ZoomIn style={{ width: 15, height: 15 }} />
                 </button>
-                <button
-                  onClick={handleReject}
-                  disabled={submitting}
-                  style={{
-                    border: 'none', background: '#DC2626', color: '#FFFFFF', borderRadius: 8, padding: '8px 18px',
-                    fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6
-                  }}
+                <span className="zoom-level">{Math.round(zoomScale * 100)}%</span>
+                <button type="button" onClick={handleZoomOut} title={t('cp.zoom_out')}>
+                  <ZoomOut style={{ width: 15, height: 15 }} />
+                </button>
+                <button type="button" onClick={handleRotate} title={t('cp.rotate')}>
+                  <RotateCw style={{ width: 15, height: 15 }} />
+                </button>
+                <button type="button" onClick={handleResetCanvas} title={t('cp.reset_view')}>
+                  <Maximize2 style={{ width: 15, height: 15 }} />
+                </button>
+                <a
+                  href={activeDocSrc}
+                  download={`KYC-${selectedDocKey}-${borrower.full_name}.png`}
+                  title={t('cp.download_file')}
+                  style={{ color: '#E2E8F0', display: 'flex', alignItems: 'center' }}
                 >
-                  {submitting ? <Loader2 className="spin" style={{ width: 14, height: 14 }} /> : <XCircle style={{ width: 14, height: 14 }} />}
-                  <span>{submitting ? 'Rejecting...' : 'Confirm Rejection'}</span>
-                </button>
+                  <Download style={{ width: 15, height: 15 }} />
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: Verification Checklist & Data Comparison */}
+        <div className="kyc-details-pane">
+
+          {/* Customer Overview Card */}
+          <div className="profile-overview-card">
+            <div className="user-info-flex">
+              <div className="avatar-circle">
+                {borrower.profile_image ? (
+                  <img src={borrower.profile_image} alt={borrower.full_name} />
+                ) : (
+                  <User style={{ width: 24, height: 24, color: '#059669' }} />
+                )}
+              </div>
+              <div className="user-text">
+                <h3>{borrower.full_name}</h3>
+                <p>{t('kycr.assigned_branch')} <strong>{borrower.branch || 'Karur Main Branch'}</strong></p>
+              </div>
+            </div>
+            <StatusBadge status={borrower.kyc_status} />
+          </div>
+
+          {/* Personal Identity Details Grid */}
+          <div className="data-card">
+            <div className="card-title">
+              <User style={{ width: 14, height: 14, color: '#059669' }} />
+              <span>{t('kycr.personal_identity_contact')}</span>
+            </div>
+            <div className="data-grid">
+              <div className="field-box">
+                <span className="lbl">{t('kycr.full_name')}</span>
+                <span className="val">{borrower.full_name}</span>
+              </div>
+              <div className="field-box">
+                <span className="lbl">{t('cp.father_spouse')}</span>
+                <span className="val">{borrower.father_spouse_name || '—'}</span>
+              </div>
+              <div className="field-box">
+                <span className="lbl">{t('cp.dob')}</span>
+                <span className="val">{borrower.dob || '—'}</span>
+              </div>
+              <div className="field-box">
+                <span className="lbl">{t('cp.gender')}</span>
+                <span className="val">{borrower.gender || 'MALE'}</span>
+              </div>
+              <div className="field-box">
+                <span className="lbl">{t('kycr.primary_mobile')}</span>
+                <span className="val val-mono">{borrower.phone || '—'}</span>
+              </div>
+              <div className="field-box">
+                <span className="lbl">{t('kycr.alternate_mobile')}</span>
+                <span className="val val-mono">{borrower.alt_phone || '—'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Location & Government ID Details Grid */}
+          <div className="data-card">
+            <div className="card-title">
+              <MapPin style={{ width: 14, height: 14, color: '#059669' }} />
+              <span>{t('kycr.location_govt_ids')}</span>
+            </div>
+            <div className="data-grid">
+              <div className="field-box" style={{ gridColumn: 'span 2' }}>
+                <span className="lbl">{t('kycr.address_line1')}</span>
+                <span className="val">{fullAddress || '—'}</span>
+              </div>
+              <div className="field-box">
+                <span className="lbl">{t('kycr.primary_id_type')}</span>
+                <span className="val" style={{ fontWeight: 800 }}>{borrower.id_proof_type || 'AADHAAR'}</span>
+              </div>
+              <div className="field-box">
+                <span className="lbl">{t('cp.aadhaar_number')}</span>
+                <span className="val val-mono">{borrower.aadhaar_number || '—'}</span>
+              </div>
+              {borrower.pan_number && (
+                <div className="field-box" style={{ gridColumn: 'span 2' }}>
+                  <span className="lbl">{t('kycr.pan_card_number')}</span>
+                  <span className="val val-mono">{borrower.pan_number}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Status Banners for VERIFIED or REJECTED State */}
+          {borrower.kyc_status === 'VERIFIED' && (
+            <div className="status-banner-card status-banner-card--verified">
+              <div className="banner-icon">
+                <ShieldCheck style={{ width: 22, height: 22 }} />
+              </div>
+              <div className="banner-content">
+                <h4>{t('kycr.verification_confirmed')}</h4>
+                <p>{t('kycr.verified_on')} {borrower.kyc_verified_at || new Date().toISOString().split('T')[0]} {t('kycr.valid_2_years')}</p>
+                <div className="meta-pills-row">
+                  <span className="pill">{t('kycr.proof_label')} {borrower.id_proof_type || 'Aadhaar Card'}</span>
+                  <span className="pill">{t('kycr.identity_authenticated')}</span>
+                  <span className="pill">{t('kycr.address_match_validated')}</span>
+                  {!allowReEvaluate && (
+                    <button
+                      type="button"
+                      className="btn-re-evaluate"
+                      onClick={() => setAllowReEvaluate(true)}
+                    >
+                      <span>{t('kycr.reevaluate_modify')}</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )}
+
+          {borrower.kyc_status === 'REJECTED' && (
+            <div className="status-banner-card status-banner-card--rejected">
+              <div className="banner-icon">
+                <ShieldAlert style={{ width: 22, height: 22 }} />
+              </div>
+              <div className="banner-content">
+                <h4>{t('kycr.application_rejected')}</h4>
+                <p><strong>{t('kycr.reason_label')}</strong> {borrower.kyc_rejection_reason || t('kycr.default_reject_reason')}</p>
+                <div className="meta-pills-row">
+                  <span className="pill" style={{ color: '#991B1B', borderColor: '#FECACA', background: '#FEF2F2' }}>
+                    {t('kycr.proof_reupload_required')}
+                  </span>
+                  {!allowReEvaluate && (
+                    <button
+                      type="button"
+                      className="btn-re-evaluate"
+                      onClick={() => setAllowReEvaluate(true)}
+                    >
+                      <CheckCircle2 style={{ width: 13, height: 13, color: '#059669' }} />
+                      <span>{t('kycr.reverify_approve')}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Decision Action Panel (Pending Review State or Re-evaluation) */}
+          {(borrower.kyc_status === 'PENDING' || !borrower.kyc_status || allowReEvaluate) && (
+            <div className="kyc-decision-bar">
+              <div className="dec-title">
+                {borrower.kyc_status === 'REJECTED' ? t('kycr.reevaluate_rejected') : t('kycr.decision_action')}
+              </div>
+
+              {!confirmingVerify && !rejecting && (
+                <div className="dec-buttons">
+                  <button
+                    type="button"
+                    className="btn-verify"
+                    onClick={() => { setConfirmingVerify(true); setRejecting(false); }}
+                  >
+                    <CheckCircle2 style={{ width: 16, height: 16 }} />
+                    <span>{t('kycr.approve_verify')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-reject"
+                    onClick={() => { setRejecting(true); setConfirmingVerify(false); }}
+                  >
+                    <XCircle style={{ width: 16, height: 16 }} />
+                    <span>{t('kycr.reject_kyc')}</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Confirmation Approve Card */}
+              {confirmingVerify && (
+                <div className="confirm-approve-box">
+                  <p>
+                    {t('kycr.confirm_prefix')} <strong>{borrower.full_name}</strong> {t('kycr.confirm_suffix')}
+                  </p>
+                  <div className="btn-group-right">
+                    <button type="button" onClick={() => setConfirmingVerify(false)} disabled={submitting} className="btn-cancel">
+                      {t('btn.cancel')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleVerifySubmit}
+                      disabled={submitting}
+                      className="btn-confirm"
+                    >
+                      {submitting ? <Loader2 className="spin" style={{ width: 14, height: 14 }} /> : <CheckCircle2 style={{ width: 14, height: 14 }} />}
+                      <span>{submitting ? t('kycr.verifying') : t('kycr.confirm_approval')}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Rejection Reasons Box */}
+              {rejecting && (
+                <div className="confirm-reject-box">
+                  <label>{t('kycr.select_rejection_reason')}</label>
+                  <select
+                    value={rejectCategory}
+                    onChange={(e) => setRejectCategory(e.target.value)}
+                    className="input-select"
+                  >
+                    {REJECTION_CATEGORIES.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.label}</option>
+                    ))}
+                  </select>
+
+                  <textarea
+                    rows={2}
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder={t('kycr.remarks_placeholder')}
+                    className="input-remark"
+                  />
+
+                  <div className="btn-group-right">
+                    <button type="button" onClick={() => setRejecting(false)} disabled={submitting} className="btn-cancel">
+                      {t('btn.cancel')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRejectSubmit}
+                      disabled={submitting}
+                      className="btn-reject-confirm"
+                    >
+                      {submitting ? <Loader2 className="spin" style={{ width: 14, height: 14 }} /> : <XCircle style={{ width: 14, height: 14 }} />}
+                      <span>{submitting ? t('kycr.rejecting') : t('kycr.confirm_rejection')}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          )}
+
         </div>
-      )}
+
+      </div>
 
     </div>
   );

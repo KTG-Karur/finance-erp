@@ -13,11 +13,11 @@ const mockDB = {
     { id: 2, name: 'Beta Microfinance Ltd', code: 'BETA', status: 'ACTIVE', created_at: new Date() }
   ],
   users: [
-    { id: 1, company_id: 1, name: 'John Admin', email: 'admin@alpha.com', role: 'ADMIN', status: 'ACTIVE' },
-    { id: 2, company_id: 1, name: 'Sarah Collector', email: 'sarah@alpha.com', role: 'COLLECTOR', status: 'ACTIVE' },
-    { id: 3, company_id: 1, name: 'Mike Manager', email: 'mike@alpha.com', role: 'BRANCH_ADMIN', status: 'ACTIVE' },
-    { id: 4, company_id: 1, name: 'Kumar Karur', email: 'kumar@alpha.com', role: 'BRANCH_ADMIN', status: 'ACTIVE' },
-    { id: 5, company_id: 1, name: 'Ravi Namakkal', email: 'ravi@alpha.com', role: 'BRANCH_ADMIN', status: 'ACTIVE' }
+    { id: 1, company_id: 1, name: 'John Admin', email: 'admin@alpha.com', password: 'admin123', role: 'ADMIN', status: 'ACTIVE' },
+    { id: 2, company_id: 1, name: 'Sarah Collector', email: 'sarah@alpha.com', password: 'sarah123', role: 'COLLECTOR', status: 'ACTIVE' },
+    { id: 3, company_id: 1, name: 'Mike Manager', email: 'mike@alpha.com', password: 'mike123', role: 'BRANCH_ADMIN', status: 'ACTIVE' },
+    { id: 4, company_id: 1, name: 'Kumar Karur', email: 'kumar@alpha.com', password: 'kumar123', role: 'BRANCH_ADMIN', status: 'ACTIVE' },
+    { id: 5, company_id: 1, name: 'Ravi Namakkal', email: 'ravi@alpha.com', password: 'ravi123', role: 'BRANCH_ADMIN', status: 'ACTIVE' }
   ],
   employee_permissions: [
     { id: 1, company_id: 1, user_id: 2, module: 'LOANS', action: 'VIEW', allowed: 1 },
@@ -30,15 +30,54 @@ const mockDB = {
     { id: 2, company_id: 1, borrower_code: 'BR-0002', full_name: 'Priya Sharma', phone: '9812345678', alt_phone: '', email: '', dob: '1990-09-23', gender: 'FEMALE', address_line1: 'Market Road 45', address_line2: '', city: 'Chennai', state: 'Tamil Nadu', pincode: '600002', aadhaar_number: '891234567890', pan_number: 'XYZPD9876K', occupation: 'Salaried', monthly_income: 38000, employer_name: 'ABC Textiles', guarantor_name: 'Sunil Sharma', guarantor_phone: '9812300002', nominee_name: '', nominee_relation: '', branch: 'Main Branch', kyc_status: 'VERIFIED', kyc_verified_at: '2026-04-15', kyc_expiry_date: '2028-04-15', kyc_rejection_reason: null, kyc_reviewed_by: 'John Admin', kyc_reviewed_at: '2026-04-15', status: 'ACTIVE', notes: '', created_at: new Date(), updated_at: new Date() },
     { id: 3, company_id: 1, borrower_code: 'BR-0003', full_name: 'Suresh Patel', phone: '9988776655', alt_phone: '', email: '', dob: '1992-01-18', gender: 'MALE', address_line1: '', address_line2: '', city: '', state: '', pincode: '', aadhaar_number: '776655443322', pan_number: 'MNBVC9876L', occupation: 'Business', monthly_income: null, employer_name: '', guarantor_name: 'Dinesh Patel', guarantor_phone: '9988700002', nominee_name: '', nominee_relation: '', branch: 'Main Branch', kyc_status: 'PENDING', kyc_verified_at: null, kyc_expiry_date: null, kyc_rejection_reason: null, kyc_reviewed_by: null, kyc_reviewed_at: null, status: 'ACTIVE', notes: '', created_at: new Date(), updated_at: new Date() }
   ],
+  // Every loan below is seeded with numbers actually produced by
+  // paymentAllocation.service.js (not hand-typed guesses) so collected_amount /
+  // pending_amount / the sample collection receipts are internally consistent with
+  // the engine that now runs every real payment. One loan per Repayment Method x
+  // Interest Calculation combination, plus a closed one and an overdue one.
   loans: [
-    { id: 101, company_id: 1, loan_account_no: 'LN-2026-001', borrower_name: 'Rajesh Kumar', phone: '9876543210', principal_amount: 50000.00, total_payable: 55000.00, collected_amount: 22000.00, pending_amount: 33000.00, installment_amount: 500.00, tenure_days: 110, status: 'ACTIVE', created_at: new Date() },
-    { id: 102, company_id: 1, loan_account_no: 'LN-2026-002', borrower_name: 'Priya Sharma', phone: '9812345678', principal_amount: 100000.00, total_payable: 112000.00, collected_amount: 60000.00, pending_amount: 52000.00, installment_amount: 1000.00, tenure_days: 112, status: 'ACTIVE', created_at: new Date() },
-    { id: 103, company_id: 1, loan_account_no: 'LN-2026-003', borrower_name: 'Anil Verma', phone: '9765432109', principal_amount: 30000.00, total_payable: 33000.00, collected_amount: 33000.00, pending_amount: 0.00, installment_amount: 300.00, tenure_days: 110, status: 'CLOSED', created_at: new Date() },
-    { id: 104, company_id: 1, loan_account_no: 'LN-2026-004', borrower_name: 'Suresh Patel', phone: '9988776655', principal_amount: 75000.00, total_payable: 82500.00, collected_amount: 15000.00, pending_amount: 67500.00, installment_amount: 750.00, tenure_days: 110, status: 'ACTIVE', created_at: new Date() }
+    // Interest Only + Flexible (DAILY) — 3 payments made so far
+    { id: 101, company_id: 1, scheme_id: 1, loan_account_no: 'LN-2026-001', borrower_name: 'Rajesh Kumar', phone: '9876543210', principal_amount: 50000.00, total_payable: 57500.00, collected_amount: 22000.00, pending_amount: 29271.00, installment_amount: 500.00, tenure_days: 110, status: 'ACTIVE', loan_date: '2026-05-10', monthly_interest_rate: 2.0, repayment_method: 'INTEREST_ONLY', interest_calculation: 'FLEXIBLE_REDUCING', repayment_frequency: 'DAILY', last_payment_date: '2026-06-23', repayment_schedule: null, created_at: new Date() },
+    // EMI + Flexible / Reducing EMI (MONTHLY) — 2 of 6 installments paid
+    { id: 102, company_id: 1, scheme_id: 1, loan_account_no: 'LN-2026-002', borrower_name: 'Priya Sharma', phone: '9812345678', principal_amount: 100000.00, total_payable: 107116.00, collected_amount: 35706.00, pending_amount: 67977.00, installment_amount: 17853.00, tenure_days: 180, status: 'ACTIVE', loan_date: '2026-02-15', monthly_interest_rate: 2.0, repayment_method: 'EMI', interest_calculation: 'FLEXIBLE_REDUCING', repayment_frequency: 'MONTHLY', last_payment_date: '2026-04-15',
+      repayment_schedule: [
+        { period: 1, due_date: '2026-03-17', principal: 15853, interest: 2000, emi: 17853, principal_paid: 15853, interest_paid: 2000 },
+        { period: 2, due_date: '2026-04-16', principal: 16170, interest: 1683, emi: 17853, principal_paid: 16170, interest_paid: 1683 },
+        { period: 3, due_date: '2026-05-16', principal: 16493, interest: 1360, emi: 17853, principal_paid: 0, interest_paid: 0 },
+        { period: 4, due_date: '2026-06-15', principal: 16823, interest: 1030, emi: 17853, principal_paid: 0, interest_paid: 0 },
+        { period: 5, due_date: '2026-07-15', principal: 17160, interest: 693, emi: 17853, principal_paid: 0, interest_paid: 0 },
+        { period: 6, due_date: '2026-08-14', principal: 17501, interest: 350, emi: 17851, principal_paid: 0, interest_paid: 0 }
+      ],
+      created_at: new Date() },
+    // Interest Only + Constant (DAILY) — fully repaid, CLOSED
+    { id: 103, company_id: 1, scheme_id: 3, loan_account_no: 'LN-2026-003', borrower_name: 'Anil Verma', phone: '9765432109', principal_amount: 30000.00, total_payable: 31040.00, collected_amount: 31040.00, pending_amount: 0.00, installment_amount: 300.00, tenure_days: 110, status: 'CLOSED', loan_date: '2026-02-01', monthly_interest_rate: 2.0, repayment_method: 'INTEREST_ONLY', interest_calculation: 'CONSTANT_FLAT', repayment_frequency: 'DAILY', last_payment_date: '2026-03-25', repayment_schedule: null, created_at: new Date() },
+    // EMI + Constant / Flat EMI (MONTHLY) — 2 of 6 installments paid
+    { id: 104, company_id: 1, scheme_id: 2, loan_account_no: 'LN-2026-004', borrower_name: 'Suresh Patel', phone: '9988776655', principal_amount: 75000.00, total_payable: 84000.00, collected_amount: 28000.00, pending_amount: 50000.00, installment_amount: 14000.00, tenure_days: 180, status: 'ACTIVE', loan_date: '2026-04-01', monthly_interest_rate: 2.0, repayment_method: 'EMI', interest_calculation: 'CONSTANT_FLAT', repayment_frequency: 'MONTHLY', last_payment_date: '2026-06-01',
+      repayment_schedule: [
+        { period: 1, due_date: '2026-05-01', principal: 12500, interest: 1500, emi: 14000, principal_paid: 12500, interest_paid: 1500 },
+        { period: 2, due_date: '2026-05-31', principal: 12500, interest: 1500, emi: 14000, principal_paid: 12500, interest_paid: 1500 },
+        { period: 3, due_date: '2026-06-30', principal: 12500, interest: 1500, emi: 14000, principal_paid: 0, interest_paid: 0 },
+        { period: 4, due_date: '2026-07-30', principal: 12500, interest: 1500, emi: 14000, principal_paid: 0, interest_paid: 0 },
+        { period: 5, due_date: '2026-08-29', principal: 12500, interest: 1500, emi: 14000, principal_paid: 0, interest_paid: 0 },
+        { period: 6, due_date: '2026-09-28', principal: 12500, interest: 1500, emi: 14000, principal_paid: 0, interest_paid: 0 }
+      ],
+      created_at: new Date() },
+    // Interest Only + Flexible (DAILY) — no payment since 2026-07-05, OVERDUE
+    { id: 105, company_id: 1, scheme_id: 1, loan_account_no: 'LN-2026-005', borrower_name: 'Meena Reddy', phone: '9445566778', principal_amount: 40000.00, total_payable: 46000.00, collected_amount: 4000.00, pending_amount: 36522.00, installment_amount: 400.00, tenure_days: 110, status: 'OVERDUE', daysOverdue: 32, loan_date: '2026-06-15', monthly_interest_rate: 2.0, repayment_method: 'INTEREST_ONLY', interest_calculation: 'FLEXIBLE_REDUCING', repayment_frequency: 'DAILY', last_payment_date: '2026-07-05', repayment_schedule: null, created_at: new Date() }
   ],
   collections: [
-    { id: 501, company_id: 1, loan_id: 101, collector_id: 2, amount: 500.00, collection_date: '2026-07-23', payment_mode: 'CASH', receipt_no: 'REC-20260723-01', notes: 'Daily installment paid' },
-    { id: 502, company_id: 1, loan_id: 102, collector_id: 2, amount: 1000.00, collection_date: '2026-07-23', payment_mode: 'UPI', receipt_no: 'REC-20260723-02', notes: 'UPI reference #89712' }
+    { id: 501, company_id: 1, loan_id: 101, collector_id: 2, collector_name: 'Sarah Collector', borrower_name: 'Rajesh Kumar', loan_account_no: 'LN-2026-001', amount: 5000.00, principal_portion: 4667.00, interest_portion: 333.00, collection_date: '2026-05-20', payment_mode: 'CASH', receipt_no: 'REC-20260520-01', notes: 'Installment paid' },
+    { id: 502, company_id: 1, loan_id: 101, collector_id: 2, collector_name: 'Sarah Collector', borrower_name: 'Rajesh Kumar', loan_account_no: 'LN-2026-001', amount: 8000.00, principal_portion: 7516.00, interest_portion: 484.00, collection_date: '2026-06-05', payment_mode: 'CASH', receipt_no: 'REC-20260605-01', notes: 'Installment paid' },
+    { id: 503, company_id: 1, loan_id: 101, collector_id: 2, collector_name: 'Sarah Collector', borrower_name: 'Rajesh Kumar', loan_account_no: 'LN-2026-001', amount: 9000.00, principal_portion: 8546.00, interest_portion: 454.00, collection_date: '2026-06-23', payment_mode: 'CASH', receipt_no: 'REC-20260623-01', notes: 'Installment paid' },
+    { id: 504, company_id: 1, loan_id: 102, collector_id: 2, collector_name: 'Sarah Collector', borrower_name: 'Priya Sharma', loan_account_no: 'LN-2026-002', amount: 17853.00, principal_portion: 15853.00, interest_portion: 2000.00, collection_date: '2026-03-15', payment_mode: 'UPI', receipt_no: 'REC-20260315-01', notes: 'EMI installment 1 of 6' },
+    { id: 505, company_id: 1, loan_id: 102, collector_id: 2, collector_name: 'Sarah Collector', borrower_name: 'Priya Sharma', loan_account_no: 'LN-2026-002', amount: 17853.00, principal_portion: 16170.00, interest_portion: 1683.00, collection_date: '2026-04-15', payment_mode: 'UPI', receipt_no: 'REC-20260415-01', notes: 'EMI installment 2 of 6' },
+    { id: 506, company_id: 1, loan_id: 103, collector_id: 2, collector_name: 'Sarah Collector', borrower_name: 'Anil Verma', loan_account_no: 'LN-2026-003', amount: 12700.00, principal_portion: 12320.00, interest_portion: 380.00, collection_date: '2026-02-20', payment_mode: 'CASH', receipt_no: 'REC-20260220-01', notes: 'Bulk repayment' },
+    { id: 507, company_id: 1, loan_id: 103, collector_id: 2, collector_name: 'Sarah Collector', borrower_name: 'Anil Verma', loan_account_no: 'LN-2026-003', amount: 12700.00, principal_portion: 12340.00, interest_portion: 360.00, collection_date: '2026-03-10', payment_mode: 'CASH', receipt_no: 'REC-20260310-01', notes: 'Bulk repayment' },
+    { id: 508, company_id: 1, loan_id: 103, collector_id: 2, collector_name: 'Sarah Collector', borrower_name: 'Anil Verma', loan_account_no: 'LN-2026-003', amount: 5640.00, principal_portion: 5340.00, interest_portion: 300.00, collection_date: '2026-03-25', payment_mode: 'CASH', receipt_no: 'REC-20260325-01', notes: 'Final settlement — loan closed' },
+    { id: 509, company_id: 1, loan_id: 104, collector_id: 2, collector_name: 'Sarah Collector', borrower_name: 'Suresh Patel', loan_account_no: 'LN-2026-004', amount: 14000.00, principal_portion: 12500.00, interest_portion: 1500.00, collection_date: '2026-05-01', payment_mode: 'BANK_TRANSFER', receipt_no: 'REC-20260501-01', notes: 'EMI installment 1 of 6' },
+    { id: 510, company_id: 1, loan_id: 104, collector_id: 2, collector_name: 'Sarah Collector', borrower_name: 'Suresh Patel', loan_account_no: 'LN-2026-004', amount: 14000.00, principal_portion: 12500.00, interest_portion: 1500.00, collection_date: '2026-06-01', payment_mode: 'BANK_TRANSFER', receipt_no: 'REC-20260601-02', notes: 'EMI installment 2 of 6' },
+    { id: 511, company_id: 1, loan_id: 105, collector_id: 2, collector_name: 'Sarah Collector', borrower_name: 'Meena Reddy', loan_account_no: 'LN-2026-005', amount: 2000.00, principal_portion: 1733.00, interest_portion: 267.00, collection_date: '2026-06-25', payment_mode: 'CASH', receipt_no: 'REC-20260625-01', notes: 'Daily installment paid' },
+    { id: 512, company_id: 1, loan_id: 105, collector_id: 2, collector_name: 'Sarah Collector', borrower_name: 'Meena Reddy', loan_account_no: 'LN-2026-005', amount: 2000.00, principal_portion: 1745.00, interest_portion: 255.00, collection_date: '2026-07-05', payment_mode: 'CASH', receipt_no: 'REC-20260705-01', notes: 'Daily installment paid' }
   ],
   sub_companies: [
     { id: 1, company_id: 1, name: 'Sub-Company A1', code: 'A1', is_active: 1, created_at: new Date() },
@@ -102,7 +141,9 @@ function createMockPool() {
 }
 
 function executeMockQuery(sql, params) {
-  const cleanSql = sql.trim().toLowerCase();
+  // Collapse newlines/indentation from multi-line template-literal queries so
+  // startsWith()/includes() matches below don't depend on exact whitespace.
+  const cleanSql = sql.trim().toLowerCase().replace(/\s+/g, ' ');
 
   // SELECT borrowers (list)
   if (cleanSql.startsWith('select') && cleanSql.includes('from borrowers') && cleanSql.includes('where company_id')) {
@@ -111,7 +152,7 @@ function executeMockQuery(sql, params) {
   }
 
   // SELECT single borrower by id
-  if (cleanSql.startsWith('select') && cleanSql.includes('from borrowers') && cleanSql.includes('id = ?')) {
+  if (cleanSql.startsWith('select') && cleanSql.includes('from borrowers') && cleanSql.includes('where id = ?')) {
     const [id, companyId] = params;
     return [mockDB.borrowers.filter(b => b.id == id && b.company_id == companyId)];
   }
@@ -184,7 +225,15 @@ function executeMockQuery(sql, params) {
     return [{ affectedRows: 1 }];
   }
 
-  // SELECT loans
+  // SELECT single loan by id (used internally by recordCollection to read current state)
+  // Must check "where id = ?" (not just "id = ?"), since "company_id = ?" also
+  // contains the substring "id = ?" and would otherwise wrongly match the list query.
+  if (cleanSql.startsWith('select') && cleanSql.includes('from loans') && cleanSql.includes('where id = ?')) {
+    const [id, companyId] = params;
+    return [mockDB.loans.filter(l => l.id == id && l.company_id == companyId)];
+  }
+
+  // SELECT loans (list)
   if (cleanSql.includes('from loans')) {
     let companyId = params[0];
     let rows = mockDB.loans;
@@ -232,39 +281,53 @@ function executeMockQuery(sql, params) {
     return [rows];
   }
 
+  // UPDATE loans (post-collection balance/schedule update — recordCollection has
+  // already computed the interest/principal split before issuing this query)
+  if (cleanSql.startsWith('update loans set collected_amount')) {
+    const [amount, newPending, lastPaymentDate, updatedSchedule, , loanId, companyId] = params;
+    const loan = mockDB.loans.find(l => l.id == loanId && l.company_id == companyId);
+    if (!loan) return [{ affectedRows: 0 }];
+    loan.collected_amount += parseFloat(amount);
+    loan.pending_amount = newPending;
+    loan.last_payment_date = lastPaymentDate;
+    loan.repayment_schedule = updatedSchedule;
+    if (newPending <= 0) loan.status = 'CLOSED';
+    return [{ affectedRows: 1 }];
+  }
+
   // INSERT collection
   if (cleanSql.startsWith('insert into collections')) {
-    const [company_id, loan_id, collector_id, amount, payment_mode, notes, receipt_no] = params;
+    const [company_id, loan_id, collector_id, amount, payment_mode, notes, receipt_no, collection_date, principal_portion, interest_portion] = params;
     const newId = 500 + mockDB.collections.length + 1;
+    const loan = mockDB.loans.find(l => l.id == loan_id && l.company_id == company_id);
+    const collector = mockDB.users.find(u => u.id == collector_id);
     const record = {
       id: newId,
       company_id,
       loan_id,
       collector_id,
+      collector_name: collector?.name || null,
+      borrower_name: loan?.borrower_name || null,
+      loan_account_no: loan?.loan_account_no || null,
       amount: parseFloat(amount),
-      collection_date: new Date().toISOString().split('T')[0],
+      principal_portion: parseFloat(principal_portion) || 0,
+      interest_portion: parseFloat(interest_portion) || 0,
+      collection_date: collection_date || new Date().toISOString().split('T')[0],
       payment_mode: payment_mode || 'CASH',
       receipt_no: receipt_no || `REC-${Date.now()}`,
       notes
     };
     mockDB.collections.push(record);
-
-    // Update loan pending amount & collected amount
-    const loan = mockDB.loans.find(l => l.id == loan_id && l.company_id == company_id);
-    if (loan) {
-      loan.collected_amount += parseFloat(amount);
-      loan.pending_amount = Math.max(0, loan.total_payable - loan.collected_amount);
-      if (loan.pending_amount === 0) {
-        loan.status = 'CLOSED';
-      }
-    }
-
     return [{ insertId: newId, affectedRows: 1 }];
   }
 
   // INSERT loan
   if (cleanSql.startsWith('insert into loans')) {
-    const [company_id, loan_account_no, borrower_name, phone, principal_amount, interest_rate, tenure_days, installment_amount] = params;
+    const [
+      company_id, loan_account_no, borrower_name, phone, principal_amount, interest_rate,
+      tenure_days, installment_amount, loan_date, monthly_interest_rate, repayment_method,
+      interest_calculation, repayment_frequency, repayment_schedule, scheme_id
+    ] = params;
     const total_payable = principal_amount * (1 + (interest_rate || 10) / 100);
     const newId = 100 + mockDB.loans.length + 1;
     const loan = {
@@ -280,6 +343,14 @@ function executeMockQuery(sql, params) {
       installment_amount: parseFloat(installment_amount),
       tenure_days: parseInt(tenure_days),
       status: 'ACTIVE',
+      loan_date: loan_date || new Date().toISOString().slice(0, 10),
+      monthly_interest_rate: monthly_interest_rate != null ? parseFloat(monthly_interest_rate) : (interest_rate || 10),
+      repayment_method: repayment_method || 'EMI',
+      interest_calculation: interest_calculation || 'CONSTANT_FLAT',
+      repayment_frequency: repayment_frequency || 'DAILY',
+      last_payment_date: null,
+      repayment_schedule: repayment_schedule || null,
+      scheme_id: scheme_id != null ? Number(scheme_id) : null,
       created_at: new Date()
     };
     mockDB.loans.push(loan);

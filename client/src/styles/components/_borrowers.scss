@@ -1,40 +1,91 @@
 @use '../mixins' as *;
 
 // ============================================================
-// BORROWERS DIRECTORY MODULE (Clean Regular Typography System)
+// COMPACT MACOS ENTERPRISE CUSTOMER DIRECTORY & TABLE MODULE
 // ============================================================
 
 $font-macos: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
 
-.borrowers-page,
-.borrowers-page *,
-.borrowers-page button,
-.borrowers-page input,
-.borrowers-page select,
-.borrowers-page table,
-.borrowers-page th,
-.borrowers-page td,
-.borrowers-page strong,
-.borrowers-page span {
-  font-family: $font-macos !important;
-  font-weight: 500 !important;
-  font-variant-numeric: tabular-nums;
-}
-
 .borrowers-page {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
   color: #0F172A;
-  font-family: $font-macos !important;
+  font-family: $font-macos;
   -webkit-font-smoothing: antialiased;
 }
 
-// ── Top KPI Cards Row ──────────────────────────────────────────
+// ── Top Header Bar ──────────────────────────────────────────
+.borrowers-header-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    .icon-box {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: #F0FDF4;
+      border: 1px solid #BBF7D0;
+      color: #166534;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .title-box {
+      h1 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #0F172A;
+        letter-spacing: -0.01em;
+        margin: 0;
+      }
+      p {
+        font-size: 0.74rem;
+        color: #64748B;
+        margin: 1px 0 0 0;
+      }
+    }
+  }
+
+  .btn-add-customer {
+    border: none;
+    background: #059669;
+    color: #FFFFFF;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 1px 4px rgba(5, 150, 105, 0.2);
+    transition: all 0.15s ease;
+
+    &:hover {
+      background: #047857;
+    }
+  }
+}
+
+// ── Top KPI Stat Cards Grid ──────────────────────────────────────────
 .borrowers-kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
+  gap: 12px;
 
   @media (max-width: 1024px) {
     grid-template-columns: repeat(2, 1fr);
@@ -44,76 +95,64 @@ $font-macos: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
 .borrower-kpi-card {
   background: #FFFFFF;
   border: 1px solid #E2E8F0;
-  border-radius: 14px;
-  padding: 16px 20px;
+  border-radius: 12px;
+  padding: 12px 16px;
   display: flex;
   align-items: center;
-  gap: 14px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-  transition: all 0.2s ease;
-  font-family: $font-macos !important;
-
-  &:hover {
-    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
-    transform: translateY(-1px);
-  }
+  gap: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
 
   &__icon {
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
 
-    &--green { background: #ECFDF5; border: 1px solid #A7F3D0; color: #059669; }
-    &--blue  { background: #EFF6FF; border: 1px solid #BFDBFE; color: #2563EB; }
-    &--purple{ background: #F3E8FF; border: 1px solid #E9D5FF; color: #7C3AED; }
-    &--orange{ background: #FFF7ED; border: 1px solid #FFEDD5; color: #EA580C; }
+    &--green { background: #F0FDF4; border: 1px solid #BBF7D0; color: #166534; }
+    &--blue  { background: #EFF6FF; border: 1px solid #BFDBFE; color: #1D4ED8; }
+    &--purple{ background: #F3E8FF; border: 1px solid #E9D5FF; color: #6B21A8; }
+    &--orange{ background: #FFF7ED; border: 1px solid #FFEDD5; color: #C2410C; }
   }
 
   &__info {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 1px;
 
     span {
-      font-size: 0.72rem;
+      font-size: 0.7rem;
       color: #64748B;
-      font-weight: 500 !important;
-      font-family: $font-macos !important;
+      font-weight: 500;
     }
 
     strong {
-      font-size: 1.15rem;
-      font-weight: 600 !important;
+      font-size: 1.1rem;
+      font-weight: 600;
       color: #0F172A;
-      font-family: $font-macos !important;
       font-variant-numeric: tabular-nums;
     }
   }
 }
 
-// ── Toolbar Header ──────────────────────────────────────────────
+// ── Directory Toolbar (Search & Filter Dropdown) ──────────────────
 .borrowers-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 12px;
   background: #FFFFFF;
   border: 1px solid #E2E8F0;
-  border-radius: 14px;
-  padding: 12px 18px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-  flex-wrap: wrap;
-  font-family: $font-macos !important;
+  border-radius: 12px;
+  padding: 10px 16px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
 
   &__left {
     display: flex;
     align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
+    gap: 10px;
     flex: 1;
   }
 
@@ -121,73 +160,139 @@ $font-macos: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
     position: relative;
     display: flex;
     align-items: center;
-    min-width: 280px;
+    min-width: 300px;
 
     input {
       width: 100%;
-      height: 36px;
-      padding: 0 14px 0 36px;
+      height: 34px;
+      padding: 0 12px 0 34px;
       background: #F8FAFC;
       border: 1px solid #CBD5E1;
-      border-radius: 9px;
-      font-size: 0.8125rem;
+      border-radius: 8px;
+      font-size: 0.8rem;
       color: #0F172A;
-      font-weight: 400 !important;
-      font-family: $font-macos !important;
-      transition: all 0.15s ease;
+      font-weight: 400;
 
       &:focus {
         outline: none;
         background: #FFFFFF;
         border-color: #059669;
-        box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.15);
+        box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.12);
       }
     }
 
     .search-icon {
       position: absolute;
-      left: 11px;
+      left: 10px;
       color: #94A3B8;
       pointer-events: none;
     }
   }
 
-  &__tabs {
+  &__filter-dropdown {
     display: flex;
     align-items: center;
-    gap: 4px;
-    background: #F1F5F9;
-    padding: 3px;
-    border-radius: 9px;
-  }
-
-  &__tab-btn {
-    border: none;
-    padding: 6px 12px;
-    border-radius: 7px;
-    font-size: 0.75rem;
-    font-weight: 500 !important;
-    color: #64748B;
-    background: transparent;
-    cursor: pointer;
-    font-family: $font-macos !important;
+    gap: 6px;
+    background: #F8FAFC;
+    border: 1px solid #CBD5E1;
+    border-radius: 8px;
+    padding: 0 10px;
+    height: 34px;
     transition: all 0.15s ease;
 
-    &:hover {
-      color: #0F172A;
+    &:focus-within {
+      border-color: #059669;
+      box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.12);
     }
 
-    &.active {
-      background: #FFFFFF;
+    select {
+      border: none !important;
+      background: transparent !important;
+      font-size: 0.78rem;
+      font-weight: 500;
       color: #0F172A;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      font-family: $font-macos;
+      cursor: pointer;
+      outline: none !important;
+      box-shadow: none !important;
+      padding-right: 4px;
+
+      &:focus, &:active {
+        outline: none !important;
+        box-shadow: none !important;
+      }
     }
   }
 
   &__right {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+  }
+
+  .export-dropdown-container {
+    position: relative;
+
+    .btn-export-trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      height: 34px;
+      border-radius: 8px;
+      border: 1px solid #CBD5E1;
+      background: #FFFFFF;
+      color: #0F172A;
+      font-size: 0.78rem;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: $font-macos;
+      transition: all 0.15s ease;
+
+      &:hover {
+        background: #F8FAFC;
+        border-color: #94A3B8;
+      }
+    }
+
+    .export-menu-dropdown {
+      position: absolute;
+      top: calc(100% + 4px);
+      right: 0;
+      z-index: 100;
+      width: 230px;
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+
+      button {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        padding: 8px 10px;
+        border: none;
+        background: transparent;
+        border-radius: 6px;
+        font-size: 0.76rem;
+        font-weight: 500;
+        color: #334155;
+        cursor: pointer;
+        font-family: $font-macos;
+        text-align: left;
+        transition: all 0.12s ease;
+
+        &:hover {
+          background: #F1F5F9;
+          color: #0F172A;
+        }
+      }
+    }
   }
 
   &__view-switch {
@@ -195,131 +300,200 @@ $font-macos: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
     align-items: center;
     background: #F1F5F9;
     padding: 3px;
-    border-radius: 9px;
+    border-radius: 8px;
     gap: 2px;
 
     button {
       border: none;
-      width: 30px;
-      height: 30px;
-      border-radius: 7px;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
       color: #64748B;
       background: transparent;
       cursor: pointer;
-      transition: all 0.15s ease;
 
       &.active {
         background: #FFFFFF;
         color: #059669;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
       }
-    }
-  }
-
-  .btn-add-borrower {
-    border: none;
-    background: #059669;
-    color: #FFFFFF !important;
-    font-size: 0.78rem;
-    font-weight: 500 !important;
-    padding: 8px 16px;
-    border-radius: 9px;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-family: $font-macos !important;
-    box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
-    transition: all 0.15s ease;
-
-    &:hover {
-      background: #047857;
-      transform: translateY(-1px);
     }
   }
 }
 
-// ── Directory Table ──────────────────────────────────────────────
+// ── Shared Action Button Group ──────────────────────────────────────
+.action-btn-group {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+
+  .btn-action {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid #E2E8F0;
+    background: #FFFFFF;
+    color: #475569;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    padding: 0;
+
+    svg {
+      display: block;
+      flex-shrink: 0;
+    }
+
+    &:hover {
+      background: #F8FAFC;
+      color: #0F172A;
+      border-color: #CBD5E1;
+    }
+
+    &--danger:hover {
+      background: #FEF2F2;
+      color: #DC2626;
+      border-color: #FECACA;
+    }
+  }
+}
+
+// ── Sleek Minimal KYC Status Style (Dot Indicator) ──────────────────
+.kyc-dot-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1;
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  &--verified {
+    background: #F0FDF4;
+    color: #166534;
+    border: 1px solid #DCFCE7;
+    .dot { background: #16A34A; }
+  }
+
+  &--pending {
+    background: #FFFBEB;
+    color: #B45309;
+    border: 1px solid #FEF3C7;
+    .dot { background: #D97706; }
+  }
+
+  &--rejected {
+    background: #FEF2F2;
+    color: #991B1B;
+    border: 1px solid #FEE2E2;
+    .dot { background: #DC2626; }
+  }
+}
+
+// ── Compact macOS Table Design (Single Unified Table Container) ─────
 .borrowers-table-card {
   background: #FFFFFF;
   border: 1px solid #E2E8F0;
-  border-radius: 14px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
   overflow: hidden;
 
   .table-responsive {
     overflow-x: auto;
-    max-height: 600px;
   }
 
   table {
     width: 100%;
     border-collapse: collapse;
     text-align: left;
-    font-size: 0.8125rem;
-    font-family: $font-macos !important;
+    font-size: 0.8rem;
+    font-family: $font-macos;
 
     thead {
-      position: sticky;
-      top: 0;
-      z-index: 10;
       background: #F8FAFC;
       border-bottom: 1px solid #E2E8F0;
 
       th {
-        padding: 12px 16px;
+        padding: 11px 16px;
         font-size: 0.68rem;
-        font-weight: 600 !important;
+        font-weight: 600;
         color: #475569;
         text-transform: uppercase;
-        letter-spacing: 0.04em;
-        font-family: $font-macos !important;
+        letter-spacing: 0.03em;
+        white-space: nowrap;
       }
     }
 
     tbody {
       tr {
+        background: #FFFFFF;
         border-bottom: 1px solid #F1F5F9;
-        transition: background 0.15s ease;
+        transition: background 0.12s ease;
+
+        &:last-child {
+          border-bottom: none;
+        }
 
         &:hover {
           background: #F8FAFC;
         }
 
         td {
-          padding: 12px 16px;
+          padding: 11px 16px;
           vertical-align: middle;
-          font-family: $font-macos !important;
-          font-weight: 500 !important;
-          font-variant-numeric: tabular-nums;
+          color: #1E293B;
+          font-weight: 400;
         }
       }
     }
   }
 
+  // S.No
+  .sno-text {
+    font-size: 0.75rem;
+    color: #64748B;
+    font-weight: 500;
+  }
+
+  // Customer Profile Cell
   .borrower-profile-cell {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
 
     .avatar {
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
-      background: linear-gradient(135deg, #059669 0%, #047857 100%);
-      color: #FFFFFF;
-      font-size: 0.85rem;
-      font-weight: 600 !important;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: #F1F5F9;
+      border: 1px solid #E2E8F0;
+      color: #334155;
+      font-size: 0.8rem;
+      font-weight: 600;
       display: flex;
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
       overflow: hidden;
-      box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);
-      font-family: $font-macos !important;
+
+      img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
     }
 
     .details {
@@ -328,348 +502,205 @@ $font-macos: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
       gap: 1px;
 
       strong {
-        font-size: 0.85rem;
-        font-weight: 600 !important;
+        font-size: 0.82rem;
+        font-weight: 500;
         color: #0F172A;
-        font-family: $font-macos !important;
       }
 
-      span {
-        font-size: 0.72rem;
+      .code-text {
+        font-size: 0.68rem;
         color: #64748B;
-        font-weight: 400 !important;
-        font-family: $font-macos !important;
+        font-family: monospace;
       }
     }
   }
 
-  .mono-tag {
-    font-family: $font-macos !important;
-    font-variant-numeric: tabular-nums;
-    font-size: 0.75rem;
-    font-weight: 500 !important;
-    color: #334155;
-    background: #F1F5F9;
-    padding: 3px 8px;
-    border-radius: 6px;
-    display: inline-block;
-  }
-
-  .loans-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 10px;
-    border-radius: 20px;
-    font-size: 0.72rem;
-    font-weight: 500 !important;
-    background: #EFF6FF;
-    color: #1D4ED8;
-    border: 1px solid #BFDBFE;
-    font-family: $font-macos !important;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .kyc-verified-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 10px;
-    border-radius: 20px;
-    font-size: 0.7rem;
-    font-weight: 500 !important;
-    background: #ECFDF5;
-    color: #047857;
-    border: 1px solid #A7F3D0;
-    font-family: $font-macos !important;
-
-    &--pending {
-      background: #FFFBEB;
-      color: #92400E;
-      border-color: #FDE68A;
-    }
-
-    &--rejected {
-      background: #FEF2F2;
-      color: #B91C1C;
-      border-color: #FECACA;
-    }
-  }
-
-  .action-btn-group {
+  // Contact Info Box
+  .contact-box {
     display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 6px;
+    flex-direction: column;
+    gap: 1px;
 
-    .btn-action {
-      border: 1px solid #E2E8F0;
-      background: #FFFFFF;
-      color: #334155;
-      font-size: 0.72rem;
-      font-weight: 500 !important;
-      padding: 5px 10px;
-      border-radius: 7px;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-family: $font-macos !important;
-      transition: all 0.15s ease;
+    .phone {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: #1E293B;
+      font-family: monospace;
+    }
 
-      &:hover {
-        background: #F8FAFC;
-        border-color: #CBD5E1;
-        color: #0F172A;
+    .email {
+      font-size: 0.7rem;
+      color: #64748B;
+    }
+  }
+
+  // Branch Tag
+  .branch-text {
+    font-size: 0.76rem;
+    color: #475569;
+    font-weight: 400;
+  }
+
+  // Government ID Text
+  .id-text-flex {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.72rem;
+    color: #475569;
+    font-family: monospace;
+
+    span {
+      font-weight: 500;
+    }
+  }
+
+  // Loan Exposure Box
+  .exposure-box {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1px;
+
+    .amount {
+      font-size: 0.82rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: #0F172A;
+
+      &.has-balance {
+        color: #DC2626;
       }
+    }
 
-      &:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-      }
-
-      &--emerald {
-        background: #059669;
-        color: #FFFFFF !important;
-        border-color: #059669;
-
-        &:hover {
-          background: #047857;
-          border-color: #047857;
-          color: #FFFFFF !important;
-        }
-
-        &:disabled {
-          background: #A7F3D0;
-          border-color: #A7F3D0;
-        }
-      }
-
-      &--danger {
-        &:hover {
-          background: #FEF2F2;
-          border-color: #FECACA;
-          color: #DC2626;
-        }
-      }
+    .accounts-count {
+      font-size: 0.68rem;
+      color: #64748B;
     }
   }
 }
 
-// ── Borrower Cards Grid View ────────────────────────────────────
+// ── Directory Cards Grid View ──────────────────────────────────────
 .borrowers-cards-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  font-family: $font-macos !important;
-
-  @media (max-width: 1024px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  @media (max-width: 640px) {
-    grid-template-columns: 1fr;
-  }
-}
-
-.borrower-card {
-  background: #FFFFFF;
-  border: 1px solid #E2E8F0;
-  border-radius: 14px;
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
   gap: 14px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-  transition: all 0.2s ease;
-  font-family: $font-macos !important;
 
-  &:hover {
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
-    transform: translateY(-2px);
-    border-color: #CBD5E1;
-  }
-
-  &__head {
+  .borrower-card {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: 12px;
+    transition: all 0.15s ease;
 
-    .b-user {
+    &:hover {
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.07);
+      border-color: #CBD5E1;
+    }
+
+    &__head {
       display: flex;
-      align-items: center;
-      gap: 12px;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
 
-      .b-avatar {
-        width: 44px;
-        height: 44px;
-        border-radius: 12px;
-        background: linear-gradient(135deg, #059669 0%, #047857 100%);
-        color: #FFFFFF;
-        font-size: 1rem;
-        font-weight: 600 !important;
+      .b-user {
         display: flex;
         align-items: center;
-        justify-content: center;
+        gap: 10px;
         overflow: hidden;
-        font-family: $font-macos !important;
-      }
 
-      .b-meta {
+        .avatar {
+          width: 38px;
+          height: 38px;
+          border-radius: 8px;
+          background: #F1F5F9;
+          border: 1px solid #E2E8F0;
+          color: #334155;
+          font-size: 0.85rem;
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          overflow: hidden;
+
+          img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
+        }
+
+        .name-box {
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+          overflow: hidden;
+
+          h4 {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #0F172A;
+            margin: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+          span {
+            font-size: 0.68rem;
+            color: #64748B;
+            font-family: monospace;
+          }
+        }
+      }
+    }
+
+    &__body {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px 12px;
+      background: #F8FAFC;
+      border: 1px solid #F1F5F9;
+      border-radius: 8px;
+      padding: 10px 12px;
+
+      .info-item {
         display: flex;
         flex-direction: column;
+        gap: 1px;
 
-        strong {
-          font-size: 0.92rem;
-          font-weight: 600 !important;
-          color: #0F172A;
-          font-family: $font-macos !important;
-        }
-
-        span {
-          font-size: 0.72rem;
+        .lbl {
+          font-size: 0.64rem;
+          font-weight: 500;
           color: #64748B;
-          font-family: $font-macos !important;
-          font-weight: 400 !important;
+          text-transform: uppercase;
+          letter-spacing: 0.02em;
+        }
+
+        .val {
+          font-size: 0.78rem;
+          font-weight: 500;
+          color: #0F172A;
+          font-family: monospace;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
       }
     }
-  }
 
-  &__kyc-strip {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: #F8FAFC;
-    border: 1px solid #F1F5F9;
-    border-radius: 99px;
-    padding: 8px 14px;
-    font-size: 0.72rem;
-    font-family: $font-macos !important;
-
-    .kyc-item {
+    &__footer {
       display: flex;
-      flex-direction: column;
-
-      label {
-        font-size: 0.62rem;
-        color: #94A3B8;
-        font-weight: 500 !important;
-        text-transform: uppercase;
-        font-family: $font-macos !important;
-      }
-
-      strong {
-        font-family: $font-macos !important;
-        font-weight: 600 !important;
-        font-variant-numeric: tabular-nums;
-        font-size: 0.75rem;
-        color: #334155;
-      }
-    }
-  }
-
-  &__stats-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    padding-top: 4px;
-
-    .b-stat {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      padding: 8px 12px;
-      background: #FAFAFA;
-      border-radius: 99px;
-      border: 1px solid #F1F5F9;
-
-      span {
-        font-size: 0.65rem;
-        color: #64748B;
-        font-weight: 500 !important;
-        text-transform: uppercase;
-        font-family: $font-macos !important;
-      }
-
-      strong {
-        font-size: 0.9rem;
-        font-weight: 600 !important;
-        font-family: $font-macos !important;
-        font-variant-numeric: tabular-nums;
-        color: #0F172A;
-
-        &.red { color: #DC2626; }
-      }
-    }
-  }
-
-  &__footer {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding-top: 4px;
-    border-top: 1px solid #F1F5F9;
-
-    button {
-      flex: 1;
-      height: 34px;
-      border-radius: 8px;
-      font-size: 0.75rem;
-      font-weight: 500 !important;
-      cursor: pointer;
-      display: inline-flex;
       align-items: center;
-      justify-content: center;
-      gap: 6px;
-      font-family: $font-macos !important;
-      transition: all 0.15s ease;
-
-      &.btn-secondary {
-        border: 1px solid #CBD5E1;
-        background: #FFFFFF;
-        color: #334155;
-
-        &:hover {
-          background: #F8FAFC;
-        }
-      }
-
-      &.btn-primary {
-        border: none;
-        background: #059669;
-        color: #FFFFFF !important;
-
-        &:hover {
-          background: #047857;
-        }
-
-        &:disabled {
-          background: #A7F3D0;
-          cursor: not-allowed;
-        }
-      }
-
-      &.btn-danger-outline {
-        flex: 0 0 auto;
-        width: 34px;
-        border: 1px solid #FECACA;
-        background: #FFFFFF;
-        color: #DC2626;
-
-        &:hover {
-          background: #FEF2F2;
-        }
-      }
+      justify-content: space-between;
+      border-top: 1px solid #F1F5F9;
+      padding-top: 10px;
+      margin-top: 2px;
     }
   }
-}
-
-.spin {
-  animation: borrowers-spin 0.8s linear infinite;
-}
-
-@keyframes borrowers-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }

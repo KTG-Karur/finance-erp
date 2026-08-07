@@ -8,14 +8,13 @@ export const INITIAL_LOAN_SCHEMES = [
     id: 1,
     name: 'Standard Microfinance Plan',
     unit_base: 1000, // per ₹1000
-    rate_per_unit: 14.0, // % per annum on the unit base
-    day_slabs: [
-      { from_day: 1, to_day: 90, rate: 14.0 },
-      { from_day: 91, to_day: 180, rate: 16.0 },
-      { from_day: 181, to_day: 270, rate: 18.0 },
-      { from_day: 271, to_day: null, rate: 22.0 } // null = open-ended (penalty slab)
-    ],
+    rate_per_unit: 2.0, // monthly interest rate (%) — drives EMI calculation directly
     repayment_mode: 'FIXED_EMI', // 'INTEREST_ONLY' | 'FLEXIBLE' | 'FIXED_EMI'
+    repayment_frequency: 'DAILY', // 'DAILY' | 'WEEKLY' | 'MONTHLY'
+    min_amount: 5000,
+    max_amount: 200000,
+    min_tenure_months: 2,
+    max_tenure_months: 12,
     is_active: true
   },
   {
@@ -23,23 +22,25 @@ export const INITIAL_LOAN_SCHEMES = [
     name: 'Gold Loan Prime Rate',
     unit_base: 100, // per ₹100
     rate_per_unit: 1.25,
-    day_slabs: [
-      { from_day: 1, to_day: 180, rate: 12.5 },
-      { from_day: 181, to_day: null, rate: 15.0 }
-    ],
     repayment_mode: 'INTEREST_ONLY',
+    repayment_frequency: 'MONTHLY',
+    min_amount: 10000,
+    max_amount: 500000,
+    min_tenure_months: 3,
+    max_tenure_months: 24,
     is_active: true
   },
   {
     id: 3,
     name: 'Chit Auction Standard Rate',
     unit_base: 1000,
-    rate_per_unit: 18.0,
-    day_slabs: [
-      { from_day: 1, to_day: 90, rate: 18.0 },
-      { from_day: 91, to_day: null, rate: 21.0 }
-    ],
+    rate_per_unit: 1.8,
     repayment_mode: 'FLEXIBLE',
+    repayment_frequency: 'WEEKLY',
+    min_amount: 10000,
+    max_amount: 300000,
+    min_tenure_months: 3,
+    max_tenure_months: 18,
     is_active: true
   }
 ];
@@ -118,27 +119,53 @@ export const INITIAL_FIXED_DEPOSITS = [
   }
 ];
 
+// Expense Allocation: each category is a funded "account" — it starts PENDING with
+// zero balance, becomes ACTIVE (and spendable) only once an admin approves the
+// requested allocation amount. Vouchers then draw down `balance` directly.
 export const INITIAL_EXPENSE_CATEGORIES = [
-  { id: 1, name: 'Office Rent', approval_threshold: 20000 },
-  { id: 2, name: 'Electricity & Utilities', approval_threshold: 5000 },
-  { id: 3, name: 'Staff Salary Payout', approval_threshold: 0 },
-  { id: 4, name: 'Stationery & Printing', approval_threshold: 2000 },
-  { id: 5, name: 'Field Travel Allowance', approval_threshold: 3000 },
-  { id: 6, name: 'Miscellaneous Operating Expense', approval_threshold: 5000 }
+  { id: 1, name: 'Office Rent', status: 'ACTIVE', balance: 15000, allocated_total: 20000 },
+  { id: 2, name: 'Electricity & Utilities', status: 'ACTIVE', balance: 3750, allocated_total: 5000 },
+  { id: 3, name: 'Staff Salary Payout', status: 'ACTIVE', balance: 0, allocated_total: 50000 },
+  { id: 4, name: 'Stationery & Printing', status: 'ACTIVE', balance: 1200, allocated_total: 2000 },
+  { id: 5, name: 'Field Travel Allowance', status: 'ACTIVE', balance: 2550, allocated_total: 3000 },
+  { id: 6, name: 'Miscellaneous Operating Expense', status: 'PENDING', balance: 0, allocated_total: 0 }
+];
+
+// Approval requests against an Expense Allocation account — INITIAL funds a brand-new
+// account, TOPUP replenishes a depleted one, EMERGENCY is an ad-hoc extra request tied
+// to a specific urgent expense. All three follow the same PENDING -> APPROVED/REJECTED
+// admin approval flow.
+export const INITIAL_EXPENSE_ALLOCATION_REQUESTS = [
+  {
+    id: 1, category_id: 6, category_name: 'Miscellaneous Operating Expense', type: 'INITIAL',
+    amount: 5000, reason: 'New account for ad-hoc branch expenses',
+    status: 'PENDING', requested_by: 'Sarah Collector', requested_at: '2026-07-24T10:35:00.000Z',
+    approved_by: null, approved_at: null, rejection_reason: null
+  }
 ];
 
 export const INITIAL_EXPENSE_VOUCHERS = [
-  { id: 101, voucher_no: 'EXP-20260724-01', payee: 'Indian Oil Fuel Pump', category: 'Field Travel Allowance', amount: 450, date: '2026-07-24', status: 'APPROVED', notes: '' },
-  { id: 102, voucher_no: 'EXP-20260723-04', payee: 'Sri Krishna Stationery', category: 'Stationery & Printing', amount: 800, date: '2026-07-23', status: 'APPROVED', notes: '' },
-  { id: 103, voucher_no: 'EXP-20260722-02', payee: 'BSNL Fiber Internet', category: 'Electricity & Utilities', amount: 1250, date: '2026-07-22', status: 'APPROVED', notes: '' }
+  { id: 101, voucher_no: 'EXP-20260724-01', payee: 'Indian Oil Fuel Pump', category_id: 5, category: 'Field Travel Allowance', amount: 450, date: '2026-07-24', status: 'APPROVED', notes: '' },
+  { id: 102, voucher_no: 'EXP-20260723-04', payee: 'Sri Krishna Stationery', category_id: 4, category: 'Stationery & Printing', amount: 800, date: '2026-07-23', status: 'APPROVED', notes: '' },
+  { id: 103, voucher_no: 'EXP-20260722-02', payee: 'BSNL Fiber Internet', category_id: 2, category: 'Electricity & Utilities', amount: 1250, date: '2026-07-22', status: 'APPROVED', notes: '' }
 ];
 
+// Standard Chart of Accounts (double-entry). `name_key` resolves through the i18n
+// dictionary (coa.* keys) so ledger names render in whichever language is active —
+// `name` is only the English fallback for contexts without access to t().
 export const INITIAL_CHART_OF_ACCOUNTS = [
-  { id: 1, account_code: '1010', account_name: 'Branch Vault Cash', account_type: 'ASSET', parent_id: null },
-  { id: 2, account_code: '1200', account_name: 'Loan Portfolio Outstanding', account_type: 'ASSET', parent_id: null },
-  { id: 3, account_code: '2100', account_name: 'Investor Capital Payable', account_type: 'LIABILITY', parent_id: null },
-  { id: 4, account_code: '2200', account_name: 'Fixed Deposit Liability', account_type: 'LIABILITY', parent_id: null },
-  { id: 5, account_code: '4010', account_name: 'Loan Interest Income', account_type: 'REVENUE', parent_id: null },
-  { id: 6, account_code: '5010', account_name: 'Investor Yield Expense', account_type: 'EXPENSE', parent_id: null },
-  { id: 7, account_code: '5020', account_name: 'Operating Expenses', account_type: 'EXPENSE', parent_id: null }
+  { code: '1001', name: 'Cash in Office', name_key: 'coa.cash_in_hand', type: 'ASSET' },
+  { code: '1002', name: 'Bank Account', name_key: 'coa.bank_account', type: 'ASSET' },
+  { code: '1200', name: 'Loans Given to Customers', name_key: 'coa.loan_portfolio', type: 'ASSET' },
+  { code: '2001', name: "Owner's Investment", name_key: 'coa.capital_account', type: 'EQUITY' },
+  { code: '2100', name: 'Investor Capital', name_key: 'coa.investor_capital', type: 'LIABILITY' },
+  { code: '2200', name: 'Fixed Deposits Payable', name_key: 'coa.fd_payable', type: 'LIABILITY' },
+  { code: '4001', name: 'Interest Earned', name_key: 'coa.interest_income', type: 'REVENUE' },
+  { code: '4002', name: 'Late Fees Collected', name_key: 'coa.penalty_income', type: 'REVENUE' },
+  { code: '5001', name: 'Office Expenses', name_key: 'coa.operating_expenses', type: 'EXPENSE' },
+  { code: '5002', name: 'Investor Yield Payouts', name_key: 'coa.investor_yield_expense', type: 'EXPENSE' },
+  { code: '5003', name: 'Fixed Deposit Interest Expense', name_key: 'coa.fd_interest_expense', type: 'EXPENSE' },
+  { code: '4099', name: 'Miscellaneous Income', name_key: 'coa.misc_income', type: 'REVENUE' },
+  { code: '5099', name: 'Miscellaneous Expense', name_key: 'coa.misc_expense', type: 'EXPENSE' }
 ];
+
