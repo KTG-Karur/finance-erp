@@ -4,6 +4,7 @@ export default async function employeeRoutes(fastify, options) {
   // Pre-handler hook for authentication and tenant isolation
   fastify.addHook('onRequest', fastify.authenticate);
   fastify.addHook('preHandler', fastify.tenantGuard);
+  fastify.addHook('preHandler', fastify.requireTenantModule('employees'));
 
   // List all employees in current tenant
   fastify.get('/', {

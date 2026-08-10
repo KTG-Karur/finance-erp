@@ -14,7 +14,7 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
     borrower_name: '',
     phone: '',
     principal_amount: 50000,
-    monthly_interest_rate: initialScheme?.rate_per_unit ?? 2.0,
+    monthly_interest_rate: initialScheme?.rate_per_unit != null ? Number(initialScheme.rate_per_unit) : 2.0,
     tenure_months: 4,
     installment_amount: 500,
     purpose: 'Working Capital',
@@ -49,7 +49,7 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
     // drives the loan terms instead of being a disconnected label.
     if (name === 'scheme_id') {
       const scheme = activeSchemes.find(s => String(s.id) === String(value));
-      if (scheme) updatedForm.monthly_interest_rate = scheme.rate_per_unit;
+      if (scheme) updatedForm.monthly_interest_rate = scheme?.rate_per_unit != null ? Number(scheme.rate_per_unit) : '';
     }
 
     if (name === 'principal_amount' || name === 'monthly_interest_rate' || name === 'tenure_months' || name === 'scheme_id') {

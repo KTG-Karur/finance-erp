@@ -1,49 +1,49 @@
 import React, { useState, useEffect } from 'react';
 import AppLayout from './layouts/AppLayout';
-import CompanyCodePage from './modules/auth/CompanyCodePage';
-import LoginPage from './modules/auth/LoginPage';
-import SuperAdminLoginPage from './modules/auth/SuperAdminLoginPage';
-import SuperAdminPortal from './modules/auth/SuperAdminPortal';
-import ModuleSelectorPage from './modules/auth/ModuleSelectorPage';
-import OperationalWorkspaceView from './modules/loan/OperationalWorkspaceView';
-import DashboardOverviewView from './modules/dashboard/DashboardOverviewView';
-import CustomerKycReviewPage from './modules/borrowers/CustomerKycReviewPage';
-import BorrowersView from './modules/borrowers/BorrowersView';
-import LoansView from './modules/loan/LoansView';
-import LoanApplicationsView from './modules/loan/LoanApplicationsView';
-import InvestorCapitalView from './modules/investors/InvestorCapitalView';
-import FixedDepositsView from './modules/fixedDeposits/FixedDepositsView';
-import DailyCollectionsView from './modules/finance/DailyCollectionsView';
-import GeneralLedgerView from './modules/finance/GeneralLedgerView';
-import LoanLedgerView from './modules/finance/LoanLedgerView';
-import CustomerLedgerView from './modules/finance/CustomerLedgerView';
-import TrialBalanceView from './modules/finance/TrialBalanceView';
-import AutoVouchersView from './modules/finance/AutoVouchersView';
-import ManualVouchersView from './modules/finance/ManualVouchersView';
-import EODProcessView from './modules/finance/EODProcessView';
-import LoanPortfolioReportView from './modules/reports/LoanPortfolioReportView';
-import CollectionsReportView from './modules/reports/CollectionsReportView';
-import BorrowerKycReportView from './modules/reports/BorrowerKycReportView';
-import InvestorCapitalReportView from './modules/reports/InvestorCapitalReportView';
-import FixedDepositReportView from './modules/reports/FixedDepositReportView';
-import FinancialStatementsReportView from './modules/reports/FinancialStatementsReportView';
-import StaffPerformanceReportView from './modules/reports/StaffPerformanceReportView';
-import MasterSettingsView from './modules/settings/MasterSettingsView';
+import CompanyCodePage from './auth/CompanyCodePage';
+import LoginPage from './auth/LoginPage';
+import SuperAdminLoginPage from './auth/SuperAdminLoginPage';
+import SuperAdminPortal from './auth/SuperAdminPortal';
+import DashboardOverviewView from './finance/dashboard/DashboardOverviewView';
+import CustomerKycReviewPage from './finance/borrowers/CustomerKycReviewPage';
+import BorrowersView from './finance/borrowers/BorrowersView';
+import LoansView from './finance/loan/LoansView';
+import LoanApplicationsView from './finance/loan/LoanApplicationsView';
+import InvestorCapitalView from './finance/investors/InvestorCapitalView';
+import FixedDepositsView from './finance/fixedDeposits/FixedDepositsView';
+import RecurringDepositsView from './finance/recurringDeposits/RecurringDepositsView';
+import DailyCollectionsView from './finance/accounting/DailyCollectionsView';
+import GeneralLedgerView from './finance/accounting/GeneralLedgerView';
+import LoanLedgerView from './finance/accounting/LoanLedgerView';
+import CustomerLedgerView from './finance/accounting/CustomerLedgerView';
+import TrialBalanceView from './finance/accounting/TrialBalanceView';
+import AutoVouchersView from './finance/accounting/AutoVouchersView';
+import ManualVouchersView from './finance/accounting/ManualVouchersView';
+import EODProcessView from './finance/accounting/EODProcessView';
+import LoanPortfolioReportView from './reports/LoanPortfolioReportView';
+import CollectionsReportView from './reports/CollectionsReportView';
+import BorrowerKycReportView from './reports/BorrowerKycReportView';
+import InvestorCapitalReportView from './reports/InvestorCapitalReportView';
+import FixedDepositReportView from './reports/FixedDepositReportView';
+import RecurringDepositReportView from './reports/RecurringDepositReportView';
+import FinancialStatementsReportView from './reports/FinancialStatementsReportView';
+import StaffPerformanceReportView from './reports/StaffPerformanceReportView';
+import MasterSettingsView from './settings/MasterSettingsView';
 import CollectionDrawer from './components/CollectionDrawer';
 import NewLoanModal from './components/NewLoanModal';
 import QuickActionModal from './components/QuickActionModal';
 import api from './api/client';
 import {
-  INITIAL_LOAN_SCHEMES,
   INITIAL_INVESTORS,
-  INITIAL_INVESTOR_TRANSACTIONS,
   INITIAL_FIXED_DEPOSITS,
+  INITIAL_RECURRING_DEPOSITS,
+  buildRdInstallments,
   INITIAL_EXPENSE_CATEGORIES,
   INITIAL_EXPENSE_ALLOCATION_REQUESTS,
   INITIAL_EXPENSE_VOUCHERS,
   INITIAL_CHART_OF_ACCOUNTS
 } from './data/mockFinanceData';
-import { generateEmiSchedule, resolveSchemeRepaymentMethod, resolveSchemeInterestCalculation } from './utils/loanCalculations';
+import { generateEmiSchedule, generateCustomSchedule, resolveSchemeRepaymentMethod, resolveSchemeInterestCalculation, estimateCustomTotalPayable } from './utils/loanCalculations';
 import { journalLine, buildJournalEntry, buildVoucherLines } from './utils/accounting';
 
 // Every ACTIVE/CLOSED/OVERDUE loan below is seeded with numbers actually produced by
@@ -53,36 +53,8 @@ import { journalLine, buildJournalEntry, buildVoucherLines } from './utils/accou
 // Calculation combination, plus a closed one and an overdue one. Mirrors
 // server/src/config/db.js's mock data so behavior is identical whether the backend
 // is reachable or not.
-const INITIAL_LOANS = [
-  // Interest Only + Flexible (DAILY) — 3 payments made so far
-  { id: 101, company_id: 1, loan_account_no: 'LN-2026-001', borrower_id: 1, scheme_id: 1, borrower_name: 'Rajesh Kumar', phone: '9876543210', branch: 'Main Branch', collector: 'Sarah Collector', loan_date: '2026-05-10', next_due: '2026-07-24', principal_amount: 50000, total_payable: 57500, collected_amount: 22000, pending_amount: 29271, installment_amount: 500, tenure_days: 110, status: 'ACTIVE', aadhaar: '4589-1234-8971', pan: 'ABCDE1234F', guarantor: 'Mahesh Kumar', monthly_interest_rate: 2.0, repayment_method: 'INTEREST_ONLY', interest_calculation: 'FLEXIBLE_REDUCING', repayment_frequency: 'DAILY', last_payment_date: '2026-06-23', repayment_schedule: null },
-  // EMI + Flexible / Reducing EMI (MONTHLY) — 2 of 6 installments paid
-  { id: 102, company_id: 1, loan_account_no: 'LN-2026-002', borrower_id: 2, scheme_id: 1, borrower_name: 'Priya Sharma', phone: '9812345678', branch: 'Main Branch', collector: 'Sarah Collector', loan_date: '2026-02-15', next_due: '2026-05-16', principal_amount: 100000, total_payable: 107116, collected_amount: 35706, pending_amount: 67977, installment_amount: 17853, tenure_days: 180, status: 'ACTIVE', aadhaar: '8912-3456-7890', pan: 'XYZPD9876K', guarantor: 'Sunil Sharma', monthly_interest_rate: 2.0, repayment_method: 'EMI', interest_calculation: 'FLEXIBLE_REDUCING', repayment_frequency: 'MONTHLY', last_payment_date: '2026-04-15',
-    repayment_schedule: [
-      { period: 1, due_date: '2026-03-17', principal: 15853, interest: 2000, emi: 17853, principal_paid: 15853, interest_paid: 2000 },
-      { period: 2, due_date: '2026-04-16', principal: 16170, interest: 1683, emi: 17853, principal_paid: 16170, interest_paid: 1683 },
-      { period: 3, due_date: '2026-05-16', principal: 16493, interest: 1360, emi: 17853, principal_paid: 0, interest_paid: 0 },
-      { period: 4, due_date: '2026-06-15', principal: 16823, interest: 1030, emi: 17853, principal_paid: 0, interest_paid: 0 },
-      { period: 5, due_date: '2026-07-15', principal: 17160, interest: 693, emi: 17853, principal_paid: 0, interest_paid: 0 },
-      { period: 6, due_date: '2026-08-14', principal: 17501, interest: 350, emi: 17851, principal_paid: 0, interest_paid: 0 }
-    ] },
-  // Interest Only + Constant (DAILY) — fully repaid, CLOSED
-  { id: 103, company_id: 1, loan_account_no: 'LN-2026-003', borrower_id: null, scheme_id: 3, borrower_name: 'Anil Verma', phone: '9765432109', branch: 'West Branch', collector: 'Mike Manager', loan_date: '2026-02-01', next_due: '2026-05-20', principal_amount: 30000, total_payable: 31040, collected_amount: 31040, pending_amount: 0, installment_amount: 300, tenure_days: 110, status: 'CLOSED', daysOverdue: 0, aadhaar: '1234-5678-9012', pan: 'LKJHG5432M', guarantor: 'Vijay Verma', monthly_interest_rate: 2.0, repayment_method: 'INTEREST_ONLY', interest_calculation: 'CONSTANT_FLAT', repayment_frequency: 'DAILY', last_payment_date: '2026-03-25', repayment_schedule: null },
-  // EMI + Constant / Flat EMI (MONTHLY) — 2 of 6 installments paid
-  { id: 104, company_id: 1, loan_account_no: 'LN-2026-004', borrower_id: 3, scheme_id: 2, borrower_name: 'Suresh Patel', phone: '9988776655', branch: 'Main Branch', collector: 'Sarah Collector', loan_date: '2026-04-01', next_due: '2026-06-30', principal_amount: 75000, total_payable: 84000, collected_amount: 28000, pending_amount: 50000, installment_amount: 14000, tenure_days: 180, status: 'ACTIVE', aadhaar: '7766-5544-3322', pan: 'MNBVC9876L', guarantor: 'Dinesh Patel', monthly_interest_rate: 2.0, repayment_method: 'EMI', interest_calculation: 'CONSTANT_FLAT', repayment_frequency: 'MONTHLY', last_payment_date: '2026-06-01',
-    repayment_schedule: [
-      { period: 1, due_date: '2026-05-01', principal: 12500, interest: 1500, emi: 14000, principal_paid: 12500, interest_paid: 1500 },
-      { period: 2, due_date: '2026-05-31', principal: 12500, interest: 1500, emi: 14000, principal_paid: 12500, interest_paid: 1500 },
-      { period: 3, due_date: '2026-06-30', principal: 12500, interest: 1500, emi: 14000, principal_paid: 0, interest_paid: 0 },
-      { period: 4, due_date: '2026-07-30', principal: 12500, interest: 1500, emi: 14000, principal_paid: 0, interest_paid: 0 },
-      { period: 5, due_date: '2026-08-29', principal: 12500, interest: 1500, emi: 14000, principal_paid: 0, interest_paid: 0 },
-      { period: 6, due_date: '2026-09-28', principal: 12500, interest: 1500, emi: 14000, principal_paid: 0, interest_paid: 0 }
-    ] },
-  // Interest Only + Flexible (DAILY) — no payment since 2026-07-05, OVERDUE
-  { id: 105, company_id: 1, loan_account_no: 'LN-2026-005', borrower_id: null, scheme_id: 1, borrower_name: 'Meena Reddy', phone: '9445566778', branch: 'East Branch', collector: 'Sarah Collector', loan_date: '2026-06-15', next_due: '2026-07-24', principal_amount: 40000, total_payable: 46000, collected_amount: 4000, pending_amount: 36522, installment_amount: 400, tenure_days: 110, status: 'OVERDUE', daysOverdue: 32, aadhaar: '5566-7788-9900', pan: 'QWERT1234N', guarantor: 'Kiran Reddy', monthly_interest_rate: 2.0, repayment_method: 'INTEREST_ONLY', interest_calculation: 'FLEXIBLE_REDUCING', repayment_frequency: 'DAILY', last_payment_date: '2026-07-05', repayment_schedule: null },
-  { id: 106, company_id: 1, loan_account_no: 'APP-2026-088', borrower_id: null, scheme_id: 1, borrower_name: 'Venkatesh Rao', phone: '9845012345', branch: 'Main Branch', collector: 'Mike Manager', loan_date: '2026-07-27', principal_amount: 60000, pending_amount: 60000, collected_amount: 0, installment_amount: 600, tenure_days: 100, status: 'PENDING', aadhaar: '9845-1234-5678', pan: 'VNKT8901R', guarantor: 'Srinivas Rao', purpose: 'Business Expansion' },
-  { id: 107, company_id: 1, loan_account_no: 'APP-2026-089', borrower_id: null, scheme_id: 2, borrower_name: 'Kavitha Sundaram', phone: '9443210987', branch: 'West Branch', collector: 'Sarah Collector', loan_date: '2026-07-26', principal_amount: 45000, pending_amount: 45000, collected_amount: 0, installment_amount: 450, tenure_days: 100, status: 'PENDING', aadhaar: '3412-7890-5612', pan: 'KVTH5678S', guarantor: 'Sundaram Murthy', purpose: 'Working Capital' }
-];
+// loans, collections, and borrowers all have real backends now (see fetchData) —
+// no mock seed data for them anymore.
 
 const INITIAL_EMPLOYEES = [
   { id: 1, company_id: 1, name: 'John Admin', email: 'admin@alpha.com', role: 'ADMIN', permissions: [] },
@@ -90,26 +62,8 @@ const INITIAL_EMPLOYEES = [
   { id: 3, company_id: 1, name: 'Mike Manager', email: 'mike@alpha.com', role: 'MANAGER', permissions: [{ module: 'LOANS', action: 'CREATE', allowed: 1 }, { module: 'EMPLOYEES', action: 'MANAGE', allowed: 1 }] }
 ];
 
-const INITIAL_COLLECTIONS = [
-  { id: 501, company_id: 1, loan_id: 101, borrower_name: 'Rajesh Kumar', collector_name: 'Sarah Collector', amount: 5000, principalPaid: 4667, interestPaid: 333, penalty: 0, collection_date: '2026-05-20', payment_mode: 'CASH', voucher_no: 'JE-20260520-01' },
-  { id: 502, company_id: 1, loan_id: 101, borrower_name: 'Rajesh Kumar', collector_name: 'Sarah Collector', amount: 8000, principalPaid: 7516, interestPaid: 484, penalty: 0, collection_date: '2026-06-05', payment_mode: 'CASH', voucher_no: 'JE-20260605-01' },
-  { id: 503, company_id: 1, loan_id: 101, borrower_name: 'Rajesh Kumar', collector_name: 'Sarah Collector', amount: 9000, principalPaid: 8546, interestPaid: 454, penalty: 0, collection_date: '2026-06-23', payment_mode: 'CASH', voucher_no: 'JE-20260623-01' },
-  { id: 504, company_id: 1, loan_id: 102, borrower_name: 'Priya Sharma', collector_name: 'Sarah Collector', amount: 17853, principalPaid: 15853, interestPaid: 2000, penalty: 0, collection_date: '2026-03-15', payment_mode: 'UPI', voucher_no: 'JE-20260315-01' },
-  { id: 505, company_id: 1, loan_id: 102, borrower_name: 'Priya Sharma', collector_name: 'Sarah Collector', amount: 17853, principalPaid: 16170, interestPaid: 1683, penalty: 0, collection_date: '2026-04-15', payment_mode: 'UPI', voucher_no: 'JE-20260415-01' },
-  { id: 506, company_id: 1, loan_id: 103, borrower_name: 'Anil Verma', collector_name: 'Sarah Collector', amount: 12700, principalPaid: 12320, interestPaid: 380, penalty: 0, collection_date: '2026-02-20', payment_mode: 'CASH', voucher_no: 'JE-20260220-01' },
-  { id: 507, company_id: 1, loan_id: 103, borrower_name: 'Anil Verma', collector_name: 'Sarah Collector', amount: 12700, principalPaid: 12340, interestPaid: 360, penalty: 0, collection_date: '2026-03-10', payment_mode: 'CASH', voucher_no: 'JE-20260310-01' },
-  { id: 508, company_id: 1, loan_id: 103, borrower_name: 'Anil Verma', collector_name: 'Sarah Collector', amount: 5640, principalPaid: 5340, interestPaid: 300, penalty: 0, collection_date: '2026-03-25', payment_mode: 'CASH', voucher_no: 'JE-20260325-01' },
-  { id: 509, company_id: 1, loan_id: 104, borrower_name: 'Suresh Patel', collector_name: 'Sarah Collector', amount: 14000, principalPaid: 12500, interestPaid: 1500, penalty: 0, collection_date: '2026-05-01', payment_mode: 'BANK_TRANSFER', voucher_no: 'JE-20260501-01' },
-  { id: 510, company_id: 1, loan_id: 104, borrower_name: 'Suresh Patel', collector_name: 'Sarah Collector', amount: 14000, principalPaid: 12500, interestPaid: 1500, penalty: 0, collection_date: '2026-06-01', payment_mode: 'BANK_TRANSFER', voucher_no: 'JE-20260601-02' },
-  { id: 511, company_id: 1, loan_id: 105, borrower_name: 'Meena Reddy', collector_name: 'Sarah Collector', amount: 2000, principalPaid: 1733, interestPaid: 267, penalty: 0, collection_date: '2026-06-25', payment_mode: 'CASH', voucher_no: 'JE-20260625-01' },
-  { id: 512, company_id: 1, loan_id: 105, borrower_name: 'Meena Reddy', collector_name: 'Sarah Collector', amount: 2000, principalPaid: 1745, interestPaid: 255, penalty: 0, collection_date: '2026-07-05', payment_mode: 'CASH', voucher_no: 'JE-20260705-01' }
-];
-
-const INITIAL_BORROWERS = [
-  { id: 1, company_id: 1, borrower_code: 'BR-0001', full_name: 'Rajesh Kumar', phone: '9876543210', alt_phone: '', email: '', dob: '1985-04-12', gender: 'MALE', address_line1: 'Main St 123', address_line2: '', city: 'Chennai', state: 'Tamil Nadu', pincode: '600001', aadhaar_number: '458912348971', pan_number: 'ABCDE1234F', occupation: 'Business', monthly_income: 45000, employer_name: '', guarantor_name: 'Mahesh Kumar', guarantor_phone: '9876500001', nominee_name: '', nominee_relation: '', branch: 'Karur Branch', kyc_status: 'VERIFIED', kyc_verified_at: '2026-05-01', kyc_expiry_date: '2028-05-01', kyc_rejection_reason: null, kyc_reviewed_by: 'John Admin', kyc_reviewed_at: '2026-05-01', status: 'ACTIVE', notes: '' },
-  { id: 2, company_id: 1, borrower_code: 'BR-0002', full_name: 'Priya Sharma', phone: '9812345678', alt_phone: '', email: '', dob: '1990-09-23', gender: 'FEMALE', address_line1: 'Market Road 45', address_line2: '', city: 'Chennai', state: 'Tamil Nadu', pincode: '600002', aadhaar_number: '891234567890', pan_number: 'XYZPD9876K', occupation: 'Salaried', monthly_income: 38000, employer_name: 'ABC Textiles', guarantor_name: 'Sunil Sharma', guarantor_phone: '9812300002', nominee_name: '', nominee_relation: '', branch: 'Karur Branch', kyc_status: 'VERIFIED', kyc_verified_at: '2026-04-15', kyc_expiry_date: '2028-04-15', kyc_rejection_reason: null, kyc_reviewed_by: 'John Admin', kyc_reviewed_at: '2026-04-15', status: 'ACTIVE', notes: '' },
-  { id: 3, company_id: 1, borrower_code: 'BR-0003', full_name: 'Suresh Patel', phone: '9988776655', alt_phone: '', email: '', dob: '1992-01-18', gender: 'MALE', address_line1: '', address_line2: '', city: '', state: '', pincode: '', aadhaar_number: '776655443322', pan_number: 'MNBVC9876L', occupation: 'Business', monthly_income: null, employer_name: '', guarantor_name: 'Dinesh Patel', guarantor_phone: '9988700002', nominee_name: '', nominee_relation: '', branch: 'Karur Branch', kyc_status: 'PENDING', kyc_verified_at: null, kyc_expiry_date: null, kyc_rejection_reason: null, kyc_reviewed_by: null, kyc_reviewed_at: null, status: 'ACTIVE', notes: '' }
-];
+// collections and borrowers both have real backends now — no mock seed data for
+// them anymore (see fetchData).
 
 const INITIAL_BRANCHES = [
   { id: 1, company_id: 1, name: 'Karur Branch', code: 'KRM', address: '', phone: '', city: '', state: '', pincode: '', is_active: 1 },
@@ -119,9 +73,30 @@ const INITIAL_BRANCHES = [
   { id: 5, company_id: 1, name: 'Madurai Branch', code: 'MDU', address: '', phone: '', city: '', state: '', pincode: '', is_active: 1 }
 ];
 
+// The app has 4 top-level modules (finance, auth, settings, reports), mirroring
+// the backend's src/finance + src/modules/{auth,org,employee} split. Every
+// browser URL is prefixed with its module — /finance/dashboard,
+// /settings/rbac-matrix, /reports/collections — while `activeTab` itself
+// (what every render check in this file matches against) stays exactly the
+// unprefixed tab name it always was, so none of the existing
+// `activeTab.includes(...)` logic needed to change.
+const MODULE_NAMES = ['finance', 'settings', 'reports', 'auth'];
+
+const moduleForTab = (tab) => {
+  if (tab.startsWith('master-settings') || tab.startsWith('settings') || tab === 'employees') return 'settings';
+  if (tab.startsWith('reports/')) return 'reports';
+  return 'finance';
+};
+
+const stripModulePrefix = (pathname) => {
+  const clean = (pathname || '').replace(/^\//, '');
+  const firstSeg = clean.split('/')[0];
+  return MODULE_NAMES.includes(firstSeg) ? clean.slice(firstSeg.length + 1) : clean;
+};
+
 export default function App() {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
-  const [path, setPath] = useState(() => window.location.pathname || '/login');
+  const [path, setPath] = useState(() => window.location.pathname || '/auth/login');
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -150,7 +125,7 @@ export default function App() {
   });
 
   const [activeTab, setActiveTabState] = useState(() => {
-    const current = window.location.pathname.replace(/^\//, '');
+    const current = stripModulePrefix(window.location.pathname);
     return (current && current !== 'login') ? current : 'dashboard';
   });
 
@@ -181,7 +156,11 @@ export default function App() {
     else sessionStorage.removeItem('financial_erp_selected_module');
   }, [selectedModule]);
 
-  const [loans, setLoans] = useState(INITIAL_LOANS);
+  // loans has a real backend (server/src/finance/loan) — starts empty, populated by
+  // fetchData()'s /v1/finance/loans call. employees has no backend route registered
+  // yet (see fetchData's comment), so it keeps its mock seed as the only data
+  // available until that's wired up.
+  const [loans, setLoans] = useState([]);
   const [employees, setEmployees] = useState(INITIAL_EMPLOYEES);
   const [auditLogs, setAuditLogs] = useState([]);
 
@@ -277,9 +256,7 @@ export default function App() {
       closed_at: new Date().toISOString()
     };
     setEodRecords(prev => [...prev, record]);
-    logAudit('EOD_CLOSURE', record.id, 'CREATE', null, {
-      branch: record.branch, date: record.date, counted_cash: record.counted_cash, difference: record.difference, status: record.status
-    });
+    logAudit('EOD_CLOSURE', record.id, 'CREATE', `${record.branch} ${record.date} — ${record.status}`);
   };
 
   // Admin recount: replaces the denomination counts and re-derives status from the
@@ -297,7 +274,7 @@ export default function App() {
       reopened_by: user?.name || 'Admin',
       reopened_at: new Date().toISOString()
     } : r)));
-    logAudit('EOD_CLOSURE', id, 'UPDATE', before, { ...before, ...payload, status: variance ? 'PENDING_REVIEW' : 'CLOSED' });
+    logAudit('EOD_CLOSURE', id, 'RECOUNT', `${before?.branch} ${before?.date} recounted — ${variance ? 'PENDING_REVIEW' : 'CLOSED'}`);
   };
 
   // Admin acknowledges a variance without recounting — e.g. the shortage was
@@ -313,7 +290,7 @@ export default function App() {
       reviewed_by: user?.name || 'Admin',
       reviewed_at: new Date().toISOString()
     } : r)));
-    logAudit('EOD_CLOSURE', id, 'UPDATE', before, { ...before, status: 'CLOSED', resolution_note: resolutionNote });
+    logAudit('EOD_CLOSURE', id, 'VARIANCE_RESOLVED', `${before?.branch} ${before?.date} — ${resolutionNote}`);
   };
 
   // Time-boxed exception, common to both paths below: appends one entry to
@@ -331,7 +308,7 @@ export default function App() {
   const handleGrantEodReopen = (id, hours) => {
     const before = eodRecords.find(r => r.id === id);
     const grant = grantEodReopenWindow(id, hours, user?.name || 'Admin');
-    logAudit('EOD_CLOSURE', id, 'UPDATE', before, { ...before, reopened_for_hours: hours, reopened_until: grant.expires_at });
+    logAudit('EOD_CLOSURE', id, 'REOPENED', `${before?.branch} ${before?.date} reopened for ${hours}h`);
   };
 
   // Everyone else: a closed day can't be edited directly — they submit a reopen
@@ -351,7 +328,7 @@ export default function App() {
       status: 'PENDING'
     };
     setEodRecords(prev => prev.map(r => (r.id === id ? { ...r, reopen_requests: [...(r.reopen_requests || []), request] } : r)));
-    logAudit('EOD_REOPEN_REQUEST', request.id, 'CREATE', null, { branch: before?.branch, date: before?.date, reason, requested_hours: hours });
+    logAudit('EOD_REOPEN_REQUEST', request.id, 'CREATE', `${before?.branch} ${before?.date} — ${reason}`);
   };
 
   // Admin approves a pending request: grants the actual unlock window and marks
@@ -366,7 +343,7 @@ export default function App() {
         ...req, status: 'APPROVED', decided_by: user?.name || 'Admin', decided_at: new Date().toISOString(), granted_hours: hours
       } : req))
     } : r)));
-    logAudit('EOD_REOPEN_REQUEST', requestId, 'UPDATE', before, { status: 'APPROVED', granted_hours: hours, expires_at: grant.expires_at });
+    logAudit('EOD_REOPEN_REQUEST', requestId, 'APPROVED', `${before?.branch} ${before?.date} — granted ${hours}h`);
   };
 
   const handleRejectEodReopen = (id, requestId, decisionReason) => {
@@ -377,7 +354,7 @@ export default function App() {
         ...req, status: 'REJECTED', decided_by: user?.name || 'Admin', decided_at: new Date().toISOString(), decision_reason: decisionReason
       } : req))
     } : r)));
-    logAudit('EOD_REOPEN_REQUEST', requestId, 'UPDATE', before, { status: 'REJECTED', decision_reason: decisionReason });
+    logAudit('EOD_REOPEN_REQUEST', requestId, 'REJECTED', `${before?.branch} ${before?.date} — ${decisionReason}`);
   };
 
   const handleUpdateEodDenominationSettings = (settings) => {
@@ -388,31 +365,52 @@ export default function App() {
   // permissions, loan schemes, loan closure, collections, branches) writes one
   // entry here with a before/after snapshot, so "who changed what and when" is
   // always answerable without re-deriving it from scattered state history.
-  const logAudit = (entityType, entityId, action, before, after) => {
+  // A short one-line summary of what happened — not a before/after field diff. Nobody
+  // reconstructs a record's full prior state from this log; it just answers "who did
+  // what, when."
+  const logAudit = (entityType, entityId, action, summary) => {
     setAuditLogs(prev => [{
       id: `AL-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       entity_type: entityType,
       entity_id: entityId,
       action,
-      before: before ?? null,
-      after: after ?? null,
+      summary: summary || '',
       actor_name: user?.name || 'System',
       actor_role: user?.role || '',
       created_at: new Date().toISOString()
     }, ...prev]);
   };
-  const [collections, setCollections] = useState(INITIAL_COLLECTIONS);
-  const [borrowers, setBorrowers] = useState(INITIAL_BORROWERS);
+  // collections and borrowers both have real backends too — same treatment as
+  // loans/schemes above. branchesList's backend (server/src/modules/org) isn't
+  // registered yet either, so it keeps its mock seed like employees does.
+  const [collections, setCollections] = useState([]);
+  const [borrowers, setBorrowers] = useState([]);
   const [kycReviewBorrowerId, setKycReviewBorrowerId] = useState(null);
   const [branchesList, setBranchesList] = useState(INITIAL_BRANCHES);
+
+  // Global branch lock — 'ALL' means every page behaves exactly as it always has
+  // (its own independent filter, freely switchable). Any specific branch name means
+  // every page's own branch filter is forced to it and disabled — the only way to
+  // change it is back through the sidebar control. Persisted so a refresh doesn't
+  // silently drop the lock.
+  const [selectedBranch, setSelectedBranch] = useState(() => localStorage.getItem('financial_erp_selected_branch') || 'ALL');
+  useEffect(() => {
+    localStorage.setItem('financial_erp_selected_branch', selectedBranch);
+  }, [selectedBranch]);
+  const handleChangeBranch = (branchNameOrAll) => setSelectedBranch(branchNameOrAll);
   const [orgLoading, setOrgLoading] = useState(false);
   const [orgError, setOrgError] = useState('');
 
-  // Finance Operations modules — pure mock data, local state only, no backend calls.
-  const [loanSchemes, setLoanSchemes] = useState(INITIAL_LOAN_SCHEMES);
+  // loanSchemes has a real backend now (server/src/finance/scheme) — starts empty
+  // and is populated by fetchData()'s /v1/finance/schemes call. No mock fallback:
+  // if that call fails, the GlobalErrorBanner is what should tell the user, not a
+  // screen quietly showing fake schemes as if they were real. The modules below
+  // this one are still pure mock data, local state only, no backend calls.
+  const [loanSchemes, setLoanSchemes] = useState([]);
+  const [customFormulas, setCustomFormulas] = useState([]);
   const [investors, setInvestors] = useState(INITIAL_INVESTORS);
-  const [investorTransactions, setInvestorTransactions] = useState(INITIAL_INVESTOR_TRANSACTIONS);
   const [fixedDeposits, setFixedDeposits] = useState(INITIAL_FIXED_DEPOSITS);
+  const [recurringDeposits, setRecurringDeposits] = useState(INITIAL_RECURRING_DEPOSITS);
   const [expenseCategories, setExpenseCategories] = useState(INITIAL_EXPENSE_CATEGORIES);
   const [expenseAllocationRequests, setExpenseAllocationRequests] = useState(INITIAL_EXPENSE_ALLOCATION_REQUESTS);
   const [expenseVouchers, setExpenseVouchers] = useState(INITIAL_EXPENSE_VOUCHERS);
@@ -453,15 +451,15 @@ export default function App() {
   const handleTabChange = (newTab) => {
     setActiveTabState(newTab);
     setKycReviewBorrowerId(null);
-    const targetUrl = `/${newTab}`;
+    const targetUrl = `/${moduleForTab(newTab)}/${newTab}`;
     navigateTo(targetUrl);
   };
 
   useEffect(() => {
     const handlePopState = () => {
-      const currentPath = window.location.pathname || '/login';
+      const currentPath = window.location.pathname || '/auth/login';
       setPath(currentPath);
-      const tabName = currentPath.replace(/^\//, '');
+      const tabName = stripModulePrefix(currentPath);
       if (tabName) {
         setActiveTabState(tabName);
       }
@@ -477,19 +475,25 @@ export default function App() {
     }
   }, [tenant, isAuthenticated, user]);
 
+  // Promise.allSettled, not Promise.all — /employees has no backend route yet
+  // (server/src/modules/employee/employee.routes.js is never registered in app.js),
+  // so that call always rejects. With Promise.all, one rejection fails the whole
+  // batch and silently skips every setter — loans/collections/borrowers/schemes
+  // would never update from real data even though their own calls succeed fine.
+  // Each result is now applied independently based on its own outcome.
   const fetchData = async () => {
-    try {
-      const [loansRes, empsRes, colRes] = await Promise.all([
-        api.get('/finance/loans'),
-        api.get('/employees'),
-        api.get('/finance/collections')
-      ]);
-      if (loansRes.data?.data) setLoans(loansRes.data.data);
-      if (empsRes.data?.data) setEmployees(empsRes.data.data);
-      if (colRes.data?.data) setCollections(colRes.data.data);
-    } catch (err) {
-      console.warn('Using initial state for demo preview');
-    }
+    const [loansRes, empsRes, colRes, schemesRes, borrowersRes] = await Promise.allSettled([
+      api.get('/v1/finance/loans'),
+      api.get('/employees'),
+      api.get('/v1/finance/collections'),
+      api.get('/v1/finance/schemes'),
+      api.get('/v1/finance/borrowers')
+    ]);
+    if (loansRes.status === 'fulfilled' && loansRes.value.data?.data) setLoans(loansRes.value.data.data);
+    if (empsRes.status === 'fulfilled' && empsRes.value.data?.data) setEmployees(empsRes.value.data.data);
+    if (colRes.status === 'fulfilled' && colRes.value.data?.data) setCollections(colRes.value.data.data);
+    if (schemesRes.status === 'fulfilled' && schemesRes.value.data?.data) setLoanSchemes(schemesRes.value.data.data);
+    if (borrowersRes.status === 'fulfilled' && borrowersRes.value.data?.data) setBorrowers(borrowersRes.value.data.data);
     fetchOrgHierarchy();
   };
 
@@ -531,13 +535,13 @@ export default function App() {
   const handleUpdateEmployee = (id, payload) => {
     const before = employees.find(e => e.id === id);
     setEmployees(prev => prev.map(e => e.id === id ? { ...e, ...payload } : e));
-    logAudit('EMPLOYEE', id, 'UPDATE', before, { ...before, ...payload });
+    logAudit('EMPLOYEE', id, 'UPDATE', before?.name);
   };
 
   const handleDeleteEmployee = (id) => {
     const before = employees.find(e => e.id === id);
     setEmployees(prev => prev.filter(e => e.id !== id));
-    logAudit('EMPLOYEE', id, 'DELETE', before, null);
+    logAudit('EMPLOYEE', id, 'DELETE', before?.name);
   };
 
   // No backend table exists yet for the extended company profile fields
@@ -567,79 +571,70 @@ export default function App() {
     setBranchesList(prev => prev.filter(b => b.id !== id));
   };
 
-  // ── Loan Scheme Master (mock-only, no backend) ──
-  const handleCreateLoanScheme = (payload) => {
-    const newScheme = { id: Date.now(), is_active: true, ...payload };
-    setLoanSchemes(prev => [...prev, newScheme]);
-    logAudit('LOAN_SCHEME', newScheme.id, 'CREATE', null, newScheme);
-  };
-  const handleUpdateLoanScheme = (id, payload) => {
-    const before = loanSchemes.find(s => s.id === id);
-    setLoanSchemes(prev => prev.map(s => (s.id === id ? { ...s, ...payload } : s)));
-    logAudit('LOAN_SCHEME', id, 'UPDATE', before, { ...before, ...payload });
-  };
-  const handleDeleteLoanScheme = (id) => {
-    const inUse = loans.some(l => l.scheme_id === id && (l.status === 'ACTIVE' || l.status === 'OVERDUE' || l.status === 'PENDING'));
-    if (inUse) {
-      const err = new Error('Cannot delete: this scheme is assigned to active loans or applications.');
-      err.response = { data: { message: err.message } };
-      throw err;
+  // ── Loan Scheme Master (server/src/finance/scheme) ──
+  const handleCreateLoanScheme = async (payload) => {
+    const res = await api.post('/v1/finance/schemes', payload);
+    const created = res.data?.data;
+    if (created) {
+      setLoanSchemes(prev => [...prev, created]);
+      logAudit('LOAN_SCHEME', created.id, 'CREATE', created.name);
     }
+    return created;
+  };
+  const handleUpdateLoanScheme = async (id, payload) => {
     const before = loanSchemes.find(s => s.id === id);
+    const res = await api.put(`/v1/finance/schemes/${id}`, payload);
+    const updated = res.data?.data;
+    if (updated) {
+      setLoanSchemes(prev => prev.map(s => (s.id === id ? updated : s)));
+      logAudit('LOAN_SCHEME', id, 'UPDATE', updated.name || before?.name);
+    }
+    return updated;
+  };
+  const handleDeleteLoanScheme = async (id) => {
+    const before = loanSchemes.find(s => s.id === id);
+    await api.delete(`/v1/finance/schemes/${id}`);
     setLoanSchemes(prev => prev.filter(s => s.id !== id));
-    logAudit('LOAN_SCHEME', id, 'DELETE', before, null);
+    logAudit('LOAN_SCHEME', id, 'DELETE', before?.name);
+  };
+
+  // ── Custom Formula Library (mock-only, no backend) ──
+  // A scheme that picks a saved formula COPIES its tokens in at that moment — schemes
+  // never hold a live reference to a library entry, so editing/deleting a formula here
+  // never retroactively affects any scheme that already picked it (and, further down
+  // the chain, a loan's own snapshot already protects it from scheme edits too).
+  const handleCreateCustomFormula = (payload) => {
+    const newFormula = { id: Date.now(), ...payload };
+    setCustomFormulas(prev => [...prev, newFormula]);
+    logAudit('CUSTOM_FORMULA', newFormula.id, 'CREATE', newFormula.name);
+    return newFormula;
+  };
+  const handleUpdateCustomFormula = (id, payload) => {
+    const before = customFormulas.find(f => f.id === id);
+    setCustomFormulas(prev => prev.map(f => (f.id === id ? { ...f, ...payload } : f)));
+    logAudit('CUSTOM_FORMULA', id, 'UPDATE', payload.name || before?.name);
+  };
+  const handleDeleteCustomFormula = (id) => {
+    const before = customFormulas.find(f => f.id === id);
+    setCustomFormulas(prev => prev.filter(f => f.id !== id));
+    logAudit('CUSTOM_FORMULA', id, 'DELETE', before?.name);
   };
 
   // ── Investor Capital (mock-only, no backend) ──
+  // A Master-style record — capital_amount/yield_rate/yield_notes live directly on
+  // the investor, not derived from a transaction ledger. A "withdrawal" is just
+  // editing capital_amount down and/or setting status to EXITED; a yield payout is
+  // just a manual note. Not wired into double-entry accounting at all.
   const handleCreateInvestor = (payload) => {
-    const nextSeq = investors.length ? Math.max(...investors.map(i => parseInt((i.investor_code || 'INV-0000').split('-')[1], 10) || 0)) + 1 : 1;
-    const newInvestor = { id: Date.now(), investor_code: `INV-${String(nextSeq).padStart(4, '0')}`, status: 'ACTIVE', ...payload };
+    const nextSeq = investors.length ? Math.max(...investors.map(i => parseInt((i.investor_code || 'INV-1000').split('-')[1], 10) || 1000)) + 1 : 1001;
+    const newInvestor = { id: Date.now(), investor_code: `INV-${nextSeq}`, status: 'ACTIVE', ...payload };
     setInvestors(prev => [...prev, newInvestor]);
   };
   const handleUpdateInvestor = (id, payload) => {
     setInvestors(prev => prev.map(i => (i.id === id ? { ...i, ...payload } : i)));
   };
   const handleDeleteInvestor = (id) => {
-    const hasTransactions = investorTransactions.some(t => t.investor_id === id);
-    if (hasTransactions) {
-      const err = new Error('Cannot delete: this investor has capital transactions on record.');
-      err.response = { data: { message: err.message } };
-      throw err;
-    }
     setInvestors(prev => prev.filter(i => i.id !== id));
-  };
-  const investorBalance = (investorId) => investorTransactions
-    .filter(t => t.investor_id === investorId)
-    .reduce((acc, t) => acc + (t.type === 'WITHDRAWAL' ? -t.amount : (t.type === 'CAPITAL_INJECTION' || t.type === 'TOP_UP' ? t.amount : 0)), 0);
-  // Every capital movement also hits the double-entry ledger so investor capital
-  // shows up in General Ledger / Trial Balance like every other cash movement in
-  // the app — injections and top-ups credit Investor Capital, a withdrawal debits
-  // it back down, and a yield payout is a real expense (return paid on that
-  // capital), not a reduction of the capital balance itself.
-  const handleCreateInvestorTransaction = (payload) => {
-    if (payload.type === 'WITHDRAWAL' && payload.amount > investorBalance(payload.investor_id)) {
-      const err = new Error('Withdrawal amount exceeds the investor\'s available capital balance.');
-      err.response = { data: { message: err.message } };
-      throw err;
-    }
-    const txnId = Date.now();
-    const investor = investors.find(i => i.id === payload.investor_id);
-    const cashAccount = payload.payment_mode === 'BANK' ? '1002' : '1001';
-    const amount = payload.amount;
-    let lines;
-    let narration;
-    if (payload.type === 'WITHDRAWAL') {
-      lines = [journalLine('2100', amount, 0), journalLine(cashAccount, 0, amount)];
-      narration = `Investor capital withdrawal — ${investor?.name || 'Investor'}`;
-    } else if (payload.type === 'YIELD_PAYOUT') {
-      lines = [journalLine('5002', amount, 0), journalLine(cashAccount, 0, amount)];
-      narration = `Investor yield payout — ${investor?.name || 'Investor'}`;
-    } else {
-      lines = [journalLine(cashAccount, amount, 0), journalLine('2100', 0, amount)];
-      narration = `Investor capital ${payload.type === 'TOP_UP' ? 'top-up' : 'injection'} — ${investor?.name || 'Investor'}`;
-    }
-    postJournal(narration, lines, 'INVESTOR_CAPITAL', txnId, payload.date, null);
-    setInvestorTransactions(prev => [{ id: txnId, ...payload }, ...prev]);
   };
 
   // ── Fixed Deposits (mock-only, no backend) ──
@@ -673,11 +668,11 @@ export default function App() {
     }
     setFixedDeposits(prev => prev.map(f => (f.id === id ? { ...f, status: 'MATURED' } : f)));
   };
-  const handlePrematureCloseFixedDeposit = (id) => {
+  const handlePrematureCloseFixedDeposit = (id, customPayoutAmount) => {
     const fd = fixedDeposits.find(f => f.id === id);
     if (fd) {
-      const penaltyRate = 0.02; // 2% penalty on the maturity value for early exit
-      const payout = Math.round(fd.maturity_value * (1 - penaltyRate));
+      const defaultPayout = Math.round(fd.maturity_value * 0.98);
+      const payout = customPayoutAmount !== undefined && customPayoutAmount !== '' ? Math.round(parseFloat(customPayoutAmount) || 0) : defaultPayout;
       const interestPortion = payout - fd.principal_amount;
       const lines = [journalLine('2200', fd.principal_amount, 0)];
       if (interestPortion > 0) lines.push(journalLine('5003', interestPortion, 0));
@@ -691,13 +686,89 @@ export default function App() {
     }
   };
 
+  // ── Recurring Deposits (mock-only, no backend) ──
+  // Unlike Fixed Deposits, no cash arrives at account opening — the customer
+  // pays a fixed amount every month. Booking just creates the account and its
+  // persisted installment schedule (`buildRdInstallments`); nothing is posted
+  // to the books until each installment is actually collected below.
+  const handleCreateRecurringDeposit = (payload) => {
+    const nextSeq = recurringDeposits.length ? Math.max(...recurringDeposits.map(r => parseInt((r.rd_account_no || 'RD-2026-000').split('-')[2], 10) || 0)) + 1 : 1;
+    const newRd = {
+      id: Date.now(),
+      rd_account_no: `RD-2026-${String(nextSeq).padStart(3, '0')}`,
+      status: 'ACTIVE',
+      collected_amount: 0,
+      installments: buildRdInstallments(payload.monthly_installment, payload.tenure_months, payload.booking_date),
+      ...payload
+    };
+    setRecurringDeposits(prev => [...prev, newRd]);
+  };
+  const handleCollectRdInstallment = (id, monthNo, paymentMode = 'CASH') => {
+    const rd = recurringDeposits.find(r => r.id === id);
+    if (!rd) return;
+    const installment = (rd.installments || []).find(i => i.month_no === monthNo);
+    if (!installment || installment.status === 'PAID') return;
+    const collectionDate = new Date().toISOString().slice(0, 10);
+    const cashAccount = paymentMode === 'BANK' ? '1002' : '1001';
+    postJournal(
+      `Recurring deposit installment collected — ${rd.rd_account_no} (${rd.customer_name}) — month ${monthNo}`,
+      [journalLine(cashAccount, installment.amount, 0), journalLine('2201', 0, installment.amount)],
+      'RD_INSTALLMENT', rd.id, collectionDate, rd.branch || null
+    );
+    setRecurringDeposits(prev => prev.map(r => {
+      if (r.id !== id) return r;
+      const updatedInstallments = r.installments.map(i => (
+        i.month_no === monthNo ? { ...i, status: 'PAID', paid_date: collectionDate } : i
+      ));
+      return { ...r, installments: updatedInstallments, collected_amount: (r.collected_amount || 0) + installment.amount };
+    }));
+  };
+  const handleMatureRecurringDeposit = (id) => {
+    const rd = recurringDeposits.find(r => r.id === id);
+    if (rd) {
+      const collected = rd.collected_amount || 0;
+      const interestPortion = Math.max(0, rd.maturity_value - collected);
+      const lines = [journalLine('2201', collected, 0)];
+      if (interestPortion > 0) lines.push(journalLine('5004', interestPortion, 0));
+      lines.push(journalLine('1001', 0, rd.maturity_value));
+      postJournal(
+        `Recurring deposit matured — ${rd.rd_account_no} (${rd.customer_name})`,
+        lines, 'RD_MATURITY', rd.id, new Date().toISOString().slice(0, 10), rd.branch || null
+      );
+    }
+    setRecurringDeposits(prev => prev.map(r => (r.id === id ? { ...r, status: 'MATURED' } : r)));
+  };
+  const handlePrematureCloseRecurringDeposit = (id, customPayoutAmount) => {
+    const rd = recurringDeposits.find(r => r.id === id);
+    if (rd) {
+      const collected = rd.collected_amount || 0;
+      // Early exit returns what was actually paid in (minus a small penalty),
+      // not a share of the full projected maturity value — no bonus interest
+      // for an incomplete term.
+      const defaultPayout = Math.round(collected * 0.98);
+      const payout = customPayoutAmount !== undefined && customPayoutAmount !== '' ? Math.round(parseFloat(customPayoutAmount) || 0) : defaultPayout;
+      const diff = payout - collected;
+      const lines = [journalLine('2201', collected, 0)];
+      if (diff > 0) lines.push(journalLine('5004', diff, 0));
+      else if (diff < 0) lines.push(journalLine('5004', 0, -diff));
+      lines.push(journalLine('1001', 0, payout));
+      postJournal(
+        `Recurring deposit premature closure — ${rd.rd_account_no} (${rd.customer_name})`,
+        lines, 'RD_PREMATURE_CLOSE', rd.id, new Date().toISOString().slice(0, 10), rd.branch || null
+      );
+      setRecurringDeposits(prev => prev.map(r => (r.id === id ? { ...r, status: 'CLOSED_PREMATURE', payout_amount: payout } : r)));
+    }
+  };
+
   // ── Expense Allocation (mock-only, no backend) ──
-  // Categories are funded accounts: PENDING (no balance, not spendable) until an admin
-  // approves the requested amount, at which point they go ACTIVE and vouchers can draw
-  // down `balance`. Creating a category and requesting its initial funding is one step.
+  // Categories are funded directly by whoever creates/tops them up — no approval
+  // queue. `expenseAllocationRequests` is kept purely as a funding-history log
+  // (AccountHistoryModal reads it), every entry already "applied" the moment it's
+  // created since there's no pending state left to approve or reject.
   const handleCreateExpenseCategory = (payload) => {
     const catId = Date.now();
-    const newCategory = { id: catId, name: payload.name, status: 'PENDING', balance: 0, allocated_total: 0 };
+    const amount = Number(payload.amount) || 0;
+    const newCategory = { id: catId, name: payload.name, status: 'ACTIVE', balance: amount, allocated_total: amount };
     setExpenseCategories(prev => [...prev, newCategory]);
     setExpenseAllocationRequests(prev => [
       {
@@ -705,17 +776,14 @@ export default function App() {
         category_id: catId,
         category_name: payload.name,
         type: 'INITIAL',
-        amount: Number(payload.amount) || 0,
+        amount,
         reason: payload.reason || '',
-        status: 'PENDING',
         requested_by: user?.name || 'Staff',
-        requested_at: new Date().toISOString(),
-        approved_by: null,
-        approved_at: null,
-        rejection_reason: null
+        requested_at: new Date().toISOString()
       },
       ...prev
     ]);
+    logAudit('EXPENSE_CATEGORY', catId, 'CREATE', `${payload.name} funded with ₹${amount.toLocaleString('en-IN')}`);
   };
 
   const handleUpdateExpenseCategory = (id, payload) => {
@@ -728,67 +796,36 @@ export default function App() {
     if (category.balance > 0) {
       throw new Error(`Cannot delete "${category.name}" — it still has ₹${category.balance.toLocaleString('en-IN')} balance. Spend it down first.`);
     }
-    if (expenseAllocationRequests.some(r => r.category_id === id && r.status === 'PENDING')) {
-      throw new Error(`Cannot delete "${category.name}" — it has a pending approval request.`);
-    }
     setExpenseCategories(prev => prev.filter(c => c.id !== id));
+    logAudit('EXPENSE_CATEGORY', id, 'DELETE', category.name);
   };
 
-  // A funded (ACTIVE) account running low or to zero requests a TOPUP; an ad-hoc urgent
-  // need not covered by the normal balance requests EMERGENCY funds — both credit the
-  // account's balance once approved, but are tracked separately for audit purposes.
-  const handleRequestExpenseAllocation = (payload) => {
+  // A funded account running low requests a TOPUP; an ad-hoc urgent need not
+  // covered by the normal balance requests EMERGENCY funds — both credit the
+  // account's balance immediately, tagged separately just for the history log.
+  const handleAddExpenseFunds = (payload) => {
     const category = expenseCategories.find(c => c.id === Number(payload.category_id));
     if (!category) return;
+    const amount = Number(payload.amount) || 0;
+    setExpenseCategories(prev => prev.map(c => (
+      c.id === category.id
+        ? { ...c, status: 'ACTIVE', balance: c.balance + amount, allocated_total: c.allocated_total + amount }
+        : c
+    )));
     setExpenseAllocationRequests(prev => [
       {
         id: Date.now(),
         category_id: category.id,
         category_name: category.name,
         type: payload.type || 'TOPUP',
-        amount: Number(payload.amount) || 0,
+        amount,
         reason: payload.reason || '',
-        status: 'PENDING',
         requested_by: user?.name || 'Staff',
-        requested_at: new Date().toISOString(),
-        approved_by: null,
-        approved_at: null,
-        rejection_reason: null
+        requested_at: new Date().toISOString()
       },
       ...prev
     ]);
-  };
-
-  const handleApproveExpenseAllocation = (requestId) => {
-    const request = expenseAllocationRequests.find(r => r.id === requestId);
-    if (!request || request.status !== 'PENDING') return;
-
-    setExpenseCategories(prev => prev.map(c => (
-      c.id === request.category_id
-        ? { ...c, status: 'ACTIVE', balance: c.balance + request.amount, allocated_total: c.allocated_total + request.amount }
-        : c
-    )));
-    setExpenseAllocationRequests(prev => prev.map(r => (
-      r.id === requestId
-        ? { ...r, status: 'APPROVED', approved_by: user?.name || 'Admin', approved_at: new Date().toISOString() }
-        : r
-    )));
-  };
-
-  const handleRejectExpenseAllocation = (requestId, reason) => {
-    const request = expenseAllocationRequests.find(r => r.id === requestId);
-    if (!request || request.status !== 'PENDING') return;
-
-    if (request.type === 'INITIAL') {
-      setExpenseCategories(prev => prev.map(c => (
-        c.id === request.category_id ? { ...c, status: 'REJECTED' } : c
-      )));
-    }
-    setExpenseAllocationRequests(prev => prev.map(r => (
-      r.id === requestId
-        ? { ...r, status: 'REJECTED', rejection_reason: reason || 'Not specified', approved_by: user?.name || 'Admin', approved_at: new Date().toISOString() }
-        : r
-    )));
+    logAudit('EXPENSE_CATEGORY', category.id, 'FUNDS_ADDED', `₹${amount.toLocaleString('en-IN')} added to ${category.name}`);
   };
 
   // ── Expense Vouchers (mock-only, no backend) ──
@@ -846,10 +883,6 @@ export default function App() {
       borrower_code: `BR-${String(nextSeq).padStart(4, '0')}`,
       kyc_status: 'PENDING',
       kyc_verified_at: null,
-      kyc_expiry_date: null,
-      kyc_rejection_reason: null,
-      kyc_reviewed_by: null,
-      kyc_reviewed_at: null,
       status: 'ACTIVE'
     };
     setBorrowers(prev => [created, ...prev]);
@@ -884,33 +917,24 @@ export default function App() {
     let updated = null;
     setBorrowers(prev => prev.map(b => {
       if (b.id !== id) return b;
-      updated = {
-        ...b,
-        kyc_status: 'VERIFIED',
-        kyc_verified_at: new Date().toISOString().slice(0, 10),
-        kyc_expiry_date: new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-        kyc_rejection_reason: null,
-        kyc_reviewed_by: user?.name || 'Admin',
-        kyc_reviewed_at: new Date().toISOString().slice(0, 10)
-      };
+      updated = { ...b, kyc_status: 'VERIFIED', kyc_verified_at: new Date().toISOString().slice(0, 10) };
       return updated;
     }));
+    logAudit('BORROWER', id, 'KYC_VERIFIED', updated?.full_name);
     return updated;
   };
 
-  const handleRejectBorrowerKyc = (id, reason) => {
+  // Only two states exist — verifying and un-verifying are the same toggle in
+  // reverse, with no reason captured (local staff review documents in person;
+  // a typed rejection reason was never actually read anywhere in this app).
+  const handleRejectBorrowerKyc = (id) => {
     let updated = null;
     setBorrowers(prev => prev.map(b => {
       if (b.id !== id) return b;
-      updated = {
-        ...b,
-        kyc_status: 'REJECTED',
-        kyc_rejection_reason: reason,
-        kyc_reviewed_by: user?.name || 'Admin',
-        kyc_reviewed_at: new Date().toISOString().slice(0, 10)
-      };
+      updated = { ...b, kyc_status: 'PENDING', kyc_verified_at: null };
       return updated;
     }));
+    logAudit('BORROWER', id, 'KYC_UNVERIFIED', updated?.full_name);
     return updated;
   };
 
@@ -921,9 +945,10 @@ export default function App() {
     setIsJumpingTenant(false);
 
     if (userData.role === 'SUPER_ADMIN') {
-      navigateTo('/superadmin');
+      window.history.pushState(null, '', '/auth/superadmin');
+      setPath('/auth/superadmin');
     } else {
-      navigateTo('/dashboard');
+      navigateTo('/finance/dashboard');
       setActiveTabState('dashboard');
     }
   };
@@ -940,7 +965,7 @@ export default function App() {
     setAuthFlow('COMPANY_CODE');
     setVerifiedCompany(null);
     setSelectedModule(null);
-    navigateTo('/login');
+    navigateTo('/auth/login');
   };
 
   const handleSuperAdminJumpToTenant = (targetTenant) => {
@@ -957,9 +982,11 @@ export default function App() {
     if (act === 'SUBMIT_APPLICATION' && payload) {
       const schemeId = payload.scheme_id ? Number(payload.scheme_id) : 1;
       const matchedScheme = loanSchemes.find(s => s.id === schemeId);
+      const isCustom = matchedScheme?.formula_type === 'CUSTOM';
       const repaymentMethod = resolveSchemeRepaymentMethod(matchedScheme);
       const interestCalculation = resolveSchemeInterestCalculation(matchedScheme);
       const loanDate = new Date().toISOString().slice(0, 10);
+      const repaymentFrequency = payload.repayment_frequency || matchedScheme?.repayment_frequency || 'DAILY';
 
       const newApp = {
         id: Date.now(),
@@ -972,28 +999,45 @@ export default function App() {
         collector: user?.name || 'Admin',
         loan_date: loanDate,
         principal_amount: payload.principal_amount,
-        total_payable: payload.principal_amount * (1 + (payload.monthly_interest_rate / 100) * payload.tenure_months),
         collected_amount: 0,
         pending_amount: payload.principal_amount,
         installment_amount: payload.installment_amount,
         tenure_days: Math.round(payload.tenure_months * 30),
         monthly_interest_rate: payload.monthly_interest_rate,
-        repayment_frequency: payload.repayment_frequency || matchedScheme?.repayment_frequency || 'DAILY',
+        repayment_frequency: repaymentFrequency,
+        // Custom schemes snapshot their formulas onto the loan at creation — a later
+        // edit to the scheme's formula can never retroactively change this loan's math.
+        formula_type: isCustom ? 'CUSTOM' : 'STANDARD',
+        accrual_mode: isCustom ? matchedScheme.accrual_mode : undefined,
+        interest_formula: isCustom ? matchedScheme.interest_formula : undefined,
+        installment_formula: isCustom ? matchedScheme.installment_formula : undefined,
         repayment_method: repaymentMethod,
-        interest_calculation: interestCalculation,
-        repayment_schedule: repaymentMethod === 'EMI' ? generateEmiSchedule({
-          principal: payload.principal_amount,
-          monthlyInterestRate: payload.monthly_interest_rate,
-          tenureMonths: payload.tenure_months,
-          repaymentFrequency: payload.repayment_frequency || matchedScheme?.repayment_frequency || 'DAILY',
-          interestCalculation,
-          startDate: loanDate
-        }) : null,
+        interest_calculation: isCustom ? 'CUSTOM_FORMULA' : interestCalculation,
+        repayment_schedule: isCustom
+          ? (matchedScheme.accrual_mode === 'SCHEDULED' ? generateCustomSchedule({
+              principal: payload.principal_amount,
+              monthlyInterestRate: payload.monthly_interest_rate,
+              tenureMonths: payload.tenure_months,
+              repaymentFrequency,
+              interestFormula: matchedScheme.interest_formula,
+              installmentFormula: matchedScheme.installment_formula,
+              startDate: loanDate
+            }) : null)
+          : (repaymentMethod === 'EMI' ? generateEmiSchedule({
+              principal: payload.principal_amount,
+              monthlyInterestRate: payload.monthly_interest_rate,
+              tenureMonths: payload.tenure_months,
+              repaymentFrequency,
+              interestCalculation,
+              startDate: loanDate
+            }) : null),
         purpose: payload.purpose,
         nominee: payload.nominee,
         security: payload.security,
         status: 'PENDING'
       };
+      newApp.total_payable = estimateCustomTotalPayable(newApp)
+        ?? (payload.principal_amount * (1 + (payload.monthly_interest_rate / 100) * payload.tenure_months));
       setLoans(prev => [newApp, ...prev]);
       return;
     }
@@ -1034,23 +1078,33 @@ export default function App() {
     let newPendingFromServer;
     let synced = false;
 
-    try {
-      const res = await api.post('/finance/collections', {
-        loan_id: payload.loan_id,
-        amount: totalAmt,
-        payment_mode: payload.payment_mode || 'CASH',
-        notes: payload.notes || '',
-        payment_date: collectionDate
-      });
-      const data = res.data?.data;
-      if (data) {
-        principalPaid = data.principal_portion;
-        interestPaid = data.interest_portion;
-        newPendingFromServer = data.new_pending_balance;
-        synced = true;
+    // A custom-formula loan's interest/principal split is computed here on the client
+    // by an engine the server has no concept of — the server would run its own,
+    // different (and here, wrong) calculation and silently overwrite the correct
+    // numbers below if this were allowed to sync. So these loans skip the server call
+    // entirely and always use the client-computed split, same as loan schemes are
+    // already mock-only/client-authoritative elsewhere in this app.
+    const isCustomFormulaLoan = loans.find(l => l.id === payload.loan_id)?.formula_type === 'CUSTOM';
+
+    if (!isCustomFormulaLoan) {
+      try {
+        const res = await api.post('/v1/finance/collections', {
+          loan_id: payload.loan_id,
+          amount: totalAmt,
+          payment_mode: payload.payment_mode || 'CASH',
+          notes: payload.notes || '',
+          payment_date: collectionDate
+        });
+        const data = res.data?.data;
+        if (data) {
+          principalPaid = data.principal_portion;
+          interestPaid = data.interest_portion;
+          newPendingFromServer = data.new_pending_balance;
+          synced = true;
+        }
+      } catch (err) {
+        console.warn('Collection not synced to server — recording locally only:', err.message);
       }
-    } catch (err) {
-      console.warn('Collection not synced to server — recording locally only:', err.message);
     }
 
     // One voucher number for the whole transaction — it's minted here so the
@@ -1137,10 +1191,7 @@ export default function App() {
     }));
 
     setCollections(prev => [newReceipt, ...prev]);
-    logAudit('COLLECTION', newReceipt.id, 'PAYMENT_RECORDED', null, {
-      loan_id: payload.loan_id, amount: totalAmt, principal_portion: principalPaid,
-      interest_portion: interestPaid, voucher_no: voucherNo, payment_mode: newReceipt.payment_mode
-    });
+    logAudit('COLLECTION', newReceipt.id, 'PAYMENT_RECORDED', `₹${totalAmt.toLocaleString('en-IN')} for loan #${payload.loan_id} (${newReceipt.payment_mode})`);
 
     // Cash in from the borrower splits straight back out to what it settles: the
     // loan principal outstanding, interest earned, and any penalty — interest and
@@ -1210,7 +1261,7 @@ export default function App() {
     setCollections(prev => prev.map(c => (c.id === collectionId ? {
       ...c, reverted: true, revert_reason: reason, reverted_by: user?.name || 'Admin', reverted_at: new Date().toISOString()
     } : c)));
-    logAudit('COLLECTION', collectionId, 'REVERTED', collection, { revert_reason: reason });
+    logAudit('COLLECTION', collectionId, 'REVERTED', `${collection.loan_account_no || 'Loan #' + collection.loan_id} — ${reason}`);
   };
 
   // Metadata-only correction — payment mode, reference no, collector, date,
@@ -1238,7 +1289,7 @@ export default function App() {
       edited_by: user?.name || 'Admin',
       edited_at: new Date().toISOString()
     } : c)));
-    logAudit('COLLECTION', collectionId, 'UPDATE', before, updates);
+    logAudit('COLLECTION', collectionId, 'UPDATE', before.loan_account_no || `Loan #${before.loan_id}`);
   };
 
   const handleMarkChequeCleared = (collectionId) => {
@@ -1246,7 +1297,7 @@ export default function App() {
     setCollections(prev => prev.map(c => (c.id === collectionId ? {
       ...c, clearance_status: 'CLEARED', cleared_by: user?.name || 'Admin', cleared_at: new Date().toISOString()
     } : c)));
-    logAudit('COLLECTION', collectionId, 'CHEQUE_CLEARED', before, { clearance_status: 'CLEARED' });
+    logAudit('COLLECTION', collectionId, 'CHEQUE_CLEARED', before?.loan_account_no || `Loan #${before?.loan_id}`);
   };
 
   // A bounced cheque never actually settled — reverse it exactly like a void,
@@ -1259,18 +1310,18 @@ export default function App() {
     setCollections(prev => prev.map(c => (c.id === collectionId ? {
       ...c, clearance_status: 'BOUNCED', bounce_reason: reason, bounced_by: user?.name || 'Admin', bounced_at: new Date().toISOString()
     } : c)));
-    logAudit('COLLECTION', collectionId, 'CHEQUE_BOUNCED', collection, { clearance_status: 'BOUNCED', bounce_reason: reason });
+    logAudit('COLLECTION', collectionId, 'CHEQUE_BOUNCED', `${collection.loan_account_no || 'Loan #' + collection.loan_id} — ${reason}`);
   };
 
   const handleDisburseLoan = (form) => {
     const mRate = parseFloat(form.monthly_interest_rate || form.interest_rate) || 2.0;
     const months = (form.tenure_days / 30) || 4;
-    const total_payable = form.principal_amount * (1 + (mRate / 100) * months);
     const isApplication = form.mode === 'APPLICATION';
 
     // Link to an existing Customer Directory record by phone, if one exists.
     const matchedBorrower = borrowers.find(b => b.phone === form.phone);
     const matchedScheme = loanSchemes.find(s => s.id === (form.scheme_id ? Number(form.scheme_id) : loanSchemes[0]?.id));
+    const isCustom = matchedScheme?.formula_type === 'CUSTOM';
     const repaymentMethod = resolveSchemeRepaymentMethod(matchedScheme);
     const interestCalculation = resolveSchemeInterestCalculation(matchedScheme);
     const loanDate = new Date().toISOString().slice(0, 10);
@@ -1294,29 +1345,46 @@ export default function App() {
       loan_date: loanDate,
       next_due: new Date().toISOString().slice(0, 10),
       principal_amount: parseFloat(form.principal_amount),
-      total_payable: parseFloat(total_payable),
       collected_amount: 0,
       pending_amount: parseFloat(form.principal_amount),
       installment_amount: parseFloat(form.installment_amount),
       tenure_days: parseInt(form.tenure_days),
       monthly_interest_rate: mRate,
       repayment_frequency: repaymentFrequency,
+      // Custom schemes snapshot their formulas onto the loan at creation — a later
+      // edit to the scheme's formula can never retroactively change this loan's math.
+      formula_type: isCustom ? 'CUSTOM' : 'STANDARD',
+      accrual_mode: isCustom ? matchedScheme.accrual_mode : undefined,
+      interest_formula: isCustom ? matchedScheme.interest_formula : undefined,
+      installment_formula: isCustom ? matchedScheme.installment_formula : undefined,
       repayment_method: repaymentMethod,
-      interest_calculation: interestCalculation,
-      repayment_schedule: repaymentMethod === 'EMI' ? generateEmiSchedule({
-        principal: parseFloat(form.principal_amount),
-        monthlyInterestRate: mRate,
-        tenureMonths: months,
-        repaymentFrequency,
-        interestCalculation,
-        startDate: loanDate
-      }) : null,
+      interest_calculation: isCustom ? 'CUSTOM_FORMULA' : interestCalculation,
+      repayment_schedule: isCustom
+        ? (matchedScheme.accrual_mode === 'SCHEDULED' ? generateCustomSchedule({
+            principal: parseFloat(form.principal_amount),
+            monthlyInterestRate: mRate,
+            tenureMonths: months,
+            repaymentFrequency,
+            interestFormula: matchedScheme.interest_formula,
+            installmentFormula: matchedScheme.installment_formula,
+            startDate: loanDate
+          }) : null)
+        : (repaymentMethod === 'EMI' ? generateEmiSchedule({
+            principal: parseFloat(form.principal_amount),
+            monthlyInterestRate: mRate,
+            tenureMonths: months,
+            repaymentFrequency,
+            interestCalculation,
+            startDate: loanDate
+          }) : null),
       aadhaar: matchedBorrower?.aadhaar_number || '',
       pan: matchedBorrower?.pan_number || '',
       guarantor: matchedBorrower?.guarantor_name || 'Self',
       purpose: form.purpose || '',
       status: isApplication ? 'PENDING' : 'ACTIVE'
     };
+    newLoan.total_payable = estimateCustomTotalPayable(newLoan)
+      ?? (parseFloat(form.principal_amount) * (1 + (mRate / 100) * months));
 
     setLoans(prev => [newLoan, ...prev]);
 
@@ -1335,7 +1403,10 @@ export default function App() {
   const handleApproveApplication = (loanId) => {
     setLoans(prev => prev.map(l => (
       l.id === loanId
-        ? { ...l, status: 'APPROVED', loan_account_no: l.loan_account_no.replace('APP-', 'LN-'), total_payable: l.principal_amount * 1.1, next_due: new Date().toISOString().slice(0, 10) }
+        // A custom-formula loan already has a correctly-computed total_payable from
+        // submission (estimateCustomTotalPayable) — approval must not clobber it with
+        // this flat estimate, which only applies to standard schemes.
+        ? { ...l, status: 'APPROVED', loan_account_no: l.loan_account_no.replace('APP-', 'LN-'), total_payable: l.formula_type === 'CUSTOM' ? l.total_payable : l.principal_amount * 1.1, next_due: new Date().toISOString().slice(0, 10) }
         : l
     )));
   };
@@ -1363,7 +1434,7 @@ export default function App() {
         ? { ...l, status: 'CLOSED', closed_at: new Date().toISOString().slice(0, 10), closed_by: user?.name || 'Admin' }
         : l
     )));
-    logAudit('LOAN', loanId, 'CLOSURE_APPROVED', { status: before?.status }, { status: 'CLOSED' });
+    logAudit('LOAN', loanId, 'CLOSURE_APPROVED', before?.loan_account_no);
   };
 
   const handleRejectLoanClosure = (loanId, reason) => {
@@ -1373,7 +1444,7 @@ export default function App() {
         ? { ...l, status: 'ACTIVE', closure_rejection_reason: reason || 'Not specified', closure_requested_at: null, closure_requested_by: null }
         : l
     )));
-    logAudit('LOAN', loanId, 'CLOSURE_REJECTED', { status: before?.status }, { status: 'ACTIVE', reason: reason || 'Not specified' });
+    logAudit('LOAN', loanId, 'CLOSURE_REJECTED', `${before?.loan_account_no} — ${reason || 'Not specified'}`);
   };
 
   // Role-based save (from the global Roles & Permissions matrix, not tied to one
@@ -1417,41 +1488,29 @@ export default function App() {
     );
   }
 
-  // Route 1: Dedicated Super Admin Login Page (/superadmin/login or /superadmin)
-  if (path === '/superadmin/login' || path === '/superadmin') {
+  // Route 1: Dedicated Super Admin Login Page (/auth/superadmin or /auth/superadmin/login).
+  if (!isAuthenticated && (path === '/auth/superadmin' || path === '/auth/superadmin/login')) {
     return <SuperAdminLoginPage onLoginSuccess={handleLoginSuccess} />;
   }
 
-  // Route 2: Company Code -> Subscribed Module Selection -> Credentials
-  // (Guarded against a refresh landing on a step whose prerequisite data went missing.)
-  if (!isAuthenticated) {
-    const effectiveAuthFlow = authFlow === 'LOGIN' && (!verifiedCompany || !selectedModule)
-      ? (verifiedCompany ? 'MODULE_SELECT' : 'COMPANY_CODE')
-      : (authFlow === 'MODULE_SELECT' && !verifiedCompany ? 'COMPANY_CODE' : authFlow);
+  // Guard: If trying to access /auth/superadmin while authenticated as non-Super-Admin
+  if (isAuthenticated && (path === '/auth/superadmin' || path === '/auth/superadmin/login') && user?.role !== 'SUPER_ADMIN') {
+    return <SuperAdminLoginPage onLoginSuccess={handleLoginSuccess} />;
+  }
 
-    if (effectiveAuthFlow === 'COMPANY_CODE') {
+  // Route 2: Company Code -> Credentials Login for unauthenticated users
+  if (!isAuthenticated) {
+    const effectiveAuthFlow = authFlow === 'LOGIN' && !verifiedCompany
+      ? 'COMPANY_CODE'
+      : authFlow;
+
+    if (effectiveAuthFlow === 'COMPANY_CODE' || !verifiedCompany) {
       return (
         <CompanyCodePage
           onVerified={(company) => {
             setVerifiedCompany(company);
-            setAuthFlow('MODULE_SELECT');
-          }}
-        />
-      );
-    }
-
-    if (effectiveAuthFlow === 'MODULE_SELECT') {
-      return (
-        <ModuleSelectorPage
-          company={verifiedCompany}
-          onBack={() => {
-            setVerifiedCompany(null);
-            setAuthFlow('COMPANY_CODE');
-          }}
-          onSelectModule={(mod) => {
-            setSelectedModule(mod);
+            setSelectedModule({ id: 'financial-erp', title: 'Financial ERP' });
             setAuthFlow('LOGIN');
-            navigateTo('/login');
           }}
         />
       );
@@ -1460,18 +1519,19 @@ export default function App() {
     return (
       <LoginPage
         company={verifiedCompany}
-        module={selectedModule}
+        module={selectedModule || { id: 'financial-erp', title: 'Financial ERP' }}
         onLoginSuccess={handleLoginSuccess}
         onBackToModules={() => {
+          setVerifiedCompany(null);
           setSelectedModule(null);
-          setAuthFlow('MODULE_SELECT');
+          setAuthFlow('COMPANY_CODE');
         }}
       />
     );
   }
 
-  // Route 3: Render Super Admin Portal if logged in as SUPER_ADMIN
-  if (user?.role === 'SUPER_ADMIN' && !isJumpingTenant) {
+  // Route 3: Render Super Admin Portal ONLY when authenticated as SUPER_ADMIN on /auth/superadmin path
+  if (isAuthenticated && user?.role === 'SUPER_ADMIN' && !isJumpingTenant && (path === '/auth/superadmin' || path.startsWith('/auth/superadmin'))) {
     return (
       <SuperAdminPortal
         user={user}
@@ -1489,6 +1549,9 @@ export default function App() {
       tenant={tenant}
       user={user}
       onSignOut={handleSignOut}
+      branchesList={branchesList}
+      selectedBranch={selectedBranch}
+      onChangeBranch={handleChangeBranch}
     >
       {/* Super Admin Impersonation Banner */}
       {user?.role === 'SUPER_ADMIN' && isJumpingTenant && (
@@ -1511,34 +1574,29 @@ export default function App() {
           borrowers={borrowers}
           branchesList={branchesList}
           user={user}
+          selectedBranch={selectedBranch}
           onQuickAction={handleQuickAction}
           onOpenCollectDrawer={(loan) => setSelectedLoanForCollection(loan)}
         />
       )}
 
-      {/* Loan Register (Active / Closed accounts + Closure Requests) */}
-      {(activeTab.includes('active-loans') || activeTab.includes('closed-loans') || activeTab.includes('loans-register')) && (
+      {/* Unified Loans Register (Active / Applications / Closed / Closure Requests) */}
+      {(activeTab.includes('active-loans') || activeTab.includes('closed-loans') || activeTab.includes('loans-register') || activeTab.includes('loan-applications')) && (
         <LoansView
           loans={loans}
           borrowers={borrowers}
           loanSchemes={loanSchemes}
           receipts={collections}
           activeTab={activeTab}
-          onApproveLoanClosure={handleApproveLoanClosure}
-          onRejectLoanClosure={handleRejectLoanClosure}
-        />
-      )}
-
-      {/* Loan Applications (creation + admin approval — separate from the register) */}
-      {activeTab.includes('loan-applications') && (
-        <LoanApplicationsView
-          loans={loans}
-          borrowers={borrowers}
-          loanSchemes={loanSchemes}
+          branches={branchesList}
+          selectedBranch={selectedBranch}
+          onCreateBorrower={handleCreateBorrower}
           onQuickAction={handleQuickAction}
           onApproveApplication={handleApproveApplication}
           onRejectApplication={handleRejectApplication}
           onRevertApplication={handleRevertApplication}
+          onApproveLoanClosure={handleApproveLoanClosure}
+          onRejectLoanClosure={handleRejectLoanClosure}
         />
       )}
 
@@ -1546,11 +1604,11 @@ export default function App() {
       {activeTab === 'investor-capital' && (
         <InvestorCapitalView
           investors={investors}
-          transactions={investorTransactions}
+          branchesList={branchesList}
+          selectedBranch={selectedBranch}
           onCreateInvestor={handleCreateInvestor}
           onUpdateInvestor={handleUpdateInvestor}
           onDeleteInvestor={handleDeleteInvestor}
-          onCreateTransaction={handleCreateInvestorTransaction}
         />
       )}
 
@@ -1560,9 +1618,25 @@ export default function App() {
           fixedDeposits={fixedDeposits}
           borrowers={borrowers}
           tenant={tenant}
+          branchesList={branchesList}
+          selectedBranch={selectedBranch}
           onCreateFd={handleCreateFixedDeposit}
           onMatureFd={handleMatureFixedDeposit}
           onPrematureCloseFd={handlePrematureCloseFixedDeposit}
+        />
+      )}
+
+      {/* Recurring Deposits */}
+      {activeTab === 'recurring-deposits' && (
+        <RecurringDepositsView
+          recurringDeposits={recurringDeposits}
+          borrowers={borrowers}
+          branchesList={branchesList}
+          selectedBranch={selectedBranch}
+          onCreateRd={handleCreateRecurringDeposit}
+          onCollectInstallment={handleCollectRdInstallment}
+          onMatureRd={handleMatureRecurringDeposit}
+          onPrematureCloseRd={handlePrematureCloseRecurringDeposit}
         />
       )}
 
@@ -1575,6 +1649,8 @@ export default function App() {
           loanSchemes={loanSchemes}
           user={user}
           tenant={tenant}
+          branchesList={branchesList}
+          selectedBranch={selectedBranch}
           onOpenCollectDrawer={(loan) => setSelectedLoanForCollection(loan)}
           onRecordCollection={handleRecordCollection}
           onQuickAction={handleQuickAction}
@@ -1587,19 +1663,19 @@ export default function App() {
 
       {/* Finance & Accounting — each menu item is its own standalone page */}
       {(activeTab.includes('general-ledger') || activeTab === 'finance' || activeTab === 'finance-accounting') && (
-        <GeneralLedgerView chartOfAccounts={chartOfAccounts} journalEntries={journalEntries} branchesList={branchesList} />
+        <GeneralLedgerView chartOfAccounts={chartOfAccounts} journalEntries={journalEntries} branchesList={branchesList} selectedBranch={selectedBranch} />
       )}
       {(activeTab.includes('loan-ledger')) && (
-        <LoanLedgerView loans={loans} collections={collections} branchesList={branchesList} />
+        <LoanLedgerView loans={loans} collections={collections} branchesList={branchesList} selectedBranch={selectedBranch} />
       )}
       {(activeTab.includes('customer-ledger')) && (
-        <CustomerLedgerView borrowers={borrowers} loans={loans} collections={collections} branchesList={branchesList} />
+        <CustomerLedgerView borrowers={borrowers} loans={loans} collections={collections} branchesList={branchesList} selectedBranch={selectedBranch} />
       )}
       {(activeTab.includes('trial-balance')) && (
-        <TrialBalanceView chartOfAccounts={chartOfAccounts} journalEntries={journalEntries} branchesList={branchesList} />
+        <TrialBalanceView chartOfAccounts={chartOfAccounts} journalEntries={journalEntries} branchesList={branchesList} selectedBranch={selectedBranch} />
       )}
       {(activeTab.includes('auto-vouchers')) && (
-        <AutoVouchersView journalEntries={journalEntries} branchesList={branchesList} chartOfAccounts={chartOfAccounts} tenant={tenant} />
+        <AutoVouchersView journalEntries={journalEntries} branchesList={branchesList} chartOfAccounts={chartOfAccounts} tenant={tenant} selectedBranch={selectedBranch} />
       )}
       {(activeTab.includes('manual-vouchers')) && (
         <ManualVouchersView
@@ -1609,12 +1685,14 @@ export default function App() {
           employees={employees}
           expenseCategories={expenseCategories}
           tenant={tenant}
+          selectedBranch={selectedBranch}
           onCreateManualVoucher={handleCreateManualVoucher}
         />
       )}
       {(activeTab.includes('eod-process')) && (
         <EODProcessView
           branchesList={branchesList}
+          selectedBranch={selectedBranch}
           journalEntries={journalEntries}
           chartOfAccounts={chartOfAccounts}
           eodRecords={eodRecords}
@@ -1643,6 +1721,7 @@ export default function App() {
             borrowers={borrowers}
             loans={loans}
             branches={branchesList}
+            selectedBranch={selectedBranch}
             onCreateBorrower={handleCreateBorrower}
             onUpdateBorrower={handleUpdateBorrower}
             onDeleteBorrower={handleDeleteBorrower}
@@ -1653,25 +1732,28 @@ export default function App() {
 
       {/* Reports Module — each report is a standalone read-only page */}
       {(activeTab.includes('reports/loan-portfolio')) && (
-        <LoanPortfolioReportView loans={loans} branchesList={branchesList} journalEntries={journalEntries} tenant={tenant} user={user} />
+        <LoanPortfolioReportView loans={loans} branchesList={branchesList} journalEntries={journalEntries} tenant={tenant} user={user} selectedBranch={selectedBranch} />
       )}
       {(activeTab.includes('reports/collections')) && (
-        <CollectionsReportView collections={collections} loans={loans} branchesList={branchesList} journalEntries={journalEntries} tenant={tenant} user={user} />
+        <CollectionsReportView collections={collections} loans={loans} branchesList={branchesList} journalEntries={journalEntries} tenant={tenant} user={user} selectedBranch={selectedBranch} />
       )}
       {(activeTab.includes('reports/borrower-kyc')) && (
-        <BorrowerKycReportView borrowers={borrowers} loans={loans} branchesList={branchesList} tenant={tenant} user={user} />
+        <BorrowerKycReportView borrowers={borrowers} loans={loans} branchesList={branchesList} tenant={tenant} user={user} selectedBranch={selectedBranch} />
       )}
       {(activeTab.includes('reports/investor-capital')) && (
-        <InvestorCapitalReportView investors={investors} investorTransactions={investorTransactions} tenant={tenant} user={user} />
+        <InvestorCapitalReportView investors={investors} tenant={tenant} user={user} />
       )}
       {(activeTab.includes('reports/fixed-deposits')) && (
         <FixedDepositReportView fixedDeposits={fixedDeposits} borrowers={borrowers} tenant={tenant} user={user} />
       )}
+      {(activeTab.includes('reports/recurring-deposits')) && (
+        <RecurringDepositReportView recurringDeposits={recurringDeposits} borrowers={borrowers} tenant={tenant} user={user} />
+      )}
       {(activeTab.includes('reports/financial-statements')) && (
-        <FinancialStatementsReportView chartOfAccounts={chartOfAccounts} journalEntries={journalEntries} branchesList={branchesList} tenant={tenant} user={user} />
+        <FinancialStatementsReportView chartOfAccounts={chartOfAccounts} journalEntries={journalEntries} branchesList={branchesList} tenant={tenant} user={user} selectedBranch={selectedBranch} />
       )}
       {(activeTab.includes('reports/staff-performance')) && (
-        <StaffPerformanceReportView employees={employees} loans={loans} collections={collections} branchesList={branchesList} journalEntries={journalEntries} tenant={tenant} user={user} />
+        <StaffPerformanceReportView employees={employees} loans={loans} collections={collections} branchesList={branchesList} journalEntries={journalEntries} tenant={tenant} user={user} selectedBranch={selectedBranch} />
       )}
 
       {/* Master Settings Module */}
@@ -1711,14 +1793,16 @@ export default function App() {
             onCreateLoanScheme={handleCreateLoanScheme}
             onUpdateLoanScheme={handleUpdateLoanScheme}
             onDeleteLoanScheme={handleDeleteLoanScheme}
+            customFormulas={customFormulas}
+            onCreateCustomFormula={handleCreateCustomFormula}
+            onUpdateCustomFormula={handleUpdateCustomFormula}
+            onDeleteCustomFormula={handleDeleteCustomFormula}
             expenseCategories={expenseCategories}
             onCreateExpenseCategory={handleCreateExpenseCategory}
             onUpdateExpenseCategory={handleUpdateExpenseCategory}
             onDeleteExpenseCategory={handleDeleteExpenseCategory}
             expenseAllocationRequests={expenseAllocationRequests}
-            onRequestExpenseAllocation={handleRequestExpenseAllocation}
-            onApproveExpenseAllocation={handleApproveExpenseAllocation}
-            onRejectExpenseAllocation={handleRejectExpenseAllocation}
+            onAddExpenseFunds={handleAddExpenseFunds}
           />
         )
       )}

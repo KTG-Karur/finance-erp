@@ -7,7 +7,7 @@ import {
 import { createLoanSchema } from './loan.schema.js';
 
 export default async function loanRoutes(fastify, options) {
-  const onRequest = [fastify.authenticate, fastify.tenantGuard, fastify.moduleGuard('loan')];
+  const onRequest = [fastify.authenticate, fastify.tenantGuard, fastify.requireTenantModule('loans'), fastify.moduleGuard('loan')];
 
   fastify.get('/loans', { onRequest }, getLoansHandler);
   fastify.get('/loans/:id', { onRequest }, getLoanByIdHandler);

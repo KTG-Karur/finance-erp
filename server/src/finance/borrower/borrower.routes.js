@@ -5,7 +5,7 @@ import {
 } from './borrower.controller.js';
 
 export default async function borrowerRoutes(fastify, options) {
-  const onRequest = [fastify.authenticate, fastify.tenantGuard, fastify.moduleGuard('loan')];
+  const onRequest = [fastify.authenticate, fastify.tenantGuard, fastify.requireTenantModule('borrowers'), fastify.moduleGuard('loan')];
 
   fastify.get('/borrowers', { onRequest }, getBorrowersHandler);
   fastify.get('/borrowers/:id', { onRequest }, getBorrowerByIdHandler);

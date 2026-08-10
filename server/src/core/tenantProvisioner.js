@@ -2,6 +2,7 @@ import mysql from 'mysql2/promise';
 import { getMasterDbConfig, getTenantDbConfig } from '../config/db.js';
 import * as tenantMigration from '../tenant-configuration/migrations/20260807000001-create-tenant-tables.js';
 import * as tenantSeeder from '../tenant-configuration/seeders/tenantSeeders.js';
+import { DataTypes, Sequelize, createQueryInterface } from '../database/sequelizeShim.js';
 
 const TENANT_MIGRATION_NAME = '20260807000001-create-tenant-tables.js';
 
@@ -13,10 +14,17 @@ export async function provisionNewTenantCompany(masterDb, { company_code, name, 
   const code = String(company_code).trim().toUpperCase();
   const dbName = `finance_db_${code.toLowerCase()}`;
 
+  // db_user/db_password_enc are NOT NULL with no default — vestigial from an
+  // earlier per-tenant-credentials design that was never actually built (every
+  // tenant DB connection today shares the one NODE_ENV-wide DB_USER/DB_PASSWORD
+  // from config/db.js, not a per-company stored credential). Populated here only
+  // to satisfy the schema; not read anywhere.
+  const masterConfigForInsert = getMasterDbConfig();
+
   // 1. Create company record in finance_master_db
   const [res] = await masterDb.query(
-    `INSERT INTO companies (name, company_code, db_name, is_active) VALUES (?, ?, ?, 1)`,
-    [name, code, dbName]
+    `INSERT INTO companies (name, company_code, db_name, db_user, db_password_enc, is_active) VALUES (?, ?, ?, ?, ?, 1)`,
+    [name, code, dbName, masterConfigForInsert.user, 'unused_shared_credential']
   );
   const companyId = res.insertId;
 
@@ -47,45 +55,15 @@ export async function provisionNewTenantCompany(masterDb, { company_code, name, 
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
     `);
 
-    const mockQueryInterface = {
-      async createTable(tableName, columns) {
-        let ddl = `CREATE TABLE IF NOT EXISTS \`${tableName}\` (`;
-        const colDefs = [];
-        for (const [colName, spec] of Object.entries(columns)) {
-          let typeStr = 'VARCHAR(255)';
-          if (spec.type?.key === 'INTEGER') typeStr = 'INT';
-          if (spec.type?.key === 'DECIMAL') typeStr = 'DECIMAL(15,2)';
-          if (spec.type?.key === 'TEXT') typeStr = 'TEXT';
-          if (spec.type?.key === 'BOOLEAN') typeStr = 'TINYINT(1)';
-          if (spec.type?.key === 'DATEONLY') typeStr = 'DATE';
-          if (spec.type?.key === 'DATE') typeStr = 'DATETIME';
-          if (spec.type?.key === 'ENUM') typeStr = `ENUM(${spec.type.values.map(v => `'${v}'`).join(',')})`;
+    const queryInterface = createQueryInterface(tenantConn);
 
-          let col = `\`${colName}\` ${typeStr}`;
-          if (spec.primaryKey) col += ' PRIMARY KEY AUTO_INCREMENT';
-          if (spec.allowNull === false && !spec.primaryKey) col += ' NOT NULL';
-          if (spec.unique) col += ' UNIQUE';
-          colDefs.push(col);
-        }
-        ddl += colDefs.join(', ') + ') ENGINE=InnoDB;';
-        await tenantConn.query(ddl);
-      },
-      async bulkInsert(tableName, records) {
-        if (!records || !records.length) return;
-        const keys = Object.keys(records[0]);
-        const sql = `INSERT INTO \`${tableName}\` (${keys.map(k => `\`${k}\``).join(',')}) VALUES ?`;
-        const values = records.map(r => keys.map(k => r[k]));
-        await tenantConn.query(sql, [values]);
-      }
-    };
-
-    const mockSequelize = {
-      literal(str) { return str; }
-    };
-
-    // Execute tenant migrations & seeders
-    await tenantMigration.up(mockQueryInterface, mockSequelize);
-    await tenantSeeder.up(mockQueryInterface, mockSequelize);
+    // Execute tenant migrations, then only the structural defaults (chart of
+    // accounts, EOD denominations) — NOT tenantSeeder.up's ALPHA-specific demo
+    // content (named people, sample loans, and critically an admin@alpha.com
+    // login) which would otherwise land in every newly provisioned tenant's
+    // database, including a cross-tenant credential collision.
+    await tenantMigration.up(queryInterface, { ...Sequelize, DataTypes });
+    await tenantSeeder.seedDefaults(queryInterface);
 
     // Record migration in SequelizeMeta
     await tenantConn.query(
@@ -93,11 +71,15 @@ export async function provisionNewTenantCompany(masterDb, { company_code, name, 
       [TENANT_MIGRATION_NAME]
     );
 
-    // Create default company admin user in tenant users table
+    // Create default company admin user in tenant users table. company_id is
+    // always 1 here, NOT the master DB's `companyId` (2, 3, ...) — a tenant DB is
+    // exclusively that one company's data (database-per-tenant), and every other
+    // query against it (tenantGuard, org/employee services) filters on that same
+    // "always 1" convention, matching what the seeder already does for ALPHA.
     if (admin_email && admin_password) {
       await tenantConn.query(
-        `INSERT INTO users (company_id, name, email, password, role, status) VALUES (?, ?, ?, ?, 'COMPANY_ADMIN', 'ACTIVE')`,
-        [companyId, `${name} Admin`, admin_email, admin_password]
+        `INSERT INTO users (company_id, name, email, password, role, status) VALUES (1, ?, ?, ?, 'COMPANY_ADMIN', 'ACTIVE')`,
+        [`${name} Admin`, admin_email, admin_password]
       );
     }
 

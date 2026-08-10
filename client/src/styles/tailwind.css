@@ -1,0 +1,4 @@
+/* No @tailwind base — this app has no @apply usage and its own SCSS reset
+   already covers the base layer. Only utilities are needed, for the two
+   Super Admin screens listed in tailwind.config.js's `content`. */
+@tailwind utilities;

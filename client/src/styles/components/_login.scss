@@ -170,6 +170,38 @@
   }
 }
 
+// Module Ecosystem Strip — small colored chips listing the platform's
+// modules (Financial ERP, Gold Loan, Chit Fund, Microfinance). Each chip's
+// color comes from inline --chip-bg/--chip-border custom properties set
+// per-module in the JSX, not from the theme.
+.fluid-ecosystem-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+
+  .ecosystem-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 6px 12px;
+    background: var(--chip-bg, #F8FAFC);
+    border: 1px solid var(--chip-border, #E2E8F0);
+    border-radius: 20px;
+
+    .chip-icon-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .chip-title {
+      font-size: 0.775rem;
+      font-weight: 600;
+      color: #0F172A;
+    }
+  }
+}
+
 // Frameless Telemetry Row
 .fluid-telemetry-row {
   display: flex;
@@ -285,6 +317,111 @@
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+    animation: authCardEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+
+    &.auth-card-exit {
+      animation: authCardExit 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+  }
+
+  .btn-round-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    display: inline-block;
+    box-sizing: border-box;
+    animation: btnSpin 0.6s linear infinite;
+    margin-right: 8px;
+    flex-shrink: 0;
+  }
+
+  @keyframes btnSpin {
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes authCardEnter {
+    from {
+      opacity: 0;
+      transform: translateY(14px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes authCardExit {
+    from {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(-14px) scale(0.97);
+    }
+  }
+
+  // Simple single-step card header (Company Code screen) — badge + title +
+  // subtitle, as opposed to the segmented-tabs header used by the full
+  // multi-step credentials card below.
+  .saas-card-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .saas-badge {
+    align-self: flex-start;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-bottom: 0.3rem;
+
+    &.theme-badge {
+      background: #ECFDF5;
+      color: #059669;
+    }
+  }
+
+  .saas-title {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #0F172A;
+    margin: 0;
+    letter-spacing: -0.015em;
+  }
+
+  .saas-sub {
+    font-size: 0.8125rem;
+    color: #64748B;
+    margin: 0;
+    line-height: 1.45;
+  }
+
+  .saas-alert-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    border-radius: 8px;
+    padding: 0.55rem 0.85rem;
+    font-size: 0.775rem;
+
+    &.alert-danger {
+      background: #FEF2F2;
+      border: 1px solid #FECACA;
+      color: #991B1B;
+    }
+
+    .alert-icon {
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+    }
   }
 
   // Segmented Tab Switcher
@@ -742,6 +879,11 @@
   }
 
   .modern-saas-card {
+    .saas-badge.theme-badge {
+      background: #EFF6FF;
+      color: #2563EB;
+    }
+
     .saas-segmented-tabs .saas-tab {
       &--active .tab-num { background: #2563EB; color: #FFFFFF; }
       &--done {

@@ -4,7 +4,7 @@ import {
 } from './collection.controller.js';
 
 export default async function collectionRoutes(fastify, options) {
-  const onRequest = [fastify.authenticate, fastify.tenantGuard, fastify.moduleGuard('loan')];
+  const onRequest = [fastify.authenticate, fastify.tenantGuard, fastify.requireTenantModule('loans'), fastify.moduleGuard('loan')];
 
   fastify.get('/collections', { onRequest }, getCollectionsHandler);
   fastify.post('/collections', { onRequest }, recordCollectionHandler);
