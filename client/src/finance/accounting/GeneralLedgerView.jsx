@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Layers, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import { computeAccountBalances, computeLedgerFolio, filterEntriesInRange, filterEntriesByBranch } from '../../utils/accounting';
@@ -14,7 +14,7 @@ function monthStartStr() {
 
 // One account at a time: pick it, narrow the date range if needed, Search — see
 // every transaction on that account in order, with a running balance.
-export default function GeneralLedgerView({ chartOfAccounts = [], journalEntries = [], branchesList = [] }) {
+export default function GeneralLedgerView({ chartOfAccounts = [], journalEntries = [], branchesList = [], selectedBranch = 'ALL' }) {
   const { t } = useLanguage();
   const balancesAll = useMemo(() => computeAccountBalances(chartOfAccounts, journalEntries), [chartOfAccounts, journalEntries]);
   const accountName = (acc) => (acc?.name_key ? t(acc.name_key) : acc?.name);
@@ -24,6 +24,11 @@ export default function GeneralLedgerView({ chartOfAccounts = [], journalEntries
   const [toDate, setToDate] = useState(todayStr());
   const [applied, setApplied] = useState({ account: chartOfAccounts[0]?.code || '', from: monthStartStr(), to: todayStr() });
   const [branch, setBranch] = useState('');
+  // A global branch lock forces (and disables) this page's own filter — see the
+  // sidebar "Change Branch" control, the only place it can be changed back.
+  useEffect(() => {
+    if (selectedBranch && selectedBranch !== 'ALL') setBranch(selectedBranch);
+  }, [selectedBranch]);
   const [instantSearch, setInstantSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
@@ -108,7 +113,7 @@ export default function GeneralLedgerView({ chartOfAccounts = [], journalEntries
 
         <div className="fin-field">
           <label>{t('fin.branch_label')}</label>
-          <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }}>
+          <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
             <option value="">{t('fin.select_branch_placeholder')}</option>
             <option value="ALL">{t('fin.all_branches')}</option>
             {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}

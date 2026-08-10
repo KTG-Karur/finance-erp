@@ -6,7 +6,7 @@ import {
 } from './ledger.controller.js';
 
 export default async function ledgerRoutes(fastify, options) {
-  const onRequest = [fastify.authenticate, fastify.tenantGuard, fastify.moduleGuard('loan')];
+  const onRequest = [fastify.authenticate, fastify.tenantGuard, fastify.requireTenantModule('accounting'), fastify.moduleGuard('loan')];
 
   fastify.get('/ledger/accounts', { onRequest }, getChartOfAccountsHandler);
   fastify.get('/ledger/vouchers', { onRequest }, getJournalEntriesHandler);

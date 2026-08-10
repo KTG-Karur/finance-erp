@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Building2, MapPin, Plus, Trash2, Pencil, X, AlertTriangle, Loader2, Save, CheckCircle2, Camera, Trash } from 'lucide-react';
-import { useLanguage } from '../../i18n/LanguageContext.jsx';
+import { useLanguage } from '../i18n/LanguageContext.jsx';
 
 const inputStyle = { width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', color: '#0F172A', fontWeight: 500 };
 const labelStyle = { fontSize: '0.72rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 4 };

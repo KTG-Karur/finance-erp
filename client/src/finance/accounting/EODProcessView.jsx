@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Calculator, Settings2, Pencil, ShieldCheck, Lock, Unlock, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import { computeAccountBalances, filterEntriesByBranch, filterEntriesUpTo } from '../../utils/accounting';
@@ -444,13 +444,17 @@ export default function EODProcessView({
   onRequestEodReopen,
   onApproveEodReopen,
   onRejectEodReopen,
-  onUpdateEodDenominationSettings
+  onUpdateEodDenominationSettings,
+  selectedBranch = 'ALL'
 }) {
   const { t } = useLanguage();
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
 
   const [activeMainTab, setActiveMainTab] = useState('DAY_CLOSING'); // 'DAY_CLOSING' | 'PAST_CLOSURES'
   const [branch, setBranch] = useState('');
+  useEffect(() => {
+    if (selectedBranch && selectedBranch !== 'ALL') setBranch(selectedBranch);
+  }, [selectedBranch]);
   const hasBranchSelected = branch !== '';
   const [date, setDate] = useState(todayStr());
   const [showDenomSettings, setShowDenomSettings] = useState(false);
@@ -621,7 +625,7 @@ export default function EODProcessView({
           <div className="fin-filterbar">
             <div className="fin-field">
               <label>{t('fin.branch_label')}</label>
-              <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }}>
+              <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
                 <option value="">{t('fin.select_branch_placeholder')}</option>
                 {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
               </select>
@@ -878,7 +882,7 @@ export default function EODProcessView({
           <div className="fin-filterbar">
             <div className="fin-field">
               <label>{t('fin.branch_label')}</label>
-              <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }}>
+              <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
                 <option value="">{t('fin.all_branches_eod') || 'All Branches'}</option>
                 {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
               </select>

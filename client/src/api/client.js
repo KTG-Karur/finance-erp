@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { emitApiError } from './errorBus';
 
 const api = axios.create({
   baseURL: '/api',
@@ -22,5 +23,29 @@ api.interceptors.request.use((config) => {
   config.headers['X-Tenant-DB'] = dbName;
   return config;
 }, (error) => Promise.reject(error));
+
+// Every screen already handles its own 4xx responses inline (wrong password,
+// duplicate name, validation messages — real, specific feedback a user can act on).
+// What nothing currently surfaces is the class of failure where the backend itself
+// is the problem: it crashed (5xx), a DB query blew up, or the request never even
+// reached a server (network drop, backend not running). Those get funneled to the
+// global banner here instead of leaving the screen looking like it just did nothing.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error.response?.status;
+    const isBackendFailure = !error.response || status >= 500;
+    if (isBackendFailure) {
+      emitApiError({
+        status: status || null,
+        message: !error.response
+          ? "Can't reach the server. Check your connection and try again."
+          : 'Something went wrong on our end. Please try again in a moment.',
+        url: error.config?.url
+      });
+    }
+    return Promise.reject(error);
+  }
+);
 
 export default api;

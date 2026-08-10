@@ -229,97 +229,99 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
     align-items: center;
     gap: 8px;
   }
+}
 
-  .export-dropdown-container {
-    position: relative;
+// ── Export / Print Dropdown (used inside the Customer Directory toolbar) ──
+.export-dropdown-container {
+  position: relative;
 
-    .btn-export-trigger {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      height: 34px;
-      border-radius: 8px;
-      border: 1px solid #CBD5E1;
-      background: #FFFFFF;
-      color: #0F172A;
-      font-size: 0.78rem;
-      font-weight: 500;
-      cursor: pointer;
-      font-family: $font-macos;
-      transition: all 0.15s ease;
+  .btn-export-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid #CBD5E1;
+    background: #FFFFFF;
+    color: #0F172A;
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: $font-macos;
+    transition: all 0.15s ease;
 
-      &:hover {
-        background: #F8FAFC;
-        border-color: #94A3B8;
-      }
-    }
-
-    .export-menu-dropdown {
-      position: absolute;
-      top: calc(100% + 4px);
-      right: 0;
-      z-index: 100;
-      width: 230px;
-      background: #FFFFFF;
-      border: 1px solid #E2E8F0;
-      border-radius: 10px;
-      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
-      padding: 6px;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-
-      button {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        width: 100%;
-        padding: 8px 10px;
-        border: none;
-        background: transparent;
-        border-radius: 6px;
-        font-size: 0.76rem;
-        font-weight: 500;
-        color: #334155;
-        cursor: pointer;
-        font-family: $font-macos;
-        text-align: left;
-        transition: all 0.12s ease;
-
-        &:hover {
-          background: #F1F5F9;
-          color: #0F172A;
-        }
-      }
+    &:hover {
+      background: #F8FAFC;
+      border-color: #94A3B8;
     }
   }
 
-  &__view-switch {
+  .export-menu-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 100;
+    width: 230px;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+    padding: 6px;
     display: flex;
-    align-items: center;
-    background: #F1F5F9;
-    padding: 3px;
-    border-radius: 8px;
+    flex-direction: column;
     gap: 2px;
 
     button {
-      border: none;
-      width: 28px;
-      height: 28px;
-      border-radius: 6px;
       display: flex;
       align-items: center;
-      justify-content: center;
-      color: #64748B;
+      gap: 8px;
+      width: 100%;
+      padding: 8px 10px;
+      border: none;
       background: transparent;
+      border-radius: 6px;
+      font-size: 0.76rem;
+      font-weight: 500;
+      color: #334155;
       cursor: pointer;
+      font-family: $font-macos;
+      text-align: left;
+      transition: all 0.12s ease;
 
-      &.active {
-        background: #FFFFFF;
-        color: #059669;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+      &:hover {
+        background: #F1F5F9;
+        color: #0F172A;
       }
+    }
+  }
+}
+
+// ── Table / Cards View Switch ──────────────────────────────────────
+.borrowers-toolbar__view-switch {
+  display: flex;
+  align-items: center;
+  background: #F1F5F9;
+  padding: 3px;
+  border-radius: 8px;
+  gap: 2px;
+
+  button {
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #64748B;
+    background: transparent;
+    cursor: pointer;
+
+    &.active {
+      background: #FFFFFF;
+      color: #059669;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
     }
   }
 }

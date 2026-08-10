@@ -1,18 +1,20 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Users, Search, ChevronLeft, ChevronRight, Download, Printer, FileDown } from 'lucide-react';
-import { useLanguage } from '../../i18n/LanguageContext.jsx';
-import { exportToCsv } from '../../utils/csvExport';
-import ReportPreviewModal from '../../components/ReportPreviewModal';
+import { useLanguage } from '../i18n/LanguageContext.jsx';
+import { exportToCsv } from '../utils/csvExport';
+import ReportPreviewModal from '../components/ReportPreviewModal';
 
 const KYC_KEY = {
   VERIFIED: 'fin.kyc_verified',
-  PENDING: 'fin.kyc_pending',
-  REJECTED: 'fin.kyc_rejected'
+  PENDING: 'fin.kyc_pending'
 };
 
-export default function BorrowerKycReportView({ borrowers = [], loans = [], branchesList = [], tenant, user }) {
+export default function BorrowerKycReportView({ borrowers = [], loans = [], branchesList = [], tenant, user, selectedBranch = 'ALL' }) {
   const { t } = useLanguage();
   const [branch, setBranch] = useState('');
+  useEffect(() => {
+    if (selectedBranch && selectedBranch !== 'ALL') setBranch(selectedBranch);
+  }, [selectedBranch]);
   const hasBranchSelected = branch !== '';
   const [kycStatus, setKycStatus] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -136,7 +138,7 @@ export default function BorrowerKycReportView({ borrowers = [], loans = [], bran
       <div className="fin-filterbar">
         <div className="fin-field">
           <label>{t('fin.branch_label')}</label>
-          <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }}>
+          <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
             <option value="">{t('fin.select_branch_placeholder')}</option>
             <option value="ALL">{t('fin.all_branches')}</option>
             {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
@@ -148,7 +150,6 @@ export default function BorrowerKycReportView({ borrowers = [], loans = [], bran
             <option value="ALL">{t('fin.all_statuses')}</option>
             <option value="VERIFIED">{t('fin.kyc_verified')}</option>
             <option value="PENDING">{t('fin.kyc_pending')}</option>
-            <option value="REJECTED">{t('fin.kyc_rejected')}</option>
           </select>
         </div>
         <div className="fin-field" style={{ minWidth: 160 }}>

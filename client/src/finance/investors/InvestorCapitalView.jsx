@@ -1,21 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
-  Wallet, Users, Plus, Trash2, Pencil, X, AlertTriangle, ArrowUpRight, ArrowDownRight, TrendingUp,
-  Eye, ArrowLeft, Search, Camera, Phone, Mail, MapPin, Landmark, UserCheck, ChevronLeft, ChevronRight
+  Wallet, Users, Plus, Trash2, Pencil, X, AlertTriangle,
+  Eye, ArrowLeft, Search, Camera, Phone, Mail, MapPin, Landmark, UserCheck, ChevronLeft, ChevronRight, TrendingUp
 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 
 const FORM_MAX_WIDTH = 780;
-
-function useTxnTypes() {
-  const { t } = useLanguage();
-  return [
-    { value: 'CAPITAL_INJECTION', label: t('inv.txn.type_capital_injection') },
-    { value: 'TOP_UP', label: t('inv.txn.type_topup') },
-    { value: 'WITHDRAWAL', label: t('inv.txn.type_withdrawal') },
-    { value: 'YIELD_PAYOUT', label: t('inv.txn.type_yield_payout') }
-  ];
-}
 
 function getInitials(name = '') {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
@@ -69,16 +59,6 @@ function ActionPill({ icon, label, onClick, tone = 'neutral' }) {
       <span>{label}</span>
     </button>
   );
-}
-
-function kycBadgeCls(status) {
-  return status === 'VERIFIED' ? 'fin-badge fin-badge--ok' : 'fin-badge fin-badge--warn';
-}
-
-function txnIcon(type) {
-  if (type === 'WITHDRAWAL') return <ArrowDownRight style={{ width: 12, height: 12 }} />;
-  if (type === 'YIELD_PAYOUT') return <TrendingUp style={{ width: 12, height: 12 }} />;
-  return <ArrowUpRight style={{ width: 12, height: 12 }} />;
 }
 
 // Underline-style status tabs — plain text with a colored bottom border on
@@ -143,8 +123,9 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
   const { t, tStatus } = useLanguage();
   const [form, setForm] = useState(() => initialData || {
     name: '', phone: '', email: '', address: '', city: '', state: '', pincode: '',
-    kyc_status: 'PENDING', status: 'ACTIVE', bank_name: '', account_holder_name: '',
+    status: 'ACTIVE', bank_name: '', account_holder_name: '',
     account_no: '', ifsc_no: '', nominee_name: '', nominee_phone: '', nominee_relation: '',
+    capital_amount: '', join_date: new Date().toISOString().slice(0, 10), yield_rate: '', yield_notes: '', exit_date: '',
     notes: '', photo: null
   });
   const [error, setError] = useState('');
@@ -169,7 +150,12 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
     setLoading(true);
     setError('');
     try {
-      await onSubmit(form, initialData?.id);
+      await onSubmit({
+        ...form,
+        capital_amount: form.capital_amount === '' ? 0 : Number(form.capital_amount),
+        yield_rate: form.yield_rate === '' ? null : Number(form.yield_rate),
+        exit_date: form.status === 'EXITED' ? (form.exit_date || new Date().toISOString().slice(0, 10)) : null
+      }, initialData?.id);
     } catch (err) {
       setError(err?.response?.data?.message || t('inv.modal.save_error'));
     } finally {
@@ -208,14 +194,22 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Avatar name={form.name} photo={form.photo} size={48} />
-            <div>
-              <label htmlFor="investor-photo-upload" className="btn-upload-photo" style={{ display: 'inline-flex', cursor: 'pointer', padding: '5px 10px', fontSize: '0.72rem' }}>
-                <Camera style={{ width: 12, height: 12 }} />
-                <span>{form.photo ? t('inv.change_photo') : t('inv.upload_photo')}</span>
-              </label>
-              <input id="investor-photo-upload" type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: 'none' }} />
+          <div className="cf-vault-photo-card" style={{ marginBottom: 14, maxWidth: 320, padding: '12px 16px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10 }}>
+            <div className="cf-card-label" style={{ fontSize: '0.68rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 8 }}>
+              {t('cf.profile_photo_label')}
+            </div>
+            <div className="cf-photo-flex" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div className="cf-photo-avatar" style={{ width: 52, height: 52, borderRadius: '50%', overflow: 'hidden', border: '2px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ECFDF5' }}>
+                <Avatar name={form.name} photo={form.photo} size={48} />
+              </div>
+              <div className="cf-photo-actions" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label htmlFor="investor-photo-upload" className="btn-upload-photo" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', padding: '6px 12px', fontSize: '0.75rem', fontWeight: 600, background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 6, color: '#334155' }}>
+                  <Camera style={{ width: 13, height: 13, color: '#059669' }} />
+                  <span>{form.photo ? t('inv.change_photo') : t('inv.upload_photo')}</span>
+                </label>
+                <input id="investor-photo-upload" type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: 'none' }} />
+                <span className="cf-photo-hint" style={{ fontSize: '0.65rem', color: '#94A3B8' }}>JPG, PNG up to 5MB</span>
+              </div>
             </div>
           </div>
 
@@ -236,18 +230,10 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
 
           <div className="form-row form-row--3">
             <div className="form-group">
-              <label>{t('inv.modal.kyc_status_label')}</label>
-              <select value={form.kyc_status} onChange={e => setField('kyc_status', e.target.value)} className="input-control">
-                <option value="PENDING">{tStatus('PENDING')}</option>
-                <option value="VERIFIED">{tStatus('VERIFIED')}</option>
-                <option value="REJECTED">{tStatus('REJECTED')}</option>
-              </select>
-            </div>
-            <div className="form-group">
               <label>{t('col.status')}</label>
               <select value={form.status} onChange={e => setField('status', e.target.value)} className="input-control">
                 <option value="ACTIVE">{tStatus('ACTIVE')}</option>
-                <option value="CLOSED">{tStatus('CLOSED')}</option>
+                <option value="EXITED">{tStatus('EXITED')}</option>
               </select>
             </div>
             <div className="form-group">
@@ -274,31 +260,33 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
 
         <div className="cf-step-pane" style={{ padding: '20px 22px', gap: 16 }}>
           <div className="cf-pane-title" style={{ paddingBottom: 12 }}>
-            <Landmark style={{ width: 16, height: 16, color: '#059669' }} />
+            <TrendingUp style={{ width: 16, height: 16, color: '#059669' }} />
             <div>
-              <h3>{t('inv.section_bank_title')}</h3>
-              <p>{t('inv.section_bank_subtitle')}</p>
+              <h3>Capital</h3>
+              <p>How much this investor has put in, and what they earn on it</p>
             </div>
           </div>
-          <div className="form-row form-row--4">
+          <div className="form-row form-row--2">
             <div className="form-group">
-              <label>{t('cp.bank_name')}</label>
-              <input type="text" value={form.bank_name} onChange={e => setField('bank_name', e.target.value)} className="input-control" placeholder="e.g. HDFC Bank" />
+              <label>Capital Amount (₹)</label>
+              <input type="number" min="0" value={form.capital_amount} onChange={e => setField('capital_amount', e.target.value)} className="input-control mono" placeholder="e.g. 2500000" />
             </div>
             <div className="form-group">
-              <label>{t('inv.modal.account_holder_name')}</label>
-              <input type="text" value={form.account_holder_name} onChange={e => setField('account_holder_name', e.target.value)} className="input-control" placeholder="As per bank records" />
-            </div>
-            <div className="form-group">
-              <label>{t('cp.account_number')}</label>
-              <input type="text" value={form.account_no} onChange={e => setField('account_no', e.target.value)} className="input-control mono" placeholder="Account number" />
-            </div>
-            <div className="form-group">
-              <label>{t('cp.ifsc_code')}</label>
-              <input type="text" value={form.ifsc_no} onChange={e => setField('ifsc_no', e.target.value.toUpperCase())} className="input-control mono" placeholder="e.g. HDFC0001234" />
+              <label>Join Date</label>
+              <input type="date" value={form.join_date || ''} onChange={e => setField('join_date', e.target.value)} className="input-control" />
             </div>
           </div>
+          {form.status === 'EXITED' && (
+            <div className="form-row form-row--2">
+              <div className="form-group">
+                <label>Exit Date</label>
+                <input type="date" value={form.exit_date || ''} onChange={e => setField('exit_date', e.target.value)} className="input-control" />
+              </div>
+            </div>
+          )}
         </div>
+
+
 
         <div className="cf-step-pane" style={{ padding: '20px 22px', gap: 16 }}>
           <div className="cf-pane-title" style={{ paddingBottom: 12 }}>
@@ -341,332 +329,187 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
   );
 }
 
-// ── Full-screen "Record Capital Transaction" form — investor is pre-locked
-// when launched from a specific investor's profile, open-ended from the
-// directory. Shows a live before/after balance preview.
-function AddTransactionScreen({ investors, lockInvestorId, balanceFor, onCancel, onSubmit }) {
-  const { t } = useLanguage();
-  const TXN_TYPES = useTxnTypes();
-  const [form, setForm] = useState({
-    investor_id: lockInvestorId || investors[0]?.id || '',
-    type: 'CAPITAL_INJECTION',
-    amount: '',
-    date: new Date().toISOString().slice(0, 10),
-    payment_mode: 'CASH',
-    reference_no: '',
-    notes: ''
-  });
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const setField = (field, val) => setForm(prev => ({ ...prev, [field]: val }));
-
-  const currentBalance = balanceFor(Number(form.investor_id) || null);
-  const amt = parseFloat(form.amount) || 0;
-  const newBalance = form.type === 'WITHDRAWAL' ? currentBalance - amt
-    : (form.type === 'CAPITAL_INJECTION' || form.type === 'TOP_UP') ? currentBalance + amt
-    : currentBalance;
-  const fmt = n => Number(n || 0).toLocaleString('en-IN');
-
-  const handleSubmit = async (e) => {
-    if (e) e.preventDefault();
-    if (!form.investor_id || !form.amount) {
-      setError(t('inv.txn.save_error'));
-      return;
-    }
-    setLoading(true);
-    setError('');
-    try {
-      await onSubmit({ ...form, investor_id: Number(form.investor_id), amount: parseFloat(form.amount) });
-    } catch (err) {
-      setError(err?.response?.data?.message || t('inv.txn.save_error'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="customer-form-page mnc-form-root" style={{ maxWidth: FORM_MAX_WIDTH }}>
-      <div className="cf-page-header">
-        <div className="cf-header-left" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button type="button" className="cf-back-btn" onClick={onCancel}>
-            <ArrowLeft style={{ width: 16, height: 16 }} />
-          </button>
-          <h1 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: '#0F172A' }}>{t('txn.register_title')}</h1>
-        </div>
-        <div className="cf-header-right">
-          <button type="button" onClick={onCancel} className="btn-cancel" disabled={loading}>{t('btn.cancel')}</button>
-          <button type="submit" onClick={handleSubmit} disabled={loading} className="btn-submit">
-            {loading ? t('txn.saving') : t('inv.txn.submit')}
-          </button>
-        </div>
-      </div>
-
-      {error && <ErrorBanner>{error}</ErrorBanner>}
-
-      <form onSubmit={handleSubmit} className="cf-wizard-body">
-        <div className="cf-step-pane" style={{ padding: '20px 22px', gap: 16 }}>
-          <div className="cf-pane-title" style={{ paddingBottom: 12 }}>
-            <TrendingUp style={{ width: 16, height: 16, color: '#059669' }} />
-            <div>
-              <h3>{t('txn.section_details_title')}</h3>
-              <p>{t('txn.section_details_subtitle')}</p>
-            </div>
-          </div>
-
-          <div className="form-row form-row--3">
-            <div className="form-group">
-              <label>{t('inv.txn.investor_label')}</label>
-              <select required disabled={Boolean(lockInvestorId)} value={form.investor_id} onChange={e => setField('investor_id', e.target.value)} className="input-control">
-                {investors.map(i => <option key={i.id} value={i.id}>{i.name} ({i.investor_code})</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>{t('inv.txn.type_label')}</label>
-              <select value={form.type} onChange={e => setField('type', e.target.value)} className="input-control">
-                {TXN_TYPES.map(tt => <option key={tt.value} value={tt.value}>{tt.label}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>{t('inv.txn.amount_label')}</label>
-              <input type="number" min="1" required value={form.amount} onChange={e => setField('amount', e.target.value)} className="input-control mono" placeholder="0.00" />
-            </div>
-          </div>
-
-          <div className="form-row form-row--3">
-            <div className="form-group">
-              <label>{t('col.date')}</label>
-              <input type="date" value={form.date} onChange={e => setField('date', e.target.value)} className="input-control" />
-            </div>
-            <div className="form-group">
-              <label>{t('txn.payment_mode_label')}</label>
-              <select value={form.payment_mode} onChange={e => setField('payment_mode', e.target.value)} className="input-control">
-                <option value="CASH">{t('fin.mode_cash')}</option>
-                <option value="BANK">{t('fin.mode_bank')}</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label>{t('txn.reference_no_label')}</label>
-              <input type="text" value={form.reference_no} onChange={e => setField('reference_no', e.target.value)} className="input-control mono" placeholder="Cheque / UTR (optional)" />
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-              <label>{t('inv.txn.notes_label')}</label>
-              <textarea rows={2} value={form.notes} onChange={e => setField('notes', e.target.value)} className="input-control" style={{ height: 'auto', padding: '10px 12px' }} placeholder={t('inv.notes_placeholder')} />
-            </div>
-          </div>
-
-          <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '12px 16px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-            <div>
-              <span style={{ fontSize: '0.65rem', color: '#64748B', display: 'block', fontWeight: 500, textTransform: 'uppercase' }}>{t('txn.current_balance_label')}</span>
-              <strong style={{ fontSize: '0.92rem', color: '#0F172A', fontVariantNumeric: 'tabular-nums' }}>₹{fmt(currentBalance)}</strong>
-            </div>
-            <div>
-              <span style={{ fontSize: '0.65rem', color: '#64748B', display: 'block', fontWeight: 500, textTransform: 'uppercase' }}>{t('txn.new_balance_label')}</span>
-              <strong style={{ fontSize: '0.92rem', color: form.type === 'WITHDRAWAL' ? '#DC2626' : '#059669', fontVariantNumeric: 'tabular-nums' }}>₹{fmt(newBalance)}</strong>
-            </div>
-          </div>
-        </div>
-
-        <div className="cf-wizard-footer">
-          <button type="button" onClick={onCancel} className="btn-cancel" disabled={loading}>{t('btn.cancel')}</button>
-          <button type="submit" disabled={loading} className="btn-submit">
-            {loading ? t('txn.saving') : t('inv.txn.submit')}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-// One investor at a time: photo, contact/bank/nominee details, personal KPIs and
-// their own capital ledger — kept off the directory page so the two don't compete
-// for space the way they did when they were stacked on a single screen.
-function InvestorProfileView({ investor, transactions, onBack, onEdit, onAddTransaction }) {
+function InvestorProfileView({ investor, onBack, onEdit }) {
   const { t, tStatus } = useLanguage();
-  const TXN_TYPES = useTxnTypes();
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
-  const [page, setPage] = useState(1);
-  const pageSize = 8;
-
-  const myTxnsAsc = useMemo(() => transactions
-    .filter(tx => tx.investor_id === investor.id)
-    .slice()
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)), [transactions, investor.id]);
-
-  let running = 0;
-  const withRunning = myTxnsAsc.map(tx => {
-    running += tx.type === 'WITHDRAWAL' ? -tx.amount : (tx.type === 'CAPITAL_INJECTION' || tx.type === 'TOP_UP' ? tx.amount : 0);
-    return { ...tx, runningBalance: running };
-  });
-  const myTxns = withRunning.slice().reverse();
-
-  const totalInjected = myTxns.filter(tx => tx.type === 'CAPITAL_INJECTION' || tx.type === 'TOP_UP').reduce((s, tx) => s + tx.amount, 0);
-  const totalWithdrawn = myTxns.filter(tx => tx.type === 'WITHDRAWAL').reduce((s, tx) => s + tx.amount, 0);
-  const totalYield = myTxns.filter(tx => tx.type === 'YIELD_PAYOUT').reduce((s, tx) => s + tx.amount, 0);
-  const balance = totalInjected - totalWithdrawn;
-
-  const totalPages = Math.ceil(myTxns.length / pageSize) || 1;
-  const safePage = Math.min(page, totalPages);
-  const startIndex = (safePage - 1) * pageSize;
-  const pagedTxns = myTxns.slice(startIndex, startIndex + pageSize);
 
   return (
-    <div className="fin-page">
-      <div className="fin-header-card" style={{ background: 'linear-gradient(135deg, #ECFDF5 0%, #FFFFFF 55%)' }}>
-        <div className="fin-page-header">
-          <div className="fin-page-header__left" style={{ gap: 14 }}>
-            <button type="button" onClick={onBack} style={{ width: 34, height: 34, borderRadius: 9, border: '1px solid #E2E8F0', background: '#FFFFFF', color: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-              <ArrowLeft style={{ width: 15, height: 15 }} />
+    <div className="fin-page" style={{ maxWidth: 960, margin: '0 auto' }}>
+      
+      {/* Header Bar */}
+      <div className="fin-header-card" style={{ background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%)', border: '1px solid #E2E8F0', borderRadius: 14, padding: '24px 28px', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <button
+              type="button"
+              onClick={onBack}
+              style={{
+                width: 36, height: 36, borderRadius: 10, border: '1px solid #CBD5E1',
+                background: '#FFFFFF', color: '#334155', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              title="Back to Directory"
+            >
+              <ArrowLeft style={{ width: 16, height: 16 }} />
             </button>
-            <Avatar name={investor.name} photo={investor.photo} size={50} />
+
+            <Avatar name={investor.name} photo={investor.photo} size={54} />
+
             <div>
-              <h1 className="fin-page-header__title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {investor.name}
-                <span className={kycBadgeCls(investor.kyc_status)}>{tStatus(investor.kyc_status)}</span>
-                {investor.status === 'CLOSED' && <span className="fin-badge">{tStatus('CLOSED')}</span>}
-              </h1>
-              <p className="fin-page-header__subtitle">{investor.investor_code} — {t('inv.profile_subtitle')}</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.02em' }}>
+                  {investor.name}
+                </h1>
+                <span className="code" style={{ fontSize: '0.75rem', padding: '3px 9px', background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', borderRadius: 6, fontWeight: 700 }}>
+                  {investor.investor_code || `INV-${String(investor.id).padStart(4, '0')}`}
+                </span>
+                <span className={`fin-badge ${investor.status === 'ACTIVE' ? 'fin-badge--ok' : 'fin-badge--warn'}`}>
+                  {tStatus(investor.status || 'ACTIVE')}
+                </span>
+              </div>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.78rem', color: '#64748B' }}>
+                Registered Investor Capital Portfolio & Contact Directory
+              </p>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="fin-btn-primary" style={{ background: '#475569' }} onClick={onEdit}>
-              <Pencil style={{ width: 14, height: 14 }} />
-              <span>{t('inv.edit_investor')}</span>
-            </button>
-            <button type="button" className="fin-btn-primary" style={{ background: '#059669' }} onClick={onAddTransaction}>
-              <Plus style={{ width: 14, height: 14 }} />
-              <span>{t('inv.add_transaction')}</span>
-            </button>
-          </div>
+
+          <button
+            type="button"
+            onClick={onEdit}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '8px 16px', borderRadius: 8, border: 'none',
+              background: '#059669', color: '#FFFFFF', fontSize: '0.78rem',
+              fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(5,150,105,0.25)'
+            }}
+          >
+            <Pencil style={{ width: 14, height: 14 }} />
+            <span>Edit Investor Details</span>
+          </button>
         </div>
 
-        <div className="fin-header-stats">
-          <div className="fin-header-stat">
-            <span className="fin-header-stat__label">{t('col.capital_balance')}</span>
-            <span className="fin-header-stat__value">₹{fmt(balance)}</span>
+        {/* Executive KPI Bar */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginTop: 24, paddingTop: 20, borderTop: '1px solid #E2E8F0' }}>
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '14px 18px', borderRadius: 10 }}>
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Capital Invested</span>
+            <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#059669', marginTop: 4 }}>₹{fmt(investor.capital_amount)}</div>
           </div>
-          <div className="fin-header-stat">
-            <span className="fin-header-stat__label">{t('inv.total_injected_label')}</span>
-            <span className="fin-header-stat__value fin-header-stat__value--good">₹{fmt(totalInjected)}</span>
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '14px 18px', borderRadius: 10 }}>
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Joining Date</span>
+            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0F172A', marginTop: 4 }}>{investor.join_date || '—'}</div>
           </div>
-          <div className="fin-header-stat">
-            <span className="fin-header-stat__label">{t('inv.total_yield_paid')}</span>
-            <span className="fin-header-stat__value">₹{fmt(totalYield)}</span>
-          </div>
-          <div className="fin-header-stat">
-            <span className="fin-header-stat__label">{t('inv.transaction_count_label')}</span>
-            <span className="fin-header-stat__value">{myTxns.length}</span>
-          </div>
+          {investor.status === 'EXITED' && (
+            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '14px 18px', borderRadius: 10 }}>
+              <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#DC2626', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Exit Date</span>
+              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#991B1B', marginTop: 4 }}>{investor.exit_date || '—'}</div>
+            </div>
+          )}
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-        <div className="fin-tablewrap" style={{ padding: 16 }}>
-          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Phone style={{ width: 13, height: 13, color: '#059669' }} />
-            {t('inv.contact_details_heading')}
+      {/* Information Cards Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, marginTop: 18 }}>
+        
+        {/* Contact & Address Card */}
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #F1F5F9', paddingBottom: 12 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Phone style={{ width: 15, height: 15 }} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>Contact & Address</h3>
+              <p style={{ margin: 0, fontSize: '0.72rem', color: '#64748B' }}>Personal contact information</p>
+            </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.8rem' }}>
-            <div style={{ display: 'flex', gap: 8, color: '#334155' }}><Phone style={{ width: 13, height: 13, color: '#94A3B8', marginTop: 2 }} />{investor.phone || '—'}</div>
-            <div style={{ display: 'flex', gap: 8, color: '#334155' }}><Mail style={{ width: 13, height: 13, color: '#94A3B8', marginTop: 2 }} />{investor.email || '—'}</div>
-            <div style={{ display: 'flex', gap: 8, color: '#334155' }}><MapPin style={{ width: 13, height: 13, color: '#94A3B8', marginTop: 2 }} />
-              {[investor.address, investor.city, investor.state, investor.pincode].filter(Boolean).join(', ') || '—'}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: '0.8rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#334155' }}>
+              <Phone style={{ width: 14, height: 14, color: '#94A3B8', flexShrink: 0 }} />
+              <div>
+                <span style={{ fontSize: '0.66rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase' }}>Phone Number</span>
+                <strong style={{ fontWeight: 600, color: '#0F172A' }}>{investor.phone || '—'}</strong>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#334155' }}>
+              <Mail style={{ width: 14, height: 14, color: '#94A3B8', flexShrink: 0 }} />
+              <div>
+                <span style={{ fontSize: '0.66rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase' }}>Email Address</span>
+                <span style={{ color: '#0F172A', fontWeight: 500 }}>{investor.email || '—'}</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, color: '#334155' }}>
+              <MapPin style={{ width: 14, height: 14, color: '#94A3B8', flexShrink: 0, marginTop: 3 }} />
+              <div>
+                <span style={{ fontSize: '0.66rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase' }}>Registered Address</span>
+                <span style={{ color: '#334155', lineHeight: 1.4 }}>
+                  {[investor.address, investor.city, investor.state, investor.pincode].filter(Boolean).join(', ') || '—'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="fin-tablewrap" style={{ padding: 16 }}>
-          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Landmark style={{ width: 13, height: 13, color: '#059669' }} />
-            {t('cp.bank_details')}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.8rem', color: '#334155' }}>
-            <div>{investor.bank_name || '—'}</div>
-            <div style={{ fontFamily: 'monospace', color: '#64748B' }}>{investor.account_no || '—'}</div>
-            <div style={{ fontFamily: 'monospace', color: '#64748B' }}>{investor.ifsc_no || '—'}</div>
-          </div>
-        </div>
-
-        <div className="fin-tablewrap" style={{ padding: 16 }}>
-          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <UserCheck style={{ width: 13, height: 13, color: '#059669' }} />
-            {t('inv.nominee_heading')}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.8rem', color: '#334155' }}>
-            <div>{investor.nominee_name || '—'} {investor.nominee_relation ? `(${investor.nominee_relation})` : ''}</div>
-            <div style={{ color: '#64748B' }}>{investor.nominee_phone || '—'}</div>
-          </div>
-        </div>
-
-        {investor.notes && (
-          <div className="fin-tablewrap" style={{ padding: 16 }}>
-            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: 12 }}>
-              {t('inv.section_notes_title')}
+        {/* Nominee Details Card */}
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #F1F5F9', paddingBottom: 12 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <UserCheck style={{ width: 15, height: 15 }} />
             </div>
-            <p style={{ fontSize: '0.8rem', color: '#334155', margin: 0, lineHeight: 1.5 }}>{investor.notes}</p>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>Nominee Information</h3>
+              <p style={{ margin: 0, fontSize: '0.72rem', color: '#64748B' }}>Designated beneficiary details</p>
+            </div>
           </div>
-        )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: '0.8rem' }}>
+            <div>
+              <span style={{ fontSize: '0.66rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase' }}>Nominee Name & Relationship</span>
+              <strong style={{ fontWeight: 600, color: '#0F172A' }}>
+                {investor.nominee_name || '—'} {investor.nominee_relation ? `(${investor.nominee_relation})` : ''}
+              </strong>
+            </div>
+
+            <div>
+              <span style={{ fontSize: '0.66rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase' }}>Nominee Contact Number</span>
+              <span style={{ color: '#0F172A', fontWeight: 500 }}>{investor.nominee_phone || '—'}</span>
+            </div>
+          </div>
+        </div>
+
       </div>
 
-      <div className="fin-filterbar__label" style={{ marginTop: 4 }}>{t('inv.personal_ledger_heading')}</div>
-      <div className="fin-tablewrap">
-        <table className="fin-grid-table">
-          <thead>
-            <tr>
-              <th>{t('col.date')}</th>
-              <th>{t('col.type')}</th>
-              <th className="num">{t('col.amount')}</th>
-              <th className="num">{t('col.balance')}</th>
-              <th>{t('txn.payment_mode_label')}</th>
-              <th>{t('txn.reference_no_label')}</th>
-              <th>{t('col.notes')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pagedTxns.length === 0 ? (
-              <tr><td colSpan="7" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>{t('inv.no_transactions')}</td></tr>
-            ) : pagedTxns.map(tx => (
-              <tr key={tx.id}>
-                <td>{tx.date}</td>
-                <td>
-                  <span className="fin-tag" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                    {txnIcon(tx.type)}
-                    {TXN_TYPES.find(x => x.value === tx.type)?.label || tx.type}
-                  </span>
-                </td>
-                <td className="num" style={{ fontWeight: 600, color: tx.type === 'WITHDRAWAL' ? '#DC2626' : '#059669' }}>
-                  {tx.type === 'WITHDRAWAL' ? '-' : '+'}₹{fmt(tx.amount)}
-                </td>
-                <td className="num" style={{ color: '#334155' }}>₹{fmt(tx.runningBalance)}</td>
-                <td>{tx.payment_mode === 'BANK' ? t('fin.mode_bank') : tx.payment_mode === 'CASH' ? t('fin.mode_cash') : '—'}</td>
-                <td className="code">{tx.reference_no || '—'}</td>
-                <td>{tx.notes || '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <Pagination page={safePage} setPage={setPage} totalPages={totalPages} total={myTxns.length} startIndex={startIndex} pageSize={pageSize} />
-      </div>
+      {/* Internal Notes Card */}
+      {investor.notes && (
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px', marginTop: 16 }}>
+          <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 8 }}>
+            Internal Remarks & Portfolio Notes
+          </span>
+          <p style={{ fontSize: '0.82rem', color: '#334155', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+            {investor.notes}
+          </p>
+        </div>
+      )}
+
     </div>
   );
 }
 
 const INVESTOR_TABS = [
   { id: 'ACTIVE', labelKey: 'fin.status_active' },
-  { id: 'CLOSED', labelKey: 'status.CLOSED' }
+  { id: 'EXITED', labelKey: 'status.EXITED' }
 ];
 
 export default function InvestorCapitalView({
-  investors = [], transactions = [],
-  onCreateInvestor, onUpdateInvestor, onDeleteInvestor, onCreateTransaction
+  investors = [],
+  onCreateInvestor, onUpdateInvestor, onDeleteInvestor
 }) {
   const { t, tStatus } = useLanguage();
-  const [screen, setScreen] = useState('DIRECTORY'); // 'DIRECTORY' | 'ADD_INVESTOR' | 'ADD_TXN'
+  const [screen, setScreen] = useState('DIRECTORY'); // 'DIRECTORY' | 'ADD_INVESTOR'
   const [editingInvestor, setEditingInvestor] = useState(null);
-  const [txnLockInvestorId, setTxnLockInvestorId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteError, setDeleteError] = useState('');
   const [viewingInvestorId, setViewingInvestorId] = useState(null);
@@ -677,12 +520,9 @@ export default function InvestorCapitalView({
 
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
-  const balanceFor = (investorId) => transactions
-    .filter(tx => tx.investor_id === investorId)
-    .reduce((acc, tx) => acc + (tx.type === 'WITHDRAWAL' ? -tx.amount : (tx.type === 'CAPITAL_INJECTION' || tx.type === 'TOP_UP' ? tx.amount : 0)), 0);
-
-  const totalCapital = investors.reduce((acc, i) => acc + balanceFor(i.id), 0);
-  const totalYieldPaid = transactions.filter(tx => tx.type === 'YIELD_PAYOUT').reduce((acc, tx) => acc + tx.amount, 0);
+  const totalCapital = investors
+    .filter(i => (i.status || 'ACTIVE') === 'ACTIVE')
+    .reduce((acc, i) => acc + (Number(i.capital_amount) || 0), 0);
 
   const viewingInvestor = investors.find(i => i.id === viewingInvestorId) || null;
 
@@ -700,30 +540,12 @@ export default function InvestorCapitalView({
     );
   }
 
-  if (screen === 'ADD_TXN') {
-    return (
-      <AddTransactionScreen
-        investors={investors}
-        lockInvestorId={txnLockInvestorId}
-        balanceFor={balanceFor}
-        onCancel={() => { setScreen(viewingInvestorId ? 'PROFILE' : 'DIRECTORY'); setTxnLockInvestorId(null); }}
-        onSubmit={async (payload) => {
-          await onCreateTransaction(payload);
-          setScreen(viewingInvestorId ? 'PROFILE' : 'DIRECTORY');
-          setTxnLockInvestorId(null);
-        }}
-      />
-    );
-  }
-
   if (viewingInvestor) {
     return (
       <InvestorProfileView
         investor={viewingInvestor}
-        transactions={transactions}
         onBack={() => setViewingInvestorId(null)}
         onEdit={() => { setEditingInvestor(viewingInvestor); setScreen('ADD_INVESTOR'); }}
-        onAddTransaction={() => { setTxnLockInvestorId(viewingInvestor.id); setScreen('ADD_TXN'); }}
       />
     );
   }
@@ -731,7 +553,7 @@ export default function InvestorCapitalView({
   const byTab = investors.filter(i => (i.status || 'ACTIVE') === statusTab);
   const filteredInvestors = byTab.filter(i => {
     const q = searchQuery.toLowerCase().trim();
-    return !q || i.name.toLowerCase().includes(q) || i.investor_code.toLowerCase().includes(q);
+    return !q || i.name.toLowerCase().includes(q);
   });
 
   const totalPages = Math.ceil(filteredInvestors.length / pageSize) || 1;
@@ -753,10 +575,6 @@ export default function InvestorCapitalView({
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="fin-btn-primary" style={{ background: '#475569' }} onClick={() => { setTxnLockInvestorId(null); setScreen('ADD_TXN'); }} disabled={!investors.length}>
-              <Plus style={{ width: 14, height: 14 }} />
-              <span>{t('inv.add_transaction')}</span>
-            </button>
             <button type="button" className="fin-btn-primary" style={{ background: '#059669' }} onClick={() => { setEditingInvestor(null); setScreen('ADD_INVESTOR'); }}>
               <Plus style={{ width: 14, height: 14 }} />
               <span>{t('inv.add_investor')}</span>
@@ -772,10 +590,6 @@ export default function InvestorCapitalView({
           <div className="fin-header-stat">
             <span className="fin-header-stat__label">{t('inv.active_investors')}</span>
             <span className="fin-header-stat__value">{investors.filter(i => (i.status || 'ACTIVE') === 'ACTIVE').length}</span>
-          </div>
-          <div className="fin-header-stat">
-            <span className="fin-header-stat__label">{t('inv.total_yield_paid')}</span>
-            <span className="fin-header-stat__value fin-header-stat__value--good">₹{fmt(totalYieldPaid)}</span>
           </div>
         </div>
       </div>
@@ -798,39 +612,32 @@ export default function InvestorCapitalView({
           <thead>
             <tr>
               <th style={{ width: 50, textAlign: 'center' }}>{t('col.sno')}</th>
+              <th>Investor ID</th>
               <th>{t('col.investor')}</th>
               <th>{t('col.phone')}</th>
               <th>{t('col.email_address')}</th>
               <th>{t('form.city')}</th>
-              <th>{t('col.bank_account')}</th>
-              <th style={{ textAlign: 'center' }}>{t('col.kyc')}</th>
               <th className="num">{t('col.capital_balance')}</th>
               <th style={{ textAlign: 'right', minWidth: 190 }}>{t('col.actions')}</th>
             </tr>
           </thead>
           <tbody>
             {pagedInvestors.length === 0 ? (
-              <tr><td colSpan="9" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>{investors.length === 0 ? t('inv.no_investors') : t('fin.no_results_hint')}</td></tr>
+              <tr><td colSpan="8" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>{investors.length === 0 ? t('inv.no_investors') : t('fin.no_results_hint')}</td></tr>
             ) : pagedInvestors.map((inv, idx) => (
               <tr key={inv.id} onClick={() => setViewingInvestorId(inv.id)} style={{ cursor: 'pointer' }}>
                 <td style={{ textAlign: 'center', color: '#64748B' }}>{startIndex + idx + 1}</td>
+                <td className="code" style={{ color: '#059669', fontWeight: 600 }}>{inv.investor_code || `INV-${String(inv.id).padStart(4, '0')}`}</td>
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <Avatar name={inv.name} photo={inv.photo} size={30} />
-                    <div>
-                      <strong style={{ fontWeight: 600, color: '#0F172A', fontSize: '0.82rem' }}>{inv.name}</strong>
-                      <div style={{ fontSize: '0.68rem', color: '#94A3B8', fontFamily: 'monospace' }}>{inv.investor_code}</div>
-                    </div>
+                    <strong style={{ fontWeight: 600, color: '#0F172A', fontSize: '0.82rem' }}>{inv.name}</strong>
                   </div>
                 </td>
                 <td>{inv.phone}</td>
                 <td style={{ color: '#64748B', fontSize: '0.78rem' }}>{inv.email || '—'}</td>
                 <td style={{ color: '#64748B', fontSize: '0.78rem' }}>{inv.city || '—'}</td>
-                <td style={{ color: '#64748B', fontSize: '0.78rem' }}>{inv.bank_name} • {inv.account_no}</td>
-                <td style={{ textAlign: 'center' }}>
-                  <span className={kycBadgeCls(inv.kyc_status)}>{tStatus(inv.kyc_status)}</span>
-                </td>
-                <td className="num" style={{ fontWeight: 600, color: '#059669' }}>₹{fmt(balanceFor(inv.id))}</td>
+                <td className="num" style={{ fontWeight: 600, color: '#059669' }}>₹{fmt(inv.capital_amount)}</td>
                 <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                   <div style={{ display: 'inline-flex', gap: 6 }}>
                     <ActionPill icon={<Eye style={{ width: 11, height: 11 }} />} label={t('inv.view_profile')} onClick={() => setViewingInvestorId(inv.id)} />

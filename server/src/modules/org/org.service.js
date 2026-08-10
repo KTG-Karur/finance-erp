@@ -66,18 +66,26 @@ export async function getBranches(db, companyId) {
   return rows;
 }
 
-export async function createBranch(db, companyId, payload) {
+export async function createBranch(db, companyId, payload, maxBranches) {
   const [existing] = await db.query('SELECT * FROM branches WHERE company_id = ?', [companyId]);
   if (conflictCheck(existing, companyId, payload.code)) {
     const err = new Error(`Branch code '${payload.code.toUpperCase()}' already exists.`);
     err.statusCode = 409;
     throw err;
   }
+  // maxBranches is null/undefined for an unrestricted tenant (see companies.
+  // max_branches — a SuperAdmin opts a tenant INTO a cap, default is unlimited).
+  if (maxBranches != null && existing.length >= maxBranches) {
+    const err = new Error(`Branch limit reached: this plan allows a maximum of ${maxBranches} branch(es). Contact your account administrator to increase this limit.`);
+    err.statusCode = 409;
+    throw err;
+  }
   const [result] = await db.execute(
-    'INSERT INTO branches (company_id, sub_company_id, name, code, address) VALUES (?, ?, ?, ?, ?)',
-    [companyId, payload.sub_company_id || null, payload.name, payload.code.toUpperCase(), payload.address || '']
+    'INSERT INTO branches (company_id, sub_company_id, name, code, address, city, state, pincode, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [companyId, payload.sub_company_id || null, payload.name, payload.code.toUpperCase(), payload.address || '', payload.city || null, payload.state || null, payload.pincode || null, payload.phone || null]
   );
-  return { id: result.insertId, company_id: companyId, sub_company_id: payload.sub_company_id || null, name: payload.name, code: payload.code.toUpperCase(), address: payload.address || '', is_active: 1 };
+  const [[created]] = await db.query('SELECT * FROM branches WHERE id = ?', [result.insertId]);
+  return created;
 }
 
 export async function updateBranch(db, companyId, id, payload) {
@@ -93,10 +101,11 @@ export async function updateBranch(db, companyId, id, payload) {
     throw err;
   }
   await db.execute(
-    'UPDATE branches SET sub_company_id = ?, name = ?, code = ?, address = ?, is_active = ? WHERE id = ? AND company_id = ?',
-    [payload.sub_company_id || null, payload.name, payload.code.toUpperCase(), payload.address || '', payload.is_active === undefined ? 1 : (payload.is_active ? 1 : 0), id, companyId]
+    'UPDATE branches SET sub_company_id = ?, name = ?, code = ?, address = ?, city = ?, state = ?, pincode = ?, phone = ?, is_active = ? WHERE id = ? AND company_id = ?',
+    [payload.sub_company_id || null, payload.name, payload.code.toUpperCase(), payload.address || '', payload.city || null, payload.state || null, payload.pincode || null, payload.phone || null, payload.is_active === undefined ? 1 : (payload.is_active ? 1 : 0), id, companyId]
   );
-  return { id: Number(id), company_id: companyId, sub_company_id: payload.sub_company_id || null, name: payload.name, code: payload.code.toUpperCase(), address: payload.address || '', is_active: payload.is_active === undefined ? 1 : (payload.is_active ? 1 : 0) };
+  const [[updated]] = await db.query('SELECT * FROM branches WHERE id = ?', [id]);
+  return updated;
 }
 
 export async function deleteBranch(db, companyId, id) {

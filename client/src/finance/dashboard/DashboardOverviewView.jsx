@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   TrendingUp, TrendingDown, ArrowUpRight,
   Search, Filter, Calendar, MoreHorizontal,
@@ -399,7 +399,8 @@ export default function DashboardOverviewView({
   borrowers = [],
   branchesList = [],
   user = {},
-  onQuickAction
+  onQuickAction,
+  selectedBranch: globalBranch = 'ALL'
 }) {
   const { t, tStatus } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
@@ -412,6 +413,11 @@ export default function DashboardOverviewView({
 
   // Branch filter state (Admin can select branch or ALL, Branch Manager is locked to their branch)
   const [selectedBranch, setSelectedBranch] = useState(isAdmin ? 'ALL' : userBranch);
+  // A global branch lock overrides even the admin's own free choice — same rule as
+  // every other page's branch filter in the app.
+  useEffect(() => {
+    if (globalBranch && globalBranch !== 'ALL') setSelectedBranch(globalBranch);
+  }, [globalBranch]);
 
   // Unique list of available branches
   const availableBranches = Array.from(new Set([
@@ -540,6 +546,7 @@ export default function DashboardOverviewView({
                 <select
                   value={selectedBranch}
                   onChange={e => setSelectedBranch(e.target.value)}
+                  disabled={Boolean(globalBranch && globalBranch !== 'ALL')}
                   style={{
                     background: 'transparent',
                     border: 'none',

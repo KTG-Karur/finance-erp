@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, ArrowLeft, Send, FileText, CheckCircle2, XCircle, X } from 'lucide-react';
-import DigitalStampSeal from '../../components/DigitalStampSeal';
 
 export default function PrintableLoanApplicationSheet({
   applicationData: rawApp,
@@ -345,11 +344,7 @@ export default function PrintableLoanApplicationSheet({
             </div>
 
             <div className="bank-seal-box">
-              {applicationData.status === 'ACTIVE' ? (
-                <DigitalStampSeal date={appDate} size={82} />
-              ) : (
-                <span>Branch Seal & Stamp</span>
-              )}
+              <span>Branch Seal & Stamp</span>
             </div>
 
             <div className="sig-box">

@@ -30,6 +30,7 @@ import {
   Calculator,
   FileBarChart2,
   TrendingUp,
+  Repeat,
 } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 
@@ -37,7 +38,7 @@ function getInitials(name = '') {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 }
 
-export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSignOut, children }) {
+export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSignOut, children, branchesList = [], selectedBranch = 'ALL', onChangeBranch }) {
   const { language, setLanguage, t } = useLanguage();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarSearch, setSidebarSearch] = useState('');
@@ -51,12 +52,22 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
   const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [pwSuccess, setPwSuccess] = useState(false);
 
+  // Global branch lock control — the ONE place the app-wide branch is changed.
+  // Every other page's own branch filter just reads `selectedBranch` and disables
+  // itself once it's anything other than 'ALL'.
+  const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
+  const [pendingBranch, setPendingBranch] = useState(null);
+  const branchDropdownRef = useRef(null);
+
   const dropdownRef = useRef(null);
 
   useEffect(() => {
     const handler = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setUserDropdownOpen(false);
+      }
+      if (branchDropdownRef.current && !branchDropdownRef.current.contains(e.target)) {
+        setBranchDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -100,10 +111,19 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
   const sq = sidebarSearch.toLowerCase().trim();
   const match = (title) => !sq || title.toLowerCase().includes(sq);
 
-  const hasWorkspaceMatches = match('Dashboard');
-  const hasLoanMatches = match('Loans') || match('Active Loans') || match('Loan Applications') || match('Closed Loans') || match('Collections') || match('Investor Capital') || match('Fixed Deposits') || match('Customer Directory');
-  const hasFinanceMatches = match('Ledger') || match('General Ledger') || match('Loan Ledger') || match('Customer Ledger') || match('Trial Balance') || match('Vouchers') || match('Auto Vouchers') || match('Manual Vouchers') || match('Day-End Closing');
-  const hasReportsMatches = match('Reports') || match('Loan Portfolio') || match('Collections Report') || match('Borrower') || match('KYC') || match('Investor Capital Report') || match('Fixed Deposits Report') || match('Financial Statements') || match('Staff Performance');
+  // SuperAdmin per-tenant "page allocation" — user.allowedModules is null for an
+  // unrestricted tenant (default), or an explicit array of module keys otherwise
+  // (see client/src/auth/SuperAdminPortal.jsx's MODULE_KEYS / server's
+  // requireTenantModule guard, which enforces the same list server-side for
+  // modules that have real backends). This is a coarser gate than the sidebar
+  // search filter above — combine with `match(...)`, never replace it.
+  const allowed = (moduleKey) => !user?.allowedModules || user.allowedModules.includes(moduleKey);
+
+  const hasWorkspaceMatches = match('Dashboard') && allowed('dashboard');
+  const hasLoanMatches = (match('Loans') || match('Active Loans') || match('Loan Applications') || match('Closed Loans') || match('Collections') || match('Investor Capital') || match('Fixed Deposits') || match('Recurring Deposits') || match('Customer Directory'))
+    && (allowed('loans') || allowed('investors') || allowed('fixed_deposits') || allowed('recurring_deposits') || allowed('borrowers'));
+  const hasFinanceMatches = (match('Ledger') || match('General Ledger') || match('Loan Ledger') || match('Customer Ledger') || match('Trial Balance') || match('Vouchers') || match('Auto Vouchers') || match('Manual Vouchers') || match('Day-End Closing')) && allowed('accounting');
+  const hasReportsMatches = (match('Reports') || match('Loan Portfolio') || match('Collections Report') || match('Borrower') || match('KYC') || match('Investor Capital Report') || match('Fixed Deposits Report') || match('Recurring Deposits Report') || match('Financial Statements') || match('Staff Performance')) && allowed('reports');
   const hasSettingsMatches = match('Master Settings') || match('Loan Scheme Master') || match('Organization & Company') || match('Expense Allocation') || match('Staff Directory') || match('RBAC Matrix');
 
   const hasAnyMatches = hasWorkspaceMatches || hasLoanMatches || hasFinanceMatches || hasReportsMatches || hasSettingsMatches;
@@ -171,6 +191,48 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
             </div>
           )}
 
+          {/* ── Global Branch Lock ── */}
+          {!mini && (
+            <div ref={branchDropdownRef} className="sidebar__branch">
+              <button
+                type="button"
+                className={`sidebar__branch-btn${selectedBranch !== 'ALL' ? ' sidebar__branch-btn--locked' : ''}`}
+                onClick={() => setBranchDropdownOpen(v => !v)}
+              >
+                <span className="sidebar__branch-left">
+                  <MapPin className="sidebar__branch-icon" />
+                  <span className="sidebar__branch-label">
+                    {selectedBranch === 'ALL' ? 'All Branches' : selectedBranch}
+                  </span>
+                </span>
+                <ChevronDown className="sidebar__branch-chevron" />
+              </button>
+
+              {branchDropdownOpen && (
+                <div className="sidebar__branch-dropdown">
+                  {['ALL', ...branchesList.map(b => b.name)].map((name) => {
+                    const isAll = name === 'ALL';
+                    const isCurrent = selectedBranch === name;
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        className={`sidebar__branch-option${isCurrent ? ' sidebar__branch-option--current' : ''}`}
+                        onClick={() => {
+                          setBranchDropdownOpen(false);
+                          if (isCurrent) return;
+                          setPendingBranch(name);
+                        }}
+                      >
+                        {isAll ? 'All Branches' : name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Scrollable Nav Area */}
           <div className="sidebar__scroll thin-scroll">
 
@@ -186,7 +248,7 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                     {!mini && <div className="sidebar__section-label">{t('section.workspace')}</div>}
                     <nav className="sidebar__nav">
 
-                      {match('Dashboard') && (
+                      {match('Dashboard') && allowed('dashboard') && (
                         <button
                           id="nav-dashboard"
                           className={itemCls(activeTab === 'dashboard')}
@@ -208,9 +270,9 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                     {!mini && <div className="sidebar__section-label">{t('section.finance_operations')}</div>}
                     <nav className="sidebar__nav">
 
-                      {(match('Loans') || match('Active Loans') || match('Closed Loans') || match('Loan Register') || match('Loans Register')) && (
+                      {(match('Loans') || match('Active Loans') || match('Closed Loans') || match('Loan Applications') || match('Loan Register') || match('Loans Register')) && allowed('loans') && (
                         <button id="nav-active-loans"
-                          className={itemCls(isLoan('active-loans') || isLoan('closed-loans') || isLoan('loans-register'))}
+                          className={itemCls(isLoan('active-loans') || isLoan('closed-loans') || isLoan('loans-register') || isLoan('loan-applications'))}
                           onClick={() => setActiveTab('loan-management/active-loans')}
                           title={t('nav.loans')}
                         >
@@ -219,18 +281,7 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                         </button>
                       )}
 
-                      {match('Loan Applications') && (
-                        <button id="nav-loan-applications"
-                          className={itemCls(isLoan('loan-applications'))}
-                          onClick={() => setActiveTab('loan-management/loan-applications')}
-                          title={t('nav.loan_applications')}
-                        >
-                          <Clock className="sidebar__item-icon" />
-                          {!mini && <span className="sidebar__label">{t('nav.loan_applications')}</span>}
-                        </button>
-                      )}
-
-                      {match('Collections') && (
+                      {match('Collections') && allowed('loans') && (
                         <button id="nav-collections"
                           className={itemCls(isLoan('collections'))}
                           onClick={() => setActiveTab('loan-management/collections')}
@@ -241,7 +292,7 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                         </button>
                       )}
 
-                      {match('Investor Capital') && (
+                      {match('Investor Capital') && allowed('investors') && (
                         <button
                           id="nav-investor-capital"
                           className={itemCls(activeTab === 'investor-capital')}
@@ -253,7 +304,7 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                         </button>
                       )}
 
-                      {match('Fixed Deposits') && (
+                      {match('Fixed Deposits') && allowed('fixed_deposits') && (
                         <button
                           id="nav-fixed-deposits"
                           className={itemCls(activeTab === 'fixed-deposits')}
@@ -265,7 +316,19 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                         </button>
                       )}
 
-                      {match('Customer Directory') && (
+                      {match('Recurring Deposits') && allowed('recurring_deposits') && (
+                        <button
+                          id="nav-recurring-deposits"
+                          className={itemCls(activeTab === 'recurring-deposits')}
+                          onClick={() => setActiveTab('recurring-deposits')}
+                          title={t('nav.recurring_deposits')}
+                        >
+                          <Repeat className="sidebar__item-icon" />
+                          {!mini && <span className="sidebar__label">{t('nav.recurring_deposits')}</span>}
+                        </button>
+                      )}
+
+                      {match('Customer Directory') && allowed('borrowers') && (
                         <button
                           id="nav-customer-details"
                           className={itemCls(activeTab === 'customer-details' || isSet('customer-details') || isFin('customer-details'))}
@@ -502,15 +565,6 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                                   <span>{t('nav.collections_report')}</span>
                                 </button>
                               )}
-                              {(match('Borrower') || match('KYC')) && (
-                                <button id="nav-borrower-kyc-report"
-                                  className={subCls(isReport('borrower-kyc'))}
-                                  onClick={() => setActiveTab('reports/borrower-kyc')}
-                                >
-                                  <Users className="sidebar__sub-icon" />
-                                  <span>{t('nav.borrower_kyc_report')}</span>
-                                </button>
-                              )}
                               {match('Investor Capital Report') && (
                                 <button id="nav-investor-capital-report"
                                   className={subCls(isReport('investor-capital'))}
@@ -527,6 +581,15 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                                 >
                                   <Banknote className="sidebar__sub-icon" />
                                   <span>{t('nav.fixed_deposit_report')}</span>
+                                </button>
+                              )}
+                              {match('Recurring Deposits Report') && (
+                                <button id="nav-recurring-deposit-report"
+                                  className={subCls(isReport('recurring-deposits'))}
+                                  onClick={() => setActiveTab('reports/recurring-deposits')}
+                                >
+                                  <Repeat className="sidebar__sub-icon" />
+                                  <span>{t('nav.recurring_deposit_report')}</span>
                                 </button>
                               )}
                               {match('Financial Statements') && (
@@ -587,6 +650,13 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                             title={t('nav.fixed_deposit_report')}
                           >
                             <Banknote className="sidebar__item-icon" />
+                          </button>
+                          <button
+                            className={itemCls(isReport('recurring-deposits'))}
+                            onClick={() => setActiveTab('reports/recurring-deposits')}
+                            title={t('nav.recurring_deposit_report')}
+                          >
+                            <Repeat className="sidebar__item-icon" />
                           </button>
                           <button
                             className={itemCls(isReport('financial-statements'))}
@@ -923,6 +993,50 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                 style={{ background: '#DC2626', boxShadow: '0 2px 6px rgba(220, 38, 38, 0.3)' }}
               >
                 {t('btn.yes_sign_out')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirm Branch Change Modal ─────────── */}
+      {pendingBranch !== null && (
+        <div
+          className="saas-modal-backdrop"
+          onClick={(e) => { if (e.target === e.currentTarget) setPendingBranch(null); }}
+        >
+          <div className="saas-modal-card" style={{ maxWidth: 420 }}>
+            <div className="saas-modal-header">
+              <div className="head-left">
+                <div className="head-icon-badge" style={{ background: '#ECFDF5', borderColor: '#A7F3D0', color: '#059669' }}>
+                  <MapPin style={{ width: 16, height: 16 }} />
+                </div>
+                <div className="head-titles">
+                  <h3>Change Branch?</h3>
+                  <p>{pendingBranch === 'ALL' ? 'Return to viewing all branches' : pendingBranch}</p>
+                </div>
+              </div>
+              <button onClick={() => setPendingBranch(null)} className="close-btn" type="button">
+                <X style={{ width: 16, height: 16 }} />
+              </button>
+            </div>
+
+            <div className="saas-modal-footer">
+              <button type="button" onClick={() => setPendingBranch(null)} className="btn-cancel">
+                {t('btn.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const branchToApply = pendingBranch;
+                  localStorage.setItem('financial_erp_selected_branch', branchToApply);
+                  onChangeBranch?.(branchToApply);
+                  setPendingBranch(null);
+                  window.location.reload();
+                }}
+                className="btn-submit"
+              >
+                Confirm
               </button>
             </div>
           </div>

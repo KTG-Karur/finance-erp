@@ -3,7 +3,7 @@ import {
   Lock, ArrowRight, AlertCircle,
   ArrowLeft, CheckCircle2, Eye, EyeOff, Check, User, ChevronDown, ShieldCheck
 } from 'lucide-react';
-import api from '../../api/client';
+import api from '../api/client';
 
 export default function LoginPage({ company, module, onLoginSuccess, onBackToModules }) {
   const [loginContext, setLoginContext] = useState('COMPANY_ADMIN'); // 'COMPANY_ADMIN' or a branch id (string)
@@ -15,6 +15,15 @@ export default function LoginPage({ company, module, onLoginSuccess, onBackToMod
   const [error, setError] = useState(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [loggedInUser, setLoggedInUser] = useState(null);
+  const [isExiting, setIsExiting] = useState(false);
+
+  const handleBackWithAnimation = () => {
+    if (isExiting) return;
+    setIsExiting(true);
+    setTimeout(() => {
+      onBackToModules();
+    }, 500);
+  };
 
   const finalizeLogin = (u, t) => {
     localStorage.setItem('financial_erp_token', t);
@@ -38,7 +47,7 @@ export default function LoginPage({ company, module, onLoginSuccess, onBackToMod
       : { type: 'BRANCH', branch_id: Number(loginContext) };
 
     try {
-      const res = await api.post('/auth/tenant/login', {
+      const res = await api.post('/v1/auth/tenant/login', {
         company_code: company.companyCode,
         email,
         password,
@@ -116,7 +125,7 @@ export default function LoginPage({ company, module, onLoginSuccess, onBackToMod
               }}
             >
               <ArrowLeft style={{ width: 14, height: 14 }} />
-              <span>Back to Module Selection</span>
+              <span>Change Company</span>
             </button>
           )}
 
@@ -176,20 +185,16 @@ export default function LoginPage({ company, module, onLoginSuccess, onBackToMod
 
         {/* ── Right Column: Sleek Modern SaaS Form Card ─────────── */}
         <div className="fluid-form-col">
-          <div className="modern-saas-card">
+          <div className={`modern-saas-card ${isExiting ? 'auth-card-exit' : ''}`}>
 
             {/* Minimal Segmented Tab Switcher */}
             <div className="saas-segmented-tabs">
-              <button type="button" className="saas-tab saas-tab--done" onClick={onBackToModules}>
+              <button type="button" className="saas-tab saas-tab--done" onClick={handleBackWithAnimation}>
                 <span className="tab-num">✓</span>
                 <span>Organization</span>
               </button>
-              <button type="button" className="saas-tab saas-tab--done" onClick={onBackToModules}>
-                <span className="tab-num">✓</span>
-                <span>Module</span>
-              </button>
               <button type="button" className="saas-tab saas-tab--active">
-                <span className="tab-num">3</span>
+                <span className="tab-num">2</span>
                 <span>Credentials</span>
               </button>
             </div>
@@ -212,7 +217,7 @@ export default function LoginPage({ company, module, onLoginSuccess, onBackToMod
                 <button
                   type="button"
                   className="switch-link"
-                  onClick={onBackToModules}
+                  onClick={handleBackWithAnimation}
                 >
                   <ArrowLeft style={{ width: 11, height: 11 }} />
                   Change

@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Landmark, Plus, Eye, X, AlertTriangle, CheckCircle2, LogOut, ArrowLeft,
-  UserCheck, ChevronLeft, ChevronRight, Search
+  UserCheck, ChevronLeft, ChevronRight, Search, Printer, FileText
 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import FixedDepositCertificateModal from '../../components/FixedDepositCertificateModal';
+import PrintableFixedDepositRegister from './PrintableFixedDepositRegister';
 
 const FORM_MAX_WIDTH = 780;
 
@@ -277,15 +278,26 @@ function Pagination({ page, setPage, totalPages, total, startIndex, pageSize }) 
   );
 }
 
-export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], tenant, onCreateFd, onMatureFd, onPrematureCloseFd }) {
+export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], tenant, branchesList = [], selectedBranch = 'ALL', onCreateFd, onMatureFd, onPrematureCloseFd }) {
   const { t, tStatus } = useLanguage();
   const [screen, setScreen] = useState('LIST'); // 'LIST' | 'BOOK'
   const [confirmAction, setConfirmAction] = useState(null); // { type: 'MATURE'|'PREMATURE', fd }
   const [statusTab, setStatusTab] = useState('ACTIVE');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
+
+  // Branch filter (derived via the linked borrower's branch — FDs don't carry
+  // their own branch field) — locked/forced by the sidebar's global control.
+  const [branchFilter, setBranchFilter] = useState('ALL');
+  useEffect(() => {
+    if (selectedBranch && selectedBranch !== 'ALL') setBranchFilter(selectedBranch);
+  }, [selectedBranch]);
+  const borrowerBranch = (fd) => borrowers.find(b => b.id === fd.borrower_id)?.branch;
   const [certificateFd, setCertificateFd] = useState(null);
+  const [printOverallRegister, setPrintOverallRegister] = useState(false);
   const pageSize = 8;
+
+  const [customPayoutAmount, setCustomPayoutAmount] = useState('');
 
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
@@ -300,8 +312,8 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
   }
 
   const certificateLabels = (fd) => ({
-    title: t('fdc.title'),
-    certificateNo: t('fdc.certificate_no'),
+    title: 'FIXED DEPOSIT ADVICE / STATEMENT',
+    certificateNo: 'Advice Ref',
     fdAccountNo: t('col.fd_account_no'),
     customer: t('col.customer'),
     principal: t('fdc.principal_amount').replace(/:$/, ''),
@@ -322,11 +334,13 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
     generatedOn: t('fdc.generated_on')
   });
 
-  const totalPrincipal = fixedDeposits.reduce((acc, f) => acc + (f.status === 'ACTIVE' ? f.principal_amount : 0), 0);
-  const totalMaturityLiability = fixedDeposits.reduce((acc, f) => acc + (f.status === 'ACTIVE' ? f.maturity_value : 0), 0);
-  const activeCount = fixedDeposits.filter(f => f.status === 'ACTIVE').length;
+  const branchScopedFds = branchFilter === 'ALL' ? fixedDeposits : fixedDeposits.filter(f => borrowerBranch(f) === branchFilter);
 
-  const byTab = fixedDeposits.filter(f => f.status === statusTab);
+  const totalPrincipal = branchScopedFds.reduce((acc, f) => acc + (f.status === 'ACTIVE' ? f.principal_amount : 0), 0);
+  const totalMaturityLiability = branchScopedFds.reduce((acc, f) => acc + (f.status === 'ACTIVE' ? f.maturity_value : 0), 0);
+  const activeCount = branchScopedFds.filter(f => f.status === 'ACTIVE').length;
+
+  const byTab = branchScopedFds.filter(f => f.status === statusTab);
   const filteredFds = byTab.filter(f => {
     const q = searchQuery.toLowerCase().trim();
     return !q || f.fd_account_no.toLowerCase().includes(q) || f.customer_name.toLowerCase().includes(q);
@@ -336,7 +350,7 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
   const startIndex = (safePage - 1) * pageSize;
   const pagedFds = filteredFds.slice(startIndex, startIndex + pageSize);
 
-  const tabCount = (id) => fixedDeposits.filter(f => f.status === id).length;
+  const tabCount = (id) => branchScopedFds.filter(f => f.status === id).length;
 
   return (
     <div className="fin-page">
@@ -351,10 +365,25 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
               <p className="fin-page-header__subtitle">{t('fd.subtitle')}</p>
             </div>
           </div>
-          <button type="button" className="fin-btn-primary" onClick={() => setScreen('BOOK')} disabled={!borrowers.length}>
-            <Plus style={{ width: 14, height: 14 }} />
-            <span>{t('fd.book_new')}</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => setPrintOverallRegister(true)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '7px 14px', borderRadius: 7, border: '1px solid #CBD5E1',
+                background: '#FFFFFF', color: '#334155', fontSize: '0.8rem',
+                fontWeight: 600, cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+              }}
+            >
+              <Printer style={{ width: 14, height: 14, color: '#059669' }} />
+              <span>Print Register</span>
+            </button>
+            <button type="button" className="fin-btn-primary" onClick={() => setScreen('BOOK')} disabled={!borrowers.length}>
+              <Plus style={{ width: 14, height: 14 }} />
+              <span>{t('fd.book_new')}</span>
+            </button>
+          </div>
         </div>
 
         <div className="fin-header-stats">
@@ -384,9 +413,21 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
           onChange={(id) => { setStatusTab(id); setPage(1); }}
         />
 
-        <div style={{ position: 'relative', width: 280, maxWidth: '100%' }}>
-          <Search style={{ position: 'absolute', left: 10, top: 9, width: 14, height: 14, color: '#94A3B8' }} />
-          <input style={{ paddingLeft: 30, width: '100%', height: 34, borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: '0.78rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} type="text" placeholder={t('fd.search_placeholder')} value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <select
+            className="fin-select"
+            style={{ height: 34 }}
+            value={branchFilter}
+            onChange={(e) => { setBranchFilter(e.target.value); setPage(1); }}
+            disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
+          >
+            <option value="ALL">{t('fin.all_branches')}</option>
+            {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+          </select>
+          <div style={{ position: 'relative', width: 280, maxWidth: '100%' }}>
+            <Search style={{ position: 'absolute', left: 10, top: 9, width: 14, height: 14, color: '#94A3B8' }} />
+            <input style={{ paddingLeft: 30, width: '100%', height: 34, borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: '0.78rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} type="text" placeholder={t('fd.search_placeholder')} value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }} />
+          </div>
         </div>
       </div>
 
@@ -403,7 +444,7 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
               <th className="num">{t('col.rate')}</th>
               <th>{t('fdc.booking_date').replace(/:$/, '')}</th>
               <th>{t('col.maturity_date')}</th>
-              <th className="num">{t('col.maturity_value')}</th>
+              <th className="num">{statusTab === 'CLOSED_PREMATURE' ? 'Prematured Amount' : t('col.maturity_value')}</th>
               <th style={{ textAlign: 'center' }}>{t('col.status')}</th>
               <th style={{ textAlign: 'right', minWidth: 220 }}>{t('col.actions')}</th>
             </tr>
@@ -422,11 +463,11 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
                 <td className="num">{fd.interest_rate}%</td>
                 <td style={{ fontSize: '0.78rem', color: '#64748B' }}>{fd.booking_date}</td>
                 <td>{fd.maturity_date}</td>
-                <td className="num" style={{ fontWeight: 600, color: '#059669' }}>₹{fmt(fd.status === 'CLOSED_PREMATURE' ? fd.payout_amount : fd.maturity_value)}</td>
+                <td className="num" style={{ color: fd.status === 'CLOSED_PREMATURE' ? '#DC2626' : '#059669' }}>₹{fmt(fd.status === 'CLOSED_PREMATURE' ? fd.payout_amount : fd.maturity_value)}</td>
                 <td style={{ textAlign: 'center' }}><span className={statusBadgeCls(fd.status)}>{tStatus(fd.status)}</span></td>
                 <td style={{ textAlign: 'right' }}>
                   <div style={{ display: 'inline-flex', gap: 6 }}>
-                    <ActionPill icon={<Eye style={{ width: 11, height: 11 }} />} label={t('fd.view_certificate')} onClick={() => setCertificateFd(fd)} />
+                    <ActionPill icon={<Printer style={{ width: 11, height: 11 }} />} label="Print" tone="neutral" onClick={() => setCertificateFd(fd)} />
                     {fd.status === 'ACTIVE' && (
                       <>
                         <ActionPill icon={<CheckCircle2 style={{ width: 11, height: 11 }} />} label={t('fd.mark_matured')} tone="good" onClick={() => setConfirmAction({ type: 'MATURE', fd })} />
@@ -444,11 +485,14 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
 
       {confirmAction && (() => {
         const isMature = confirmAction.type === 'MATURE';
-        const payoutAmount = isMature ? confirmAction.fd.maturity_value : Math.round(confirmAction.fd.maturity_value * 0.98);
+        const defaultPenaltyPayout = Math.round(confirmAction.fd.maturity_value * 0.98);
+        const payoutAmount = isMature
+          ? confirmAction.fd.maturity_value
+          : (customPayoutAmount !== '' ? (parseFloat(customPayoutAmount) || 0) : defaultPenaltyPayout);
         const tone = isMature ? { bg: '#ECFDF5', border: '#A7F3D0', color: '#059669', icon: '#059669' } : { bg: '#FEF2F2', border: '#FECACA', color: '#DC2626', icon: '#DC2626' };
         return (
           <div className="saas-modal-backdrop">
-            <div className="saas-modal-card">
+            <div className="saas-modal-card" style={{ maxWidth: 440 }}>
               <div className="saas-modal-header">
                 <div className="head-left">
                   <div className="head-icon-badge" style={{ background: tone.bg, color: tone.icon }}>
@@ -459,13 +503,13 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
                     <p>{confirmAction.fd.fd_account_no} — {confirmAction.fd.customer_name}</p>
                   </div>
                 </div>
-                <button onClick={() => setConfirmAction(null)} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>
+                <button onClick={() => { setConfirmAction(null); setCustomPayoutAmount(''); }} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>
               </div>
               <div className="saas-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={{ background: tone.bg, border: `1px solid ${tone.border}`, borderRadius: 12, padding: '16px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                      {isMature ? t('fdc.maturity_value') : t('fd.confirm_premature_title')}
+                      {isMature ? t('fdc.maturity_value') : 'Final Settlement Amount'}
                     </span>
                     <strong style={{ fontSize: '1.3rem', color: tone.color }}>₹{fmt(payoutAmount)}</strong>
                   </div>
@@ -476,20 +520,44 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
                     </div>
                   )}
                 </div>
+
+                {!isMature && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#334155' }}>
+                      Premature Settlement Amount (₹)
+                    </label>
+                    <input
+                      type="number"
+                      placeholder={`Default ₹${fmt(defaultPenaltyPayout)}`}
+                      value={customPayoutAmount}
+                      onChange={(e) => setCustomPayoutAmount(e.target.value)}
+                      style={{
+                        height: 36, padding: '0 12px', borderRadius: 8,
+                        border: '1px solid #CBD5E1', fontSize: '0.85rem',
+                        fontWeight: 400, fontFamily: 'inherit', outline: 'none'
+                      }}
+                    />
+                  </div>
+                )}
+
                 <p style={{ fontSize: '0.8rem', color: '#334155', margin: 0, lineHeight: 1.5 }}>
                   {isMature
                     ? t('fd.confirm_matured_desc').replace('{amount}', fmt(payoutAmount))
-                    : t('fd.confirm_premature_desc').replace('{payout}', fmt(payoutAmount)).replace('{full}', fmt(confirmAction.fd.maturity_value))}
+                    : `Confirm early settlement of FD #${confirmAction.fd.fd_account_no}. Net payout amount ₹${fmt(payoutAmount)} will be processed.`}
                 </p>
               </div>
               <div className="saas-modal-footer">
-                <button type="button" onClick={() => setConfirmAction(null)} className="btn-cancel">{t('btn.cancel')}</button>
+                <button type="button" onClick={() => { setConfirmAction(null); setCustomPayoutAmount(''); }} className="btn-cancel">{t('btn.cancel')}</button>
                 <button
                   type="button"
                   onClick={() => {
-                    if (isMature) onMatureFd(confirmAction.fd.id);
-                    else onPrematureCloseFd(confirmAction.fd.id);
+                    if (isMature) {
+                      onMatureFd(confirmAction.fd.id);
+                    } else {
+                      onPrematureCloseFd(confirmAction.fd.id, customPayoutAmount);
+                    }
                     setConfirmAction(null);
+                    setCustomPayoutAmount('');
                   }}
                   className="btn-submit"
                   style={{ background: tone.color, boxShadow: `0 2px 6px ${tone.color}4D` }}
@@ -508,6 +576,16 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
           fd={certificateFd}
           labels={certificateLabels(certificateFd)}
           onClose={() => setCertificateFd(null)}
+        />
+      )}
+
+      {printOverallRegister && (
+        <PrintableFixedDepositRegister
+          company={tenant}
+          fixedDeposits={filteredFds}
+          branchFilter={branchFilter}
+          statusTab={statusTab}
+          onClose={() => setPrintOverallRegister(false)}
         />
       )}
     </div>

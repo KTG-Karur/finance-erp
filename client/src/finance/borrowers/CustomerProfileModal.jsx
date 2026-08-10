@@ -45,14 +45,6 @@ function KycBadge({ status }) {
       </span>
     );
   }
-  if (status === 'REJECTED') {
-    return (
-      <span className="cpx-kyc cpx-kyc--rejected">
-        <ShieldCheck style={{ width: 12, height: 12 }} />
-        <span>{t('kyc.rejected')}</span>
-      </span>
-    );
-  }
   return (
     <span className="cpx-kyc cpx-kyc--pending">
       <ShieldCheck style={{ width: 12, height: 12 }} />
@@ -159,9 +151,9 @@ export default function CustomerProfileModal({ borrower, onClose, onEdit, onRevi
 
         {/* ── LEFT: Large Profile Portrait Panel ───────────────────────── */}
         <aside className="cpx-portrait-panel">
-          <div className="cpx-portrait-frame">
+          <div className="cpx-portrait-frame" style={{ borderRadius: '50%' }}>
             {borrower.profile_image ? (
-              <img src={borrower.profile_image} alt={borrower.full_name} />
+              <img src={borrower.profile_image} alt={borrower.full_name} style={{ borderRadius: '50%' }} />
             ) : (
               <span>{(borrower.full_name || '?').charAt(0)}</span>
             )}
@@ -169,8 +161,6 @@ export default function CustomerProfileModal({ borrower, onClose, onEdit, onRevi
 
           <h2 className="cpx-name">{borrower.full_name}</h2>
           <span className="cpx-code">{borrower.borrower_code || 'KTG-CUST'}</span>
-
-          <KycBadge status={borrower.kyc_status} />
 
           <div className="cpx-contact-list">
             <div className="cpx-contact-row">
@@ -224,15 +214,10 @@ export default function CustomerProfileModal({ borrower, onClose, onEdit, onRevi
               <Pencil style={{ width: 13, height: 13 }} />
               <span>{t('cp.edit_profile')}</span>
             </button>
-            {(borrower.kyc_status === 'PENDING' || !borrower.kyc_status) && (
-              <button type="button" className="cpx-btn cpx-btn--amber" onClick={onReviewKyc}>
-                {t('cp.review_kyc')}
-              </button>
-            )}
           </div>
         </aside>
 
-        {/* ── RIGHT: Detail Sections ───────────────────────────────────── */}
+        {/* ── RIGHT: Modern Executive Detail Panel ───────────────────────── */}
         <section className="cpx-detail-panel">
           <div className="cpx-detail-head">
             <h3>{t('cp.record_title')}</h3>
@@ -241,8 +226,37 @@ export default function CustomerProfileModal({ borrower, onClose, onEdit, onRevi
 
           <div className="cpx-detail-body">
 
-            <div className="cpx-section">
-              <h4><Users style={{ width: 13, height: 13 }} /> {t('cp.personal_details')}</h4>
+            {/* Associated Loans at top */}
+            <div className="cpx-card-section">
+              <div className="cpx-card-section-head">
+                <CreditCard style={{ width: 14, height: 14, color: '#059669' }} />
+                <h4>{t('cp.associated_loans')} ({borrower.loansList?.length || 0})</h4>
+              </div>
+              {(!borrower.loansList || borrower.loansList.length === 0) ? (
+                <div className="cpx-empty">{t('cp.no_loans')}</div>
+              ) : (
+                <div className="cpx-loans">
+                  {borrower.loansList.map(loan => (
+                    <div className="cpx-loan-row" key={loan.id}>
+                      <div>
+                        <strong>{loan.loan_account_no}</strong>
+                        <span>{t('cp.disbursed')} ₹{fmt(loan.principal_amount)} • EMI ₹{loan.installment_amount}{t('cp.per_day')}</span>
+                      </div>
+                      <div className={`cpx-loan-pending ${loan.pending_amount > 0 ? 'danger' : 'success'}`}>
+                        ₹{fmt(loan.pending_amount)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Section 1: Personal Details */}
+            <div className="cpx-card-section">
+              <div className="cpx-card-section-head">
+                <Users style={{ width: 14, height: 14, color: '#059669' }} />
+                <h4>{t('cp.personal_details')}</h4>
+              </div>
               <div className="cpx-grid">
                 <Field label={t('cp.father_spouse')} value={borrower.father_spouse_name} />
                 <Field label={t('cp.dob')} value={borrower.dob} />
@@ -253,8 +267,12 @@ export default function CustomerProfileModal({ borrower, onClose, onEdit, onRevi
               </div>
             </div>
 
-            <div className="cpx-section">
-              <h4><ShieldCheck style={{ width: 13, height: 13 }} /> {t('cp.id_kyc')}</h4>
+            {/* Section 2: ID & Government Identification */}
+            <div className="cpx-card-section">
+              <div className="cpx-card-section-head">
+                <ShieldCheck style={{ width: 14, height: 14, color: '#059669' }} />
+                <h4>{t('cp.id_kyc')}</h4>
+              </div>
               <div className="cpx-grid">
                 <Field label={t('cp.aadhaar_number')} value={borrower.aadhaar_number} />
                 <Field label={t('cp.pan_number')} value={borrower.pan_number} />
@@ -263,8 +281,12 @@ export default function CustomerProfileModal({ borrower, onClose, onEdit, onRevi
               </div>
             </div>
 
-            <div className="cpx-section">
-              <h4><Briefcase style={{ width: 13, height: 13 }} /> {t('cp.employment_income')}</h4>
+            {/* Section 3: Employment & Income */}
+            <div className="cpx-card-section">
+              <div className="cpx-card-section-head">
+                <Briefcase style={{ width: 14, height: 14, color: '#059669' }} />
+                <h4>{t('cp.employment_income')}</h4>
+              </div>
               <div className="cpx-grid">
                 <Field label={t('cp.occupation')} value={borrower.occupation} />
                 <Field label={t('cp.employer_name')} value={borrower.employer_name} />
@@ -272,8 +294,12 @@ export default function CustomerProfileModal({ borrower, onClose, onEdit, onRevi
               </div>
             </div>
 
-            <div className="cpx-section">
-              <h4><Landmark style={{ width: 13, height: 13 }} /> {t('cp.bank_details')}</h4>
+            {/* Section 4: Financial & Bank Details */}
+            <div className="cpx-card-section">
+              <div className="cpx-card-section-head">
+                <Landmark style={{ width: 14, height: 14, color: '#059669' }} />
+                <h4>{t('cp.bank_details')}</h4>
+              </div>
               <div className="cpx-grid">
                 <Field label={t('cp.bank_name')} value={borrower.bank_name} />
                 <Field label={t('cp.account_number')} value={borrower.account_number} />
@@ -281,8 +307,12 @@ export default function CustomerProfileModal({ borrower, onClose, onEdit, onRevi
               </div>
             </div>
 
-            <div className="cpx-section">
-              <h4><Users style={{ width: 13, height: 13 }} /> {t('cp.guarantor_nominee')}</h4>
+            {/* Section 5: Guarantor & Nominee */}
+            <div className="cpx-card-section">
+              <div className="cpx-card-section-head">
+                <Users style={{ width: 14, height: 14, color: '#059669' }} />
+                <h4>{t('cp.guarantor_nominee')}</h4>
+              </div>
               <div className="cpx-grid">
                 <Field label={t('cp.guarantor_name')} value={borrower.guarantor_name} />
                 <Field label={t('cp.guarantor_phone')} value={borrower.guarantor_phone} />
@@ -362,27 +392,6 @@ export default function CustomerProfileModal({ borrower, onClose, onEdit, onRevi
                   )}
                 </div>
               </div>
-            </div>
-
-            <div className="cpx-section cpx-section--last">
-              <h4><CreditCard style={{ width: 13, height: 13 }} /> {t('cp.associated_loans')} ({borrower.loansList?.length || 0})</h4>
-              {(!borrower.loansList || borrower.loansList.length === 0) ? (
-                <div className="cpx-empty">{t('cp.no_loans')}</div>
-              ) : (
-                <div className="cpx-loans">
-                  {borrower.loansList.map(loan => (
-                    <div className="cpx-loan-row" key={loan.id}>
-                      <div>
-                        <strong>{loan.loan_account_no}</strong>
-                        <span>{t('cp.disbursed')} ₹{fmt(loan.principal_amount)} • EMI ₹{loan.installment_amount}{t('cp.per_day')}</span>
-                      </div>
-                      <div className={`cpx-loan-pending ${loan.pending_amount > 0 ? 'danger' : 'success'}`}>
-                        ₹{fmt(loan.pending_amount)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
 
           </div>

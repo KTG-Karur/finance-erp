@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Users,
   ShieldCheck,
@@ -39,14 +39,6 @@ function KycBadge({ status }) {
       </span>
     );
   }
-  if (status === 'REJECTED') {
-    return (
-      <span className="kyc-dot-badge kyc-dot-badge--rejected">
-        <span className="dot"></span>
-        <span>{tStatus('REJECTED')}</span>
-      </span>
-    );
-  }
   return (
     <span className="kyc-dot-badge kyc-dot-badge--pending">
       <span className="dot"></span>
@@ -55,10 +47,14 @@ function KycBadge({ status }) {
   );
 }
 
-export default function BorrowersView({ borrowers = [], loans = [], branches = [], onCreateBorrower, onUpdateBorrower, onDeleteBorrower, onOpenKycReview }) {
+export default function BorrowersView({ borrowers = [], loans = [], branches = [], selectedBranch = 'ALL', onCreateBorrower, onUpdateBorrower, onDeleteBorrower, onOpenKycReview }) {
   const { t, tStatus } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [branchFilter, setBranchFilter] = useState('ALL');
+  useEffect(() => {
+    if (selectedBranch && selectedBranch !== 'ALL') setBranchFilter(selectedBranch);
+  }, [selectedBranch]);
   const [viewMode, setViewMode] = useState('TABLE');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
@@ -155,6 +151,7 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
       (b.loansList || []).some(l => (l.loan_code || l.loan_number || '').toLowerCase().includes(q))
     );
     if (!matchesSearch) return false;
+    if (branchFilter !== 'ALL' && b.branch !== branchFilter) return false;
     if (statusFilter === 'ACTIVE_LOANS') return b.totalOutstanding > 0;
     if (statusFilter === 'VERIFIED') return b.kyc_status === 'VERIFIED';
     if (statusFilter === 'PENDING_KYC') return b.kyc_status === 'PENDING' || !b.kyc_status;
@@ -215,97 +212,84 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
   };
 
   return (
-    <div className="borrowers-page">
+    <div className="fin-page">
 
-      {/* ── 1. Top Page Professional Header ───────────────────────────────── */}
-      <div className="borrowers-header-card">
-        <div className="header-left">
-          <div className="icon-box">
-            <Users style={{ width: 22, height: 22 }} />
+      {/* ── 1. Top Page Header + Summary Stats ───────────────────────────── */}
+      <div className="fin-header-card">
+        <div className="fin-page-header">
+          <div className="fin-page-header__left">
+            <div className="fin-page-header__icon" style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669' }}>
+              <Users style={{ width: 18, height: 18 }} />
+            </div>
+            <div>
+              <h1 className="fin-page-header__title">{t('cust.title')}</h1>
+              <p className="fin-page-header__subtitle">{t('cust.subtitle')}</p>
+            </div>
           </div>
-          <div className="title-box">
-            <h1>{t('cust.title')}</h1>
-            <p>{t('cust.subtitle')}</p>
-          </div>
+
+          <button type="button" className="fin-btn-primary" onClick={openCreateForm}>
+            <Plus style={{ width: 14, height: 14 }} />
+            <span>{t('cust.register_new')}</span>
+          </button>
         </div>
 
-        <button className="btn-add-customer" onClick={openCreateForm}>
-          <Plus style={{ width: 16, height: 16 }} />
-          <span>{t('cust.register_new')}</span>
-        </button>
-      </div>
-
-      {/* ── 2. Top KPI Summary Grid ───────────────────────────────────────── */}
-      <div className="borrowers-kpi-grid">
-        <div className="borrower-kpi-card">
-          <div className="borrower-kpi-card__icon borrower-kpi-card__icon--green">
-            <Users style={{ width: 22, height: 22 }} />
+        <div className="fin-header-stats">
+          <div className="fin-header-stat">
+            <span className="fin-header-stat__label">Total Registered Customers</span>
+            <span className="fin-header-stat__value">{totalBorrowers}</span>
           </div>
-          <div className="borrower-kpi-card__info">
-            <span>Total Registered Customers</span>
-            <strong>{totalBorrowers}</strong>
-          </div>
-        </div>
-
-        <div className="borrower-kpi-card">
-          <div className="borrower-kpi-card__icon borrower-kpi-card__icon--blue">
-            <ShieldCheck style={{ width: 22, height: 22 }} />
-          </div>
-          <div className="borrower-kpi-card__info">
-            <span>KYC Verified Customers</span>
-            <strong>{enrichedBorrowers.filter(b => b.kyc_status === 'VERIFIED').length}</strong>
-          </div>
-        </div>
-
-        <div className="borrower-kpi-card">
-          <div className="borrower-kpi-card__icon borrower-kpi-card__icon--orange">
-            <ShieldQuestion style={{ width: 22, height: 22 }} />
-          </div>
-          <div className="borrower-kpi-card__info">
-            <span>Pending KYC Review</span>
-            <strong>{enrichedBorrowers.filter(b => b.kyc_status === 'PENDING' || !b.kyc_status).length}</strong>
-          </div>
-        </div>
-
-        <div className="borrower-kpi-card">
-          <div className="borrower-kpi-card__icon borrower-kpi-card__icon--purple">
-            <ShieldAlert style={{ width: 22, height: 22 }} />
-          </div>
-          <div className="borrower-kpi-card__info">
-            <span>Active Loan Borrowers</span>
-            <strong>{enrichedBorrowers.filter(b => b.totalOutstanding > 0).length}</strong>
+          <div className="fin-header-stat">
+            <span className="fin-header-stat__label">Active Loan Borrowers</span>
+            <span className="fin-header-stat__value fin-header-stat__value--good">{enrichedBorrowers.filter(b => b.totalOutstanding > 0).length}</span>
           </div>
         </div>
       </div>
 
-      {/* ── 3. Directory Toolbar (Search & Filters) ─────────────────────── */}
-      <div className="borrowers-toolbar">
-        <div className="borrowers-toolbar__left">
-          <div className="borrowers-toolbar__search">
-            <Search className="search-icon" style={{ width: 16, height: 16 }} />
+      {/* ── 2. Directory Toolbar (Search & Filters) ─────────────────────── */}
+      <div className="fin-filterbar">
+        <div className="fin-field" style={{ minWidth: 200 }}>
+          <label>{t('fin.find_transactions_placeholder')}</label>
+          <div style={{ position: 'relative' }}>
+            <Search style={{ position: 'absolute', left: 9, top: 9, width: 13, height: 13, color: '#94A3B8' }} />
             <input
+              className="fin-input"
+              style={{ paddingLeft: 28, width: '100%', boxSizing: 'border-box' }}
               type="text"
               placeholder={t('cust.search')}
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
             />
           </div>
-
-          <div className="borrowers-toolbar__filter-dropdown">
-            <Filter style={{ width: 14, height: 14, color: '#64748B' }} />
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-            >
-              <option value="ALL">All Customers ({totalBorrowers})</option>
-              <option value="ACTIVE_LOANS">Active Loans Only</option>
-              <option value="VERIFIED">Verified KYC</option>
-              <option value="PENDING_KYC">Pending KYC</option>
-            </select>
-          </div>
         </div>
 
-        <div className="borrowers-toolbar__right">
+        <div className="fin-field">
+          <label>Filter</label>
+          <select
+            className="fin-select"
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+          >
+            <option value="ALL">All Customers ({totalBorrowers})</option>
+            <option value="ACTIVE_LOANS">Active Loans Only</option>
+            <option value="VERIFIED">Verified KYC</option>
+            <option value="PENDING_KYC">Pending KYC</option>
+          </select>
+        </div>
+
+        <div className="fin-field">
+          <label>{t('fin.branch_label')}</label>
+          <select
+            className="fin-select"
+            value={branchFilter}
+            onChange={(e) => { setBranchFilter(e.target.value); setCurrentPage(1); }}
+            disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
+          >
+            <option value="ALL">All Branches</option>
+            {branches.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+          </select>
+        </div>
+
+        <div className="fin-quickrow">
           {/* Export / Print Dropdown Menu */}
           <div className="export-dropdown-container">
             <button
@@ -365,9 +349,8 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
       </div>
 
       {viewMode === 'TABLE' ? (
-        <div className="borrowers-table-card">
-          <div className="table-responsive">
-            <table>
+        <div className="fin-tablewrap">
+          <table className="fin-grid-table">
               <thead>
                 <tr>
                   <th style={{ width: 60, textAlign: 'center' }}>{t('col.sno')}</th>
@@ -375,8 +358,8 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
                   <th>{t('col.contact_info')}</th>
                   <th>{t('col.branch')}</th>
                   <th>{t('col.government_ids')}</th>
-                  <th style={{ textAlign: 'right' }}>{t('col.loan_exposure')}</th>
-                  <th style={{ textAlign: 'center' }}>{t('col.kyc_status')}</th>
+                  <th className="num">No. of Loans</th>
+                  <th className="num">{t('col.loan_exposure')}</th>
                   <th style={{ textAlign: 'right' }}>{t('col.actions')}</th>
                 </tr>
               </thead>
@@ -390,78 +373,52 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
                 ) : (
                   paginatedList.map((b, idx) => (
                     <tr key={b.id} onClick={() => setProfileTarget(b)} style={{ cursor: 'pointer' }}>
-                      <td style={{ textAlign: 'center' }}>
-                        <span className="sno-text">{startIndex + idx + 1}</span>
-                      </td>
+                      <td style={{ textAlign: 'center', color: '#94A3B8' }}>{startIndex + idx + 1}</td>
 
                       <td>
-                        <div className="borrower-profile-cell">
-                          <div className="avatar">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{
+                            width: 30, height: 30, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
+                            background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '0.78rem', fontWeight: 700
+                          }}>
                             {b.profile_image ? (
-                              <img src={b.profile_image} alt={b.full_name} />
+                              <img src={b.profile_image} alt={b.full_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             ) : (
                               (b.full_name || '?').charAt(0)
                             )}
                           </div>
-                          <div className="details">
-                            <strong>{b.full_name}</strong>
-                            <span className="code-text">{b.borrower_code || 'KTG-CUST'}</span>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ color: '#0F172A', fontSize: '0.8rem', fontWeight: 600 }}>{b.full_name}</div>
+                            <div className="code" style={{ fontSize: '0.7rem' }}>{b.borrower_code || 'KTG-CUST'}</div>
                           </div>
                         </div>
                       </td>
 
                       <td>
-                        <div className="contact-box">
-                          <span className="phone">{b.phone || '—'}</span>
-                          {b.email && <span className="email">{b.email}</span>}
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span>{b.phone || '—'}</span>
+                          {b.email && <span style={{ color: '#94A3B8', fontSize: '0.72rem' }}>{b.email}</span>}
                         </div>
                       </td>
 
-                      <td>
-                        <span className="branch-text">{b.branch || 'Karur Main'}</span>
-                      </td>
+                      <td>{b.branch || 'Karur Main'}</td>
 
                       <td>
-                        <div className="id-text-flex">
+                        <div style={{ display: 'flex', flexDirection: 'column', fontSize: '0.75rem' }}>
                           {b.aadhaar_number && <span>Aadhaar: {b.aadhaar_number}</span>}
                           {b.pan_number && <span>PAN: {b.pan_number}</span>}
                           {!b.aadhaar_number && !b.pan_number && (
-                            <span style={{ fontSize: '0.72rem', color: '#94A3B8' }}>No ID Recorded</span>
+                            <span style={{ color: '#94A3B8' }}>No ID Recorded</span>
                           )}
                         </div>
                       </td>
 
-                      <td style={{ textAlign: 'right' }}>
-                        <div className="exposure-box">
-                          <span className={`amount ${b.totalOutstanding > 0 ? 'has-balance' : ''}`}>
-                            ₹{fmt(b.totalOutstanding)}
-                          </span>
-                          <span className="accounts-count">
-                            {b.loansCount} {b.loansCount === 1 ? 'Account' : 'Accounts'}
-                          </span>
-                        </div>
-                      </td>
+                      <td className="num" style={{ fontWeight: 600, color: '#0F172A' }}>{b.loansCount}</td>
 
-                      <td style={{ textAlign: 'center' }}>
-                        <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                          <KycBadge status={b.kyc_status} />
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); onOpenKycReview?.(b); }}
-                            style={{
-                              border: b.kyc_status === 'VERIFIED' ? '1px solid #CBD5E1' : 'none',
-                              background: b.kyc_status === 'VERIFIED' ? '#FFFFFF' : (b.kyc_status === 'REJECTED' ? '#DC2626' : '#D97706'),
-                              color: b.kyc_status === 'VERIFIED' ? '#475569' : '#FFFFFF',
-                              fontSize: '0.65rem',
-                              fontWeight: 600,
-                              padding: '2px 8px',
-                              borderRadius: 12,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            {b.kyc_status === 'VERIFIED' ? 'Inspect' : (b.kyc_status === 'REJECTED' ? 'Re-verify' : 'Review')}
-                          </button>
-                        </div>
+                      <td className="num" style={{ fontWeight: 600, color: b.totalOutstanding > 0 ? '#DC2626' : '#059669' }}>
+                        ₹{fmt(b.totalOutstanding)}
                       </td>
 
                       <td style={{ textAlign: 'right' }}>
@@ -497,7 +454,6 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
                 )}
               </tbody>
             </table>
-          </div>
 
           <div className="table-pagination">
             <div className="table-pagination__info">
@@ -555,7 +511,7 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
                       onClick={(e) => { e.stopPropagation(); onOpenKycReview?.(b); }}
                       style={{
                         border: b.kyc_status === 'VERIFIED' ? '1px solid #CBD5E1' : 'none',
-                        background: b.kyc_status === 'VERIFIED' ? '#FFFFFF' : (b.kyc_status === 'REJECTED' ? '#DC2626' : '#D97706'),
+                        background: b.kyc_status === 'VERIFIED' ? '#FFFFFF' : '#D97706',
                         color: b.kyc_status === 'VERIFIED' ? '#475569' : '#FFFFFF',
                         fontSize: '0.65rem',
                         fontWeight: 600,
@@ -564,7 +520,7 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
                         cursor: 'pointer'
                       }}
                     >
-                      {b.kyc_status === 'VERIFIED' ? 'Inspect' : (b.kyc_status === 'REJECTED' ? 'Re-verify' : 'Review')}
+                      {b.kyc_status === 'VERIFIED' ? 'Inspect' : 'Review'}
                     </button>
                   </div>
                 </div>

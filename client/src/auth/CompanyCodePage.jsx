@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Building2, ArrowRight, AlertCircle, Landmark, Coins, Receipt, ShieldCheck } from 'lucide-react';
-import api from '../../api/client';
+import api from '../api/client';
 
 const ECOSYSTEM_MODULES = [
   { title: 'Financial ERP', icon: Landmark, color: '#059669', bg: '#ECFDF5', border: '#A7F3D0' },
@@ -13,6 +13,7 @@ export default function CompanyCodePage({ onVerified }) {
   const [companyCode, setCompanyCode] = useState('ALPHA');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isExiting, setIsExiting] = useState(false);
 
   const handleCompanyLookup = async (e) => {
     e.preventDefault();
@@ -23,7 +24,10 @@ export default function CompanyCodePage({ onVerified }) {
     try {
       const res = await api.post('/v1/auth/company-lookup', { company_code: companyCode.trim() });
       setLoading(false);
-      onVerified(res.data.company);
+      setIsExiting(true);
+      setTimeout(() => {
+        onVerified(res.data.company);
+      }, 500);
     } catch (err) {
       setError(err?.response?.data?.message || `Company Code '${companyCode.trim()}' not found. Please check and try again.`);
       setLoading(false);
@@ -31,16 +35,16 @@ export default function CompanyCodePage({ onVerified }) {
   };
 
   return (
-    <div className="fluid-login-screen theme-blue">
-      {/* ── Ambient Glowing Mesh Canvas Background (Platform Blue Palette) ── */}
+    <div className="fluid-login-screen">
+      {/* ── Ambient Glowing Mesh Canvas Background (Emerald Fintech Palette) ── */}
       <div className="ambient-mesh-bg">
         <div className="ambient-orb orb-1" />
         <div className="ambient-orb orb-2" />
 
         <svg className="mesh-grid-svg" viewBox="0 0 1440 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
           <pattern id="fluid-grid" width="64" height="64" patternUnits="userSpaceOnUse">
-            <path d="M 64 0 L 0 0 0 64" fill="none" stroke="#2563EB" strokeOpacity="0.05" strokeWidth="1" />
-            <circle cx="64" cy="64" r="1.25" fill="#2563EB" fillOpacity="0.09" />
+            <path d="M 64 0 L 0 0 0 64" fill="none" stroke="#059669" strokeOpacity="0.04" strokeWidth="1" />
+            <circle cx="64" cy="64" r="1.25" fill="#059669" fillOpacity="0.08" />
           </pattern>
           <rect width="100%" height="100%" fill="url(#fluid-grid)" />
         </svg>
@@ -61,10 +65,10 @@ export default function CompanyCodePage({ onVerified }) {
           {/* Headline Typography */}
           <div className="fluid-hero-text">
             <h2>
-              One Platform. <br />
-              <span className="gradient-text">Every Financial Vertical.</span>
+              Financial ERP Workspace <br />
+              <span className="gradient-text">Enterprise Intelligence</span>
             </h2>
-            <p>Sign in once to access whichever modules your organization has subscribed to.</p>
+            <p>Input your organization code to load your secure multi-tenant environment.</p>
           </div>
 
           {/* Module Ecosystem Strip */}
@@ -85,18 +89,29 @@ export default function CompanyCodePage({ onVerified }) {
         </div>
 
         {/* ── Right Column: Floating Auth Form ────────────────────── */}
-        <div className="fluid-auth-col">
-          <div className="saas-card shadow-2xl">
+        <div className="fluid-form-col">
+          <div className={`modern-saas-card ${isExiting ? 'auth-card-exit' : ''}`}>
+
+            {/* Segmented Stepper Header */}
+            <div className="saas-segmented-tabs">
+              <button type="button" className="saas-tab saas-tab--active">
+                <span className="tab-num">1</span>
+                <span>Organization</span>
+              </button>
+              <button type="button" className="saas-tab" style={{ opacity: 0.65, cursor: 'not-allowed' }}>
+                <span className="tab-num">2</span>
+                <span>Credentials</span>
+              </button>
+            </div>
 
             {/* Form Top Header */}
-            <div className="saas-card-header">
-              <div className="saas-badge theme-badge font-mono">STEP 1 OF 3</div>
-              <h3 className="saas-title">Enter Company Code</h3>
-              <p className="saas-sub font-mono">Input your unique organization code to resolve your workspace.</p>
+            <div className="saas-form-head" style={{ marginBottom: 16 }}>
+              <h3>Enter Company Code</h3>
+              <p>Input your unique organization code to resolve your workspace.</p>
             </div>
 
             {error && (
-              <div className="saas-alert-banner alert-danger font-mono" style={{ margin: '0 0 16px 0' }}>
+              <div className="saas-alert-banner alert-danger" style={{ margin: '0 0 16px 0' }}>
                 <AlertCircle className="alert-icon" />
                 <span>{error}</span>
               </div>
@@ -124,13 +139,13 @@ export default function CompanyCodePage({ onVerified }) {
               <button
                 type="submit"
                 id="lookup-btn"
-                disabled={loading || !companyCode.trim()}
+                disabled={loading || isExiting || !companyCode.trim()}
                 className="saas-primary-btn"
               >
-                {loading ? (
+                {loading || isExiting ? (
                   <>
-                    <span className="loader loader--white" style={{ marginRight: 8 }}></span>
-                    <span>Resolving Environment...</span>
+                    <span className="btn-round-spinner" />
+                    <span>Authenticating...</span>
                   </>
                 ) : (
                   <>

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   ArrowLeft,
   ShieldCheck,
-  ShieldAlert,
   ShieldQuestion,
   User,
   Phone,
@@ -28,7 +27,6 @@ function StatusBadge({ status }) {
   const { t } = useLanguage();
   const map = {
     VERIFIED: { bg: '#ECFDF5', color: '#047857', border: '#A7F3D0', icon: ShieldCheck, label: t('kyc.verified') },
-    REJECTED: { bg: '#FEF2F2', color: '#B91C1C', border: '#FECACA', icon: ShieldAlert, label: t('kyc.rejected') },
     PENDING: { bg: '#FFFBEB', color: '#92400E', border: '#FDE68A', icon: ShieldQuestion, label: t('kyc.pending_review') }
   };
   const cfg = map[status] || map.PENDING;
@@ -47,19 +45,9 @@ function StatusBadge({ status }) {
 
 export default function CustomerKycReviewPage({ borrower, onBack, onVerify, onReject }) {
   const { t } = useLanguage();
-  const REJECTION_CATEGORIES = [
-    { id: 'BLURRY_DOCUMENT', label: t('kycr.cat_blurry') },
-    { id: 'NAME_MISMATCH', label: t('kycr.cat_name_mismatch') },
-    { id: 'EXPIRED_PROOF', label: t('kycr.cat_expired') },
-    { id: 'INCOMPLETE_ATTACHMENT', label: t('kycr.cat_incomplete') },
-    { id: 'OTHER', label: t('kycr.cat_other') }
-  ];
   const [confirmingVerify, setConfirmingVerify] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [allowReEvaluate, setAllowReEvaluate] = useState(false);
-  const [rejectCategory, setRejectCategory] = useState('BLURRY_DOCUMENT');
-  const [rejectReason, setRejectReason] = useState('');
-  const [rejectError, setRejectError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState('');
 
@@ -111,16 +99,12 @@ export default function CustomerKycReviewPage({ borrower, onBack, onVerify, onRe
   };
 
   const handleRejectSubmit = async () => {
-    const categoryLabel = REJECTION_CATEGORIES.find(c => c.id === rejectCategory)?.label || rejectCategory;
-    const finalReason = rejectReason.trim() ? `${categoryLabel}: ${rejectReason.trim()}` : categoryLabel;
-
     setSubmitting(true);
     setActionError('');
     try {
-      await onReject(borrower.id, finalReason);
+      await onReject(borrower.id);
       setRejecting(false);
       setAllowReEvaluate(false);
-      setRejectReason('');
     } catch (err) {
       setActionError(err?.response?.data?.message || t('kycr.reject_error'));
     } finally {
@@ -351,7 +335,7 @@ export default function CustomerKycReviewPage({ borrower, onBack, onVerify, onRe
               </div>
               <div className="banner-content">
                 <h4>{t('kycr.verification_confirmed')}</h4>
-                <p>{t('kycr.verified_on')} {borrower.kyc_verified_at || new Date().toISOString().split('T')[0]} {t('kycr.valid_2_years')}</p>
+                <p>{t('kycr.verified_on')} {borrower.kyc_verified_at || new Date().toISOString().split('T')[0]}</p>
                 <div className="meta-pills-row">
                   <span className="pill">{t('kycr.proof_label')} {borrower.id_proof_type || 'Aadhaar Card'}</span>
                   <span className="pill">{t('kycr.identity_authenticated')}</span>
@@ -370,39 +354,10 @@ export default function CustomerKycReviewPage({ borrower, onBack, onVerify, onRe
             </div>
           )}
 
-          {borrower.kyc_status === 'REJECTED' && (
-            <div className="status-banner-card status-banner-card--rejected">
-              <div className="banner-icon">
-                <ShieldAlert style={{ width: 22, height: 22 }} />
-              </div>
-              <div className="banner-content">
-                <h4>{t('kycr.application_rejected')}</h4>
-                <p><strong>{t('kycr.reason_label')}</strong> {borrower.kyc_rejection_reason || t('kycr.default_reject_reason')}</p>
-                <div className="meta-pills-row">
-                  <span className="pill" style={{ color: '#991B1B', borderColor: '#FECACA', background: '#FEF2F2' }}>
-                    {t('kycr.proof_reupload_required')}
-                  </span>
-                  {!allowReEvaluate && (
-                    <button
-                      type="button"
-                      className="btn-re-evaluate"
-                      onClick={() => setAllowReEvaluate(true)}
-                    >
-                      <CheckCircle2 style={{ width: 13, height: 13, color: '#059669' }} />
-                      <span>{t('kycr.reverify_approve')}</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Decision Action Panel (Pending Review State or Re-evaluation) */}
-          {(borrower.kyc_status === 'PENDING' || !borrower.kyc_status || allowReEvaluate) && (
+          {/* Decision Action Panel (Not Verified state, or Re-evaluating a Verified one) */}
+          {(borrower.kyc_status !== 'VERIFIED' || allowReEvaluate) && (
             <div className="kyc-decision-bar">
-              <div className="dec-title">
-                {borrower.kyc_status === 'REJECTED' ? t('kycr.reevaluate_rejected') : t('kycr.decision_action')}
-              </div>
+              <div className="dec-title">{t('kycr.decision_action')}</div>
 
               {!confirmingVerify && !rejecting && (
                 <div className="dec-buttons">
@@ -448,28 +403,12 @@ export default function CustomerKycReviewPage({ borrower, onBack, onVerify, onRe
                 </div>
               )}
 
-              {/* Rejection Reasons Box */}
+              {/* Not-Verified Confirmation */}
               {rejecting && (
                 <div className="confirm-reject-box">
-                  <label>{t('kycr.select_rejection_reason')}</label>
-                  <select
-                    value={rejectCategory}
-                    onChange={(e) => setRejectCategory(e.target.value)}
-                    className="input-select"
-                  >
-                    {REJECTION_CATEGORIES.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.label}</option>
-                    ))}
-                  </select>
-
-                  <textarea
-                    rows={2}
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                    placeholder={t('kycr.remarks_placeholder')}
-                    className="input-remark"
-                  />
-
+                  <p>
+                    {t('kycr.confirm_prefix')} <strong>{borrower.full_name}</strong> {t('kycr.mark_not_verified_suffix')}
+                  </p>
                   <div className="btn-group-right">
                     <button type="button" onClick={() => setRejecting(false)} disabled={submitting} className="btn-cancel">
                       {t('btn.cancel')}

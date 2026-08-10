@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Scale } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import { computeAccountBalances, computeTrialBalance, filterEntriesUpTo, filterEntriesByBranch } from '../../utils/accounting';
@@ -7,11 +7,24 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function TrialBalanceView({ chartOfAccounts = [], journalEntries = [], branchesList = [] }) {
+// Plain-language label + color per raw account type, so the table never shows
+// jargon like ASSET/LIABILITY/EQUITY/REVENUE/EXPENSE directly to staff.
+const ACCOUNT_TYPE_META = {
+  ASSET: { key: 'fin.acct_type_asset', bg: '#ECFDF5', color: '#047857', border: '#A7F3D0' },
+  LIABILITY: { key: 'fin.acct_type_liability', bg: '#FEF2F2', color: '#B91C1C', border: '#FECACA' },
+  EQUITY: { key: 'fin.acct_type_equity', bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
+  REVENUE: { key: 'fin.acct_type_revenue', bg: '#F0FDF4', color: '#15803D', border: '#BBF7D0' },
+  EXPENSE: { key: 'fin.acct_type_expense', bg: '#FFF7ED', color: '#C2410C', border: '#FFEDD5' }
+};
+
+export default function TrialBalanceView({ chartOfAccounts = [], journalEntries = [], branchesList = [], selectedBranch = 'ALL' }) {
   const { t } = useLanguage();
   const [asOfDate, setAsOfDate] = useState(todayStr());
   const [applied, setApplied] = useState(todayStr());
   const [branch, setBranch] = useState('');
+  useEffect(() => {
+    if (selectedBranch && selectedBranch !== 'ALL') setBranch(selectedBranch);
+  }, [selectedBranch]);
   const [hideZeroBalances, setHideZeroBalances] = useState(true);
   const hasBranchSelected = branch !== '';
 
@@ -78,7 +91,7 @@ export default function TrialBalanceView({ chartOfAccounts = [], journalEntries 
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
           <div className="fin-field">
             <label>{t('fin.branch_label')}</label>
-            <select className="fin-select" value={branch} onChange={(e) => setBranch(e.target.value)}>
+            <select className="fin-select" value={branch} onChange={(e) => setBranch(e.target.value)} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
               <option value="">{t('fin.select_branch_placeholder')}</option>
               <option value="ALL">{t('fin.all_branches')}</option>
               {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
@@ -113,7 +126,7 @@ export default function TrialBalanceView({ chartOfAccounts = [], journalEntries 
           <thead>
             <tr>
               <th>{t('fin.col_account_name')}</th>
-              <th>Category / Account Type</th>
+              <th>Category</th>
               <th className="num">{t('fin.col_debit')} (₹)</th>
               <th className="num">{t('fin.col_credit')} (₹)</th>
             </tr>
@@ -126,14 +139,23 @@ export default function TrialBalanceView({ chartOfAccounts = [], journalEntries 
                 </td>
               </tr>
             ) : (
-              displayTrialBalance.map(row => (
-                <tr key={row.code}>
-                  <td style={{ fontWeight: 500, color: '#0F172A' }}>{row.name_key ? t(row.name_key) : row.name}</td>
-                  <td style={{ color: '#64748B', fontSize: '0.78rem', fontWeight: 400 }}>{row.type}</td>
-                  <td className="num" style={{ fontWeight: row.debit ? 500 : 400 }}>{row.debit ? `₹${fmt(row.debit)}` : '—'}</td>
-                  <td className="num" style={{ fontWeight: row.credit ? 500 : 400 }}>{row.credit ? `₹${fmt(row.credit)}` : '—'}</td>
-                </tr>
-              ))
+              displayTrialBalance.map(row => {
+                const typeMeta = ACCOUNT_TYPE_META[row.type];
+                return (
+                  <tr key={row.code}>
+                    <td style={{ fontWeight: 500, color: '#0F172A' }}>{row.name_key ? t(row.name_key) : row.name}</td>
+                    <td>
+                      {typeMeta ? (
+                        <span className="fin-tag" style={{ background: typeMeta.bg, color: typeMeta.color, border: `1px solid ${typeMeta.border}` }}>
+                          {t(typeMeta.key)}
+                        </span>
+                      ) : row.type}
+                    </td>
+                    <td className="num" style={{ fontWeight: row.debit ? 500 : 400 }}>{row.debit ? `₹${fmt(row.debit)}` : '—'}</td>
+                    <td className="num" style={{ fontWeight: row.credit ? 500 : 400 }}>{row.credit ? `₹${fmt(row.credit)}` : '—'}</td>
+                  </tr>
+                );
+              })
             )}
             <tr className="fin-row-total">
               <td colSpan="2" style={{ fontWeight: 600 }}>{t('fin.total_row')}</td>

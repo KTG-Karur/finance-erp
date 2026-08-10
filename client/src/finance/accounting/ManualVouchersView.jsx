@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { PenLine, Search, ChevronLeft, ChevronRight, Plus, X, Trash2, Printer } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import { filterEntriesInRange, filterEntriesByBranch, MANUAL_VOUCHER_TYPES } from '../../utils/accounting';
@@ -300,12 +300,15 @@ function NewVoucherModal({ isOpen, onClose, onSubmit, chartOfAccounts, branchesL
   );
 }
 
-export default function ManualVouchersView({ journalEntries = [], chartOfAccounts = [], branchesList = [], employees = [], expenseCategories = [], tenant, onCreateManualVoucher }) {
+export default function ManualVouchersView({ journalEntries = [], chartOfAccounts = [], branchesList = [], employees = [], expenseCategories = [], tenant, onCreateManualVoucher, selectedBranch = 'ALL' }) {
   const { t } = useLanguage();
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [applied, setApplied] = useState({ from: '', to: '' });
   const [branch, setBranch] = useState('');
+  useEffect(() => {
+    if (selectedBranch && selectedBranch !== 'ALL') setBranch(selectedBranch);
+  }, [selectedBranch]);
   const hasBranchSelected = branch !== '';
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -375,7 +378,7 @@ export default function ManualVouchersView({ journalEntries = [], chartOfAccount
       <form className="fin-filterbar" onSubmit={handleSearch}>
         <div className="fin-field">
           <label>{t('fin.branch_label')}</label>
-          <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }}>
+          <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
             <option value="">{t('fin.select_branch_placeholder')}</option>
             <option value="ALL">{t('fin.all_branches')}</option>
             {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}

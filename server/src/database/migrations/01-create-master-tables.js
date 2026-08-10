@@ -17,6 +17,20 @@ export async function up(queryInterface, Sequelize) {
     db_user: { type: DataTypes.STRING(100), allowNull: false },
     db_password_enc: { type: DataTypes.STRING(500), allowNull: false },
     plan_tier: { type: DataTypes.ENUM('STARTER', 'STANDARD', 'ENTERPRISE'), defaultValue: 'STANDARD' },
+    // Company Profile screen (client/src/settings/OrganizationHierarchyView.jsx /
+    // MasterSettingsView.jsx companyForm) edits these — previously had no backing
+    // columns at all, so every save was silently lost on refresh.
+    gstin: { type: DataTypes.STRING(20), allowNull: true },
+    pan: { type: DataTypes.STRING(20), allowNull: true },
+    address: { type: DataTypes.TEXT, allowNull: true },
+    phone: { type: DataTypes.STRING(20), allowNull: true },
+    logo: { type: DataTypes.TEXT, allowNull: true },
+    // NULL = unlimited/unrestricted — same default-open philosophy as
+    // employee_permissions' "no row = allowed" in plugins/moduleGuard.js. A
+    // superadmin opts a tenant INTO a cap/restriction, existing tenants are
+    // untouched until someone deliberately sets one.
+    max_branches: { type: DataTypes.INTEGER, allowNull: true },
+    allowed_modules: { type: DataTypes.JSON, allowNull: true },
     is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
     created_at: { type: DataTypes.DATE, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') }
   });
@@ -26,7 +40,9 @@ export async function up(queryInterface, Sequelize) {
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
     email: { type: DataTypes.STRING(255), allowNull: false, unique: true },
     password_hash: { type: DataTypes.STRING(255), allowNull: false },
-    full_name: { type: DataTypes.STRING(100), allowNull: false },
+    // auth.service.js's authenticateSuperAdmin selects `u.name`, not `u.full_name` —
+    // keep this column named to match the query it actually has to satisfy.
+    name: { type: DataTypes.STRING(100), allowNull: false },
     role: { type: DataTypes.ENUM('SUPER_ADMIN', 'SYSTEM_AUDITOR'), defaultValue: 'SUPER_ADMIN' },
     is_global_admin: { type: DataTypes.BOOLEAN, defaultValue: true },
     created_at: { type: DataTypes.DATE, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') }

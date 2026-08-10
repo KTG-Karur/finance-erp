@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
   User,
@@ -15,9 +16,12 @@ import {
   Upload,
   Paperclip,
   X,
-  ImageIcon
+  ImageIcon,
+  UserPlus,
+  CheckCircle2
 } from 'lucide-react';
 import PrintableLoanApplicationSheet from './PrintableLoanApplicationSheet';
+import CustomerFormPage from '../borrowers/CustomerFormPage';
 import { useLanguage } from '../../i18n/LanguageContext';
 
 function tp(t, key, vars) {
@@ -31,6 +35,8 @@ function tp(t, key, vars) {
 export default function NewLoanApplicationPage({
   borrowers = [],
   loanSchemes = [],
+  branches = [],
+  onCreateBorrower,
   onCancel,
   onSubmit
 }) {
@@ -40,19 +46,23 @@ export default function NewLoanApplicationPage({
   // offered for fresh loans.
   const activeSchemes = loanSchemes.filter(s => s.is_active);
 
-  // No customer pre-selected initially
+  // No customer or loan scheme pre-selected initially
   const [selectedBorrowerId, setSelectedBorrowerId] = useState('');
-  const initialScheme = activeSchemes[0] || null;
-  const [schemeId, setSchemeId] = useState(initialScheme?.id ? String(initialScheme.id) : '');
 
-  // Core Loan Terms State — interest rate & frequency default from the selected Loan Scheme,
-  // and stay editable afterward in case a specific applicant needs an override.
+  // Creating a new customer happens in a full-screen overlay on TOP of this form —
+  // never a page swap — so principal/tenure/scheme fields already filled in survive
+  // the detour instead of being lost to a remount.
+  const [showCreateCustomer, setShowCreateCustomer] = useState(false);
+  const [customerCreatedMsg, setCustomerCreatedMsg] = useState('');
+  const [schemeId, setSchemeId] = useState('');
+
+  // Core Loan Terms State — completely empty by default
   const [loanTerms, setLoanTerms] = useState({
-    principal_amount: 50000,
-    monthly_interest_rate: initialScheme?.rate_per_unit ?? 2.0,
-    tenure_months: 4,
-    repayment_frequency: initialScheme?.repayment_frequency || 'DAILY',
-    purpose: 'Working Capital & Business Expansion'
+    principal_amount: '',
+    monthly_interest_rate: '',
+    tenure_months: '',
+    repayment_frequency: '',
+    purpose: ''
   });
 
   const selectedScheme = activeSchemes.find(s => String(s.id) === String(schemeId)) || null;
@@ -66,7 +76,7 @@ export default function NewLoanApplicationPage({
     if (scheme) {
       setLoanTerms(prev => ({
         ...prev,
-        monthly_interest_rate: scheme.rate_per_unit,
+        monthly_interest_rate: scheme.rate_per_unit != null ? Number(scheme.rate_per_unit) : '',
         repayment_frequency: scheme.repayment_frequency || prev.repayment_frequency
       }));
     }
@@ -228,6 +238,10 @@ export default function NewLoanApplicationPage({
       errors.borrower = t('nla.err_borrower_required');
     }
 
+    if (!schemeId || !selectedScheme) {
+      errors.scheme = 'Please select a loan scheme.';
+    }
+
     if (!loanTerms.principal_amount || parseFloat(loanTerms.principal_amount) <= 0) {
       errors.principal_amount = t('nla.err_principal_invalid');
     } else if (selectedScheme) {
@@ -246,6 +260,10 @@ export default function NewLoanApplicationPage({
       } else if (selectedScheme.max_tenure_months && months > selectedScheme.max_tenure_months) {
         errors.tenure_months = `${selectedScheme.name} ${tp(t, 'nla.err_max_tenure_suffix', { months: selectedScheme.max_tenure_months })}`;
       }
+    }
+
+    if (!loanTerms.repayment_frequency) {
+      errors.repayment_frequency = 'Please select installment frequency.';
     }
 
     if (!loanTerms.purpose.trim()) {
@@ -406,24 +424,63 @@ export default function NewLoanApplicationPage({
             </div>
 
             <div className="card-body">
+              {customerCreatedMsg && (
+                <div className="form-group-full" style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#047857', borderRadius: 8, padding: '8px 12px', fontSize: '0.8rem', fontWeight: 500 }}>
+                  <CheckCircle2 style={{ width: 14, height: 14 }} />
+                  <span>{customerCreatedMsg}</span>
+                </div>
+              )}
               <div className="form-group-full">
                 <label className="req">{t('nla.select_applicant_customer')}</label>
-                <select
-                  value={selectedBorrowerId}
-                  onChange={(e) => setSelectedBorrowerId(e.target.value)}
-                  className="input-field-select"
-                >
-                  <option value="">{t('nla.select_customer_placeholder')}</option>
-                  {borrowers.map(b => (
-                    <option key={b.id} value={b.id}>
-                      {b.full_name} ({b.borrower_code || 'KTG-CUST'}) - Ph: {b.phone}
-                    </option>
-                  ))}
-                </select>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <select
+                    value={selectedBorrowerId}
+                    onChange={(e) => setSelectedBorrowerId(e.target.value)}
+                    className="input-field-select"
+                    style={{ flex: 1 }}
+                  >
+                    <option value="">{t('nla.select_customer_placeholder')}</option>
+                    {borrowers.map(b => (
+                      <option key={b.id} value={b.id}>
+                        {b.full_name} ({b.borrower_code || 'KTG-CUST'}) - Ph: {b.phone}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateCustomer(true)}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+                      border: '1px solid #CBD5E1', background: '#F8FAFC', color: '#334155', borderRadius: 8,
+                      padding: '0 14px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer'
+                    }}
+                  >
+                    <UserPlus style={{ width: 15, height: 15 }} />
+                    <span>Create New Customer</span>
+                  </button>
+                </div>
                 {formErrors.borrower && <span className="err-txt">{formErrors.borrower}</span>}
               </div>
             </div>
           </div>
+
+          {showCreateCustomer && createPortal(
+            <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#FFFFFF', overflowY: 'auto' }}>
+              <CustomerFormPage
+                mode="CREATE"
+                branches={branches}
+                onCancel={() => setShowCreateCustomer(false)}
+                onSubmit={async (payload) => {
+                  const created = await onCreateBorrower(payload);
+                  setSelectedBorrowerId(String(created.id));
+                  setShowCreateCustomer(false);
+                  setCustomerCreatedMsg(`${created.full_name} created and selected.`);
+                  setTimeout(() => setCustomerCreatedMsg(''), 4000);
+                }}
+              />
+            </div>,
+            document.body
+          )}
 
           {/* Card 2: Requested Loan Terms & Scheme (Compact 3-Column Grid) */}
           <div className="app-form-card">
@@ -444,13 +501,12 @@ export default function NewLoanApplicationPage({
                     onChange={handleSchemeChange}
                     className="input-field-select"
                   >
-                    {activeSchemes.length === 0 && (
-                      <option value="">{t('nla.no_active_schemes')}</option>
-                    )}
+                    <option value="">-- Select Loan Scheme --</option>
                     {activeSchemes.map(s => (
                       <option key={s.id} value={s.id}>{s.name} ({s.rate_per_unit}% p.m.)</option>
                     ))}
                   </select>
+                  {formErrors.scheme && <span className="err-txt">{formErrors.scheme}</span>}
                   {selectedScheme && (selectedScheme.min_amount || selectedScheme.max_amount) && (
                     <span style={{ fontSize: '0.68rem', color: '#94A3B8', display: 'block', marginTop: 4 }}>
                       {t('nla.allowed_prefix')} ₹{fmt(selectedScheme.min_amount || 0)} – ₹{fmt(selectedScheme.max_amount || 0)}
@@ -505,10 +561,12 @@ export default function NewLoanApplicationPage({
                     onChange={handleTermChange}
                     className="input-field-select"
                   >
+                    <option value="">-- Select Frequency --</option>
                     <option value="DAILY">{t('nla.freq_daily_emi')}</option>
                     <option value="WEEKLY">{t('nla.freq_weekly_installment')}</option>
                     <option value="MONTHLY">{t('nla.freq_monthly_emi')}</option>
                   </select>
+                  {formErrors.repayment_frequency && <span className="err-txt">{formErrors.repayment_frequency}</span>}
                 </div>
 
                 <div className="form-group">

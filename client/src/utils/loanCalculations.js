@@ -62,9 +62,15 @@ export function resolveLastPaymentDate(loan, referenceDateStr) {
 // don't silently change numbers — only loans created against a real Loan Scheme
 // going forward get EMI/Constant handling.
 export function resolveRepaymentMethod(loan) {
-  if (loan?.repayment_method) return loan.repayment_method;
-  if (loan?.repayment_mode === 'INTEREST_ONLY') return 'INTEREST_ONLY';
-  return 'INTEREST_ONLY';
+  if (loan?.repayment_method === 'EMI' || loan?.repayment_method === 'INTEREST_ONLY') {
+    return loan.repayment_method;
+  }
+  // A loan with no repayment_method at all keeps the pre-existing "assume
+  // Interest Only" default (see note above). A loan that *does* have one, but
+  // holding a stale non-canonical value (e.g. 'FIXED_EMI' from before schemes
+  // wrote the new field correctly), was always meant to be an EMI loan.
+  if (loan?.repayment_method) return 'EMI';
+  return loan?.repayment_mode === 'EMI' ? 'EMI' : 'INTEREST_ONLY';
 }
 
 export function resolveInterestCalculation(loan) {
@@ -79,17 +85,24 @@ export function resolveInterestCalculation(loan) {
  * ('FIXED_EMI' | 'INTEREST_ONLY' | 'FLEXIBLE'). New loans must still honor whatever
  * that scheme was actually configured as, so these map the old value onto the new
  * two-axis model the same way it's already interpreted elsewhere in the app.
+ *
+ * `repayment_method` is only ever meaningful as exactly 'EMI' or 'INTEREST_ONLY' —
+ * the engine's `=== 'EMI'` checks elsewhere depend on that. Any other value found
+ * there (e.g. a legacy 'FIXED_EMI'/'FLEXIBLE' string saved directly into the new
+ * field) is treated the same as if it had only ever been a `repayment_mode`.
  */
 export function resolveSchemeRepaymentMethod(scheme) {
-  if (scheme?.repayment_method) return scheme.repayment_method;
-  if (scheme?.repayment_mode === 'INTEREST_ONLY') return 'INTEREST_ONLY';
-  return 'EMI';
+  if (scheme?.repayment_method === 'EMI' || scheme?.repayment_method === 'INTEREST_ONLY') {
+    return scheme.repayment_method;
+  }
+  const legacy = scheme?.repayment_method || scheme?.repayment_mode;
+  return legacy === 'INTEREST_ONLY' ? 'INTEREST_ONLY' : 'EMI';
 }
 
 export function resolveSchemeInterestCalculation(scheme) {
   if (scheme?.interest_calculation) return scheme.interest_calculation;
-  if (scheme?.repayment_mode === 'FLEXIBLE') return 'FLEXIBLE_REDUCING';
-  return 'CONSTANT_FLAT';
+  const legacy = scheme?.repayment_method || scheme?.repayment_mode;
+  return legacy === 'FLEXIBLE' ? 'FLEXIBLE_REDUCING' : 'CONSTANT_FLAT';
 }
 
 /**
@@ -98,6 +111,16 @@ export function resolveSchemeInterestCalculation(scheme) {
  * EMI payments are always settled against this schedule, never recomputed live from
  * elapsed days, since the whole point of EMI is a pre-agreed fixed installment.
  */
+import { evaluateFormula } from './formulaEngine';
+
+// Evaluates a custom formula's token array and never throws — mirrors the shape the
+// rest of this file already returns errors in, so a broken/incomplete custom formula
+// degrades to a safe zero instead of crashing the live collection-screen previews that
+// call calculatePaymentAllocation on every render.
+function evalCustomFormula(tokens, vars) {
+  return evaluateFormula(tokens || [], vars);
+}
+
 export function generateEmiSchedule({
   principal,
   monthlyInterestRate,
@@ -240,13 +263,191 @@ export function allocateEmiPayment({ schedule, paymentAmount }) {
 }
 
 /**
+ * Custom-formula counterpart to generateEmiSchedule — used only when a loan's scheme
+ * has formula_type 'CUSTOM' and accrual_mode 'SCHEDULED'. Reuses the exact same
+ * periods/periodDays/due-date logic as generateEmiSchedule so a custom schedule has the
+ * same shape and behaves identically to a built-in EMI schedule everywhere it's
+ * consumed (allocateEmiPayment, the Loan Detail schedule table, overdue-period checks).
+ * The final period always closes the remaining balance exactly — a custom formula can
+ * never leave a loan with a phantom, un-closeable balance.
+ */
+export function generateCustomSchedule({
+  principal,
+  monthlyInterestRate,
+  tenureMonths,
+  repaymentFrequency = 'DAILY',
+  interestFormula,
+  installmentFormula,
+  startDate
+}) {
+  const P = parseFloat(principal) || 0;
+  const monthlyRate = parseFloat(monthlyInterestRate) || 0;
+  const months = parseFloat(tenureMonths) || 1;
+  const totalDays = Math.max(Math.round(months * 30), 1);
+
+  let periodsCount;
+  let periodDays;
+  if (repaymentFrequency === 'WEEKLY') {
+    periodsCount = Math.max(Math.round(totalDays / 7), 1);
+    periodDays = 7;
+  } else if (repaymentFrequency === 'MONTHLY') {
+    periodsCount = Math.max(Math.round(months), 1);
+    periodDays = 30;
+  } else {
+    periodsCount = totalDays;
+    periodDays = 1;
+  }
+
+  const base = startDate ? new Date(startDate) : new Date();
+  const rate = monthlyRate / 100;
+  const schedule = [];
+  let balance = P;
+
+  for (let i = 1; i <= periodsCount; i++) {
+    const vars = { principal: P, outstanding: balance, rate, days: periodDays, tenure_days: totalDays, period: i, periods: periodsCount };
+
+    const interestResult = evalCustomFormula(interestFormula, vars);
+    const interest = interestResult.error ? 0 : Math.max(0, Math.round(interestResult.value));
+
+    let principalPortion;
+    if (i === periodsCount) {
+      principalPortion = balance;
+    } else {
+      const installmentResult = evalCustomFormula(installmentFormula, vars);
+      const installment = installmentResult.error ? interest : Math.round(installmentResult.value);
+      principalPortion = Math.max(0, Math.min(balance, installment - interest));
+    }
+    balance = Math.max(0, balance - principalPortion);
+
+    const dueDate = new Date(base);
+    dueDate.setDate(dueDate.getDate() + i * periodDays);
+
+    schedule.push({
+      period: i,
+      due_date: dueDate.toISOString().slice(0, 10),
+      principal: principalPortion,
+      interest,
+      emi: principalPortion + interest,
+      principal_paid: 0,
+      interest_paid: 0,
+      error: interestResult.error || null
+    });
+  }
+
+  return schedule;
+}
+
+// Custom + LIVE: mirrors the built-in INTEREST_ONLY branch's shape and guarantees
+// exactly, so interestPortion + principalPortion always equals the payment amount and
+// every collection journal entry it produces balances.
+function calculateCustomLivePayment({ loan, amount, paymentDate }) {
+  const lastPaymentDate = resolveLastPaymentDate(loan, paymentDate);
+  const days = daysBetween(lastPaymentDate, paymentDate);
+  const vars = {
+    principal: loan?.principal_amount || 0,
+    outstanding: loan?.pending_amount || 0,
+    rate: (parseFloat(loan?.monthly_interest_rate) || 0) / 100,
+    days,
+    tenure_days: loan?.tenure_days || 0
+  };
+
+  const result = evalCustomFormula(loan?.interest_formula, vars);
+  const interestDue = result.error ? 0 : Math.max(0, Math.round(result.value));
+  const interestPortion = Math.min(amount, interestDue);
+  const principalPortion = Math.max(0, amount - interestPortion);
+  const newPendingPrincipal = Math.max(0, (loan?.pending_amount || 0) - principalPortion);
+
+  return {
+    strategy: 'CUSTOM_LIVE',
+    daysSinceLastPayment: days,
+    interestDue,
+    interestPortion,
+    principalPortion,
+    newPendingPrincipal,
+    error: result.error || null
+  };
+}
+
+// Custom + SCHEDULED: mirrors the built-in EMI branch's shape exactly, reusing
+// allocateEmiPayment unchanged so the interest-first-per-period allocation logic is
+// identical to a built-in EMI loan.
+function calculateCustomScheduledPayment({ loan, amount }) {
+  const schedule = (loan?.repayment_schedule && loan.repayment_schedule.length)
+    ? loan.repayment_schedule
+    : generateCustomSchedule({
+        principal: loan?.principal_amount,
+        monthlyInterestRate: loan?.monthly_interest_rate,
+        tenureMonths: (loan?.tenure_days || 120) / 30,
+        repaymentFrequency: loan?.repayment_frequency || 'DAILY',
+        interestFormula: loan?.interest_formula,
+        installmentFormula: loan?.installment_formula,
+        startDate: loan?.loan_date
+      });
+
+  const result = allocateEmiPayment({ schedule, paymentAmount: amount });
+
+  return {
+    strategy: 'CUSTOM_SCHEDULED',
+    interestPortion: result.interestPortion,
+    principalPortion: result.principalPortion,
+    newPendingPrincipal: Math.max(0, (loan?.pending_amount || 0) - result.principalPortion),
+    updatedSchedule: result.updatedSchedule,
+    unappliedAmount: result.unappliedAmount,
+    daysSinceLastPayment: null
+  };
+}
+
+/**
+ * Estimates a custom-formula loan's total payable at creation time (before any
+ * payments exist) — the CUSTOM counterpart to the flat estimate formulas used for
+ * built-in scheme types. Returns null for any non-custom loan so callers can do
+ * `estimateCustomTotalPayable(loan) ?? <existing flat formula>` and leave every
+ * built-in scheme's total_payable calculation completely unchanged.
+ */
+export function estimateCustomTotalPayable(loan) {
+  if (loan?.formula_type !== 'CUSTOM') return null;
+
+  if (loan.accrual_mode === 'SCHEDULED') {
+    const schedule = generateCustomSchedule({
+      principal: loan.principal_amount,
+      monthlyInterestRate: loan.monthly_interest_rate,
+      tenureMonths: (loan.tenure_days || 120) / 30,
+      repaymentFrequency: loan.repayment_frequency || 'DAILY',
+      interestFormula: loan.interest_formula,
+      installmentFormula: loan.installment_formula,
+      startDate: loan.loan_date
+    });
+    const totalInterest = schedule.reduce((sum, row) => sum + (row.interest || 0), 0);
+    return (loan.principal_amount || 0) + totalInterest;
+  }
+
+  const vars = {
+    principal: loan.principal_amount || 0,
+    outstanding: loan.principal_amount || 0,
+    rate: (parseFloat(loan.monthly_interest_rate) || 0) / 100,
+    days: loan.tenure_days || 0,
+    tenure_days: loan.tenure_days || 0
+  };
+  const result = evalCustomFormula(loan.interest_formula, vars);
+  const totalInterest = result.error ? 0 : Math.max(0, Math.round(result.value));
+  return (loan.principal_amount || 0) + totalInterest;
+}
+
+/**
  * Single entry point used by every collection screen. Reads the loan's configured
  * Repayment Method + Interest Calculation and dispatches to the matching strategy.
  */
 export function calculatePaymentAllocation({ loan, paymentAmount, paymentDate }) {
+  const amount = parseFloat(paymentAmount) || 0;
+
+  if (loan?.formula_type === 'CUSTOM') {
+    return loan.accrual_mode === 'SCHEDULED'
+      ? calculateCustomScheduledPayment({ loan, amount })
+      : calculateCustomLivePayment({ loan, amount, paymentDate });
+  }
+
   const repaymentMethod = resolveRepaymentMethod(loan);
   const interestCalculation = resolveInterestCalculation(loan);
-  const amount = parseFloat(paymentAmount) || 0;
 
   if (repaymentMethod === 'EMI') {
     const schedule = (loan?.repayment_schedule && loan.repayment_schedule.length)

@@ -4,6 +4,7 @@ import { createSubCompanySchema, updateSubCompanySchema, createBranchSchema, upd
 export default async function orgRoutes(fastify, options) {
   fastify.addHook('onRequest', fastify.authenticate);
   fastify.addHook('preHandler', fastify.tenantGuard);
+  fastify.addHook('preHandler', fastify.requireTenantModule('org'));
 
   fastify.get('/sub-companies', {
     preHandler: fastify.moduleGuard('ORG', 'VIEW')

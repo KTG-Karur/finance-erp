@@ -1,9 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { TrendingUp, Download, Printer, FileDown } from 'lucide-react';
-import { useLanguage } from '../../i18n/LanguageContext.jsx';
-import { computeAccountBalances, computeProfitAndLoss, filterEntriesInRange, filterEntriesByBranch } from '../../utils/accounting';
-import { exportToCsv } from '../../utils/csvExport';
-import ReportPreviewModal from '../../components/ReportPreviewModal';
+import { useLanguage } from '../i18n/LanguageContext.jsx';
+import { computeAccountBalances, computeProfitAndLoss, filterEntriesInRange, filterEntriesByBranch } from '../utils/accounting';
+import { exportToCsv } from '../utils/csvExport';
+import ReportPreviewModal from '../components/ReportPreviewModal';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -14,9 +14,12 @@ function fmtTime(iso) {
   return new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
-export default function FinancialStatementsReportView({ chartOfAccounts = [], journalEntries = [], branchesList = [], tenant, user }) {
+export default function FinancialStatementsReportView({ chartOfAccounts = [], journalEntries = [], branchesList = [], tenant, user, selectedBranch = 'ALL' }) {
   const { t } = useLanguage();
   const [branch, setBranch] = useState('');
+  useEffect(() => {
+    if (selectedBranch && selectedBranch !== 'ALL') setBranch(selectedBranch);
+  }, [selectedBranch]);
   const hasBranchSelected = branch !== '';
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -151,7 +154,7 @@ export default function FinancialStatementsReportView({ chartOfAccounts = [], jo
       <form className="fin-filterbar" onSubmit={handleSearch}>
         <div className="fin-field">
           <label>{t('fin.branch_label')}</label>
-          <select className="fin-select" value={branch} onChange={(e) => setBranch(e.target.value)}>
+          <select className="fin-select" value={branch} onChange={(e) => setBranch(e.target.value)} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
             <option value="">{t('fin.select_branch_placeholder')}</option>
             <option value="ALL">{t('fin.all_branches')}</option>
             {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}

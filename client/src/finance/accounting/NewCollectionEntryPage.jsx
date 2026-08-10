@@ -31,7 +31,8 @@ export default function NewCollectionEntryPage({
   collections = [],
   loanSchemes = [],
   onBack,
-  onRecordCollection
+  onRecordCollection,
+  selectedBranch = 'ALL'
 }) {
   const { t } = useLanguage();
   const activeLoans = loans.filter(l => l.status === 'ACTIVE' || l.status === 'OVERDUE');
@@ -41,6 +42,9 @@ export default function NewCollectionEntryPage({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLoanId, setSelectedLoanId] = useState('');
   const [branchFilter, setBranchFilter] = useState('ALL');
+  useEffect(() => {
+    if (selectedBranch && selectedBranch !== 'ALL') setBranchFilter(selectedBranch);
+  }, [selectedBranch]);
 
   // Target Loan & Borrower — null until a loan is actually selected.
   const targetLoan = selectedLoanId
@@ -168,7 +172,12 @@ export default function NewCollectionEntryPage({
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
   const numericAmt = parseFloat(amountPaid) || 0;
-  const isEmiLoan = targetLoan?.repayment_method === 'EMI';
+  // A custom-formula loan doesn't carry a meaningful repayment_method (custom schemes
+  // have no EMI/Interest-Only value to derive from) — whether it's schedule-based is
+  // its own accrual_mode instead. Every non-custom loan keeps the original check.
+  const isEmiLoan = targetLoan?.formula_type === 'CUSTOM'
+    ? targetLoan?.accrual_mode === 'SCHEDULED'
+    : targetLoan?.repayment_method === 'EMI';
 
   // Dispatches to the loan's configured Repayment Method (EMI / Interest Only) x
   // Interest Calculation (Constant / Flexible) strategy. Interest always comes out
@@ -214,7 +223,9 @@ export default function NewCollectionEntryPage({
   const overdueEmiInterest = overdueEmiPeriods.reduce((s, r) => s + (r.interest - (r.interest_paid || 0)), 0);
 
   const repaymentMethodLabel = targetLoan ? (isEmiLoan ? 'EMI' : 'Interest Only') : '';
-  const interestCalcLabel = targetLoan ? (targetLoan.interest_calculation === 'CONSTANT_FLAT' ? 'Flat' : 'Flexible') : '';
+  const interestCalcLabel = targetLoan
+    ? (targetLoan.formula_type === 'CUSTOM' ? 'Custom' : (targetLoan.interest_calculation === 'CONSTANT_FLAT' ? 'Flat' : 'Flexible'))
+    : '';
   const repaymentTypeLabel = targetLoan ? `${repaymentMethodLabel} · ${interestCalcLabel}` : '';
   const installmentFieldLabel = isEmiLoan ? 'Fixed EMI' : 'Suggested Collection';
 
@@ -363,6 +374,7 @@ export default function NewCollectionEntryPage({
                   <select
                     value={branchFilter}
                     onChange={(e) => setBranchFilter(e.target.value)}
+                    disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
                     style={{ border: 'none', background: 'transparent', fontSize: '0.7rem', fontWeight: 500, color: '#475569', cursor: 'pointer' }}
                   >
                     <option value="ALL">All Branches</option>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import PermissionMatrix from '../../components/PermissionMatrix';
-import BorrowersView from '../borrowers/BorrowersView';
+import PermissionMatrix from '../components/PermissionMatrix';
+import BorrowersView from '../finance/borrowers/BorrowersView';
 import OrganizationHierarchyView from './OrganizationHierarchyView';
 import LoanSchemeMasterView from './LoanSchemeMasterView';
 import ExpenseAllocationView from './ExpenseAllocationView';
@@ -30,7 +30,7 @@ import {
   Upload,
   UserCheck
 } from 'lucide-react';
-import { useLanguage } from '../../i18n/LanguageContext.jsx';
+import { useLanguage } from '../i18n/LanguageContext.jsx';
 
 export default function MasterSettingsView({
   initialTab = 'interest-details',
@@ -59,14 +59,16 @@ export default function MasterSettingsView({
   onCreateLoanScheme,
   onUpdateLoanScheme,
   onDeleteLoanScheme,
+  customFormulas,
+  onCreateCustomFormula,
+  onUpdateCustomFormula,
+  onDeleteCustomFormula,
   expenseCategories,
   onCreateExpenseCategory,
   onUpdateExpenseCategory,
   onDeleteExpenseCategory,
   expenseAllocationRequests,
-  onRequestExpenseAllocation,
-  onApproveExpenseAllocation,
-  onRejectExpenseAllocation
+  onAddExpenseFunds
 }) {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -242,6 +244,10 @@ export default function MasterSettingsView({
         onCreateScheme={onCreateLoanScheme}
         onUpdateScheme={onUpdateLoanScheme}
         onDeleteScheme={onDeleteLoanScheme}
+        customFormulas={customFormulas}
+        onCreateCustomFormula={onCreateCustomFormula}
+        onUpdateCustomFormula={onUpdateCustomFormula}
+        onDeleteCustomFormula={onDeleteCustomFormula}
       />
     );
   }
@@ -255,9 +261,7 @@ export default function MasterSettingsView({
         onUpdateExpenseCategory={onUpdateExpenseCategory}
         onDeleteExpenseCategory={onDeleteExpenseCategory}
         expenseAllocationRequests={expenseAllocationRequests}
-        onRequestExpenseAllocation={onRequestExpenseAllocation}
-        onApproveExpenseAllocation={onApproveExpenseAllocation}
-        onRejectExpenseAllocation={onRejectExpenseAllocation}
+        onAddExpenseFunds={onAddExpenseFunds}
       />
     );
   }

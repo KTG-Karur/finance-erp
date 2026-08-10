@@ -37,7 +37,7 @@ function Avatar({ name, photo, size = 30 }) {
 
 function StatusTabs({ tabs, active, onChange }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4, borderBottom: '1px solid #E2E8F0' }}>
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#F1F5F9', padding: '3px 4px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
       {tabs.map(tab => {
         const isActive = active === tab.id;
         return (
@@ -46,18 +46,20 @@ function StatusTabs({ tabs, active, onChange }) {
             type="button"
             onClick={() => onChange(tab.id)}
             style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '9px 4px', marginBottom: -1,
-              border: 'none', borderBottom: isActive ? '2px solid #059669' : '2px solid transparent',
-              background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
-              fontSize: '0.8rem', fontWeight: isActive ? 700 : 500,
-              color: isActive ? '#059669' : '#64748B', marginRight: 18
+              display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px',
+              border: 'none', borderRadius: 6,
+              background: isActive ? '#FFFFFF' : 'transparent',
+              boxShadow: isActive ? '0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
+              cursor: 'pointer', fontFamily: 'inherit',
+              fontSize: '0.78rem', fontWeight: isActive ? 700 : 500,
+              color: isActive ? '#0F172A' : '#64748B', transition: 'all 0.15s ease'
             }}
           >
             <span>{tab.label}</span>
             <span style={{
-              fontSize: '0.68rem', fontWeight: 700, borderRadius: 999, padding: '1px 7px',
-              background: isActive ? '#ECFDF5' : '#F1F5F9',
-              color: isActive ? '#059669' : '#94A3B8'
+              fontSize: '0.66rem', fontWeight: 700, borderRadius: 999, padding: '1px 6px',
+              background: isActive ? (tab.id === 'PENDING' ? '#FEF3C7' : tab.id === 'APPROVED' ? '#ECFDF5' : '#FEF2F2') : '#E2E8F0',
+              color: isActive ? (tab.id === 'PENDING' ? '#D97706' : tab.id === 'APPROVED' ? '#059669' : '#DC2626') : '#64748B'
             }}>{tab.count}</span>
           </button>
         );
@@ -104,6 +106,9 @@ export default function LoanApplicationsView({
   loans = [],
   borrowers = [],
   loanSchemes = [],
+  branches = [],
+  externalSearchQuery = '',
+  onCreateBorrower,
   onQuickAction,
   onApproveApplication,
   onRejectApplication,
@@ -112,7 +117,8 @@ export default function LoanApplicationsView({
   const { t, tStatus } = useLanguage();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [appStatusFilter, setAppStatusFilter] = useState('ALL'); // ALL, PENDING, APPROVED, REJECTED
+  const activeSearch = externalSearchQuery || searchQuery;
+  const [appStatusFilter, setAppStatusFilter] = useState('PENDING'); // PENDING, APPROVED, REJECTED
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
@@ -134,7 +140,7 @@ export default function LoanApplicationsView({
 
   const displayList = allAppsList.filter(l => {
     const matchesTab = appStatusFilter === 'ALL' ? true : l.status === appStatusFilter;
-    const q = searchQuery.toLowerCase().trim();
+    const q = activeSearch.toLowerCase().trim();
     const matchesSearch = !q || (
       (l.borrower_name && l.borrower_name.toLowerCase().includes(q)) ||
       (l.loan_account_no && l.loan_account_no.toLowerCase().includes(q)) ||
@@ -194,6 +200,8 @@ export default function LoanApplicationsView({
       <NewLoanApplicationPage
         borrowers={borrowers}
         loanSchemes={loanSchemes}
+        branches={branches}
+        onCreateBorrower={onCreateBorrower}
         onCancel={() => setCreateAppPageOpen(false)}
         onSubmit={(payload) => {
           onQuickAction?.('SUBMIT_APPLICATION', payload);
@@ -206,51 +214,13 @@ export default function LoanApplicationsView({
   }
 
   const TABS = [
-    { id: 'ALL', label: 'All', count: allAppsCount },
     { id: 'PENDING', label: t('kyc.pending_review'), count: pendingAppsCount },
     { id: 'APPROVED', label: tStatus('APPROVED'), count: approvedAppsCount },
     { id: 'REJECTED', label: tStatus('REJECTED'), count: rejectedAppsCount }
   ];
 
   return (
-    <div className="fin-page">
-
-      <div className="fin-header-card">
-        <div className="fin-page-header">
-          <div className="fin-page-header__left">
-            <div className="fin-page-header__icon" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', color: '#D97706' }}>
-              <Clock style={{ width: 18, height: 18 }} />
-            </div>
-            <div>
-              <h1 className="fin-page-header__title">{t('loans.applications_title')}</h1>
-              <p className="fin-page-header__subtitle">{t('loans.applications_subtitle')}</p>
-            </div>
-          </div>
-          <button type="button" className="fin-btn-primary" onClick={() => setCreateAppPageOpen(true)}>
-            <Plus style={{ width: 14, height: 14 }} />
-            <span>{t('loans.new_application')}</span>
-          </button>
-        </div>
-
-        <div className="fin-header-stats">
-          <div className="fin-header-stat">
-            <span className="fin-header-stat__label">Total Applications</span>
-            <span className="fin-header-stat__value">{displayList.length}</span>
-          </div>
-          <div className="fin-header-stat">
-            <span className="fin-header-stat__label">Requested Credit Volume</span>
-            <span className="fin-header-stat__value fin-header-stat__value--good">₹{fmt(totalPrincipal)}</span>
-          </div>
-          <div className="fin-header-stat">
-            <span className="fin-header-stat__label">KYC Verified</span>
-            <span className="fin-header-stat__value">{kycVerifiedRate}% ({kycVerifiedCount}/{displayList.length})</span>
-          </div>
-          <div className="fin-header-stat">
-            <span className="fin-header-stat__label">Avg Requested Amount</span>
-            <span className="fin-header-stat__value">₹{fmt(avgRequestedAmount)}</span>
-          </div>
-        </div>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
       {actionSuccessMsg && (
         <div style={{
@@ -263,19 +233,8 @@ export default function LoanApplicationsView({
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
         <StatusTabs tabs={TABS} active={appStatusFilter} onChange={(id) => { setAppStatusFilter(id); setCurrentPage(1); }} />
-
-        <div style={{ position: 'relative', width: 220 }}>
-          <Search style={{ position: 'absolute', left: 9, top: 8, width: 13, height: 13, color: '#94A3B8' }} />
-          <input
-            style={{ paddingLeft: 27, width: '100%', height: 32, borderRadius: 7, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: '0.75rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-            placeholder={t('loans.search_applications')}
-          />
-        </div>
       </div>
 
       <div className="fin-tablewrap">

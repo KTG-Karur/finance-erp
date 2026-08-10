@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import PrintablePaymentHistorySheet from './PrintablePaymentHistorySheet';
 import LoanDetailPage from './LoanDetailPage';
+import LoanApplicationsView from './LoanApplicationsView';
+import NewLoanApplicationPage from './NewLoanApplicationPage';
 import CustomerProfileModal from '../borrowers/CustomerProfileModal';
 import {
   Banknote,
@@ -14,6 +16,8 @@ import {
   ChevronLeft,
   ChevronRight,
   History,
+  Clock,
+  Plus,
   X
 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
@@ -109,22 +113,46 @@ export default function LoansView({
   loanSchemes = [],
   receipts = [],
   activeTab = 'loan-management',
+  branches = [],
+  selectedBranch = 'ALL',
+  onCreateBorrower,
+  onQuickAction,
+  onApproveApplication,
+  onRejectApplication,
+  onRevertApplication,
   onApproveLoanClosure,
   onRejectLoanClosure
 }) {
   const { t, tStatus } = useLanguage();
-  // Primary Account View Mode: 'ACTIVE' | 'CLOSED' | 'CLOSURE_REQUESTS'
-  const [viewMode, setViewMode] = useState(() => (activeTab.includes('closed-loans') ? 'CLOSED' : 'ACTIVE'));
+
+  // Branch filter — locked/forced by the sidebar's global branch control when active.
+  const [branchFilter, setBranchFilter] = useState('ALL');
+  useEffect(() => {
+    if (selectedBranch && selectedBranch !== 'ALL') setBranchFilter(selectedBranch);
+  }, [selectedBranch]);
+  const scopedLoans = branchFilter === 'ALL' ? loans : loans.filter(l => l.branch === branchFilter);
+  // Primary Account View Mode: 'ACTIVE' | 'APPLICATIONS' | 'CLOSED' | 'CLOSURE_REQUESTS'
+  const [viewMode, setViewMode] = useState(() => {
+    if (activeTab.includes('loan-applications')) return 'APPLICATIONS';
+    if (activeTab.includes('closed-loans')) return 'CLOSED';
+    return 'ACTIVE';
+  });
 
   useEffect(() => {
-    setViewMode(activeTab.includes('closed-loans') ? 'CLOSED' : 'ACTIVE');
+    if (activeTab.includes('loan-applications')) {
+      setViewMode('APPLICATIONS');
+    } else if (activeTab.includes('closed-loans')) {
+      setViewMode('CLOSED');
+    } else {
+      setViewMode('ACTIVE');
+    }
   }, [activeTab]);
 
   // Closure Requests: loans fully paid off, awaiting Admin's review before CLOSED.
   const [expandedClosureId, setExpandedClosureId] = useState(null);
   const [closureRejectTarget, setClosureRejectTarget] = useState(null);
   const [closureRejectReason, setClosureRejectReason] = useState('');
-  const closureRequestsList = loans.filter(l => l.status === 'PENDING_CLOSURE');
+  const closureRequestsList = scopedLoans.filter(l => l.status === 'PENDING_CLOSURE');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL'); // ALL, DUE_TODAY, OVERDUE
@@ -133,6 +161,9 @@ export default function LoansView({
 
   // Selected Loan for Payment History Statement Modal
   const [historyLoan, setHistoryLoan] = useState(null);
+
+  // New Loan Application Full-Page Form state
+  const [openNewApp, setOpenNewApp] = useState(false);
 
   // Selected Borrower for Customer Profile Modal
   const [selectedCustomerForProfile, setSelectedCustomerForProfile] = useState(null);
@@ -146,11 +177,12 @@ export default function LoansView({
   const isClosedTab = viewMode === 'CLOSED';
 
   // Counts for top view tabs
-  const activeLoansCount = loans.filter(l => l.status === 'ACTIVE' || l.status === 'OVERDUE' || l.status === 'APPROVED').length;
-  const closedLoansCount = loans.filter(l => l.status === 'CLOSED').length;
+  const activeLoansCount = scopedLoans.filter(l => l.status === 'ACTIVE' || l.status === 'OVERDUE' || l.status === 'APPROVED').length;
+  const applicationsCount = scopedLoans.filter(l => l.status === 'PENDING' || l.status === 'APPROVED' || l.status === 'REJECTED').length;
+  const closedLoansCount = scopedLoans.filter(l => l.status === 'CLOSED').length;
 
   // Filter loans for current viewMode
-  const displayList = loans.filter(l => {
+  const displayList = scopedLoans.filter(l => {
     const matchesTab = isClosedTab
       ? l.status === 'CLOSED'
       : (l.status === 'ACTIVE' || l.status === 'OVERDUE' || l.status === 'APPROVED');
@@ -179,9 +211,25 @@ export default function LoansView({
   const totalPrincipal = displayList.reduce((acc, l) => acc + (parseFloat(l.principal_amount) || 0), 0);
   const totalCollected = displayList.reduce((acc, l) => acc + (parseFloat(l.collected_amount) || 0), 0);
   const totalOutstanding = displayList.reduce((acc, l) => acc + (parseFloat(l.pending_amount) || 0), 0);
-  const overdueCount = loans.filter(l => l.status === 'OVERDUE').length;
+  const overdueCount = scopedLoans.filter(l => l.status === 'OVERDUE').length;
 
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
+
+  if (openNewApp) {
+    return (
+      <NewLoanApplicationPage
+        borrowers={borrowers}
+        loanSchemes={loanSchemes}
+        branches={branches}
+        onCreateBorrower={onCreateBorrower}
+        onCancel={() => setOpenNewApp(false)}
+        onSubmit={(payload) => {
+          onQuickAction?.('SUBMIT_APPLICATION', payload);
+          setOpenNewApp(false);
+        }}
+      />
+    );
+  }
 
   if (viewingLoan) {
     return (
@@ -205,69 +253,125 @@ export default function LoansView({
       <div className="fin-header-card">
         <div className="fin-page-header">
           <div className="fin-page-header__left">
-            <div className="fin-page-header__icon" style={{ background: isClosedTab ? '#F1F5F9' : '#ECFDF5', border: `1px solid ${isClosedTab ? '#CBD5E1' : '#A7F3D0'}`, color: isClosedTab ? '#475569' : '#059669' }}>
-              {isClosedTab ? <Archive style={{ width: 18, height: 18 }} /> : <Banknote style={{ width: 18, height: 18 }} />}
+            <div className="fin-page-header__icon" style={{ background: isClosedTab ? '#F1F5F9' : viewMode === 'APPLICATIONS' ? '#FFFBEB' : '#ECFDF5', border: `1px solid ${isClosedTab ? '#CBD5E1' : viewMode === 'APPLICATIONS' ? '#FDE68A' : '#A7F3D0'}`, color: isClosedTab ? '#475569' : viewMode === 'APPLICATIONS' ? '#D97706' : '#059669' }}>
+              {isClosedTab ? <Archive style={{ width: 18, height: 18 }} /> : viewMode === 'APPLICATIONS' ? <Clock style={{ width: 18, height: 18 }} /> : <Banknote style={{ width: 18, height: 18 }} />}
             </div>
             <div>
-              <h1 className="fin-page-header__title">{isClosedTab ? t('loans.closed_title') : t('loans.active_title')}</h1>
-              <p className="fin-page-header__subtitle">{isClosedTab ? t('loans.closed_subtitle') : t('loans.active_subtitle')}</p>
+              <h1 className="fin-page-header__title">{isClosedTab ? t('loans.closed_title') : viewMode === 'APPLICATIONS' ? t('loans.applications_title') : t('loans.active_title')}</h1>
+              <p className="fin-page-header__subtitle">{isClosedTab ? t('loans.closed_subtitle') : viewMode === 'APPLICATIONS' ? t('loans.applications_subtitle') : t('loans.active_subtitle')}</p>
             </div>
           </div>
+          <button type="button" className="fin-btn-primary" onClick={() => setOpenNewApp(true)}>
+            <Plus style={{ width: 14, height: 14 }} />
+            <span>{t('loans.new_application')}</span>
+          </button>
         </div>
 
-        <div className="fin-header-stats">
-          <div className="fin-header-stat">
-            <span className="fin-header-stat__label">{isClosedTab ? t('loans.total_settled') : t('loans.total_disbursed')}</span>
-            <span className="fin-header-stat__value">{isClosedTab ? displayList.length : `₹${fmt(totalPrincipal)}`}</span>
+        {viewMode !== 'APPLICATIONS' && (
+          <div className="fin-header-stats">
+            <div className="fin-header-stat">
+              <span className="fin-header-stat__label">{isClosedTab ? t('loans.total_settled') : t('loans.total_disbursed')}</span>
+              <span className="fin-header-stat__value">{isClosedTab ? displayList.length : `₹${fmt(totalPrincipal)}`}</span>
+            </div>
+            <div className="fin-header-stat">
+              <span className="fin-header-stat__label">{t('loans.total_collected_label')}</span>
+              <span className="fin-header-stat__value fin-header-stat__value--good">₹{fmt(totalCollected)}</span>
+            </div>
+            <div className="fin-header-stat">
+              <span className="fin-header-stat__label">{t('loans.outstanding_balance_label')}</span>
+              <span className="fin-header-stat__value">₹{fmt(totalOutstanding)}</span>
+            </div>
+            <div className="fin-header-stat">
+              <span className="fin-header-stat__label">{t('loans.overdue_exposure_label')}</span>
+              <span className="fin-header-stat__value" style={{ color: overdueCount > 0 ? '#DC2626' : undefined }}>{overdueCount}</span>
+            </div>
           </div>
-          <div className="fin-header-stat">
-            <span className="fin-header-stat__label">{t('loans.total_collected_label')}</span>
-            <span className="fin-header-stat__value fin-header-stat__value--good">₹{fmt(totalCollected)}</span>
-          </div>
-          <div className="fin-header-stat">
-            <span className="fin-header-stat__label">{t('loans.outstanding_balance_label')}</span>
-            <span className="fin-header-stat__value">₹{fmt(totalOutstanding)}</span>
-          </div>
-          <div className="fin-header-stat">
-            <span className="fin-header-stat__label">{t('loans.overdue_exposure_label')}</span>
-            <span className="fin-header-stat__value" style={{ color: overdueCount > 0 ? '#DC2626' : undefined }}>{overdueCount}</span>
-          </div>
-        </div>
+        )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-        <StatusTabs tabs={TABS} active={viewMode} onChange={(id) => { setViewMode(id); setCurrentPage(1); }} />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {viewMode === 'APPLICATIONS' ? (
+            <button
+              type="button"
+              onClick={() => setViewMode('ACTIVE')}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                height: 32, padding: '0 14px', borderRadius: 7,
+                border: '1px solid #CBD5E1', background: '#FFFFFF',
+                color: '#475569', fontSize: '0.78rem', fontWeight: 600,
+                cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+              }}
+            >
+              <ChevronLeft style={{ width: 15, height: 15 }} />
+              <span>Back to Active Loans</span>
+            </button>
+          ) : (
+            <StatusTabs tabs={TABS} active={viewMode} onChange={(id) => { setViewMode(id); setCurrentPage(1); }} />
+          )}
+        </div>
 
         {viewMode !== 'CLOSURE_REQUESTS' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <select
+              className="fin-select"
+              style={{ height: 32 }}
+              value={branchFilter}
+              onChange={(e) => { setBranchFilter(e.target.value); setCurrentPage(1); }}
+              disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
+            >
+              <option value="ALL">{t('fin.all_branches')}</option>
+              {branches.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+            </select>
             <div style={{ position: 'relative', width: 220 }}>
               <Search style={{ position: 'absolute', left: 9, top: 8, width: 13, height: 13, color: '#94A3B8' }} />
               <input
                 style={{ paddingLeft: 27, width: '100%', height: 32, borderRadius: 7, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: '0.75rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
                 type="text"
-                placeholder={t('loans.search_active')}
+                placeholder={viewMode === 'APPLICATIONS' ? t('loans.search_applications') : t('loans.search_active')}
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               />
             </div>
-            {!isClosedTab && (
-              <select
-                value={statusFilter}
-                onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+            {viewMode !== 'APPLICATIONS' && (
+              <button
+                type="button"
+                onClick={() => setViewMode('APPLICATIONS')}
                 style={{
-                  height: 32, padding: '0 8px', borderRadius: 7, border: '1px solid #CBD5E1',
-                  background: '#FFFFFF', fontSize: '0.75rem', fontWeight: 600, color: '#0F172A',
-                  fontFamily: 'inherit', cursor: 'pointer', width: 165, flexShrink: 0
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  height: 32, padding: '0 14px', borderRadius: 7,
+                  border: '1px solid #FDE68A', background: '#FFFBEB',
+                  color: '#B45309', fontSize: '0.75rem', fontWeight: 700,
+                  cursor: 'pointer', boxShadow: '0 1px 2px rgba(180, 83, 9, 0.08)'
                 }}
               >
-                <option value="ALL">{t('loans.filter_all_accounts')} ({activeLoansCount})</option>
-                <option value="DUE_TODAY">{t('loans.filter_due_today')}</option>
-                <option value="OVERDUE">{t('loans.filter_overdue')} ({overdueCount})</option>
-              </select>
+                <Clock style={{ width: 14, height: 14, color: '#D97706' }} />
+                <span>Loan Applications</span>
+                <span style={{
+                  fontSize: '0.66rem', fontWeight: 800, borderRadius: 999,
+                  padding: '1px 6px', background: '#FEF3C7', color: '#B45309'
+                }}>{applicationsCount}</span>
+              </button>
             )}
           </div>
         )}
       </div>
+
+      {/* ── Applications Tab: Dedicated 3-tab (Pending, Approved, Rejected) Loan Applications ──── */}
+      {viewMode === 'APPLICATIONS' && (
+        <LoanApplicationsView
+          loans={scopedLoans}
+          borrowers={borrowers}
+          loanSchemes={loanSchemes}
+          branches={branches}
+          externalSearchQuery={searchQuery}
+          onCreateBorrower={onCreateBorrower}
+          onQuickAction={onQuickAction}
+          onApproveApplication={onApproveApplication}
+          onRejectApplication={onRejectApplication}
+          onRevertApplication={onRevertApplication}
+        />
+      )}
 
       {/* ── Closure Requests: fully-paid loans awaiting Admin approval ──── */}
       {viewMode === 'CLOSURE_REQUESTS' && (
@@ -410,8 +514,8 @@ export default function LoansView({
         </div>
       )}
 
-      {/* ── Master Data Table ─────────────────────────────────────── */}
-      {viewMode !== 'CLOSURE_REQUESTS' && (
+      {/* ── Active / Closed Accounts Table ──── */}
+      {viewMode !== 'APPLICATIONS' && viewMode !== 'CLOSURE_REQUESTS' && (
         <div className="fin-tablewrap">
           <table className="fin-grid-table">
             <thead>

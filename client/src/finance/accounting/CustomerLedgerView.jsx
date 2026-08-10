@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Users } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 
@@ -14,9 +14,12 @@ function monthStartStr() {
 // One customer at a time, across every loan they have — every disbursal and every
 // collection, in one list, so a manager can answer "what's this person's full
 // history with us" without opening each loan separately.
-export default function CustomerLedgerView({ borrowers = [], loans = [], collections = [], branchesList = [] }) {
+export default function CustomerLedgerView({ borrowers = [], loans = [], collections = [], branchesList = [], selectedBranch = 'ALL' }) {
   const { t } = useLanguage();
   const [branch, setBranch] = useState('');
+  useEffect(() => {
+    if (selectedBranch && selectedBranch !== 'ALL') setBranch(selectedBranch);
+  }, [selectedBranch]);
   const hasBranchSelected = branch !== '';
   const [fromDate, setFromDate] = useState(monthStartStr());
   const [toDate, setToDate] = useState(todayStr());
@@ -112,7 +115,7 @@ export default function CustomerLedgerView({ borrowers = [], loans = [], collect
       <div className="fin-filterbar">
         <div className="fin-field">
           <label>{t('fin.branch_label')}</label>
-          <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setBorrowerId(''); }}>
+          <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setBorrowerId(''); }} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
             <option value="">{t('fin.select_branch_placeholder')}</option>
             <option value="ALL">{t('fin.all_branches')}</option>
             {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
