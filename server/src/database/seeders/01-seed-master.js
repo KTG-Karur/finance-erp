@@ -4,6 +4,43 @@
  */
 
 export async function up(queryInterface, Sequelize) {
+  // Seed Plans
+  await queryInterface.bulkInsert('plans', [
+    {
+      id: 1,
+      name: 'Starter Plan',
+      code: 'STARTER',
+      max_branches: 3,
+      allowed_modules: JSON.stringify(['LOANS', 'COLLECTIONS', 'REPORTS']),
+      monthly_price: 1999.00,
+      yearly_price: 19990.00,
+      is_active: true,
+      created_at: new Date()
+    },
+    {
+      id: 2,
+      name: 'Standard Plan',
+      code: 'STANDARD',
+      max_branches: 10,
+      allowed_modules: JSON.stringify(['LOANS', 'COLLECTIONS', 'GOLD_LOANS', 'REPORTS', 'EMPLOYEES']),
+      monthly_price: 4999.00,
+      yearly_price: 49990.00,
+      is_active: true,
+      created_at: new Date()
+    },
+    {
+      id: 3,
+      name: 'Enterprise Plan',
+      code: 'ENTERPRISE',
+      max_branches: null,
+      allowed_modules: JSON.stringify(['LOANS', 'COLLECTIONS', 'GOLD_LOANS', 'NPA', 'GENERAL_LEDGER', 'REPORTS', 'EMPLOYEES', 'ORGANIZATION']),
+      monthly_price: 9999.00,
+      yearly_price: 99990.00,
+      is_active: true,
+      created_at: new Date()
+    }
+  ], {});
+
   // Seed Companies
   await queryInterface.bulkInsert('companies', [
     {
@@ -11,10 +48,6 @@ export async function up(queryInterface, Sequelize) {
       name: 'Alpha Financial Services Private Limited',
       company_code: 'ALPHA',
       db_name: 'finance_erp',
-      db_host: 'localhost',
-      db_port: 3306,
-      db_user: 'root',
-      db_password_enc: 'encrypted_pass_here',
       plan_tier: 'ENTERPRISE',
       gstin: '33AAAAA0000A1Z5',
       pan: 'AAAAA0000A',
@@ -25,10 +58,20 @@ export async function up(queryInterface, Sequelize) {
     }
   ], {});
 
-  // Seed Master Users — this app compares passwords in plaintext everywhere (see
-  // the tenant `users` table too), so `password_hash` holds a real usable plaintext
-  // value here, not an actual hash, matching server/src/mock/masterMockData.json's
-  // super admin credentials so mock mode and real-DB mode behave identically.
+  // Seed Subscriptions
+  await queryInterface.bulkInsert('subscriptions', [
+    {
+      id: 1,
+      company_id: 1,
+      plan_id: 3,
+      status: 'ACTIVE',
+      start_date: new Date(),
+      auto_renew: true,
+      created_at: new Date()
+    }
+  ], {});
+
+  // Seed Master Users
   await queryInterface.bulkInsert('master_users', [
     {
       id: 1,
@@ -43,6 +86,8 @@ export async function up(queryInterface, Sequelize) {
 }
 
 export async function down(queryInterface) {
-  await queryInterface.bulkDelete('master_users', { email: 'admin@alpha.com' }, {});
+  await queryInterface.bulkDelete('master_users', { email: 'superadmin@erp.com' }, {});
+  await queryInterface.bulkDelete('subscriptions', { company_id: 1 }, {});
   await queryInterface.bulkDelete('companies', { company_code: 'ALPHA' }, {});
+  await queryInterface.bulkDelete('plans', { id: [1, 2, 3] }, {});
 }

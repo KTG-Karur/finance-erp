@@ -483,11 +483,11 @@ export default function App() {
   // Each result is now applied independently based on its own outcome.
   const fetchData = async () => {
     const [loansRes, empsRes, colRes, schemesRes, borrowersRes] = await Promise.allSettled([
-      api.get('/v1/finance/loans'),
+      api.get('/finance/loans'),
       api.get('/employees'),
-      api.get('/v1/finance/collections'),
-      api.get('/v1/finance/schemes'),
-      api.get('/v1/finance/borrowers')
+      api.get('/finance/collections'),
+      api.get('/finance/schemes'),
+      api.get('/finance/borrowers')
     ]);
     if (loansRes.status === 'fulfilled' && loansRes.value.data?.data) setLoans(loansRes.value.data.data);
     if (empsRes.status === 'fulfilled' && empsRes.value.data?.data) setEmployees(empsRes.value.data.data);
@@ -573,7 +573,7 @@ export default function App() {
 
   // ── Loan Scheme Master (server/src/finance/scheme) ──
   const handleCreateLoanScheme = async (payload) => {
-    const res = await api.post('/v1/finance/schemes', payload);
+    const res = await api.post('/finance/schemes', payload);
     const created = res.data?.data;
     if (created) {
       setLoanSchemes(prev => [...prev, created]);
@@ -583,7 +583,7 @@ export default function App() {
   };
   const handleUpdateLoanScheme = async (id, payload) => {
     const before = loanSchemes.find(s => s.id === id);
-    const res = await api.put(`/v1/finance/schemes/${id}`, payload);
+    const res = await api.put(`/finance/schemes/${id}`, payload);
     const updated = res.data?.data;
     if (updated) {
       setLoanSchemes(prev => prev.map(s => (s.id === id ? updated : s)));
@@ -593,7 +593,7 @@ export default function App() {
   };
   const handleDeleteLoanScheme = async (id) => {
     const before = loanSchemes.find(s => s.id === id);
-    await api.delete(`/v1/finance/schemes/${id}`);
+    await api.delete(`/finance/schemes/${id}`);
     setLoanSchemes(prev => prev.filter(s => s.id !== id));
     logAudit('LOAN_SCHEME', id, 'DELETE', before?.name);
   };
@@ -968,12 +968,7 @@ export default function App() {
     navigateTo('/auth/login');
   };
 
-  const handleSuperAdminJumpToTenant = (targetTenant) => {
-    setTenant({ id: targetTenant.id, name: targetTenant.name });
-    localStorage.setItem('financial_erp_tenant_id', targetTenant.id);
-    localStorage.setItem('financial_erp_db_name', targetTenant.db_name);
-    setIsJumpingTenant(true);
-  };
+
 
   const [disburseModalMode, setDisburseModalMode] = useState('DISBURSE');
 
@@ -1088,7 +1083,7 @@ export default function App() {
 
     if (!isCustomFormulaLoan) {
       try {
-        const res = await api.post('/v1/finance/collections', {
+        const res = await api.post('/finance/collections', {
           loan_id: payload.loan_id,
           amount: totalAmt,
           payment_mode: payload.payment_mode || 'CASH',
@@ -1530,12 +1525,11 @@ export default function App() {
     );
   }
 
-  // Route 3: Render Super Admin Portal ONLY when authenticated as SUPER_ADMIN on /auth/superadmin path
-  if (isAuthenticated && user?.role === 'SUPER_ADMIN' && !isJumpingTenant && (path === '/auth/superadmin' || path.startsWith('/auth/superadmin'))) {
+  // Route 3: Render Super Admin Portal ONLY when authenticated as SUPER_ADMIN
+  if (isAuthenticated && user?.role === 'SUPER_ADMIN') {
     return (
       <SuperAdminPortal
         user={user}
-        onJumpToTenant={handleSuperAdminJumpToTenant}
         onSignOut={handleSignOut}
       />
     );
@@ -1553,18 +1547,7 @@ export default function App() {
       selectedBranch={selectedBranch}
       onChangeBranch={handleChangeBranch}
     >
-      {/* Super Admin Impersonation Banner */}
-      {user?.role === 'SUPER_ADMIN' && isJumpingTenant && (
-        <div className="bg-amber-100 border border-amber-300 text-amber-900 px-3 py-1.5 rounded text-xs font-mono mb-2 flex justify-between items-center">
-          <span>SUPER ADMIN IMPERSONATION ACTIVE — Inspecting tenant: <strong>{tenant.name}</strong></span>
-          <button
-            onClick={() => setIsJumpingTenant(false)}
-            className="px-2 py-0.5 bg-amber-800 text-white rounded font-bold text-[10px]"
-          >
-            Return to Super Admin Portal
-          </button>
-        </div>
-      )}
+
 
       {/* Dashboard Overview Tab */}
       {activeTab === 'dashboard' && (

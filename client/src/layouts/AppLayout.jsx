@@ -121,10 +121,10 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
 
   const hasWorkspaceMatches = match('Dashboard') && allowed('dashboard');
   const hasLoanMatches = (match('Loans') || match('Active Loans') || match('Loan Applications') || match('Closed Loans') || match('Collections') || match('Investor Capital') || match('Fixed Deposits') || match('Recurring Deposits') || match('Customer Directory'))
-    && (allowed('loans') || allowed('investors') || allowed('fixed_deposits') || allowed('recurring_deposits') || allowed('borrowers'));
-  const hasFinanceMatches = (match('Ledger') || match('General Ledger') || match('Loan Ledger') || match('Customer Ledger') || match('Trial Balance') || match('Vouchers') || match('Auto Vouchers') || match('Manual Vouchers') || match('Day-End Closing')) && allowed('accounting');
+    && (allowed('loans') || allowed('collections') || allowed('investors') || allowed('fixed_deposits') || allowed('recurring_deposits') || allowed('borrowers'));
+  const hasFinanceMatches = (match('Ledger') || match('General Ledger') || match('Loan Ledger') || match('Customer Ledger') || match('Trial Balance') || match('Vouchers') || match('Auto Vouchers') || match('Manual Vouchers') || match('Day-End Closing')) && (allowed('accounting') || allowed('ledger') || allowed('vouchers') || allowed('trial_balance') || allowed('eod_process'));
   const hasReportsMatches = (match('Reports') || match('Loan Portfolio') || match('Collections Report') || match('Borrower') || match('KYC') || match('Investor Capital Report') || match('Fixed Deposits Report') || match('Recurring Deposits Report') || match('Financial Statements') || match('Staff Performance')) && allowed('reports');
-  const hasSettingsMatches = match('Master Settings') || match('Loan Scheme Master') || match('Organization & Company') || match('Expense Allocation') || match('Staff Directory') || match('RBAC Matrix');
+  const hasSettingsMatches = (match('Master Settings') || match('Loan Scheme Master') || match('Organization & Company') || match('Expense Allocation') || match('Staff Directory') || match('RBAC Matrix')) && (allowed('org') || allowed('employees') || allowed('rbac') || allowed('loan_schemes') || allowed('expense_allocation'));
 
   const hasAnyMatches = hasWorkspaceMatches || hasLoanMatches || hasFinanceMatches || hasReportsMatches || hasSettingsMatches;
 

@@ -9,16 +9,17 @@ description: Development of Fastify backend API routes, schema validation, auth 
 ```text
 server/src/
 ├── finance/             # General Finance Engine
-│   ├── loan/            # Loan lifecycle, EMI schedules, collections
+│   ├── loan/            # Loan lifecycle, EMI schedules
 │   ├── ledger/          # General Ledger & double-entry accounting
 │   ├── borrower/        # Borrower & KYC masters
-│   └── npa/             # NPA classification & accruals
-├── gold/                # Gold Loan Engine
-│   ├── appraisal/       # Jewel appraisal, net weight & LTV calculations
-│   ├── rates/           # Daily gold/metal rate master
-│   ├── vault/           # Vault custody, hub-to-branch movements
-│   └── repledge/        # Bank gold re-pledging register
-├── plugins/             # Fastify plugins (tenantDb, masterDb, auth, guards)
+│   ├── collection/      # Repayments & collection registers
+│   ├── npa/             # NPA classification & accruals
+│   └── scheme/          # Loan product schemes & interest rules
+├── modules/             # Enterprise System Modules
+│   ├── auth/            # Auth, login, tokens, password management
+│   ├── org/             # Organization branches & company profile
+│   └── employee/        # Employee management & access roles
+├── plugins/             # Fastify plugins (masterDb, tenantDb, auth, tenantGuard, moduleGuard)
 └── app.js               # Main application entry point & route registration
 ```
 

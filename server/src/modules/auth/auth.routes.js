@@ -30,6 +30,12 @@ export default async function authRoutes(fastify, options) {
   fastify.post('/superadmin/companies', superAdminOnly, authController.provisionCompanyHandler);
   fastify.patch('/superadmin/companies/:id/status', superAdminOnly, authController.updateCompanyStatusHandler);
   fastify.patch('/superadmin/companies/:id/access', superAdminOnly, authController.updateCompanyAccessHandler);
+  fastify.patch('/superadmin/companies/:id/reset-admin-password', superAdminOnly, authController.resetAdminPasswordHandler);
+
+  // Subscription Plans management (GET/POST/PUT /api/v1/auth/superadmin/plans)
+  fastify.get('/superadmin/plans', superAdminOnly, authController.listPlansHandler);
+  fastify.post('/superadmin/plans', superAdminOnly, authController.createPlanHandler);
+  fastify.put('/superadmin/plans/:id', superAdminOnly, authController.updatePlanHandler);
 
   // Central Audit Trail (GET /api/v1/auth/superadmin/audit-logs)
   fastify.get('/superadmin/audit-logs', superAdminOnly, authController.getAuditLogsHandler);

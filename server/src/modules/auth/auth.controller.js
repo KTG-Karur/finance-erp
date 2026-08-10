@@ -146,7 +146,7 @@ export async function superAdminLoginHandler(request, reply) {
 // Super Admin Provision Company (POST /api/v1/auth/superadmin/companies)
 export async function provisionCompanyHandler(request, reply) {
   try {
-    const { company_code, name, admin_email, admin_password } = request.body || {};
+    const { company_code, name, admin_email, admin_password, plan_id, plan_code } = request.body || {};
 
     if (!company_code || !name) {
       return reply.code(400).send({ error: 'Bad Request', message: 'Company Code and Company Name are required.' });
@@ -156,14 +156,16 @@ export async function provisionCompanyHandler(request, reply) {
       company_code,
       name,
       admin_email,
-      admin_password
+      admin_password,
+      plan_id,
+      plan_code
     });
 
     await authService.insertSuperAdminAuditLog(request.server.masterDb, {
       superadminId: request.user?.userId,
       targetTenantId: result.companyId,
       action: 'TENANT_PROVISIONED',
-      details: { companyCode: result.companyCode, dbName: result.dbName },
+      details: { companyCode: result.companyCode, dbName: result.dbName, planTier: result.planTier },
       ipAddress: request.ip
     });
 
@@ -174,6 +176,49 @@ export async function provisionCompanyHandler(request, reply) {
     });
   } catch (err) {
     return reply.code(500).send({ error: 'Provisioning Error', message: err.message });
+  }
+}
+
+// List Subscription Plans (GET /api/v1/auth/superadmin/plans)
+export async function listPlansHandler(request, reply) {
+  try {
+    const data = await authService.listPlans(request.server.masterDb);
+    return reply.send({ success: true, data });
+  } catch (err) {
+    return reply.code(500).send({ error: 'Server Error', message: err.message });
+  }
+}
+
+// Create Subscription Plan (POST /api/v1/auth/superadmin/plans)
+export async function createPlanHandler(request, reply) {
+  try {
+    const { name, code, max_branches, allowed_modules, monthly_price, yearly_price } = request.body || {};
+    if (!name || !code) {
+      return reply.code(400).send({ error: 'Bad Request', message: 'Plan Name and Code are required.' });
+    }
+    const data = await authService.createPlan(request.server.masterDb, {
+      name, code, max_branches, allowed_modules, monthly_price, yearly_price
+    });
+    return reply.status(201).send({ success: true, message: 'Plan created successfully.', plan: data });
+  } catch (err) {
+    return reply.code(500).send({ error: 'Server Error', message: err.message });
+  }
+}
+
+// Update Subscription Plan (PUT /api/v1/auth/superadmin/plans/:id)
+export async function updatePlanHandler(request, reply) {
+  try {
+    const { id } = request.params;
+    const { name, code, max_branches, allowed_modules, monthly_price, yearly_price } = request.body || {};
+    if (!name || !code) {
+      return reply.code(400).send({ error: 'Bad Request', message: 'Plan Name and Code are required.' });
+    }
+    const data = await authService.updatePlan(request.server.masterDb, id, {
+      name, code, max_branches, allowed_modules, monthly_price, yearly_price
+    });
+    return reply.send({ success: true, message: 'Plan updated successfully.', plan: data });
+  } catch (err) {
+    return reply.code(err.statusCode || 500).send({ error: 'Server Error', message: err.message });
   }
 }
 
@@ -208,19 +253,19 @@ export async function updateCompanyStatusHandler(request, reply) {
   }
 }
 
-// Update a Tenant's Branch Limit / Module Allocation (PATCH /api/v1/auth/superadmin/companies/:id/access)
+// Update a Tenant's Company Profile, Branch Limit / Module Allocation (PATCH /api/v1/auth/superadmin/companies/:id/access)
 export async function updateCompanyAccessHandler(request, reply) {
   try {
-    const { max_branches, allowed_modules } = request.body || {};
-    await authService.updateCompanyAccess(request.server.masterDb, request.params.id, { max_branches, allowed_modules });
+    const { name, phone, address, max_branches, allowed_modules } = request.body || {};
+    await authService.updateCompanyAccess(request.server.masterDb, request.params.id, { name, phone, address, max_branches, allowed_modules });
     await authService.insertSuperAdminAuditLog(request.server.masterDb, {
       superadminId: request.user?.userId,
       targetTenantId: request.params.id,
       action: 'TENANT_ACCESS_UPDATED',
-      details: { max_branches: max_branches ?? null, allowed_modules: allowed_modules ?? null },
+      details: { name: name ?? null, phone: phone ?? null, max_branches: max_branches ?? null, allowed_modules: allowed_modules ?? null },
       ipAddress: request.ip
     });
-    return reply.send({ success: true, message: 'Tenant access settings updated successfully.' });
+    return reply.send({ success: true, message: 'Tenant company profile and access settings updated successfully.' });
   } catch (err) {
     return reply.code(err.statusCode || 500).send({ error: 'Server Error', message: err.message });
   }
@@ -233,6 +278,21 @@ export async function getAuditLogsHandler(request, reply) {
     return reply.send({ success: true, data });
   } catch (err) {
     return reply.code(500).send({ error: 'Server Error', message: err.message });
+  }
+}
+
+// Reset Tenant Company Admin Password (PATCH /api/v1/auth/superadmin/companies/:id/reset-admin-password)
+export async function resetAdminPasswordHandler(request, reply) {
+  try {
+    const { id } = request.params || {};
+    const { password } = request.body || {};
+    if (!password || password.trim().length < 4) {
+      return reply.code(400).send({ error: 'Bad Request', message: 'Valid password (min 4 characters) is required.' });
+    }
+    const result = await authService.resetTenantAdminPassword(request.server.masterDb, id, password.trim());
+    return reply.send({ success: true, message: result.message });
+  } catch (err) {
+    return reply.code(err.statusCode || 500).send({ error: 'Server Error', message: err.message });
   }
 }
 
