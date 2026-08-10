@@ -12,12 +12,8 @@
  * when auto-provisioning a new tenant at runtime).
  */
 import mysql from 'mysql2/promise';
-import { loadEnv } from '../src/config/loadEnv.js';
 import { getMasterDbConfig, getTenantDbConfig } from '../src/config/db.js';
 import { DataTypes, Sequelize, createQueryInterface } from '../src/database/sequelizeShim.js';
-
-const activeMode = loadEnv();
-console.log(`[migrate] Running in '${activeMode}' mode.`);
 
 const TARGETS = {
   master: {

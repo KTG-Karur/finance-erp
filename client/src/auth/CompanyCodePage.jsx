@@ -10,10 +10,30 @@ const ECOSYSTEM_MODULES = [
 ];
 
 export default function CompanyCodePage({ onVerified }) {
-  const [companyCode, setCompanyCode] = useState('ALPHA');
+  const [companyCode, setCompanyCode] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('company_code') || 'ALPHA';
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isExiting, setIsExiting] = useState(false);
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const qCode = params.get('company_code');
+    if (qCode) {
+      setLoading(true);
+      api.post('/auth/company-lookup', { company_code: qCode.trim() })
+        .then(res => {
+          setLoading(false);
+          onVerified(res.data.company);
+        })
+        .catch(err => {
+          setLoading(false);
+          setError(err?.response?.data?.message || `Company Code '${qCode.trim()}' not found.`);
+        });
+    }
+  }, []);
 
   const handleCompanyLookup = async (e) => {
     e.preventDefault();
@@ -22,7 +42,7 @@ export default function CompanyCodePage({ onVerified }) {
     setError(null);
 
     try {
-      const res = await api.post('/v1/auth/company-lookup', { company_code: companyCode.trim() });
+      const res = await api.post('/auth/company-lookup', { company_code: companyCode.trim() });
       setLoading(false);
       setIsExiting(true);
       setTimeout(() => {

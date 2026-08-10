@@ -22,7 +22,7 @@ export default function SuperAdminLoginPage({ onLoginSuccess }) {
     };
 
     try {
-      const res = await api.post('/v1/auth/superadmin/login', { email, password });
+      const res = await api.post('/auth/superadmin/login', { email, password });
       if (res.data?.token && res.data?.user) {
         localStorage.setItem('financial_erp_token', res.data.token);
         localStorage.setItem('financial_erp_user', JSON.stringify(res.data.user));
@@ -31,24 +31,13 @@ export default function SuperAdminLoginPage({ onLoginSuccess }) {
         completeAuth(res.data.user, res.data.token);
       }
     } catch (err) {
-      console.warn('Backend login fallback active for Super Admin:', err);
-      const superUser = {
-        userId: 99,
-        companyId: null,
-        companyCode: 'GLOBAL',
-        companyName: 'Central Master System',
-        dbName: 'master_erp_db',
-        role: 'SUPER_ADMIN',
-        name: 'Global Super Admin',
-        email,
-        isGlobalAdmin: true
-      };
-      const mockToken = 'super_admin_jwt_token_2026';
-      localStorage.setItem('financial_erp_token', mockToken);
-      localStorage.setItem('financial_erp_user', JSON.stringify(superUser));
-      localStorage.setItem('financial_erp_tenant_id', 'master');
-      localStorage.setItem('financial_erp_db_name', 'master_erp_db');
-      completeAuth(superUser, mockToken);
+      // A failed login is real, specific feedback ("wrong email/password") — show
+      // it, don't paper over it with a fake session. A fabricated SUPER_ADMIN
+      // token used to be issued here on ANY failure (wrong password, network
+      // drop, server down), which silently let the user "in" with a token that
+      // then fails every real API call the portal makes — a much more confusing
+      // failure mode than just saying the login didn't work.
+      setError(err?.response?.data?.message || 'Login failed. Check your email and password.');
     } finally {
       setLoading(false);
     }
@@ -219,5 +208,3 @@ export default function SuperAdminLoginPage({ onLoginSuccess }) {
     </div>
   );
 }
-
-

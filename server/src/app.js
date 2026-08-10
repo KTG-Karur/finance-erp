@@ -1,10 +1,12 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import sensible from '@fastify/sensible';
 
-import { loadEnv } from './config/loadEnv.js';
 import masterDbPlugin from './plugins/masterDb.js';
 import tenantDbPlugin from './plugins/tenantDb.js';
 import dbPlugin from './plugins/db.js';
@@ -16,9 +18,6 @@ import authRoutes from './modules/auth/auth.routes.js';
 import financeRoutes from './finance/finance.routes.js';
 import orgRoutes from './modules/org/org.routes.js';
 import employeeRoutes from './modules/employee/employee.routes.js';
-
-const activeMode = loadEnv();
-console.log(`[ENV] Running in '${activeMode}' mode.`);
 
 const fastify = Fastify({
   logger: false
@@ -82,27 +81,15 @@ fastify.get('/health', async (request, reply) => {
   return { status: 'OK', system: 'Database-per-Tenant Financial ERP API', timestamp: new Date() };
 });
 
-// Register Auth Routes — /api/v1/auth is the canonical, versioned surface;
-// /api/auth is kept only so any existing caller still bound to the pre-versioning
-// path keeps working. New client code should always use the /v1 path.
-fastify.register(authRoutes, { prefix: '/api/v1/auth' });
+// Register Auth Routes
 fastify.register(authRoutes, { prefix: '/api/auth' });
 
-// Register General Finance Domain Engine — same pattern: /api/v1/finance is
-// canonical, /api/finance and bare /api are pre-existing unversioned aliases kept
-// for backward compatibility.
-fastify.register(financeRoutes, { prefix: '/api/v1/finance' });
+// Register General Finance Domain Engine
 fastify.register(financeRoutes, { prefix: '/api/finance' });
 fastify.register(financeRoutes, { prefix: '/api' });
 
-// Org (branches/sub-companies) and Employees — both now backed by the tenant DB
-// (see org.controller.js/employee.controller.js, fixed to use request.tenantDb
-// instead of the master-DB-aliased request.server.db, matching where their
-// tables actually live). Client calls these bare (`/branches`, `/employees`),
-// hence the un-namespaced prefixes alongside the versioned ones.
-fastify.register(orgRoutes, { prefix: '/api/v1' });
+// Org (branches/sub-companies) and Employees
 fastify.register(orgRoutes, { prefix: '/api' });
-fastify.register(employeeRoutes, { prefix: '/api/v1/employees' });
 fastify.register(employeeRoutes, { prefix: '/api/employees' });
 
 const PORT = Number(process.env.PORT) || 5000;

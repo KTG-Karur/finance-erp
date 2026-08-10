@@ -138,9 +138,25 @@ export async function authenticateMasterUser(masterDb, email, password) {
 
 export async function listCompanies(masterDb) {
   const [rows] = await masterDb.query(
-    'SELECT id, name, company_code, db_name, plan_tier, max_branches, allowed_modules, is_active, created_at FROM companies ORDER BY id'
+    'SELECT id, name, company_code, db_name, plan_tier, max_branches, allowed_modules, phone, address, logo, is_active, created_at FROM companies ORDER BY id'
   );
-  return rows.map(row => ({ ...row, allowed_modules: parseAllowedModules(row.allowed_modules) }));
+  const result = [];
+  for (const row of rows) {
+    let userCount = 0;
+    try {
+      const tenantDb = getTenantDbPool(row.db_name);
+      const [uRows] = await tenantDb.query('SELECT COUNT(*) as cnt FROM users');
+      userCount = uRows[0]?.cnt || 0;
+    } catch {
+      userCount = 1;
+    }
+    result.push({
+      ...row,
+      users_count: userCount,
+      allowed_modules: parseAllowedModules(row.allowed_modules)
+    });
+  }
+  return result;
 }
 
 export async function updateCompanyStatus(masterDb, id, isActive) {
@@ -152,16 +168,32 @@ export async function updateCompanyStatus(masterDb, id, isActive) {
   }
 }
 
-export async function updateCompanyAccess(masterDb, id, { max_branches, allowed_modules }) {
+export async function updateCompanyAccess(masterDb, id, { name, phone, address, max_branches, allowed_modules }) {
   const [result] = await masterDb.execute(
-    'UPDATE companies SET max_branches = ?, allowed_modules = ? WHERE id = ?',
-    [max_branches ?? null, allowed_modules ? JSON.stringify(allowed_modules) : null, id]
+    'UPDATE companies SET name = COALESCE(?, name), phone = COALESCE(?, phone), address = COALESCE(?, address), max_branches = ?, allowed_modules = ? WHERE id = ?',
+    [name ?? null, phone ?? null, address ?? null, max_branches ?? null, allowed_modules ? JSON.stringify(allowed_modules) : null, id]
   );
   if (!result.affectedRows) {
     const err = new Error('Tenant company not found.');
     err.statusCode = 404;
     throw err;
   }
+}
+
+export async function resetTenantAdminPassword(masterDb, id, newPassword) {
+  const [rows] = await masterDb.query('SELECT db_name, company_code FROM companies WHERE id = ?', [id]);
+  if (!rows.length) {
+    const err = new Error('Tenant company not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+  const tenant = rows[0];
+  const tenantDb = getTenantDbPool(tenant.db_name);
+  await tenantDb.query(
+    "UPDATE users SET password = ? WHERE role = 'COMPANY_ADMIN' OR id = 1",
+    [newPassword]
+  );
+  return { success: true, message: `Admin password updated for company '${tenant.company_code}'.` };
 }
 
 export async function insertSuperAdminAuditLog(masterDb, { superadminId, targetTenantId, action, details, ipAddress }) {
@@ -191,4 +223,48 @@ export async function getAuditLogs(masterDb, limit = 100) {
     ...row,
     details: typeof row.details === 'string' ? JSON.parse(row.details) : row.details
   }));
+}
+
+let isSixMonthColumnChecked = false;
+async function ensureSixMonthPriceColumn(masterDb) {
+  if (isSixMonthColumnChecked) return;
+  try {
+    await masterDb.query('ALTER TABLE plans ADD COLUMN six_month_price DECIMAL(10,2) DEFAULT 0.00');
+  } catch (err) {
+    // Column already exists (ER_DUP_FIELDNAME / ER_CANT_DROP_FIELD_OR_KEY)
+  }
+  isSixMonthColumnChecked = true;
+}
+
+export async function listPlans(masterDb) {
+  await ensureSixMonthPriceColumn(masterDb);
+  const [rows] = await masterDb.query(
+    'SELECT id, name, code, max_branches, allowed_modules, monthly_price, six_month_price, yearly_price, is_active, created_at FROM plans WHERE is_active = 1 ORDER BY id'
+  );
+  return rows.map(row => ({ ...row, allowed_modules: parseAllowedModules(row.allowed_modules) }));
+}
+
+export async function createPlan(masterDb, { name, code, max_branches, allowed_modules, monthly_price, six_month_price, yearly_price }) {
+  await ensureSixMonthPriceColumn(masterDb);
+  const codeUpper = String(code).trim().toUpperCase();
+  const [res] = await masterDb.execute(
+    'INSERT INTO plans (name, code, max_branches, allowed_modules, monthly_price, six_month_price, yearly_price, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, 1)',
+    [name, codeUpper, max_branches ?? null, allowed_modules ? JSON.stringify(allowed_modules) : null, monthly_price || 0.00, six_month_price || 0.00, yearly_price || 0.00]
+  );
+  return { id: res.insertId, name, code: codeUpper, max_branches, allowed_modules, monthly_price, six_month_price, yearly_price };
+}
+
+export async function updatePlan(masterDb, id, { name, code, max_branches, allowed_modules, monthly_price, six_month_price, yearly_price }) {
+  await ensureSixMonthPriceColumn(masterDb);
+  const codeUpper = String(code).trim().toUpperCase();
+  const [res] = await masterDb.execute(
+    'UPDATE plans SET name = ?, code = ?, max_branches = ?, allowed_modules = ?, monthly_price = ?, six_month_price = ?, yearly_price = ? WHERE id = ?',
+    [name, codeUpper, max_branches ?? null, allowed_modules ? JSON.stringify(allowed_modules) : null, monthly_price || 0.00, six_month_price || 0.00, yearly_price || 0.00, id]
+  );
+  if (!res.affectedRows) {
+    const err = new Error('Subscription plan not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+  return { id, name, code: codeUpper, max_branches, allowed_modules, monthly_price, six_month_price, yearly_price };
 }

@@ -47,7 +47,7 @@ export default function LoginPage({ company, module, onLoginSuccess, onBackToMod
       : { type: 'BRANCH', branch_id: Number(loginContext) };
 
     try {
-      const res = await api.post('/v1/auth/tenant/login', {
+      const res = await api.post('/auth/tenant/login', {
         company_code: company.companyCode,
         email,
         password,

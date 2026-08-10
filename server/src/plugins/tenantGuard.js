@@ -13,25 +13,23 @@ function parseAllowedModules(value) {
 
 async function tenantGuardPlugin(fastify, options) {
   fastify.decorate('tenantGuard', async function (request, reply) {
-    const isSuperAdmin = request.user?.role === 'SUPER_ADMIN';
-    const impersonationDbName = request.headers['x-tenant-db'];
+    // Super Admin cannot access tenant routes directly
+    if (request.user?.role === 'SUPER_ADMIN') {
+      return reply.code(403).send({
+        success: false,
+        message: 'Super Admin users cannot access tenant company workspaces directly. Please log in as a company user.'
+      });
+    }
 
     // 1. Identify Company Code from Header or Authenticated JWT User
     const companyCode = request.headers['x-company-code'] || request.user?.companyCode || 'ALPHA';
 
     let companyId = request.user?.companyId;
-    let dbName = impersonationDbName;
+    let dbName = null;
     let maxBranches = request.user?.maxBranches ?? null;
     let allowedModules = parseAllowedModules(request.user?.allowedModules);
 
-    // 2. Look up the company's *current* row every request (not just when dbName
-    // is unknown) — a logged-in user's JWT carries a dbName that never changes for
-    // the life of the token, so skipping this lookup once dbName was already known
-    // meant suspending a tenant, changing its branch cap, or updating its module
-    // allocation had no effect until the token expired. An explicit x-tenant-db
-    // header means SuperAdmin impersonation instead — that path trusts the header
-    // and skips the live company lookup on purpose.
-    if (companyCode && !impersonationDbName) {
+    if (companyCode) {
       try {
         const [rows] = await fastify.masterDb.query(
           'SELECT id, company_code, name, db_name, is_active, max_branches, allowed_modules FROM companies WHERE company_code = ?',

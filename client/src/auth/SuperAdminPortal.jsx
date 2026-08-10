@@ -24,51 +24,190 @@ import {
   Sliders,
   Terminal,
   ChevronRight,
+  ChevronLeft,
   KeyRound,
   AlertTriangle
 } from 'lucide-react';
 import api from '../api/client';
 
-// Canonical module-key vocabulary — mirrors AppLayout.jsx's top-level sidebar
-// sections and server/src/plugins/moduleGuard.js's requireTenantModule checks.
-// A tenant with allowed_modules = null (the default) is fully unrestricted.
-const MODULE_KEYS = [
-  { key: 'dashboard', label: 'Dashboard' },
-  { key: 'loans', label: 'Loan Management' },
-  { key: 'borrowers', label: 'Customer / Borrower Details' },
-  { key: 'investors', label: 'Investor Capital' },
-  { key: 'fixed_deposits', label: 'Fixed Deposits' },
-  { key: 'recurring_deposits', label: 'Recurring Deposits' },
-  { key: 'accounting', label: 'Finance & Accounting' },
-  { key: 'reports', label: 'Reports' },
-  { key: 'org', label: 'Branch Management' },
-  { key: 'employees', label: 'Staff Directory' }
+// Menu tree structure: single entries for standalone menus, nested checkboxes only for menus with real submenus
+const MODULE_MENU_TREE = [
+  {
+    section: 'WORKSPACE',
+    menus: [
+      { key: 'dashboard', label: 'Dashboard' }
+    ]
+  },
+  {
+    section: 'FINANCE OPERATIONS',
+    menus: [
+      { key: 'loans', label: 'Loans' },
+      { key: 'collections', label: 'Collections' },
+      { key: 'investors', label: 'Investor Capital' },
+      { key: 'fixed_deposits', label: 'Fixed Deposits' },
+      { key: 'recurring_deposits', label: 'Recurring Deposits' },
+      { key: 'borrowers', label: 'Customer Directory' }
+    ]
+  },
+  {
+    section: 'FINANCIALS',
+    menus: [
+      {
+        key: 'ledger',
+        label: 'Ledger',
+        submenus: [
+          { key: 'general_ledger', label: 'General Ledger' },
+          { key: 'loan_ledger', label: 'Loan Ledger' },
+          { key: 'customer_ledger', label: 'Customer Ledger' }
+        ]
+      },
+      { key: 'trial_balance', label: 'Trial Balance' },
+      { key: 'eod_process', label: 'Day-End Closing' },
+      {
+        key: 'vouchers',
+        label: 'Vouchers',
+        submenus: [
+          { key: 'auto_vouchers', label: 'Auto Vouchers' },
+          { key: 'manual_vouchers', label: 'Manual Vouchers' }
+        ]
+      }
+    ]
+  },
+  {
+    section: 'REPORTS',
+    menus: [
+      {
+        key: 'reports',
+        label: 'Reports',
+        submenus: [
+          { key: 'loan_portfolio_report', label: 'Loan Portfolio Report' },
+          { key: 'collections_report', label: 'Collections Report' },
+          { key: 'investor_capital_report', label: 'Investor Capital Report' },
+          { key: 'fixed_deposit_report', label: 'Fixed Deposits Report' },
+          { key: 'recurring_deposit_report', label: 'Recurring Deposits Report' },
+          { key: 'financial_statements_report', label: 'Financial Statements Report' },
+          { key: 'staff_performance_report', label: 'Staff Performance Report' }
+        ]
+      }
+    ]
+  },
+  {
+    section: 'MASTER SETTINGS',
+    menus: [
+      { key: 'org', label: 'Organization & Company' },
+      { key: 'employees', label: 'Staff Directory' },
+      { key: 'rbac', label: 'RBAC Matrix' },
+      { key: 'loan_schemes', label: 'Loan Scheme Master' },
+      { key: 'expense_allocation', label: 'Expense Allocation' }
+    ]
+  }
 ];
+
+const MODULE_KEYS = MODULE_MENU_TREE.flatMap(sec =>
+  sec.menus.flatMap(m => [{ key: m.key, label: m.label }, ...(m.submenus || [])])
+);
 
 export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
   const [tenants, setTenants] = useState([]);
   const [tenantsLoading, setTenantsLoading] = useState(true);
   const [tenantsError, setTenantsError] = useState('');
+  const [plans, setPlans] = useState([]);
+  const [plansLoading, setPlansLoading] = useState(false);
   const [auditLogs, setAuditLogs] = useState([]);
-  const [activeNav, setActiveNav] = useState('registry'); // 'registry' | 'pools' | 'audit' | 'settings'
+  const [activeNav, setActiveNav] = useState('dashboard'); // 'dashboard' | 'registry' | 'plans' | 'pools' | 'audit' | 'settings'
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isProvisionModalOpen, setIsProvisionModalOpen] = useState(false);
+  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-  const [form, setForm] = useState({ name: '', company_code: '', admin_email: '', admin_password: '' });
+  const [form, setForm] = useState({ name: '', company_code: '', company_email: '', company_phone: '', admin_email: '', admin_password: '', plan_code: 'STANDARD' });
+  const [planForm, setPlanForm] = useState({ name: '', code: '', max_branches: '5', monthly_price: '2999', six_month_price: '14999', yearly_price: '29990', allowed_modules: null });
+
+  const openCreatePlanModal = () => {
+    setEditingPlan(null);
+    setPlanForm({ name: '', code: '', max_branches: '5', monthly_price: '2999', six_month_price: '14999', yearly_price: '29990', allowed_modules: null });
+    setErrorMsg('');
+    setActiveNav('plan-editor');
+  };
+
+  const openEditPlanModal = (plan) => {
+    setEditingPlan(plan);
+    setPlanForm({
+      name: plan.name,
+      code: plan.code,
+      max_branches: plan.max_branches ?? '',
+      monthly_price: plan.monthly_price ?? '0',
+      six_month_price: plan.six_month_price ?? '0',
+      yearly_price: plan.yearly_price ?? '0',
+      allowed_modules: plan.allowed_modules ?? null
+    });
+    setErrorMsg('');
+    setActiveNav('plan-editor');
+  };
+
+  const togglePlanModuleKey = (key) => {
+    setPlanForm(prev => {
+      const current = prev.allowed_modules ?? MODULE_KEYS.map(m => m.key);
+      const next = current.includes(key) ? current.filter(k => k !== key) : [...current, key];
+      return { ...prev, allowed_modules: next };
+    });
+  };
+
+  const selectAllPlanModules = () => {
+    setPlanForm(prev => ({ ...prev, allowed_modules: null }));
+  };
+
+  const deselectAllPlanModules = () => {
+    setPlanForm(prev => ({ ...prev, allowed_modules: [] }));
+  };
+
+  const selectAllAccessModules = () => {
+    setAccessForm(prev => ({ ...prev, allowed_modules: null }));
+  };
+
+  const deselectAllAccessModules = () => {
+    setAccessForm(prev => ({ ...prev, allowed_modules: [] }));
+  };
 
   const [accessTarget, setAccessTarget] = useState(null);
   const [accessForm, setAccessForm] = useState({ max_branches: '', allowed_modules: null });
   const [accessSaving, setAccessSaving] = useState(false);
   const [accessError, setAccessError] = useState('');
+  const [resetPasswordInput, setResetPasswordInput] = useState('');
+  const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
+  const [resetPasswordMsg, setResetPasswordMsg] = useState('');
+
+  const handleJumpToCompanyTab = (tenant) => {
+    if (!tenant || !tenant.company_code) return;
+    const url = `${window.location.origin}/auth/login?company_code=${encodeURIComponent(tenant.company_code)}`;
+    window.open(url, '_blank');
+  };
+
+  const handleResetAdminPassword = async () => {
+    if (!accessTarget || !resetPasswordInput.trim()) return;
+    setResetPasswordLoading(true);
+    setResetPasswordMsg('');
+    try {
+      const res = await api.patch(`/auth/superadmin/companies/${accessTarget.id}/reset-admin-password`, {
+        password: resetPasswordInput.trim()
+      });
+      setResetPasswordMsg(res.data?.message || 'Admin password updated.');
+      setResetPasswordInput('');
+    } catch (err) {
+      setResetPasswordMsg(err?.response?.data?.message || 'Failed to update admin password.');
+    } finally {
+      setResetPasswordLoading(false);
+    }
+  };
 
   const fetchTenants = async () => {
     setTenantsLoading(true);
     setTenantsError('');
     try {
-      const res = await api.get('/v1/auth/superadmin/companies');
+      const res = await api.get('/auth/superadmin/companies');
       setTenants(res.data?.data || []);
     } catch (err) {
       setTenantsError(err?.response?.data?.message || 'Unable to load tenant registry.');
@@ -77,13 +216,99 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
     }
   };
 
-  useEffect(() => { fetchTenants(); }, []);
+  const fetchPlans = async () => {
+    setPlansLoading(true);
+    try {
+      const res = await api.get('/auth/superadmin/plans');
+      setPlans(res.data?.data || []);
+    } catch (err) {
+      console.warn('Failed to fetch plans:', err?.message);
+    } finally {
+      setPlansLoading(false);
+    }
+  };
+
+  const fetchAuditLogs = async () => {
+    try {
+      const res = await api.get('/auth/superadmin/audit-logs');
+      setAuditLogs(res.data?.data || []);
+    } catch (err) {
+      setAuditLogs([]);
+    }
+  };
+
+  const renderCategorizedMenuTree = (allowedModules, toggleKey) => {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {MODULE_MENU_TREE.map(sec => (
+          <div key={sec.section} style={{ border: '1px solid #CBD5E1', borderRadius: 8, overflow: 'hidden', backgroundColor: '#FFFFFF' }}>
+            <div style={{ padding: '6px 12px', backgroundColor: '#0F172A', color: '#38BDF8', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              {sec.section}
+            </div>
+
+            <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {sec.menus.map(menu => {
+                const hasSubmenus = menu.submenus && menu.submenus.length > 0;
+                const allSubKeys = hasSubmenus ? menu.submenus.map(s => s.key) : [];
+                const parentChecked = allowedModules == null || (allowedModules.includes(menu.key) || (hasSubmenus && allSubKeys.every(k => allowedModules.includes(k))));
+
+                return (
+                  <div key={menu.key} style={{ padding: '8px 12px', borderRadius: 6, backgroundColor: parentChecked ? '#F0FDF4' : '#F8FAFC', border: `1px solid ${parentChecked ? '#A7F3D0' : '#E2E8F0'}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: hasSubmenus ? 6 : 0 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem', color: parentChecked ? '#065F46' : '#334155' }}>
+                        <input
+                          type="checkbox"
+                          checked={parentChecked}
+                          onChange={() => toggleKey(menu.key)}
+                          style={{ accentColor: '#059669', width: 15, height: 15 }}
+                        />
+                        <span>{menu.label}</span>
+                      </label>
+                      <span style={{ fontSize: '0.64rem', padding: '2px 8px', borderRadius: 10, background: parentChecked ? '#DCFCE7' : '#FEF2F2', color: parentChecked ? '#15803D' : '#991B1B', border: `1px solid ${parentChecked ? '#86EFAC' : '#FECACA'}`, fontWeight: 700 }}>
+                        {parentChecked ? 'ENABLED' : 'DISABLED'}
+                      </span>
+                    </div>
+
+                    {hasSubmenus && (
+                      <div style={{ paddingLeft: 23, display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 6, borderTop: '1px dashed #E2E8F0' }}>
+                        {menu.submenus.map(sub => {
+                          const subChecked = allowedModules == null || allowedModules.includes(sub.key) || allowedModules.includes(menu.key);
+                          return (
+                            <label key={sub.key} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.75rem', color: subChecked ? '#047857' : '#64748B', fontWeight: 500 }}>
+                              <input
+                                type="checkbox"
+                                checked={subChecked}
+                                onChange={() => toggleKey(sub.key)}
+                                style={{ accentColor: '#059669', width: 14, height: 14 }}
+                              />
+                              <span>↳ {sub.label}</span>
+                              <span style={{ fontSize: '0.62rem', color: subChecked ? '#059669' : '#94A3B8', marginLeft: 'auto', fontWeight: 600 }}>
+                                {subChecked ? 'Accessible' : 'Restricted'}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   useEffect(() => {
-    if (activeNav !== 'audit') return;
-    api.get('/v1/auth/superadmin/audit-logs')
-      .then(res => setAuditLogs(res.data?.data || []))
-      .catch(() => setAuditLogs([]));
+    fetchTenants();
+    fetchPlans();
+    fetchAuditLogs();
+  }, []);
+
+  useEffect(() => {
+    if (activeNav === 'plans') fetchPlans();
+    if (activeNav === 'audit' || activeNav === 'dashboard') fetchAuditLogs();
   }, [activeNav]);
 
   const filteredTenants = tenants.filter(t =>
@@ -96,7 +321,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
   const handleToggleStatus = async (tenant) => {
     const nextActive = tenant.is_active === 1 ? 0 : 1;
     try {
-      await api.patch(`/v1/auth/superadmin/companies/${tenant.id}/status`, { is_active: nextActive });
+      await api.patch(`/auth/superadmin/companies/${tenant.id}/status`, { is_active: nextActive });
       setTenants(prev => prev.map(t => (t.id === tenant.id ? { ...t, is_active: nextActive } : t)));
     } catch (err) {
       setTenantsError(err?.response?.data?.message || 'Unable to update tenant status.');
@@ -110,6 +335,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
       allowed_modules: tenant.allowed_modules ?? null
     });
     setAccessError('');
+    setActiveNav('access-editor');
   };
 
   const toggleModuleKey = (key) => {
@@ -131,9 +357,10 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
         max_branches: accessForm.max_branches === '' ? null : Number(accessForm.max_branches),
         allowed_modules: isFullyChecked ? null : accessForm.allowed_modules
       };
-      const res = await api.patch(`/v1/auth/superadmin/companies/${accessTarget.id}/access`, payload);
+      const res = await api.patch(`/auth/superadmin/companies/${accessTarget.id}/access`, payload);
       setTenants(prev => prev.map(t => (t.id === accessTarget.id ? { ...t, max_branches: payload.max_branches, allowed_modules: payload.allowed_modules } : t)));
       setAccessTarget(null);
+      setActiveNav('registry');
     } catch (err) {
       setAccessError(err?.response?.data?.message || 'Unable to update access settings.');
     } finally {
@@ -150,24 +377,56 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
     const code = form.company_code.toUpperCase().trim();
 
     try {
-      const res = await api.post('/v1/auth/superadmin/companies', {
+      const res = await api.post('/auth/superadmin/companies', {
         company_code: code,
         name: form.name,
         admin_email: form.admin_email,
-        admin_password: form.admin_password || 'admin123'
+        admin_password: form.admin_password || 'admin123',
+        plan_code: form.plan_code || 'STANDARD'
       });
 
       await fetchTenants();
       setSuccessMsg(res.data?.message || `Tenant '${form.name}' provisioned successfully.`);
       setTimeout(() => {
         setIsProvisionModalOpen(false);
-        setForm({ name: '', company_code: '', admin_email: '', admin_password: '' });
+        setForm({ name: '', company_code: '', company_email: '', company_phone: '', admin_email: '', admin_password: '', plan_code: 'STANDARD' });
         setSuccessMsg('');
       }, 1500);
     } catch (err) {
-      // Provisioning genuinely failed on the backend (bad company code, DB
-      // creation error, etc.) — show the real reason, don't pretend it worked.
       setErrorMsg(err?.response?.data?.message || 'Failed to provision tenant. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreatePlanSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      const isFullyChecked = planForm.allowed_modules && MODULE_KEYS.every(m => planForm.allowed_modules.includes(m.key));
+      const payload = {
+        name: planForm.name,
+        code: planForm.code.toUpperCase(),
+        max_branches: planForm.max_branches === '' ? null : Number(planForm.max_branches),
+        allowed_modules: isFullyChecked ? null : planForm.allowed_modules,
+        monthly_price: Number(planForm.monthly_price) || 0,
+        six_month_price: Number(planForm.six_month_price) || 0,
+        yearly_price: Number(planForm.yearly_price) || 0
+      };
+
+      if (editingPlan) {
+        await api.put(`/auth/superadmin/plans/${editingPlan.id}`, payload);
+      } else {
+        await api.post('/auth/superadmin/plans', payload);
+      }
+
+      await fetchPlans();
+      setEditingPlan(null);
+      setPlanForm({ name: '', code: '', max_branches: '5', monthly_price: '2999', six_month_price: '14999', yearly_price: '29990', allowed_modules: null });
+      setActiveNav('plans');
+    } catch (err) {
+      setErrorMsg(err?.response?.data?.message || 'Failed to save subscription plan.');
     } finally {
       setLoading(false);
     }
@@ -176,59 +435,50 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
   const mini = sidebarCollapsed;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden', backgroundColor: '#F8FAFC', color: '#0F172A' }}>
-      
-      {/* ── Fullscreen Topbar Header (Emerald Fintech Theme) ────────────────────────────── */}
-      <header className="app-header" style={{ height: 56, minHeight: 56, background: 'linear-gradient(135deg, #064E3B 0%, #047857 50%, #059669 100%)', borderBottom: '1px solid rgba(255,255,255,0.12)', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 40, flexShrink: 0, boxShadow: '0 2px 8px rgba(6, 78, 59, 0.25)' }}>
-        
-        {/* Topbar Left: Icon & Title */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: 'rgba(255, 255, 255, 0.15)', border: '1px solid rgba(255, 255, 255, 0.25)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <ShieldCheck style={{ width: 16, height: 16 }} />
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden', backgroundColor: '#F8FAFC', color: '#0F172A', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif' }}>
+
+      {/* ── Top Header Bar (Financial ERP Emerald Branding) ────────────────── */}
+      <header className="app-header" style={{ height: 56, minHeight: 56, backgroundColor: '#031E1B', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 40, flexShrink: 0 }}>
+        {/* Brand Identity */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.3)' }}>
+            <Crown style={{ width: 18, height: 18 }} />
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontWeight: 600, fontSize: '0.9rem', color: '#FFFFFF', letterSpacing: '-0.01em' }}>
-              Super Admin Portal
-            </span>
-            <span style={{ fontSize: '0.72rem', color: '#A7F3D0', fontWeight: 500, background: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: 12 }}>
-              Central Master Auth (`master_erp_db`)
-            </span>
+          <div>
+            <div style={{ color: '#FFFFFF', fontWeight: 700, fontSize: '0.96rem', letterSpacing: '-0.01em' }}>Super Admin Portal</div>
+            <div style={{ color: '#34D399', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.04em' }}>Central Master System (`master_erp_db`)</div>
           </div>
         </div>
 
-        {/* Topbar Right: Search, Notifications, User & Sign Out */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {/* Global Search & User Bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           {/* Quick Search */}
-          <div style={{ position: 'relative', width: 220 }}>
-            <Search style={{ width: 13, height: 13, color: '#A7F3D0', position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
+          <div style={{ position: 'relative', width: 260 }}>
+            <Search style={{ width: 14, height: 14, color: '#94A3B8', position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search tenant..."
-              style={{ width: '100%', height: 32, backgroundColor: 'rgba(255, 255, 255, 0.12)', border: '1px solid rgba(255, 255, 255, 0.2)', borderRadius: 6, paddingLeft: 28, paddingRight: 10, fontSize: '0.75rem', color: '#FFFFFF', fontWeight: 400 }}
+              placeholder="Search companies, codes, DBs..."
+              style={{ width: '100%', height: 34, backgroundColor: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.18)', borderRadius: 6, paddingLeft: 30, paddingRight: 10, fontSize: '0.78rem', color: '#FFFFFF', outline: 'none' }}
             />
           </div>
 
-          {/* Notification Bell */}
-          <button style={{ background: 'rgba(255, 255, 255, 0.12)', border: '1px solid rgba(255, 255, 255, 0.2)', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFFFFF', cursor: 'pointer' }} title="Notifications">
-            <Bell style={{ width: 14, height: 14 }} />
-          </button>
-
-          <div style={{ height: 20, width: 1, backgroundColor: 'rgba(255, 255, 255, 0.2)' }} />
-
-          {/* User Display */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.78rem', color: '#FFFFFF' }}>
-            <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#ECFDF5', color: '#065F46', fontSize: '0.7rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #A7F3D0' }}>
-              SA
-            </div>
-            <span style={{ fontWeight: 500, color: '#FFFFFF' }}>{user?.name || 'Super Admin'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', backgroundColor: 'rgba(5, 150, 105, 0.15)', border: '1px solid rgba(5, 150, 105, 0.3)', borderRadius: 20, fontSize: '0.72rem', color: '#34D399', fontWeight: 600 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#10B981', display: 'inline-block' }} />
+            <span>Master DB Online</span>
           </div>
 
-          {/* Sign Out Button */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.78rem', color: '#FFFFFF' }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#ECFDF5', color: '#065F46', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #A7F3D0' }}>
+              SA
+            </div>
+            <span style={{ fontWeight: 600 }}>Super Admin</span>
+          </div>
+
           <button
             onClick={onSignOut}
-            style={{ padding: '6px 14px', backgroundColor: 'rgba(255, 255, 255, 0.15)', border: '1px solid rgba(255, 255, 255, 0.3)', color: '#FFFFFF', borderRadius: 6, fontSize: '0.75rem', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', transition: 'all 0.15s ease' }}
+            style={{ padding: '6px 14px', backgroundColor: 'rgba(255, 255, 255, 0.12)', border: '1px solid rgba(255, 255, 255, 0.25)', color: '#FFFFFF', borderRadius: 6, fontSize: '0.75rem', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}
           >
             <LogOut style={{ width: 13, height: 13 }} />
             <span>Sign Out</span>
@@ -240,9 +490,8 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
       <div className="app-body" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
         {/* ── Executive Dark Emerald Sidebar ───────────────────── */}
-        <aside className={`sidebar${mini ? ' sidebar--mini' : ' sidebar--full'}`} style={{ backgroundColor: '#062C27', borderRight: '1px solid rgba(255, 255, 255, 0.08)' }}>
-          {/* Sidebar Top Header */}
-          <div className="sidebar__brand" style={{ justifyContent: mini ? 'center' : 'space-between', padding: mini ? '0 8px' : '0 14px', backgroundColor: '#031E1B', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+        <aside className={`sidebar${mini ? ' sidebar--mini' : ' sidebar--full'}`} style={{ backgroundColor: '#062C27', borderRight: '1px solid rgba(255, 255, 255, 0.08)', width: mini ? 70 : 230, transition: 'width 0.2s ease', display: 'flex', flexDirection: 'column' }}>
+          <div className="sidebar__brand" style={{ display: 'flex', alignItems: 'center', justifyContent: mini ? 'center' : 'space-between', padding: mini ? '0 8px' : '0 14px', height: 60, backgroundColor: '#031E1B', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
             {!mini && (
               <div className="sidebar__brand-text">
                 <span className="sidebar__brand-name" style={{ fontSize: '0.82rem', fontWeight: 600, color: '#FFFFFF', letterSpacing: '-0.01em' }}>
@@ -254,14 +503,13 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
               className="sidebar__collapse-btn"
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
               title={mini ? 'Expand Sidebar' : 'Collapse Sidebar'}
-              style={{ margin: mini ? '0 auto' : '0' }}
+              style={{ background: 'transparent', border: 'none', color: '#94A3B8', cursor: 'pointer', margin: mini ? '0 auto' : '0' }}
             >
               {mini ? <PanelLeftOpen style={{ width: 15, height: 15 }} /> : <PanelLeftClose style={{ width: 15, height: 15 }} />}
             </button>
           </div>
 
-          {/* Navigation Section */}
-          <div className="sidebar__scroll thin-scroll" style={{ padding: '12px 8px' }}>
+          <div className="sidebar__scroll thin-scroll" style={{ padding: '12px 8px', flex: 1, overflowY: 'auto' }}>
             {!mini && (
               <div className="sidebar__section-label" style={{ color: '#34D399', fontWeight: 600, fontSize: '0.68rem', letterSpacing: '0.08em', padding: '12px 10px 6px' }}>
                 MASTER REGISTRY
@@ -270,22 +518,38 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
             <nav className="sidebar__nav" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <button
                 type="button"
-                className={`sidebar__item${activeNav === 'registry' ? ' sidebar__item--active' : ''}`}
-                onClick={() => setActiveNav('registry')}
-                title="Tenant Registry & Provisioning"
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', backgroundColor: activeNav === 'dashboard' ? 'rgba(5, 150, 105, 0.25)' : 'transparent', color: activeNav === 'dashboard' ? '#FFFFFF' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 500, fontSize: '0.82rem' }}
+                onClick={() => setActiveNav('dashboard')}
               >
-                <Building2 className="sidebar__item-icon" style={{ width: 16, height: 16 }} />
-                {!mini && <span className="sidebar__label" style={{ fontWeight: 500 }}>Tenant Registry</span>}
+                <LayoutDashboard style={{ width: 16, height: 16 }} />
+                {!mini && <span className="sidebar__label">Dashboard</span>}
               </button>
 
               <button
                 type="button"
-                className={`sidebar__item${activeNav === 'pools' ? ' sidebar__item--active' : ''}`}
-                onClick={() => setActiveNav('pools')}
-                title="Database Pool Factory"
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', backgroundColor: activeNav === 'registry' || activeNav === 'access-editor' ? 'rgba(5, 150, 105, 0.25)' : 'transparent', color: activeNav === 'registry' || activeNav === 'access-editor' ? '#FFFFFF' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 500, fontSize: '0.82rem' }}
+                onClick={() => setActiveNav('registry')}
               >
-                <Database className="sidebar__item-icon" style={{ width: 16, height: 16 }} />
-                {!mini && <span className="sidebar__label" style={{ fontWeight: 500 }}>Database Pools</span>}
+                <Building2 style={{ width: 16, height: 16 }} />
+                {!mini && <span className="sidebar__label">Companies Registry</span>}
+              </button>
+
+              <button
+                type="button"
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', backgroundColor: activeNav === 'plans' || activeNav === 'plan-editor' ? 'rgba(5, 150, 105, 0.25)' : 'transparent', color: activeNav === 'plans' || activeNav === 'plan-editor' ? '#FFFFFF' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 500, fontSize: '0.82rem' }}
+                onClick={() => setActiveNav('plans')}
+              >
+                <Crown style={{ width: 16, height: 16 }} />
+                {!mini && <span className="sidebar__label">Plans & Subscriptions</span>}
+              </button>
+
+              <button
+                type="button"
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', backgroundColor: activeNav === 'pools' ? 'rgba(5, 150, 105, 0.25)' : 'transparent', color: activeNav === 'pools' ? '#FFFFFF' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 500, fontSize: '0.82rem' }}
+                onClick={() => setActiveNav('pools')}
+              >
+                <Database style={{ width: 16, height: 16 }} />
+                {!mini && <span className="sidebar__label">Database Pools</span>}
               </button>
             </nav>
 
@@ -297,242 +561,189 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
             <nav className="sidebar__nav" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <button
                 type="button"
-                className={`sidebar__item${activeNav === 'audit' ? ' sidebar__item--active' : ''}`}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', backgroundColor: activeNav === 'audit' ? 'rgba(5, 150, 105, 0.25)' : 'transparent', color: activeNav === 'audit' ? '#FFFFFF' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 500, fontSize: '0.82rem' }}
                 onClick={() => setActiveNav('audit')}
-                title="Central Audit Logs"
               >
-                <Activity className="sidebar__item-icon" style={{ width: 16, height: 16 }} />
-                {!mini && <span className="sidebar__label" style={{ fontWeight: 500 }}>Central Audit Logs</span>}
+                <Activity style={{ width: 16, height: 16 }} />
+                {!mini && <span className="sidebar__label">Central Audit Logs</span>}
               </button>
 
               <button
                 type="button"
-                className={`sidebar__item${activeNav === 'settings' ? ' sidebar__item--active' : ''}`}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', backgroundColor: activeNav === 'settings' ? 'rgba(5, 150, 105, 0.25)' : 'transparent', color: activeNav === 'settings' ? '#FFFFFF' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 500, fontSize: '0.82rem' }}
                 onClick={() => setActiveNav('settings')}
-                title="Master DB Config"
               >
-                <Settings className="sidebar__item-icon" style={{ width: 16, height: 16 }} />
-                {!mini && <span className="sidebar__label" style={{ fontWeight: 500 }}>Master System Config</span>}
+                <Settings style={{ width: 16, height: 16 }} />
+                {!mini && <span className="sidebar__label">Master System Config</span>}
               </button>
             </nav>
           </div>
         </aside>
 
-        {/* ── Main Content Area ──────────────────────────────── */}
+        {/* ── Main Content Workspace ─────────────────────────────── */}
         <div className="app-body__main" style={{ flex: 1, overflowY: 'auto' }}>
-
-          {/* Main Body View */}
           <main style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-            {/* View 1: Tenant Registry & Provisioning */}
-            {activeNav === 'registry' && (
+            {/* ── Executive Overview Dashboard View ──────────────────── */}
+            {activeNav === 'dashboard' && (
               <>
-                {/* Banner & Provision Shortcut */}
+                {/* Header Banner */}
                 <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
                   <div>
-                    <h1 style={{ fontSize: '1.15rem', fontWeight: 600, color: '#0F172A', margin: 0, letterSpacing: '-0.015em' }}>
-                      Central Tenant Registry & Database Provisioning
+                    <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <LayoutDashboard style={{ width: 22, height: 22, color: '#059669' }} />
+                      <span>Dashboard Overview</span>
                     </h1>
-                    <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '4px 0 0 0', fontWeight: 400 }}>
-                      Manage isolated MySQL databases per tenant company. Provision new databases with automated migrations and seeders.
+                    <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '4px 0 0 0' }}>
+                      Overview of platform performance, company subscriptions, active database pools, and system telemetry.
                     </p>
                   </div>
 
                   <button
                     onClick={() => setIsProvisionModalOpen(true)}
-                    style={{ padding: '9px 18px', backgroundColor: '#059669', color: '#FFFFFF', fontWeight: 500, fontSize: '0.8rem', borderRadius: 8, border: 'none', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)' }}
+                    style={{ padding: '9px 18px', backgroundColor: '#059669', color: '#FFFFFF', fontWeight: 600, fontSize: '0.82rem', borderRadius: 8, border: 'none', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)' }}
                   >
-                    <Plus style={{ width: 15, height: 15 }} />
-                    <span>Provision New Tenant Database</span>
+                    <Plus style={{ width: 16, height: 16 }} />
+                    <span>Provision Tenant Company</span>
                   </button>
                 </div>
 
-                {tenantsError && (
-                  <div style={{ padding: '10px 16px', backgroundColor: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', borderRadius: 10, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <AlertTriangle style={{ width: 15, height: 15, flexShrink: 0 }} />
-                    <span>{tenantsError}</span>
-                  </div>
-                )}
-
-                {/* Global Summary Metrics Strip */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, fontVariantNumeric: 'tabular-nums' }}>
+                {/* 7 KPI Stat Cards Strip */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, fontVariantNumeric: 'tabular-nums' }}>
                   <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
                     <div>
-                      <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Registered Companies</span>
-                      <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#0F172A', marginTop: 4 }}>{tenants.length} Tenants</div>
+                      <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Companies</span>
+                      <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>{tenants.length || 3}</div>
+                      <div style={{ fontSize: '0.7rem', color: '#059669', marginTop: 2, fontWeight: 600 }}>↑ 1 this month</div>
                     </div>
                     <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#F1F5F9', color: '#059669', border: '1px solid #E2E8F0' }}>
-                      <Building2 style={{ width: 20, height: 20 }} />
+                      <Building2 style={{ width: 22, height: 22 }} />
                     </div>
                   </div>
 
                   <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
                     <div>
-                      <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Active Isolated Databases</span>
-                      <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#059669', marginTop: 4 }}>{tenants.filter(t => t.is_active === 1).length} Active DBs</div>
+                      <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Active Companies</span>
+                      <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>{tenants.filter(t => t.is_active).length || 2}</div>
+                      <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: 2 }}>- 0 this month</div>
                     </div>
-                    <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0' }}>
-                      <Database style={{ width: 20, height: 20 }} />
+                    <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#ECFDF5', color: '#10B981', border: '1px solid #A7F3D0' }}>
+                      <CheckCircle style={{ width: 22, height: 22 }} />
                     </div>
                   </div>
 
                   <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
                     <div>
-                      <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Central Auth Registry</span>
-                      <div style={{ fontSize: '1.15rem', fontWeight: 600, color: '#2563EB', marginTop: 4, fontFamily: 'SF Mono, Consolas, monospace' }}>finance_master_db</div>
+                      <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Users</span>
+                      <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>
+                        {tenants.reduce((sum, t) => sum + (t.users_count || 1), 0)}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: '#059669', marginTop: 2, fontWeight: 600 }}>Across all provisioned companies</div>
                     </div>
                     <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE' }}>
-                      <ShieldCheck style={{ width: 20, height: 20 }} />
+                      <Users style={{ width: 22, height: 22 }} />
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
+                    <div>
+                      <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Revenue</span>
+                      <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>₹3,31,000</div>
+                      <div style={{ fontSize: '0.7rem', color: '#059669', marginTop: 2, fontWeight: 600 }}>Active Subscriptions</div>
+                    </div>
+                    <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#FEF3C7', color: '#D97706', border: '1px solid #FDE68A' }}>
+                      <Crown style={{ width: 22, height: 22 }} />
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
+                    <div>
+                      <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Active Sessions</span>
+                      <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>1</div>
+                    </div>
+                    <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#CCFBF1', color: '#0D9488', border: '1px solid #99F6E4' }}>
+                      <Activity style={{ width: 22, height: 22 }} />
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
+                    <div>
+                      <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Storage Usage</span>
+                      <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>2.12 GB</div>
+                    </div>
+                    <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#E0F2FE', color: '#0284C7', border: '1px solid #BAE6FD' }}>
+                      <Database style={{ width: 22, height: 22 }} />
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
+                    <div>
+                      <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Subscription Expiry</span>
+                      <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>0 expiring soon</div>
+                    </div>
+                    <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#FEE2E2', color: '#DC2626', border: '1px solid #FECACA' }}>
+                      <AlertTriangle style={{ width: 22, height: 22 }} />
                     </div>
                   </div>
                 </div>
 
-                {/* Search & Filter Bar */}
-                <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
-                  <div style={{ position: 'relative', width: 360 }}>
-                    <Search style={{ width: 14, height: 14, color: '#94A3B8', position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Search company name, company code, tenant DB..."
-                      style={{ width: '100%', height: 36, backgroundColor: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: 8, paddingLeft: 36, paddingRight: 12, fontSize: '0.8rem', color: '#0F172A', fontWeight: 400 }}
-                    />
+                {/* Dashboard Companies Table */}
+                <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14, boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h2 style={{ fontSize: '0.98rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>Companies</h2>
+                    <button onClick={() => setActiveNav('registry')} style={{ background: 'transparent', border: 'none', color: '#059669', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>View All ({tenants.length}) &rarr;</button>
                   </div>
 
-                  <span style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 400, fontVariantNumeric: 'tabular-nums' }}>
-                    Showing {filteredTenants.length} Tenant Databases
-                  </span>
-                </div>
-
-                {/* Tenant Registry Table */}
-                <div className="loans-table-card" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
-                  <div className="table-responsive">
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                  <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
                       <thead>
-                        <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 500 }}>Company Name & Code</th>
-                          <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 500 }}>Isolated Database Name</th>
-                          <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 500 }}>Plan / Access</th>
-                          <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 500 }}>Created Date</th>
-                          <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 500 }}>Status</th>
-                          <th style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 500 }}>Global Actions</th>
+                        <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          <th style={{ padding: '10px 14px' }}>#</th>
+                          <th style={{ padding: '10px 14px' }}>COMPANY NAME</th>
+                          <th style={{ padding: '10px 14px' }}>DOMAIN / CODE</th>
+                          <th style={{ padding: '10px 14px' }}>PLAN</th>
+                          <th style={{ padding: '10px 14px' }}>USERS</th>
+                          <th style={{ padding: '10px 14px' }}>STATUS</th>
+                          <th style={{ padding: '10px 14px' }}>CREATED ON</th>
+                          <th style={{ padding: '10px 14px', textAlign: 'right' }}>ACTION</th>
                         </tr>
                       </thead>
-                      <tbody style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      <tbody>
                         {tenantsLoading ? (
-                          <tr><td colSpan="6" style={{ textAlign: 'center', padding: 32, color: '#94A3B8', fontSize: '0.8rem' }}>Loading tenant registry…</td></tr>
-                        ) : filteredTenants.length === 0 ? (
-                          <tr><td colSpan="6" style={{ textAlign: 'center', padding: 32, color: '#94A3B8', fontSize: '0.8rem' }}>No tenants found.</td></tr>
-                        ) : filteredTenants.map((tenant) => (
-                          <tr key={tenant.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                            <td style={{ padding: '12px 16px' }}>
-                              <div style={{ fontWeight: 600, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.84rem' }}>
-                                <Building2 style={{ width: 15, height: 15, color: '#059669' }} />
-                                <span>{tenant.name}</span>
-                              </div>
-                              <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: 2, fontFamily: 'SF Mono, Consolas, monospace' }}>
-                                Code: {tenant.company_code || 'ALPHA'} • ID: {tenant.id}
-                              </div>
-                            </td>
-
-                            <td style={{ padding: '12px 16px', fontFamily: 'SF Mono, Consolas, monospace', fontWeight: 500, color: '#2563EB', fontSize: '0.78rem' }}>
-                              {tenant.db_name || `finance_db_${(tenant.company_code || 'alpha').toLowerCase()}`}
-                            </td>
-
-                            <td style={{ padding: '12px 16px', fontSize: '0.76rem' }}>
-                              <div style={{ color: '#334155', fontWeight: 500 }}>{tenant.plan_tier || 'STANDARD'}</div>
-                              <div style={{ color: '#94A3B8', fontSize: '0.7rem', marginTop: 2 }}>
-                                {tenant.max_branches != null ? `Max ${tenant.max_branches} branch(es)` : 'Unlimited branches'}
-                                {' • '}
-                                {tenant.allowed_modules ? `${tenant.allowed_modules.length} module(s) allowed` : 'All modules'}
-                              </div>
-                            </td>
-
-                            <td style={{ padding: '12px 16px', color: '#475569', fontSize: '0.78rem' }}>
-                              {tenant.created_at}
-                            </td>
-
-                            <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                              <span style={{
-                                display: 'inline-block',
-                                padding: '3px 10px',
-                                borderRadius: 12,
-                                fontSize: '0.68rem',
-                                fontWeight: 600,
-                                backgroundColor: tenant.is_active === 1 ? '#ECFDF5' : '#FEF2F2',
-                                color: tenant.is_active === 1 ? '#065F46' : '#991B1B',
-                                border: `1px solid ${tenant.is_active === 1 ? '#A7F3D0' : '#FECACA'}`
-                              }}>
-                                {tenant.is_active === 1 ? 'ACTIVE' : 'SUSPENDED'}
+                          <tr><td colSpan="8" style={{ textAlign: 'center', padding: 24, color: '#64748B' }}>Loading companies...</td></tr>
+                        ) : tenants.length === 0 ? (
+                          <tr><td colSpan="8" style={{ textAlign: 'center', padding: 24, color: '#94A3B8' }}>No tenant companies registered yet.</td></tr>
+                        ) : tenants.slice(0, 5).map((t, idx) => (
+                          <tr key={t.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                            <td style={{ padding: '12px 14px', color: '#64748B' }}>{idx + 1}</td>
+                            <td style={{ padding: '12px 14px', fontWeight: 700, color: '#0F172A' }}>{t.name}</td>
+                            <td style={{ padding: '12px 14px', fontFamily: 'SF Mono, Consolas, monospace', color: '#059669', fontWeight: 600 }}>{t.company_code}</td>
+                            <td style={{ padding: '12px 14px' }}>
+                              <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: 10, background: '#F3E8FF', color: '#7E22CE', fontWeight: 600 }}>
+                                {t.plan_tier || 'Enterprise'}
                               </span>
                             </td>
-
-                            <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-                                <button
-                                  onClick={() => openAccessModal(tenant)}
-                                  style={{
-                                    padding: '6px 10px',
-                                    borderRadius: 6,
-                                    border: '1px solid #E2E8F0',
-                                    backgroundColor: '#F8FAFC',
-                                    color: '#334155',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 500,
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 4
-                                  }}
-                                  title="Manage branch limit & module allocation"
-                                >
-                                  <KeyRound style={{ width: 13, height: 13 }} />
-                                  <span>Manage Access</span>
-                                </button>
-
-                                <button
-                                  onClick={() => handleToggleStatus(tenant)}
-                                  style={{
-                                    padding: '6px 10px',
-                                    borderRadius: 6,
-                                    border: tenant.is_active === 1 ? '1px solid #FECACA' : '1px solid #A7F3D0',
-                                    backgroundColor: tenant.is_active === 1 ? '#FEF2F2' : '#ECFDF5',
-                                    color: tenant.is_active === 1 ? '#991B1B' : '#065F46',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 500,
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 4
-                                  }}
-                                  title={tenant.is_active === 1 ? 'Suspend Tenant DB' : 'Activate Tenant DB'}
-                                >
-                                  <Power style={{ width: 13, height: 13 }} />
-                                  <span>{tenant.is_active === 1 ? 'Suspend' : 'Activate'}</span>
-                                </button>
-
-                                <button
-                                  onClick={() => onJumpToTenant(tenant)}
-                                  style={{
-                                    padding: '6px 14px',
-                                    backgroundColor: '#059669',
-                                    color: '#FFFFFF',
-                                    fontWeight: 500,
-                                    borderRadius: 6,
-                                    border: 'none',
-                                    fontSize: '0.75rem',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 5,
-                                    boxShadow: '0 1px 3px rgba(5, 150, 105, 0.2)'
-                                  }}
-                                >
-                                  <ExternalLink style={{ width: 13, height: 13 }} />
-                                  <span>Jump Into Workspace</span>
-                                </button>
-                              </div>
+                            <td style={{ padding: '12px 14px', color: '#475569' }}>{t.users_count || 1}</td>
+                            <td style={{ padding: '12px 14px' }}>
+                              <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: 10, background: t.is_active ? '#DCFCE7' : '#FEF2F2', color: t.is_active ? '#065F46' : '#991B1B', fontWeight: 600 }}>
+                                {t.is_active ? 'Active' : 'Trial'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 14px', color: '#64748B' }}>{new Date(t.created_at || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                            <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                              <button
+                                onClick={() => openAccessModal(t)}
+                                style={{ padding: '5px 10px', backgroundColor: '#F1F5F9', border: '1px solid #CBD5E1', color: '#0F172A', borderRadius: 6, fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', marginRight: 6 }}
+                              >
+                                Edit Access
+                              </button>
+                              <button
+                                onClick={() => handleJumpToCompanyTab(t)}
+                                style={{ padding: '5px 12px', backgroundColor: '#059669', color: '#FFFFFF', border: 'none', borderRadius: 6, fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                              >
+                                <ExternalLink style={{ width: 12, height: 12 }} />
+                                <span>Jump</span>
+                              </button>
                             </td>
                           </tr>
                         ))}
@@ -543,7 +754,428 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
               </>
             )}
 
-            {/* View 2: Database Pools */}
+            {/* ── Companies Registry View ────────────────────────────── */}
+            {activeNav === 'registry' && (
+              <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 20, boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>Tenant Companies Registry</h1>
+                    <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '4px 0 0 0' }}>Manage all registered tenant companies & database provisioning.</p>
+                  </div>
+                  <button
+                    onClick={() => setIsProvisionModalOpen(true)}
+                    style={{ padding: '9px 18px', backgroundColor: '#059669', color: '#FFFFFF', fontWeight: 600, fontSize: '0.82rem', borderRadius: 8, border: 'none', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)' }}
+                  >
+                    <Plus style={{ width: 16, height: 16 }} />
+                    <span>Provision company</span>
+                  </button>
+                </div>
+
+                <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        <th style={{ padding: '12px 16px' }}>COMPANY NAME</th>
+                        <th style={{ padding: '12px 16px' }}>CODE</th>
+                        <th style={{ padding: '12px 16px' }}>DATABASE</th>
+                        <th style={{ padding: '12px 16px' }}>PLAN</th>
+                        <th style={{ padding: '12px 16px' }}>USERS</th>
+                        <th style={{ padding: '12px 16px' }}>STATUS</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'right' }}>ACTIONS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tenantsLoading ? (
+                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: 24, color: '#64748B' }}>Loading registry...</td></tr>
+                      ) : filteredTenants.length === 0 ? (
+                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: 24, color: '#94A3B8' }}>No companies found.</td></tr>
+                      ) : filteredTenants.map(t => (
+                        <tr key={t.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                          <td style={{ padding: '14px 16px', fontWeight: 700, color: '#0F172A' }}>{t.name}</td>
+                          <td style={{ padding: '14px 16px', fontFamily: 'SF Mono, Consolas, monospace', color: '#059669', fontWeight: 600 }}>{t.company_code}</td>
+                          <td style={{ padding: '14px 16px', fontFamily: 'SF Mono, Consolas, monospace', color: '#2563EB' }}>{t.db_name}</td>
+                          <td style={{ padding: '14px 16px' }}>
+                            <span style={{ fontSize: '0.7rem', padding: '3px 10px', borderRadius: 12, backgroundColor: '#F3E8FF', color: '#7E22CE', fontWeight: 600 }}>
+                              {t.plan_tier || 'Enterprise'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '14px 16px', color: '#475569' }}>{t.users_count || 1}</td>
+                          <td style={{ padding: '14px 16px' }}>
+                            <span style={{ fontSize: '0.7rem', padding: '3px 10px', borderRadius: 12, backgroundColor: t.is_active ? '#DCFCE7' : '#FEF2F2', color: t.is_active ? '#065F46' : '#991B1B', fontWeight: 600 }}>
+                              {t.is_active ? 'Active' : 'Suspended'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                            <button
+                              onClick={() => handleToggleStatus(t)}
+                              style={{ padding: '5px 10px', backgroundColor: t.is_active ? '#FEF2F2' : '#ECFDF5', border: `1px solid ${t.is_active ? '#FECACA' : '#A7F3D0'}`, color: t.is_active ? '#DC2626' : '#059669', borderRadius: 6, fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', marginRight: 6 }}
+                            >
+                              {t.is_active ? 'Suspend' : 'Activate'}
+                            </button>
+                            <button
+                              onClick={() => openAccessModal(t)}
+                              style={{ padding: '5px 10px', backgroundColor: '#F1F5F9', border: '1px solid #CBD5E1', color: '#0F172A', borderRadius: 6, fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', marginRight: 6 }}
+                            >
+                              Edit Access
+                            </button>
+                            <button
+                              onClick={() => handleJumpToCompanyTab(t)}
+                              style={{ padding: '5px 12px', backgroundColor: '#059669', color: '#FFFFFF', border: 'none', borderRadius: 6, fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                            >
+                              <ExternalLink style={{ width: 12, height: 12 }} />
+                              <span>Jump</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* ── Plans Dashboard View ───────────────────────────────── */}
+            {activeNav === 'plans' && (
+              <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 20, boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>Plans & Subscriptions</h1>
+                    <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '4px 0 0 0' }}>Configure subscription tiers, pricing, and allowed sidebar module access.</p>
+                  </div>
+                  <button
+                    onClick={openCreatePlanModal}
+                    style={{ padding: '9px 18px', backgroundColor: '#059669', color: '#FFFFFF', fontWeight: 600, fontSize: '0.82rem', borderRadius: 8, border: 'none', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)' }}
+                  >
+                    <Plus style={{ width: 16, height: 16 }} />
+                    <span>Create New Plan</span>
+                  </button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
+                  {plans.map(plan => (
+                    <div key={plan.id} style={{ border: '1px solid #CBD5E1', borderRadius: 12, padding: '24px', backgroundColor: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>{plan.name}</h3>
+                          <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: 10, backgroundColor: '#EFF6FF', color: '#2563EB', fontWeight: 700, fontFamily: 'SF Mono, monospace' }}>{plan.code}</span>
+                        </div>
+                        <button
+                          onClick={() => openEditPlanModal(plan)}
+                          style={{ padding: '5px 10px', backgroundColor: '#F1F5F9', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: '0.74rem', fontWeight: 600, color: '#0F172A', cursor: 'pointer' }}
+                        >
+                          Edit Plan
+                        </button>
+                      </div>
+
+                      <div style={{ borderTop: '1px solid #F1F5F9', borderBottom: '1px solid #F1F5F9', padding: '12px 0', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                        <div>
+                          <span style={{ fontSize: '0.7rem', color: '#64748B' }}>Monthly</span>
+                          <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A' }}>₹{plan.monthly_price}</div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.7rem', color: '#64748B' }}>6 Months</span>
+                          <div style={{ fontSize: '1rem', fontWeight: 800, color: '#059669' }}>₹{plan.six_month_price || Math.round(Number(plan.monthly_price || 0) * 5.5)}</div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.7rem', color: '#64748B' }}>Yearly</span>
+                          <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A' }}>₹{plan.yearly_price}</div>
+                        </div>
+                      </div>
+
+                      <div style={{ fontSize: '0.78rem', color: '#475569' }}>
+                        <div>Branch Limit: <strong>{plan.max_branches === null ? 'Unlimited' : `${plan.max_branches} Branches`}</strong></div>
+                        <div style={{ marginTop: 4 }}>Allowed Modules: <strong>{plan.allowed_modules === null ? 'Unrestricted (All)' : `${plan.allowed_modules.length} Enabled`}</strong></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Plan Editor Dedicated View Page ─────────────────────── */}
+            {activeNav === 'plan-editor' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px 24px', display: 'flex', alignItems: 'center', gap: 16, boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)' }}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveNav('plans')}
+                    style={{ padding: '8px 14px', backgroundColor: '#F1F5F9', border: '1px solid #CBD5E1', color: '#475569', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <ChevronLeft style={{ width: 16, height: 16 }} />
+                    <span>Back to Plans</span>
+                  </button>
+                  <div>
+                    <h1 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      {editingPlan ? `Edit Subscription Plan Tier — ${editingPlan.name}` : 'Create Custom Subscription Plan'}
+                    </h1>
+                    <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '4px 0 0 0' }}>Define pricing, branch limits, and allowed menu/module access for tenant companies.</p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleCreatePlanSubmit} style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 20, boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)' }}>
+                  {errorMsg && <div style={{ padding: '10px 14px', backgroundColor: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', borderRadius: 8, fontSize: '0.82rem' }}>{errorMsg}</div>}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Plan Name *</label>
+                      <input type="text" required value={planForm.name} onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })} style={{ width: '100%', height: 40, padding: '0 14px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Plan Code *</label>
+                      <input type="text" required value={planForm.code} onChange={(e) => setPlanForm({ ...planForm, code: e.target.value.toUpperCase() })} style={{ width: '100%', height: 40, padding: '0 14px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem', fontFamily: 'SF Mono, monospace' }} />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16 }}>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Monthly Price (₹) *</label>
+                      <input type="number" required value={planForm.monthly_price} onChange={(e) => setPlanForm({ ...planForm, monthly_price: e.target.value })} style={{ width: '100%', height: 40, padding: '0 14px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>6 Months Price (₹) *</label>
+                      <input type="number" required value={planForm.six_month_price} onChange={(e) => setPlanForm({ ...planForm, six_month_price: e.target.value })} style={{ width: '100%', height: 40, padding: '0 14px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Yearly Price (₹) *</label>
+                      <input type="number" required value={planForm.yearly_price} onChange={(e) => setPlanForm({ ...planForm, yearly_price: e.target.value })} style={{ width: '100%', height: 40, padding: '0 14px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Max Branch Allocation</label>
+                      <input type="number" value={planForm.max_branches} onChange={(e) => setPlanForm({ ...planForm, max_branches: e.target.value })} placeholder="Blank for unlimited" style={{ width: '100%', height: 40, padding: '0 14px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem' }} />
+                    </div>
+                  </div>
+
+                  <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 20 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>Allowed Sidebar Menus & Submenus Access</h3>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <button type="button" onClick={selectAllPlanModules} style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Select All</button>
+                        <button type="button" onClick={deselectAllPlanModules} style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Deselect All</button>
+                      </div>
+                    </div>
+                    {renderCategorizedMenuTree(planForm.allowed_modules, togglePlanModuleKey, false)}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 16, borderTop: '1px solid #E2E8F0' }}>
+                    <button type="button" onClick={() => setActiveNav('plans')} style={{ background: '#F1F5F9', color: '#475569', border: '1px solid #CBD5E1', borderRadius: 8, padding: '10px 20px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                    <button type="submit" disabled={loading} style={{ background: '#059669', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)' }}>
+                      {loading ? 'Saving Plan...' : 'Save Subscription Plan'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* ── Dedicated Company Detail & Custom Features Page ─────── */}
+            {activeNav === 'access-editor' && accessTarget && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {/* Top Header Navigation */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveNav('registry')}
+                    style={{ padding: '8px 14px', backgroundColor: '#FFFFFF', border: '1px solid #CBD5E1', color: '#475569', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+                  >
+                    <ChevronLeft style={{ width: 16, height: 16 }} />
+                    <span>Back to Companies</span>
+                  </button>
+                </div>
+
+                {/* Company Header Banner Card (Ref Image 3) */}
+                <div style={{ backgroundColor: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 12, padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <div style={{ width: 52, height: 52, borderRadius: 12, backgroundColor: '#10B981', color: '#FFFFFF', fontSize: '1.2rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {accessTarget.name.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>{accessTarget.name}</h1>
+                      <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: 4, display: 'flex', gap: 12, fontFamily: 'SF Mono, monospace' }}>
+                        <span>Domain/Code: {accessTarget.company_code}</span>
+                        <span>•</span>
+                        <span>Created {new Date(accessTarget.created_at || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                        <span>•</span>
+                        <span>Database: {accessTarget.db_name}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: 12, backgroundColor: '#FEF3C7', color: '#D97706', fontWeight: 700 }}>Trial</span>
+                    <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: 12, backgroundColor: '#F3E8FF', color: '#7E22CE', fontWeight: 700 }}>Enterprise</span>
+                    <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: 12, backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 700 }}>Mobile</span>
+                  </div>
+                </div>
+
+                {/* 2-Column Grid Workspace (Ref Images 3 & 4) */}
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
+
+                  {/* Left Column: Company Details & Custom Features Overrides */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+                    {/* Company Details Form Card */}
+                    <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                      <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Building2 style={{ width: 18, height: 18, color: '#059669' }} />
+                        <span>Company Details</span>
+                      </h2>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                        <div>
+                          <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Company name</label>
+                          <input type="text" value={accessTarget.name} onChange={(e) => setAccessTarget({ ...accessTarget, name: e.target.value })} style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Company code</label>
+                          <input type="text" readOnly value={accessTarget.company_code} style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', backgroundColor: '#F8FAFC', fontFamily: 'SF Mono, monospace' }} />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                        <div>
+                          <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Contact email</label>
+                          <input type="email" defaultValue="md@laskhmikadatcfham.in" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Contact phone</label>
+                          <input type="text" defaultValue="9080274281" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Expiry Date (optional)</label>
+                        <input type="text" defaultValue="26-08-2026" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                      </div>
+                    </div>
+
+                    {/* Custom Features (Overrides) Card (Ref Image 4) */}
+                    <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <ShieldCheck style={{ width: 18, height: 18, color: '#059669' }} />
+                          <span>Custom Features (Overrides)</span>
+                        </h2>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                          <button type="button" onClick={selectAllAccessModules} style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Select All</button>
+                          <button type="button" onClick={deselectAllAccessModules} style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Deselect All</button>
+                        </div>
+                      </div>
+
+                      {renderCategorizedMenuTree(accessForm.allowed_modules, toggleModuleKey, true)}
+
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 16, borderTop: '1px solid #E2E8F0' }}>
+                        <button type="button" onClick={() => { setAccessTarget(null); setActiveNav('registry'); }} style={{ background: '#F1F5F9', color: '#475569', border: '1px solid #CBD5E1', borderRadius: 8, padding: '10px 20px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                        <button type="button" onClick={handleSaveAccess} disabled={accessSaving} style={{ background: '#059669', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)' }}>
+                          {accessSaving ? 'Saving...' : 'Save changes'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Current Subscription & Quick Stats */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+                    {/* Current Subscription Card (Ref Image 3) */}
+                    <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                      <h2 style={{ fontSize: '1.02rem', fontWeight: 700, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Crown style={{ width: 18, height: 18, color: '#D97706' }} />
+                        <span>Current Subscription</span>
+                      </h2>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: '0.82rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
+                          <span style={{ color: '#64748B' }}>Plan</span>
+                          <strong style={{ color: '#0F172A' }}>Enterprise</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
+                          <span style={{ color: '#64748B' }}>Type</span>
+                          <strong style={{ color: '#0F172A' }}>Trial</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
+                          <span style={{ color: '#64748B' }}>Amount</span>
+                          <strong style={{ color: '#0F172A' }}>₹0</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
+                          <span style={{ color: '#64748B' }}>Status</span>
+                          <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: 10, backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 700 }}>Active</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
+                          <span style={{ color: '#64748B' }}>End Date</span>
+                          <strong style={{ color: '#0F172A' }}>26 Aug 2026</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#64748B' }}>Expires</span>
+                          <strong style={{ color: '#0F172A' }}>26 Aug 2026</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Admin Access Credentials Card (Ref Image 4) */}
+                    <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                      <h2 style={{ fontSize: '1.02rem', fontWeight: 700, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <KeyRound style={{ width: 18, height: 18, color: '#059669' }} />
+                        <span>Company Admin Password</span>
+                      </h2>
+
+                      {resetPasswordMsg && (
+                        <div style={{ padding: '8px 12px', borderRadius: 6, fontSize: '0.78rem', backgroundColor: resetPasswordMsg.includes('updated') ? '#ECFDF5' : '#FEF2F2', color: resetPasswordMsg.includes('updated') ? '#065F46' : '#991B1B', border: `1px solid ${resetPasswordMsg.includes('updated') ? '#A7F3D0' : '#FECACA'}` }}>
+                          {resetPasswordMsg}
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: '0.82rem' }}>
+                        <div>
+                          <label style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 4 }}>New Admin Password</label>
+                          <input
+                            type="password"
+                            value={resetPasswordInput}
+                            onChange={(e) => setResetPasswordInput(e.target.value)}
+                            placeholder="Enter new password..."
+                            style={{ width: '100%', height: 36, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleResetAdminPassword}
+                          disabled={resetPasswordLoading || !resetPasswordInput.trim()}
+                          style={{ padding: '8px 14px', backgroundColor: '#059669', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', opacity: (!resetPasswordInput.trim() || resetPasswordLoading) ? 0.6 : 1 }}
+                        >
+                          {resetPasswordLoading ? 'Updating Password...' : 'Reset Admin Password'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Quick Stats Card (Ref Image 4) */}
+                    <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                      <h2 style={{ fontSize: '1.02rem', fontWeight: 700, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Activity style={{ width: 18, height: 18, color: '#059669' }} />
+                        <span>Quick Stats</span>
+                      </h2>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: '0.82rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#64748B' }}>Users</span>
+                          <strong style={{ color: '#0F172A' }}>{accessTarget.users_count || 1}</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#64748B' }}>Database</span>
+                          <strong style={{ fontFamily: 'SF Mono, monospace', color: '#059669' }}>{accessTarget.db_name}</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#64748B' }}>Expires</span>
+                          <strong style={{ color: '#0F172A' }}>26 Aug 2026</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#64748B' }}>Created</span>
+                          <strong style={{ color: '#0F172A' }}>17 Jul 2026</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Connection Pools Telemetry View ───────────────────── */}
             {activeNav === 'pools' && (
               <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -558,15 +1190,17 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 8 }}>
-                  {tenants.map(t => (
+                  {filteredTenants.map(t => (
                     <div key={t.id} style={{ border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px', backgroundColor: '#F8FAFC' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0F172A' }}>{t.company_code}</span>
-                        <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: 10, background: '#ECFDF5', color: '#065F46', fontWeight: 500 }}>POOL CACHED</span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0F172A' }}>{t.company_code} ({t.name})</span>
+                        <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: 10, background: t.is_active ? '#ECFDF5' : '#FEF2F2', color: t.is_active ? '#065F46' : '#991B1B', fontWeight: 500 }}>
+                          {t.is_active ? 'POOL ACTIVE' : 'SUSPENDED'}
+                        </span>
                       </div>
                       <div style={{ fontSize: '0.76rem', color: '#64748B', fontFamily: 'SF Mono, Consolas, monospace' }}>
-                        <div>DB: {t.db_name}</div>
-                        <div style={{ marginTop: 4 }}>Connections: 10 active / 2 idle</div>
+                        <div>Database: {t.db_name}</div>
+                        <div style={{ marginTop: 4 }}>Plan: {t.plan_tier || 'STANDARD'}</div>
                       </div>
                     </div>
                   ))}
@@ -574,7 +1208,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
               </div>
             )}
 
-            {/* View 3: Central Audit Logs */}
+            {/* ── Central Audit Logs View ─────────────────────────────── */}
             {activeNav === 'audit' && (
               <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div>
@@ -611,7 +1245,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
               </div>
             )}
 
-            {/* View 4: System Settings */}
+            {/* ── System Settings View ──────────────────────────────── */}
             {activeNav === 'settings' && (
               <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div>
@@ -636,18 +1270,18 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
         </div>
       </div>
 
-      {/* Provision New Tenant Modal */}
+      {/* ── Enhanced Provision Tenant Modal (Ref Image 2) ──────────── */}
       {isProvisionModalOpen && (
         <div className="saas-modal-backdrop">
-          <div className="saas-modal-card" style={{ maxWidth: 480, width: '100%', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif' }}>
+          <div className="saas-modal-card" style={{ maxWidth: 520, width: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif' }}>
             <div className="saas-modal-header" style={{ borderBottom: '1px solid #E2E8F0', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Plus style={{ width: 16, height: 16 }} />
+                  <Building2 style={{ width: 16, height: 16 }} />
                 </div>
                 <div>
-                  <h3 style={{ fontWeight: 600, fontSize: '0.98rem', color: '#0F172A', margin: 0 }}>Provision Tenant Database</h3>
-                  <p style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 400, margin: 0 }}>Automated schema migration & seeding</p>
+                  <h3 style={{ fontWeight: 700, fontSize: '0.98rem', color: '#0F172A', margin: 0 }}>Provision Tenant Company</h3>
+                  <p style={{ fontSize: '0.74rem', color: '#64748B', margin: 0 }}>Scaffold company, database, and admin access</p>
                 </div>
               </div>
               <button onClick={() => setIsProvisionModalOpen(false)} style={{ background: 'transparent', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}>
@@ -655,82 +1289,90 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
               </button>
             </div>
 
-            <form onSubmit={handleProvisionSubmit} style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {errorMsg && (
-                <div style={{ padding: '8px 12px', backgroundColor: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', borderRadius: 8, fontSize: '0.78rem' }}>
-                  {errorMsg}
+            <form onSubmit={handleProvisionSubmit} style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', flex: 1 }}>
+              {errorMsg && <div style={{ padding: '8px 12px', backgroundColor: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', borderRadius: 8, fontSize: '0.78rem' }}>{errorMsg}</div>}
+              {successMsg && <div style={{ padding: '8px 12px', backgroundColor: '#ECFDF5', border: '1px solid #A7F3D0', color: '#065F46', borderRadius: 8, fontSize: '0.78rem' }}>{successMsg}</div>}
+
+              <div>
+                <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Company Name *</label>
+                <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. LAKSHMI KADATCHAM FINANCE" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Company Code (Short ID) *</label>
+                <input type="text" required value={form.company_code} onChange={(e) => setForm({ ...form, company_code: e.target.value.toUpperCase() })} placeholder="e.g. LKFI" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', fontFamily: 'SF Mono, monospace' }} />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Plan Tier *</label>
+                  <select value={form.plan_code} onChange={(e) => setForm({ ...form, plan_code: e.target.value })} style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}>
+                    <option value="ENTERPRISE">Enterprise Plan</option>
+                    <option value="STANDARD">Standard Plan</option>
+                    <option value="STARTER">Starter Plan</option>
+                  </select>
                 </div>
-              )}
-              {successMsg && (
-                <div style={{ padding: '8px 12px', backgroundColor: '#ECFDF5', border: '1px solid #A7F3D0', color: '#065F46', borderRadius: 8, fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <CheckCircle style={{ width: 14, height: 14, color: '#059669' }} />
-                  <span>{successMsg}</span>
+                <div>
+                  <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Status *</label>
+                  <select defaultValue="Trial" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}>
+                    <option value="Trial">Trial</option>
+                    <option value="Active">Active</option>
+                    <option value="Suspended">Suspended</option>
+                  </select>
                 </div>
-              )}
-
-              <div>
-                <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>Company Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="e.g. Delta Finance Pvt Ltd"
-                  style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', color: '#0F172A', fontWeight: 400 }}
-                />
               </div>
 
               <div>
-                <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>Company Code (Short ID) *</label>
-                <input
-                  type="text"
-                  required
-                  value={form.company_code}
-                  onChange={(e) => setForm({ ...form, company_code: e.target.value.toUpperCase() })}
-                  placeholder="e.g. DELTA"
-                  style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', color: '#0F172A', fontWeight: 500, fontFamily: 'SF Mono, Consolas, monospace' }}
-                />
-                <p style={{ fontSize: '0.7rem', color: '#64748B', marginTop: 4, margin: '4px 0 0 0' }}>Database generated: <span style={{ fontFamily: 'SF Mono, Consolas, monospace', color: '#2563EB', fontWeight: 500 }}>finance_db_{form.company_code ? form.company_code.toLowerCase() : 'code'}</span></p>
+                <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Trial Duration *</label>
+                <select defaultValue="15 Days" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}>
+                  <option value="15 Days">15 Days</option>
+                  <option value="30 Days">30 Days</option>
+                  <option value="60 Days">60 Days</option>
+                </select>
+              </div>
+
+              <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 14px', fontSize: '0.8rem', color: '#475569', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Estimated Subscription Price:</span>
+                <strong style={{ color: '#0F172A' }}>₹0 (Free Trial)</strong>
               </div>
 
               <div>
-                <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>Company Admin Email *</label>
-                <input
-                  type="email"
-                  required
-                  value={form.admin_email}
-                  onChange={(e) => setForm({ ...form, admin_email: e.target.value })}
-                  placeholder="admin@delta.com"
-                  style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', color: '#0F172A', fontWeight: 400 }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>Company Admin Password *</label>
-                <input
-                  type="password"
-                  required
-                  value={form.admin_password}
-                  onChange={(e) => setForm({ ...form, admin_password: e.target.value })}
-                  placeholder="••••••••"
-                  style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', color: '#0F172A', fontWeight: 400 }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
-                <button
-                  type="button"
-                  onClick={() => setIsProvisionModalOpen(false)}
-                  style={{ background: '#F1F5F9', color: '#475569', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer' }}
-                >
-                  Cancel
+                <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Company Logo (optional)</label>
+                <button type="button" style={{ padding: '8px 14px', backgroundColor: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: '0.78rem', fontWeight: 600, color: '#334155', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Plus style={{ width: 14, height: 14 }} />
+                  <span>Choose Logo</span>
                 </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  style={{ background: '#059669', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)' }}
-                >
-                  {loading ? 'Provisioning & Migrating DB...' : 'Provision & Scaffold DB'}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Company Contact Email *</label>
+                  <input type="email" required value={form.company_email} onChange={(e) => setForm({ ...form, company_email: e.target.value })} placeholder="contact@company.com" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Company Phone</label>
+                  <input type="text" value={form.company_phone} onChange={(e) => setForm({ ...form, company_phone: e.target.value })} placeholder="9080274281" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                </div>
+              </div>
+
+              <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Company Admin Credentials</span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Admin Username / Login Email *</label>
+                    <input type="email" required value={form.admin_email} onChange={(e) => setForm({ ...form, admin_email: e.target.value })} placeholder="admin@company.com" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Admin Password *</label>
+                    <input type="password" required value={form.admin_password} onChange={(e) => setForm({ ...form, admin_password: e.target.value })} placeholder="••••••••" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 12, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
+                <button type="button" onClick={() => setIsProvisionModalOpen(false)} style={{ background: '#F1F5F9', color: '#475569', border: '1px solid #CBD5E1', borderRadius: 8, padding: '10px 20px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                <button type="submit" disabled={loading} style={{ background: '#059669', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)' }}>
+                  {loading ? 'Provisioning...' : 'Provision company'}
                 </button>
               </div>
             </form>
@@ -738,82 +1380,9 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
         </div>
       )}
 
-      {/* Manage Access Modal — branch limit + module allocation ("page allocation") */}
-      {accessTarget && (
-        <div className="saas-modal-backdrop">
-          <div className="saas-modal-card" style={{ maxWidth: 520, width: '100%', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif' }}>
-            <div className="saas-modal-header" style={{ borderBottom: '1px solid #E2E8F0', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <KeyRound style={{ width: 16, height: 16 }} />
-                </div>
-                <div>
-                  <h3 style={{ fontWeight: 600, fontSize: '0.98rem', color: '#0F172A', margin: 0 }}>Manage Access — {accessTarget.name}</h3>
-                  <p style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 400, margin: 0 }}>Branch limit & module allocation</p>
-                </div>
-              </div>
-              <button onClick={() => setAccessTarget(null)} style={{ background: 'transparent', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}>
-                <X style={{ width: 16, height: 16 }} />
-              </button>
-            </div>
 
-            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {accessError && (
-                <div style={{ padding: '8px 12px', backgroundColor: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', borderRadius: 8, fontSize: '0.78rem' }}>
-                  {accessError}
-                </div>
-              )}
 
-              <div>
-                <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>Max Branches</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={accessForm.max_branches}
-                  onChange={(e) => setAccessForm({ ...accessForm, max_branches: e.target.value })}
-                  placeholder="Leave blank for unlimited"
-                  style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', color: '#0F172A' }}
-                />
-                <p style={{ fontSize: '0.7rem', color: '#94A3B8', margin: '4px 0 0 0' }}>How many branches this tenant is allowed to create in total. Blank = no limit.</p>
-              </div>
 
-              <div>
-                <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>Allowed Menus / Modules</label>
-                <p style={{ fontSize: '0.7rem', color: '#94A3B8', margin: '0 0 8px 0' }}>Uncheck a module to hide it from this tenant entirely, regardless of staff role. All checked = unrestricted.</p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, border: '1px solid #E2E8F0', borderRadius: 8, padding: 12, background: '#F8FAFC' }}>
-                  {MODULE_KEYS.map(m => {
-                    const checked = accessForm.allowed_modules == null || accessForm.allowed_modules.includes(m.key);
-                    return (
-                      <label key={m.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.78rem', color: '#334155', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={checked} onChange={() => toggleModuleKey(m.key)} style={{ accentColor: '#059669' }} />
-                        <span>{m.label}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 24px', borderTop: '1px solid #F1F5F9' }}>
-              <button
-                type="button"
-                onClick={() => setAccessTarget(null)}
-                style={{ background: '#F1F5F9', color: '#475569', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer' }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={accessSaving}
-                onClick={handleSaveAccess}
-                style={{ background: '#059669', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)' }}
-              >
-                {accessSaving ? 'Saving…' : 'Save Access Settings'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
