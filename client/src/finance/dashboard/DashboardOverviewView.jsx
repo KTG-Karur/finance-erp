@@ -11,7 +11,7 @@ import {
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 
 // ── Sparkline SVG Helper ──────────────────────────────────────
-function Sparkline({ data = [], color = '#059669', height = 24, width = 64 }) {
+function Sparkline({ data = [], color = 'var(--brand-primary, #15803D)', height = 24, width = 64 }) {
   if (!data || !data.length) return null;
   const max = Math.max(...data, 1);
   const min = Math.min(...data, 0);
@@ -90,9 +90,9 @@ function ModernKpiCard({
   badgeText,
   badgeType = 'green',
   icon: IconComponent,
-  iconColor = '#059669',
-  iconBg = '#ECFDF5',
-  accentColor = '#059669',
+  iconColor = 'var(--brand-primary, #15803D)',
+  iconBg = 'var(--brand-primary-light, #F0FEF5)',
+  accentColor = 'var(--brand-primary, #15803D)',
   sparkData = [],
   sparkColor,
   isLivePulse = false
@@ -170,7 +170,7 @@ function RechartsModernSaaSChart({
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255, 255, 255, 0.12)', paddingBottom: '6px', marginBottom: '8px' }}>
           <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#F8FAFC' }}>{label} {t('dash.performance_suffix')}</span>
-          <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#34D399', background: 'rgba(16, 185, 129, 0.22)', padding: '2px 7px', borderRadius: '6px' }}>
+          <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--brand-primary, #34D399)', background: 'rgba(16, 185, 129, 0.22)', padding: '2px 7px', borderRadius: '6px' }}>
             {ratio}% {t('dash.recovery_suffix')}
           </span>
         </div>
@@ -178,21 +178,21 @@ function RechartsModernSaaSChart({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '0.72rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ color: '#94A3B8', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3B82F6', boxShadow: '0 0 8px #3B82F6' }} /> {t('dash.given_disbursed_colon')}
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-info, #3B82F6)', boxShadow: '0 0 8px var(--color-info, #3B82F6)' }} /> {t('dash.given_disbursed_colon')}
             </span>
             <strong style={{ color: '#60A5FA', fontWeight: 700 }}>₹{fmt(gVal)}</strong>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ color: '#94A3B8', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', boxShadow: '0 0 8px #10B981' }} /> {t('dash.collected_colon')}
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--brand-primary, #10B981)', boxShadow: '0 0 8px var(--brand-primary, #10B981)' }} /> {t('dash.collected_colon')}
             </span>
-            <strong style={{ color: '#34D399', fontWeight: 700 }}>₹{fmt(cVal)}</strong>
+            <strong style={{ color: 'var(--brand-primary, #34D399)', fontWeight: 700 }}>₹{fmt(cVal)}</strong>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px', paddingTop: '5px', borderTop: '1px dashed rgba(255, 255, 255, 0.12)' }}>
             <span style={{ color: '#CBD5E1', fontWeight: 500 }}>{t('dash.net_difference_gap_colon')}</span>
-            <strong style={{ color: gapVal >= 0 ? '#FB923C' : '#34D399', fontWeight: 700 }}>
+            <strong style={{ color: gapVal >= 0 ? '#FB923C' : 'var(--brand-primary, #34D399)', fontWeight: 700 }}>
               ₹{fmt(Math.abs(gapVal))}
             </strong>
           </div>
@@ -207,12 +207,12 @@ function RechartsModernSaaSChart({
         <AreaChart data={chartData} margin={{ top: 10, right: 15, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="saasGiven" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.32} />
-              <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.0} />
+              <stop offset="5%" stopColor="var(--color-info, #3B82F6)" stopOpacity={0.32} />
+              <stop offset="95%" stopColor="var(--color-info, #3B82F6)" stopOpacity={0.0} />
             </linearGradient>
             <linearGradient id="saasCollected" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#10B981" stopOpacity={0.32} />
-              <stop offset="95%" stopColor="#10B981" stopOpacity={0.0} />
+              <stop offset="5%" stopColor="var(--brand-primary, #10B981)" stopOpacity={0.32} />
+              <stop offset="95%" stopColor="var(--brand-primary, #10B981)" stopOpacity={0.0} />
             </linearGradient>
           </defs>
 
@@ -240,22 +240,22 @@ function RechartsModernSaaSChart({
             type="monotone"
             dataKey="given"
             name={t('dash.given_amount')}
-            stroke="#3B82F6"
+            stroke="var(--color-info, #3B82F6)"
             strokeWidth={3}
             fillOpacity={1}
             fill="url(#saasGiven)"
-            activeDot={{ r: 6, stroke: '#FFFFFF', strokeWidth: 2.5, fill: '#3B82F6' }}
+            activeDot={{ r: 6, stroke: '#FFFFFF', strokeWidth: 2.5, fill: 'var(--color-info, #3B82F6)' }}
           />
 
           <Area
             type="monotone"
             dataKey="collected"
             name={t('dash.collected_amount')}
-            stroke="#10B981"
+            stroke="var(--brand-primary, #10B981)"
             strokeWidth={3}
             fillOpacity={1}
             fill="url(#saasCollected)"
-            activeDot={{ r: 6, stroke: '#FFFFFF', strokeWidth: 2.5, fill: '#10B981' }}
+            activeDot={{ r: 6, stroke: '#FFFFFF', strokeWidth: 2.5, fill: 'var(--brand-primary, #10B981)' }}
           />
         </AreaChart>
       </ResponsiveContainer>
@@ -303,7 +303,7 @@ function MonthlyGivenVsCollectedChart({
         </div>
 
         <div className="db-matrix-legend">
-          <span className="db-mleg-item"><span className="db-mdot" style={{ background: '#3B82F6' }} /> {t('dash.given_amount')}</span>
+          <span className="db-mleg-item"><span className="db-mdot" style={{ background: 'var(--color-info, #3B82F6)' }} /> {t('dash.given_amount')}</span>
           <span className="db-mleg-item"><span className="db-mdot db-mdot--green" /> {t('dash.collected_amount')}</span>
         </div>
       </div>
@@ -330,7 +330,7 @@ function MonthlyGivenVsCollectedChart({
                     <div className="db-bar-wrap" title={`${t('dash.given_amount')}: ₹${fmt(gVal)}`}>
                       <div
                         className="db-dual-bar"
-                        style={{ height: `${givHeightPct}%`, background: 'linear-gradient(180deg, #60A5FA 0%, #3B82F6 100%)' }}
+                        style={{ height: `${givHeightPct}%`, background: 'linear-gradient(180deg, #60A5FA 0%, var(--color-info, #3B82F6) 100%)' }}
                       />
                     </div>
 
@@ -361,17 +361,17 @@ function MonthlyGivenVsCollectedChart({
             <div className="db-mi-stats">
               <div className="db-mi-stat">
                 <span>{t('dash.given_disbursed_amount')}</span>
-                <strong style={{ color: '#3B82F6' }}>₹{fmt(activeGiven)}</strong>
+                <strong style={{ color: 'var(--color-info, #3B82F6)' }}>₹{fmt(activeGiven)}</strong>
               </div>
               <div className="db-mi-div" />
               <div className="db-mi-stat">
                 <span>{t('dash.collected_amount')}</span>
-                <strong style={{ color: '#059669' }}>₹{fmt(activeCollected)}</strong>
+                <strong style={{ color: 'var(--brand-primary, #15803D)' }}>₹{fmt(activeCollected)}</strong>
               </div>
               <div className="db-mi-div" />
               <div className="db-mi-stat">
                 <span>{t('dash.net_difference_gap')}</span>
-                <strong style={{ color: netDifference >= 0 ? '#F97316' : '#10B981' }}>
+                <strong style={{ color: netDifference >= 0 ? '#F97316' : 'var(--brand-primary, #10B981)' }}>
                   ₹{fmt(Math.abs(netDifference))} {netDifference >= 0 ? t('dash.outstanding') : t('dash.surplus_word')}
                 </strong>
               </div>
@@ -503,9 +503,9 @@ export default function DashboardOverviewView({
 
   // Donut chart segments derived from scoped loans
   const donutSegs = [
-    { label: tStatus('ACTIVE'),  value: activeLoans.length,  color: '#059669' },
+    { label: tStatus('ACTIVE'),  value: activeLoans.length,  color: 'var(--brand-primary, #15803D)' },
     { label: tStatus('OVERDUE'), value: overdueLoans.length, color: '#F97316' },
-    { label: tStatus('CLOSED'),  value: closedLoans.length,  color: '#3B82F6' },
+    { label: tStatus('CLOSED'),  value: closedLoans.length,  color: 'var(--color-info, #3B82F6)' },
     { label: tStatus('PENDING'), value: pendingLoans.length, color: '#8B5CF6' }
   ];
   const donutTotal = donutSegs.reduce((s, d) => s + d.value, 0) || 1;
@@ -604,7 +604,7 @@ export default function DashboardOverviewView({
         <div className="db-kpi">
           <div className="db-kpi__top">
             <div className="db-kpi__icon db-kpi__icon--green">
-              <Wallet style={{ width: 14, height: 14, color: '#059669' }} />
+              <Wallet style={{ width: 14, height: 14, color: 'var(--brand-primary, #15803D)' }} />
             </div>
             <span className="db-kpi__badge db-kpi__badge--up">
               {t('dash.active_portfolio')}
@@ -618,7 +618,7 @@ export default function DashboardOverviewView({
         <div className="db-kpi">
           <div className="db-kpi__top">
             <div className="db-kpi__icon db-kpi__icon--blue">
-              <CircleDollarSign style={{ width: 14, height: 14, color: '#3B82F6' }} />
+              <CircleDollarSign style={{ width: 14, height: 14, color: 'var(--color-info, #3B82F6)' }} />
             </div>
             <span className="db-kpi__badge db-kpi__badge--up">
               {recoveryRate}% {t('dash.recovered')}
@@ -645,10 +645,10 @@ export default function DashboardOverviewView({
         {/* Card 4: Collected Interest */}
         <div className="db-kpi">
           <div className="db-kpi__top">
-            <div className="db-kpi__icon" style={{ background: '#ECFDF5', padding: 5, borderRadius: 7 }}>
-              <TrendingUp style={{ width: 14, height: 14, color: '#10B981' }} />
+            <div className="db-kpi__icon" style={{ background: 'var(--brand-primary-light, #F0FEF5)', padding: 5, borderRadius: 7 }}>
+              <TrendingUp style={{ width: 14, height: 14, color: 'var(--brand-primary, #10B981)' }} />
             </div>
-            <span className="db-kpi__badge db-kpi__badge--up" style={{ color: '#047857', background: '#D1FAE5' }}>
+            <span className="db-kpi__badge db-kpi__badge--up" style={{ color: 'var(--brand-primary-hover, #0E5327)', background: '#D1FAE5' }}>
               {t('dash.revenue')}
             </span>
           </div>
@@ -770,26 +770,26 @@ export default function DashboardOverviewView({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 18 }}>
             <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <Wallet style={{ width: 15, height: 15, color: '#059669' }} />
+                <Wallet style={{ width: 15, height: 15, color: 'var(--brand-primary, #15803D)' }} />
                 <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 400 }}>{t('dash.counter_liquid_cash')}</span>
               </div>
               <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#0F172A', fontVariantNumeric: 'tabular-nums' }}>
                 ₹{fmt(cashCollections || todaysCollection)}
               </div>
-              <span style={{ fontSize: '0.68rem', color: '#059669', fontWeight: 400, marginTop: 4, display: 'block' }}>
+              <span style={{ fontSize: '0.68rem', color: 'var(--brand-primary, #15803D)', fontWeight: 400, marginTop: 4, display: 'block' }}>
                 {t('dash.ready_for_disbursals')}
               </span>
             </div>
 
             <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <Building2 style={{ width: 15, height: 15, color: '#2563EB' }} />
+                <Building2 style={{ width: 15, height: 15, color: 'var(--color-info, #2563EB)' }} />
                 <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 400 }}>{t('dash.bank_account_balance')}</span>
               </div>
               <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#0F172A', fontVariantNumeric: 'tabular-nums' }}>
                 ₹{fmt(upiCollections + (totalDisbursedPrincipal * 0.15))}
               </div>
-              <span style={{ fontSize: '0.68rem', color: '#2563EB', fontWeight: 400, marginTop: 4, display: 'block' }}>
+              <span style={{ fontSize: '0.68rem', color: 'var(--color-info, #2563EB)', fontWeight: 400, marginTop: 4, display: 'block' }}>
                 {t('dash.hdfc_operating_ac')}
               </span>
             </div>
@@ -798,14 +798,14 @@ export default function DashboardOverviewView({
           {/* Inflow vs Outflow Net Meter */}
           <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: '0.75rem' }}>
-              <span style={{ color: '#047857', fontWeight: 500 }}>{t('dash.inflow_collections')}: ₹{fmt(totalCollectedPrincipal)}</span>
-              <span style={{ color: '#991B1B', fontWeight: 500 }}>{t('dash.outflow_disbursals')}: ₹{fmt(totalDisbursedPrincipal)}</span>
+              <span style={{ color: 'var(--brand-primary-hover, #0E5327)', fontWeight: 500 }}>{t('dash.inflow_collections')}: ₹{fmt(totalCollectedPrincipal)}</span>
+              <span style={{ color: 'var(--color-danger-text, #991B1B)', fontWeight: 500 }}>{t('dash.outflow_disbursals')}: ₹{fmt(totalDisbursedPrincipal)}</span>
             </div>
-            <div style={{ height: 8, background: '#FEF2F2', borderRadius: 10, overflow: 'hidden', display: 'flex' }}>
-              <div style={{ width: `${Math.min(100, Math.max(10, (totalCollectedPrincipal / (totalDisbursedPrincipal || 1)) * 100))}%`, height: '100%', background: '#059669', borderRadius: 10 }} />
+            <div style={{ height: 8, background: 'var(--color-danger-light, #FEF2F2)', borderRadius: 10, overflow: 'hidden', display: 'flex' }}>
+              <div style={{ width: `${Math.min(100, Math.max(10, (totalCollectedPrincipal / (totalDisbursedPrincipal || 1)) * 100))}%`, height: '100%', background: 'var(--brand-primary, #15803D)', borderRadius: 10 }} />
             </div>
             <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', marginTop: 6 }}>
-              {t('dash.net_daily_cashflow')} <strong style={{ color: '#059669', fontWeight: 500 }}>₹{fmt(Math.abs(totalCollectedPrincipal - totalDisbursedPrincipal))} {t('dash.positive_growth')}</strong>
+              {t('dash.net_daily_cashflow')} <strong style={{ color: 'var(--brand-primary, #15803D)', fontWeight: 500 }}>₹{fmt(Math.abs(totalCollectedPrincipal - totalDisbursedPrincipal))} {t('dash.positive_growth')}</strong>
             </span>
           </div>
         </div>
@@ -826,27 +826,27 @@ export default function DashboardOverviewView({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
 
             {/* Tile 1: On-time Active */}
-            <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 10, padding: 14 }}>
+            <div style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', borderRadius: 10, padding: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ fontSize: '0.72rem', color: '#047857', fontWeight: 500 }}>{t('dash.on_time_payments')}</span>
-                <span style={{ fontSize: '0.7rem', background: '#FFFFFF', padding: '2px 8px', borderRadius: 12, color: '#047857', fontWeight: 500 }}>{activeLoans.length} Loans</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--brand-primary-hover, #0E5327)', fontWeight: 500 }}>{t('dash.on_time_payments')}</span>
+                <span style={{ fontSize: '0.7rem', background: '#FFFFFF', padding: '2px 8px', borderRadius: 12, color: 'var(--brand-primary-hover, #0E5327)', fontWeight: 500 }}>{activeLoans.length} Loans</span>
               </div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: '#047857', fontVariantNumeric: 'tabular-nums' }}>
+              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--brand-primary-hover, #0E5327)', fontVariantNumeric: 'tabular-nums' }}>
                 ₹{fmt(activeLoans.reduce((s, l) => s + (parseFloat(l.principal_amount) || 0), 0))}
               </div>
-              <span style={{ fontSize: '0.66rem', color: '#059669', display: 'block', marginTop: 2 }}>{t('dash.healthy_portfolio')}</span>
+              <span style={{ fontSize: '0.66rem', color: 'var(--brand-primary, #15803D)', display: 'block', marginTop: 2 }}>{t('dash.healthy_portfolio')}</span>
             </div>
 
             {/* Tile 2: 1-7 Days Delay */}
-            <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: 14 }}>
+            <div style={{ background: 'var(--color-warning-light, #FFFBEB)', border: '1px solid var(--color-warning-border, #FDE68A)', borderRadius: 10, padding: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ fontSize: '0.72rem', color: '#92400E', fontWeight: 500 }}>{t('dash.days_delayed_1_7')}</span>
-                <span style={{ fontSize: '0.7rem', background: '#FFFFFF', padding: '2px 8px', borderRadius: 12, color: '#92400E', fontWeight: 500 }}>{Math.ceil(overdueLoans.length * 0.6)} Loans</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--color-warning-text, #92400E)', fontWeight: 500 }}>{t('dash.days_delayed_1_7')}</span>
+                <span style={{ fontSize: '0.7rem', background: '#FFFFFF', padding: '2px 8px', borderRadius: 12, color: 'var(--color-warning-text, #92400E)', fontWeight: 500 }}>{Math.ceil(overdueLoans.length * 0.6)} Loans</span>
               </div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: '#92400E', fontVariantNumeric: 'tabular-nums' }}>
+              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--color-warning-text, #92400E)', fontVariantNumeric: 'tabular-nums' }}>
                 ₹{fmt(overdueLoans.reduce((s, l) => s + (parseFloat(l.pending_amount) || 0), 0) * 0.5)}
               </div>
-              <span style={{ fontSize: '0.66rem', color: '#B45309', display: 'block', marginTop: 2 }}>{t('dash.mild_overdue_followup')}</span>
+              <span style={{ fontSize: '0.66rem', color: 'var(--color-warning-hover, #B45309)', display: 'block', marginTop: 2 }}>{t('dash.mild_overdue_followup')}</span>
             </div>
 
             {/* Tile 3: 8-30 Days Delay */}
@@ -862,15 +862,15 @@ export default function DashboardOverviewView({
             </div>
 
             {/* Tile 4: 30+ Days Default NPA */}
-            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: 14 }}>
+            <div style={{ background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', borderRadius: 10, padding: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ fontSize: '0.72rem', color: '#991B1B', fontWeight: 500 }}>{t('dash.days_default_npa')}</span>
-                <span style={{ fontSize: '0.7rem', background: '#FFFFFF', padding: '2px 8px', borderRadius: 12, color: '#991B1B', fontWeight: 500 }}>{Math.floor(overdueLoans.length * 0.1)} Loans</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--color-danger-text, #991B1B)', fontWeight: 500 }}>{t('dash.days_default_npa')}</span>
+                <span style={{ fontSize: '0.7rem', background: '#FFFFFF', padding: '2px 8px', borderRadius: 12, color: 'var(--color-danger-text, #991B1B)', fontWeight: 500 }}>{Math.floor(overdueLoans.length * 0.1)} Loans</span>
               </div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: '#991B1B', fontVariantNumeric: 'tabular-nums' }}>
+              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--color-danger-text, #991B1B)', fontVariantNumeric: 'tabular-nums' }}>
                 ₹{fmt(overdueLoans.reduce((s, l) => s + (parseFloat(l.pending_amount) || 0), 0) * 0.2)}
               </div>
-              <span style={{ fontSize: '0.66rem', color: '#DC2626', display: 'block', marginTop: 2 }}>{t('dash.critical_recovery_action')}</span>
+              <span style={{ fontSize: '0.66rem', color: 'var(--color-danger, #DC2626)', display: 'block', marginTop: 2 }}>{t('dash.critical_recovery_action')}</span>
             </div>
 
           </div>

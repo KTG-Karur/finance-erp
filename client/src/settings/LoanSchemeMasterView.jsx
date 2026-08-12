@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Percent, Plus, Trash2, Pencil, X, AlertTriangle, Calculator, Sigma, Check } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
+import { theme } from '../styles/theme.js';
 import { generateEmiSchedule, calculatePaymentAllocation, resolveSchemeRepaymentMethod, resolveSchemeInterestCalculation } from '../utils/loanCalculations';
 import FormulaDurationPreview from '../components/FormulaDurationPreview';
 import CustomFormulaModal from '../components/CustomFormulaModal';
@@ -282,7 +283,7 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
       <div className="saas-modal-card" style={{ maxWidth: 540, width: '100%', fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif' }}>
         <div className="saas-modal-header" style={{ borderBottom: '1px solid #E2E8F0', padding: '16px 20px' }}>
           <div className="head-left" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div className="head-icon-badge" style={{ background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', width: 34, height: 34, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="head-icon-badge" style={{ background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #15803D)', border: '1px solid var(--brand-primary-border, #A3F5C1)', width: 34, height: 34, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Percent style={{ width: 16, height: 16 }} />
             </div>
             <div className="head-titles">
@@ -293,7 +294,7 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
           <button onClick={onClose} className="close-btn" type="button" style={{ background: 'transparent', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}><X style={{ width: 16, height: 16 }} /></button>
         </div>
         <form onSubmit={handleSubmit} style={{ padding: '20px 24px' }}>
-          {error && <div className="form-alert form-alert--error" style={{ marginBottom: 16, background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', padding: '8px 12px', borderRadius: 8, fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 6 }}><AlertTriangle style={{ width: 14, height: 14 }} /><span>{error}</span></div>}
+          {error && <div className="form-alert form-alert--error" style={{ marginBottom: 16, background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger-text, #991B1B)', padding: '8px 12px', borderRadius: 8, fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 6 }}><AlertTriangle style={{ width: 14, height: 14 }} /><span>{error}</span></div>}
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxHeight: '68vh', overflowY: 'auto', paddingRight: 4 }}>
             <div>
@@ -304,7 +305,7 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
             {/* Formula Engine Selection — Compact Inline Toggle */}
             <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Calculator style={{ width: 14, height: 14, color: '#059669' }} />
+                <Calculator style={{ width: 14, height: 14, color: 'var(--brand-primary, #15803D)' }} />
                 <span style={{ fontSize: '0.76rem', fontWeight: 600, color: '#334155' }}>Calculation Engine</span>
               </div>
               <div style={{ display: 'inline-flex', background: '#E2E8F0', padding: 2, borderRadius: 6 }}>
@@ -315,7 +316,7 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
                     onClick={() => setForm({ ...form, formula_type: opt.v })}
                     style={{
                       border: 'none', padding: '5px 12px', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', borderRadius: 5,
-                      background: form.formula_type === opt.v ? '#059669' : 'transparent',
+                      background: form.formula_type === opt.v ? 'var(--brand-primary, #15803D)' : 'transparent',
                       color: form.formula_type === opt.v ? '#FFFFFF' : '#475569',
                       transition: 'all 0.15s ease'
                     }}
@@ -343,10 +344,10 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
                 </div>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: 12 }}>
-                <span style={{ fontSize: '0.74rem', fontWeight: 600, color: '#065F46' }}>Select Formula</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', borderRadius: 8, padding: 12 }}>
+                <span style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--brand-primary-text, #075F27)' }}>Select Formula</span>
                 {(customFormulas || []).length === 0 && (
-                  <p style={{ margin: 0, fontSize: '0.74rem', color: '#047857' }}>No saved formulas yet — create your first one below.</p>
+                  <p style={{ margin: 0, fontSize: '0.74rem', color: 'var(--brand-primary-hover, #0E5327)' }}>No saved formulas yet — create your first one below.</p>
                 )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {(customFormulas || []).map(f => {
@@ -365,7 +366,7 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
                         style={{
                           textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                           borderRadius: 6, padding: '8px 12px', cursor: 'pointer',
-                          border: selected ? '2px solid #059669' : '1px solid #CBD5E1',
+                          border: selected ? '2px solid var(--brand-primary, #15803D)' : '1px solid #CBD5E1',
                           background: selected ? '#FFFFFF' : '#FAFAFA'
                         }}
                       >
@@ -375,7 +376,7 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
                             {f.accrual_mode === 'SCHEDULED' ? 'Fixed Schedule' : 'Pay Anytime'}
                           </span>
                         </span>
-                        {selected && <Check style={{ width: 14, height: 14, color: '#059669', flexShrink: 0 }} />}
+                        {selected && <Check style={{ width: 14, height: 14, color: 'var(--brand-primary, #15803D)', flexShrink: 0 }} />}
                       </button>
                     );
                   })}
@@ -385,8 +386,8 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
                   onClick={() => setFormulaModalOpen(true)}
                   style={{
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                    border: '1px dashed #059669', borderRadius: 6, padding: '8px 12px', fontSize: '0.75rem',
-                    fontWeight: 600, color: '#059669', background: '#FFFFFF', cursor: 'pointer', marginTop: 2
+                    border: '1px dashed var(--brand-primary, #15803D)', borderRadius: 6, padding: '8px 12px', fontSize: '0.75rem',
+                    fontWeight: 600, color: 'var(--brand-primary, #15803D)', background: '#FFFFFF', cursor: 'pointer', marginTop: 2
                   }}
                 >
                   <Sigma style={{ width: 13, height: 13 }} /> Create New Formula
@@ -447,14 +448,14 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
             </div>
 
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.8rem', color: '#334155', fontWeight: 500, marginTop: 2 }}>
-              <input type="checkbox" checked={form.is_active} onChange={e => setForm({ ...form, is_active: e.target.checked })} style={{ accentColor: '#059669' }} />
+              <input type="checkbox" checked={form.is_active} onChange={e => setForm({ ...form, is_active: e.target.checked })} style={{ accentColor: 'var(--brand-primary, #15803D)' }} />
               {t('form.active')}
             </label>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20, borderTop: '1px solid #F1F5F9', paddingTop: 16 }}>
             <button type="button" onClick={onClose} style={{ background: '#F1F5F9', color: '#475569', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer' }}>{t('btn.cancel')}</button>
-            <button type="submit" disabled={loading} style={{ background: '#059669', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)' }}>
+            <button type="submit" disabled={loading} style={{ background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.25)' }}>
               {loading ? t('form.saving') : (initialData ? t('form.save_changes') : t('scheme.add'))}
             </button>
           </div>
@@ -547,9 +548,9 @@ export default function LoanSchemeMasterView({ schemes = [], onCreateScheme, onU
                 <tr key={s.id}>
                   <td style={{ textAlign: 'center', color: '#64748B' }}>{idx + 1}</td>
                   <td><span style={{ fontWeight: 500, color: '#0F172A' }}>{s.name}</span></td>
-                  <td style={{ textAlign: 'right', color: '#2563EB', fontWeight: 500, fontFamily: 'SF Mono, Consolas, monospace' }}>{Number(s.rate_per_unit || 0)}%</td>
+                  <td style={{ textAlign: 'right', color: 'var(--color-info, #2563EB)', fontWeight: 500, fontFamily: 'SF Mono, Consolas, monospace' }}>{Number(s.rate_per_unit || 0)}%</td>
                   <td><span style={{ fontSize: '0.75rem', color: '#334155', fontWeight: 400 }}>{s.formula_type === 'CUSTOM' ? (s.accrual_mode === 'SCHEDULED' ? 'Fixed Installments' : 'Pay Anytime') : repaymentLabel(s)}</span></td>
-                  <td><span style={{ fontSize: '0.75rem', color: s.formula_type === 'CUSTOM' ? '#7C3AED' : '#059669', fontWeight: 500 }}>{s.formula_type === 'CUSTOM' ? 'Custom Formula' : calcLabel(s)}</span></td>
+                  <td><span style={{ fontSize: '0.75rem', color: s.formula_type === 'CUSTOM' ? '#7C3AED' : 'var(--brand-primary, #15803D)', fontWeight: 500 }}>{s.formula_type === 'CUSTOM' ? 'Custom Formula' : calcLabel(s)}</span></td>
                   <td><span style={{ fontSize: '0.75rem', color: '#334155', fontWeight: 400 }}>{frequencyLabel(s)}</span></td>
                   <td>
                     <span style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 400, fontFamily: 'SF Mono, Consolas, monospace' }}>
@@ -562,7 +563,7 @@ export default function LoanSchemeMasterView({ schemes = [], onCreateScheme, onU
                     </span>
                   </td>
                   <td style={{ textAlign: 'center' }}>
-                    <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem', fontWeight: 500, background: s.is_active ? '#ECFDF5' : '#F1F5F9', color: s.is_active ? '#059669' : '#94A3B8' }}>
+                    <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem', fontWeight: 500, background: s.is_active ? theme.primaryLight : '#F1F5F9', color: s.is_active ? theme.primary : '#94A3B8' }}>
                       {s.is_active ? tStatus('ACTIVE') : tStatus('INACTIVE')}
                     </span>
                   </td>
@@ -580,9 +581,9 @@ export default function LoanSchemeMasterView({ schemes = [], onCreateScheme, onU
                       <button
                         onClick={() => { setDeleteTarget(s); setDeleteError(''); }}
                         title={t('btn.delete')}
-                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, border: '1px solid transparent', background: '#FEE2E2', color: '#DC2626', borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s ease' }}
-                        onMouseEnter={e => { e.currentTarget.style.background = '#FECACA'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = '#FEE2E2'; }}
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, border: '1px solid transparent', background: 'var(--color-danger-light, #FEE2E2)', color: 'var(--color-danger, #DC2626)', borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s ease' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-danger-border, #FECACA)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'var(--color-danger-light, #FEE2E2)'; }}
                       >
                         <Trash2 style={{ width: 16, height: 16 }} />
                       </button>
@@ -610,7 +611,7 @@ export default function LoanSchemeMasterView({ schemes = [], onCreateScheme, onU
           <div className="saas-modal-card">
             <div className="saas-modal-header">
               <div className="head-left">
-                <div className="head-icon-badge" style={{ background: '#FEF2F2', borderColor: '#FECACA', color: '#DC2626' }}>
+                <div className="head-icon-badge" style={{ background: 'var(--color-danger-light, #FEF2F2)', borderColor: 'var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)' }}>
                   <Trash2 style={{ width: 18, height: 18 }} />
                 </div>
                 <div className="head-titles">
@@ -618,14 +619,14 @@ export default function LoanSchemeMasterView({ schemes = [], onCreateScheme, onU
                   <p>This action cannot be undone</p>
                 </div>
               </div>
-              <button onClick={() => setDeleteTarget(null)} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>
+              <button onClick={() => setDeleteTarget(null)} className="close-btn" type="button" disabled={deleting}><X style={{ width: 16, height: 16 }} /></button>
             </div>
             <div className="saas-modal-body">
               <p style={{ fontSize: '0.85rem', color: '#334155', margin: 0 }}>Are you sure you want to permanently delete <strong>{deleteTarget.name}</strong>?</p>
               {deleteError && <div className="form-alert form-alert--error"><AlertTriangle style={{ width: 14, height: 14 }} /><span>{deleteError}</span></div>}
             </div>
             <div className="saas-modal-footer">
-              <button type="button" onClick={() => setDeleteTarget(null)} className="btn-cancel">Cancel</button>
+              <button type="button" onClick={() => setDeleteTarget(null)} disabled={deleting} className="btn-cancel">Cancel</button>
               <button
                 type="button"
                 disabled={deleting}
@@ -644,7 +645,7 @@ export default function LoanSchemeMasterView({ schemes = [], onCreateScheme, onU
                   }
                 }}
                 className="btn-submit"
-                style={{ background: '#DC2626', boxShadow: '0 2px 6px rgba(220, 38, 38, 0.3)', opacity: deleting ? 0.7 : 1, cursor: deleting ? 'not-allowed' : 'pointer' }}
+                style={{ background: 'var(--color-danger, #DC2626)', boxShadow: '0 2px 6px rgba(var(--color-danger-rgb), 0.3)', opacity: deleting ? 0.7 : 1, cursor: deleting ? 'not-allowed' : 'pointer' }}
               >
                 {deleting ? 'Deleting…' : 'Delete Permanently'}
               </button>

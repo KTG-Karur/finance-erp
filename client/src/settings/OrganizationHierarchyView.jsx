@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Building2, MapPin, Plus, Trash2, Pencil, X, AlertTriangle, Loader2, Save, CheckCircle2, Camera, Trash } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
+import { theme } from '../styles/theme.js';
 
 const inputStyle = { width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', color: '#0F172A', fontWeight: 500 };
 const labelStyle = { fontSize: '0.72rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 4 };
@@ -53,7 +54,7 @@ function BranchModal({ isOpen, initialData, onClose, onSubmit }) {
       <div className="saas-modal-card" style={{ maxWidth: 560 }}>
         <div className="saas-modal-header">
           <div className="head-left">
-            <div className="head-icon-badge" style={{ background: '#EFF6FF', color: '#2563EB' }}>
+            <div className="head-icon-badge" style={{ background: 'var(--color-info-light, #EFF6FF)', color: 'var(--color-info, #2563EB)' }}>
               <MapPin style={{ width: 18, height: 18 }} />
             </div>
             <div className="head-titles">
@@ -107,7 +108,7 @@ function BranchModal({ isOpen, initialData, onClose, onSubmit }) {
           </label>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
             <button type="button" onClick={onClose} style={{ background: '#F1F5F9', color: '#475569', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer' }}>{t('btn.cancel')}</button>
-            <button type="submit" disabled={loading} style={{ background: '#2563EB', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: '0.8rem', fontWeight: 400, cursor: 'pointer' }}>
+            <button type="submit" disabled={loading} style={{ background: 'var(--color-info, #2563EB)', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: '0.8rem', fontWeight: 400, cursor: 'pointer' }}>
               {loading ? t('form.saving') : (initialData ? t('form.save_changes') : t('org.add_branch'))}
             </button>
           </div>
@@ -120,7 +121,7 @@ function BranchModal({ isOpen, initialData, onClose, onSubmit }) {
 export default function OrganizationHierarchyView({
   branches = [], loading, error,
   onCreateBranch, onUpdateBranch, onDeleteBranch,
-  companyForm, setCompanyForm, onSaveCompany, savedSuccess
+  companyForm, setCompanyForm, onSaveCompany, savedSuccess, companySaveError, companySaving
 }) {
   const { t, tStatus } = useLanguage();
   const [branchModalOpen, setBranchModalOpen] = useState(false);
@@ -128,9 +129,10 @@ export default function OrganizationHierarchyView({
   const [deleteTarget, setDeleteTarget] = useState(null); // branch being deleted
   const [deleteError, setDeleteError] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [logoError, setLogoError] = useState('');
 
   const confirmDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || deleteLoading) return;
     setDeleteLoading(true);
     setDeleteError('');
     try {
@@ -146,7 +148,16 @@ export default function OrganizationHierarchyView({
   const handleLogoChange = (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
-    if (!file || !file.type.startsWith('image/')) return;
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setLogoError('Please upload an image file (JPG or PNG).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setLogoError('Logo is too large — please upload an image under 5MB.');
+      return;
+    }
+    setLogoError('');
     const reader = new FileReader();
     reader.onload = () => setCompanyForm({ ...companyForm, logo: reader.result });
     reader.readAsDataURL(file);
@@ -178,12 +189,19 @@ export default function OrganizationHierarchyView({
                 <span>Company Profile</span>
               </div>
               {savedSuccess && (
-                <span style={{ padding: '4px 12px', borderRadius: 20, background: '#ECFDF5', color: '#047857', border: '1px solid #A7F3D0', fontSize: '0.75rem', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ padding: '4px 12px', borderRadius: 20, background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary-hover, #0E5327)', border: '1px solid var(--brand-primary-border, #A3F5C1)', fontSize: '0.75rem', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                   <CheckCircle2 style={{ width: 14, height: 14 }} />
                   <span>Saved!</span>
                 </span>
               )}
             </div>
+
+            {companySaveError && (
+              <div className="form-alert form-alert--error"><AlertTriangle style={{ width: 14, height: 14 }} /><span>{companySaveError}</span></div>
+            )}
+            {logoError && (
+              <div className="form-alert form-alert--error"><AlertTriangle style={{ width: 14, height: 14 }} /><span>{logoError}</span></div>
+            )}
 
             {/* Company Logo */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -219,7 +237,7 @@ export default function OrganizationHierarchyView({
                     onClick={() => setCompanyForm({ ...companyForm, logo: null })}
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.72rem', fontWeight: 500,
-                      color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: 'fit-content'
+                      color: 'var(--color-danger, #DC2626)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: 'fit-content'
                     }}
                   >
                     <Trash style={{ width: 11, height: 11 }} />
@@ -239,6 +257,10 @@ export default function OrganizationHierarchyView({
                 <input type="text" value={companyForm.gstin} onChange={(e) => setCompanyForm({ ...companyForm, gstin: e.target.value })} style={inputStyle} />
               </div>
               <div>
+                <label style={labelStyle}>PAN Number</label>
+                <input type="text" value={companyForm.pan} onChange={(e) => setCompanyForm({ ...companyForm, pan: e.target.value })} style={inputStyle} />
+              </div>
+              <div>
                 <label style={labelStyle}>Corporate Phone</label>
                 <input type="text" value={companyForm.phone} onChange={(e) => setCompanyForm({ ...companyForm, phone: e.target.value })} style={inputStyle} />
               </div>
@@ -249,9 +271,13 @@ export default function OrganizationHierarchyView({
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button type="submit" style={{ height: 38, background: '#059669', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '0 18px', fontSize: '0.78rem', fontWeight: 400, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <button
+                type="submit"
+                disabled={companySaving}
+                style={{ height: 38, background: companySaving ? '#94A3B8' : theme.primary, color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '0 18px', fontSize: '0.78rem', fontWeight: 400, cursor: companySaving ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
                 <Save style={{ width: 14, height: 14 }} />
-                <span>Save Company Profile</span>
+                <span>{companySaving ? 'Saving...' : 'Save Company Profile'}</span>
               </button>
             </div>
           </form>
@@ -275,12 +301,12 @@ export default function OrganizationHierarchyView({
             <div className="loans-table-card">
               <div style={{ padding: '16px 20px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontSize: '0.9rem', fontWeight: 400, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <MapPin style={{ width: 16, height: 16, color: '#2563EB' }} />
+                  <MapPin style={{ width: 16, height: 16, color: 'var(--color-info, #2563EB)' }} />
                   <span>Branches</span>
                 </div>
                 <button
                   onClick={() => { setBranchEditing(null); setBranchModalOpen(true); }}
-                  style={{ background: '#2563EB', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: '0.78rem', fontWeight: 400, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  style={{ background: 'var(--color-info, #2563EB)', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: '0.78rem', fontWeight: 400, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >
                   <Plus style={{ width: 14, height: 14 }} />
                   <span>{t('org.add_branch')}</span>
@@ -310,7 +336,7 @@ export default function OrganizationHierarchyView({
                         <td><span style={{ fontSize: '0.78rem', color: '#64748B' }}>{b.phone || '—'}</span></td>
                         <td><span style={{ fontSize: '0.78rem', color: '#64748B' }}>{b.address || '—'}</span></td>
                         <td style={{ textAlign: 'center' }}>
-                          <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem', fontWeight: 400, background: b.is_active ? '#EFF6FF' : '#F1F5F9', color: b.is_active ? '#2563EB' : '#94A3B8' }}>
+                          <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem', fontWeight: 400, background: b.is_active ? 'var(--color-info-light, #EFF6FF)' : '#F1F5F9', color: b.is_active ? 'var(--color-info, #2563EB)' : '#94A3B8' }}>
                             {b.is_active ? tStatus('ACTIVE') : tStatus('INACTIVE')}
                           </span>
                         </td>
@@ -319,7 +345,7 @@ export default function OrganizationHierarchyView({
                             <button onClick={() => { setBranchEditing(b); setBranchModalOpen(true); }} style={{ border: '1px solid #E2E8F0', background: '#FFFFFF', color: '#334155', borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}>
                               <Pencil style={{ width: 12, height: 12 }} />
                             </button>
-                            <button onClick={() => { setDeleteTarget(b); setDeleteError(''); }} style={{ border: 'none', background: '#FEE2E2', color: '#DC2626', borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}>
+                            <button onClick={() => { setDeleteTarget(b); setDeleteError(''); }} style={{ border: 'none', background: 'var(--color-danger-light, #FEE2E2)', color: 'var(--color-danger, #DC2626)', borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}>
                               <Trash2 style={{ width: 12, height: 12 }} />
                             </button>
                           </div>
@@ -347,7 +373,7 @@ export default function OrganizationHierarchyView({
           <div className="saas-modal-card">
             <div className="saas-modal-header">
               <div className="head-left">
-                <div className="head-icon-badge" style={{ background: '#FEF2F2', borderColor: '#FECACA', color: '#DC2626' }}>
+                <div className="head-icon-badge" style={{ background: 'var(--color-danger-light, #FEF2F2)', borderColor: 'var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)' }}>
                   <Trash2 style={{ width: 18, height: 18 }} />
                 </div>
                 <div className="head-titles">
@@ -355,7 +381,7 @@ export default function OrganizationHierarchyView({
                   <p>This action cannot be undone</p>
                 </div>
               </div>
-              <button onClick={() => setDeleteTarget(null)} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>
+              <button onClick={() => setDeleteTarget(null)} className="close-btn" type="button" disabled={deleteLoading}><X style={{ width: 16, height: 16 }} /></button>
             </div>
             <div className="saas-modal-body">
               <p style={{ fontSize: '0.85rem', color: '#334155', margin: 0 }}>
@@ -366,8 +392,8 @@ export default function OrganizationHierarchyView({
               )}
             </div>
             <div className="saas-modal-footer">
-              <button type="button" onClick={() => setDeleteTarget(null)} className="btn-cancel">Cancel</button>
-              <button type="button" onClick={confirmDelete} disabled={deleteLoading} className="btn-submit" style={{ background: '#DC2626', boxShadow: '0 2px 6px rgba(220, 38, 38, 0.3)' }}>
+              <button type="button" onClick={() => setDeleteTarget(null)} disabled={deleteLoading} className="btn-cancel">Cancel</button>
+              <button type="button" onClick={confirmDelete} disabled={deleteLoading} className="btn-submit" style={{ background: 'var(--color-danger, #DC2626)', boxShadow: '0 2px 6px rgba(var(--color-danger-rgb), 0.3)' }}>
                 {deleteLoading ? 'Deleting...' : 'Delete Permanently'}
               </button>
             </div>

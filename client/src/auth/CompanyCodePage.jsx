@@ -3,10 +3,10 @@ import { Building2, ArrowRight, AlertCircle, Landmark, Coins, Receipt, ShieldChe
 import api from '../api/client';
 
 const ECOSYSTEM_MODULES = [
-  { title: 'Financial ERP', icon: Landmark, color: '#059669', bg: '#ECFDF5', border: '#A7F3D0' },
-  { title: 'Gold Loan', icon: Coins, color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
+  { title: 'Financial ERP', icon: Landmark, color: 'var(--brand-primary, #15803D)', bg: 'var(--brand-primary-light, #F0FEF5)', border: 'var(--brand-primary-border, #A3F5C1)' },
+  { title: 'Gold Loan', icon: Coins, color: 'var(--color-warning, #D97706)', bg: 'var(--color-warning-light, #FFFBEB)', border: 'var(--color-warning-border, #FDE68A)' },
   { title: 'Chit Fund', icon: Receipt, color: '#7C3AED', bg: '#F3E8FF', border: '#DDD6FE' },
-  { title: 'Microfinance', icon: ShieldCheck, color: '#0284C7', bg: '#E0F2FE', border: '#BAE6FD' }
+  { title: 'Microfinance', icon: ShieldCheck, color: 'var(--color-info-hover, #0284C7)', bg: '#E0F2FE', border: 'var(--color-info-border, #BAE6FD)' }
 ];
 
 export default function CompanyCodePage({ onVerified }) {
@@ -63,8 +63,8 @@ export default function CompanyCodePage({ onVerified }) {
 
         <svg className="mesh-grid-svg" viewBox="0 0 1440 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
           <pattern id="fluid-grid" width="64" height="64" patternUnits="userSpaceOnUse">
-            <path d="M 64 0 L 0 0 0 64" fill="none" stroke="#059669" strokeOpacity="0.04" strokeWidth="1" />
-            <circle cx="64" cy="64" r="1.25" fill="#059669" fillOpacity="0.08" />
+            <path d="M 64 0 L 0 0 0 64" fill="none" stroke="var(--brand-primary, #15803D)" strokeOpacity="0.04" strokeWidth="1" />
+            <circle cx="64" cy="64" r="1.25" fill="var(--brand-primary, #15803D)" fillOpacity="0.08" />
           </pattern>
           <rect width="100%" height="100%" fill="url(#fluid-grid)" />
         </svg>

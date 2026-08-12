@@ -5,7 +5,6 @@ import LoginPage from './auth/LoginPage';
 import SuperAdminLoginPage from './auth/SuperAdminLoginPage';
 import SuperAdminPortal from './auth/SuperAdminPortal';
 import DashboardOverviewView from './finance/dashboard/DashboardOverviewView';
-import CustomerKycReviewPage from './finance/borrowers/CustomerKycReviewPage';
 import BorrowersView from './finance/borrowers/BorrowersView';
 import LoansView from './finance/loan/LoansView';
 import LoanApplicationsView from './finance/loan/LoanApplicationsView';
@@ -22,7 +21,6 @@ import ManualVouchersView from './finance/accounting/ManualVouchersView';
 import EODProcessView from './finance/accounting/EODProcessView';
 import LoanPortfolioReportView from './reports/LoanPortfolioReportView';
 import CollectionsReportView from './reports/CollectionsReportView';
-import BorrowerKycReportView from './reports/BorrowerKycReportView';
 import InvestorCapitalReportView from './reports/InvestorCapitalReportView';
 import FixedDepositReportView from './reports/FixedDepositReportView';
 import RecurringDepositReportView from './reports/RecurringDepositReportView';
@@ -33,18 +31,10 @@ import CollectionDrawer from './components/CollectionDrawer';
 import NewLoanModal from './components/NewLoanModal';
 import QuickActionModal from './components/QuickActionModal';
 import api from './api/client';
-import {
-  INITIAL_INVESTORS,
-  INITIAL_FIXED_DEPOSITS,
-  INITIAL_RECURRING_DEPOSITS,
-  buildRdInstallments,
-  INITIAL_EXPENSE_CATEGORIES,
-  INITIAL_EXPENSE_ALLOCATION_REQUESTS,
-  INITIAL_EXPENSE_VOUCHERS,
-  INITIAL_CHART_OF_ACCOUNTS
-} from './data/mockFinanceData';
+import { INITIAL_CHART_OF_ACCOUNTS } from './data/mockFinanceData';
+import { applyTheme, generateThemePalette } from './utils/themeUtils';
 import { generateEmiSchedule, generateCustomSchedule, resolveSchemeRepaymentMethod, resolveSchemeInterestCalculation, estimateCustomTotalPayable } from './utils/loanCalculations';
-import { journalLine, buildJournalEntry, buildVoucherLines } from './utils/accounting';
+import { journalLine, buildJournalEntry, buildVoucherLines, normalizeLedgerAccount, normalizeLedgerEntry } from './utils/accounting';
 
 // Every ACTIVE/CLOSED/OVERDUE loan below is seeded with numbers actually produced by
 // utils/loanCalculations.js (not hand-typed guesses), so collected_amount /
@@ -53,25 +43,8 @@ import { journalLine, buildJournalEntry, buildVoucherLines } from './utils/accou
 // Calculation combination, plus a closed one and an overdue one. Mirrors
 // server/src/config/db.js's mock data so behavior is identical whether the backend
 // is reachable or not.
-// loans, collections, and borrowers all have real backends now (see fetchData) —
-// no mock seed data for them anymore.
-
-const INITIAL_EMPLOYEES = [
-  { id: 1, company_id: 1, name: 'John Admin', email: 'admin@alpha.com', role: 'ADMIN', permissions: [] },
-  { id: 2, company_id: 1, name: 'Sarah Collector', email: 'sarah@alpha.com', role: 'COLLECTOR', permissions: [{ module: 'LOANS', action: 'VIEW', allowed: 1 }, { module: 'COLLECTIONS', action: 'COLLECT', allowed: 1 }] },
-  { id: 3, company_id: 1, name: 'Mike Manager', email: 'mike@alpha.com', role: 'MANAGER', permissions: [{ module: 'LOANS', action: 'CREATE', allowed: 1 }, { module: 'EMPLOYEES', action: 'MANAGE', allowed: 1 }] }
-];
-
-// collections and borrowers both have real backends now — no mock seed data for
-// them anymore (see fetchData).
-
-const INITIAL_BRANCHES = [
-  { id: 1, company_id: 1, name: 'Karur Branch', code: 'KRM', address: '', phone: '', city: '', state: '', pincode: '', is_active: 1 },
-  { id: 2, company_id: 1, name: 'Namakkal Branch', code: 'NKL', address: '', phone: '', city: '', state: '', pincode: '', is_active: 1 },
-  { id: 3, company_id: 1, name: 'Salem Branch', code: 'SLM', address: '', phone: '', city: '', state: '', pincode: '', is_active: 1 },
-  { id: 4, company_id: 1, name: 'Chennai Branch', code: 'CHN', address: '', phone: '', city: '', state: '', pincode: '', is_active: 1 },
-  { id: 5, company_id: 1, name: 'Madurai Branch', code: 'MDU', address: '', phone: '', city: '', state: '', pincode: '', is_active: 1 }
-];
+// loans, collections, borrowers, employees, and branches all have real backends
+// now (see fetchData / fetchOrgHierarchy) — no mock seed data for them anymore.
 
 // The app has 4 top-level modules (finance, auth, settings, reports), mirroring
 // the backend's src/finance + src/modules/{auth,org,employee} split. Every
@@ -156,12 +129,10 @@ export default function App() {
     else sessionStorage.removeItem('financial_erp_selected_module');
   }, [selectedModule]);
 
-  // loans has a real backend (server/src/finance/loan) — starts empty, populated by
-  // fetchData()'s /v1/finance/loans call. employees has no backend route registered
-  // yet (see fetchData's comment), so it keeps its mock seed as the only data
-  // available until that's wired up.
+  // loans and employees both have real backends now — start empty, populated by
+  // fetchData()'s /finance/loans and /employees calls.
   const [loans, setLoans] = useState([]);
-  const [employees, setEmployees] = useState(INITIAL_EMPLOYEES);
+  const [employees, setEmployees] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
 
   // ── Double-entry accounting ledger ──
@@ -208,12 +179,14 @@ export default function App() {
     })]);
   };
 
-  // Manual voucher entry — the other half of the ledger alongside the automatic
-  // postJournal calls below: a staff member deliberately keys in a Cash/Bank
+  // Manual voucher entry — a staff member deliberately keys in a Cash/Bank
   // Receipt or Payment, a Contra transfer between cash and bank, or a free-form
-  // Journal. Reuses the same balanced-entry engine, just tagged ref_type 'MANUAL'
-  // so the Auto vs Manual Vouchers pages can tell them apart with one field.
-  const handleCreateManualVoucher = (payload) => {
+  // Journal. Posts straight to the real ledger backend (server/src/finance/
+  // ledger) inside its own DB transaction — the server re-validates the double
+  // entry and that every account code actually exists, it doesn't just trust
+  // these client-built lines. ref_type 'MANUAL' is what lets the Manual vs Auto
+  // Vouchers pages (and everything downstream reading the ledger) tell them apart.
+  const handleCreateManualVoucher = async (payload) => {
     assertEodNotLocked(payload.branch, payload.date);
     const lines = buildVoucherLines(payload.voucher_type, {
       amount: payload.amount,
@@ -221,16 +194,18 @@ export default function App() {
       contraDirection: payload.contra_direction,
       lines: payload.lines
     });
-    postJournal(
-      payload.narration || 'Manual voucher',
-      lines,
-      'MANUAL',
-      null,
-      payload.date,
-      payload.branch,
-      payload.voucher_type,
-      payload.created_by
-    );
+    const res = await api.post('/finance/ledger/vouchers', {
+      entry_date: payload.date,
+      description: payload.narration || 'Manual voucher',
+      voucher_type: payload.voucher_type,
+      ref_type: 'MANUAL',
+      branch: payload.branch,
+      created_by: payload.created_by,
+      lines
+    });
+    const created = res.data?.data;
+    if (created) setLedgerEntries(prev => [normalizeLedgerEntry(created), ...prev]);
+    return created;
   };
 
   // Day-end cash closing — one record per branch per day. A matching count closes
@@ -380,13 +355,11 @@ export default function App() {
       created_at: new Date().toISOString()
     }, ...prev]);
   };
-  // collections and borrowers both have real backends too — same treatment as
-  // loans/schemes above. branchesList's backend (server/src/modules/org) isn't
-  // registered yet either, so it keeps its mock seed like employees does.
+  // collections, borrowers, and branchesList all have real backends too — same
+  // treatment as loans/schemes above.
   const [collections, setCollections] = useState([]);
   const [borrowers, setBorrowers] = useState([]);
-  const [kycReviewBorrowerId, setKycReviewBorrowerId] = useState(null);
-  const [branchesList, setBranchesList] = useState(INITIAL_BRANCHES);
+  const [branchesList, setBranchesList] = useState([]);
 
   // Global branch lock — 'ALL' means every page behaves exactly as it always has
   // (its own independent filter, freely switchable). Any specific branch name means
@@ -401,19 +374,33 @@ export default function App() {
   const [orgLoading, setOrgLoading] = useState(false);
   const [orgError, setOrgError] = useState('');
 
-  // loanSchemes has a real backend now (server/src/finance/scheme) — starts empty
-  // and is populated by fetchData()'s /v1/finance/schemes call. No mock fallback:
-  // if that call fails, the GlobalErrorBanner is what should tell the user, not a
-  // screen quietly showing fake schemes as if they were real. The modules below
-  // this one are still pure mock data, local state only, no backend calls.
+  // loanSchemes, investors, fixedDeposits, recurringDeposits, and the expense
+  // module all have real backends now — start empty, populated by fetchData()'s
+  // API calls. No mock fallback: if a call fails, the GlobalErrorBanner is what
+  // should tell the user, not a screen quietly showing fake data as if real.
+  // customFormulas remains pure local/mock — no backend table for it exists.
   const [loanSchemes, setLoanSchemes] = useState([]);
   const [customFormulas, setCustomFormulas] = useState([]);
-  const [investors, setInvestors] = useState(INITIAL_INVESTORS);
-  const [fixedDeposits, setFixedDeposits] = useState(INITIAL_FIXED_DEPOSITS);
-  const [recurringDeposits, setRecurringDeposits] = useState(INITIAL_RECURRING_DEPOSITS);
-  const [expenseCategories, setExpenseCategories] = useState(INITIAL_EXPENSE_CATEGORIES);
-  const [expenseAllocationRequests, setExpenseAllocationRequests] = useState(INITIAL_EXPENSE_ALLOCATION_REQUESTS);
-  const [expenseVouchers, setExpenseVouchers] = useState(INITIAL_EXPENSE_VOUCHERS);
+  const [investors, setInvestors] = useState([]);
+  const [fixedDeposits, setFixedDeposits] = useState([]);
+  const [recurringDeposits, setRecurringDeposits] = useState([]);
+  const [expenseCategories, setExpenseCategories] = useState([]);
+  const [expenseAllocationRequests, setExpenseAllocationRequests] = useState([]);
+  const [expenseVouchers, setExpenseVouchers] = useState([]);
+  // Real chart of accounts + every real journal entry, both fetched from the
+  // actual ledger backend (server/src/finance/ledger). Manual Vouchers,
+  // General Ledger, and Trial Balance all read from these now. Kept separate
+  // from the legacy `chartOfAccounts`/`journalEntries` mock below, which Auto
+  // Vouchers/EOD still use — the mock's account codes have diverged from the
+  // real chart_of_accounts table (different names, some codes don't exist on
+  // one side or the other), so mixing the two sources on one screen
+  // mid-migration would silently show wrong numbers. Note `ledgerEntries`
+  // will look incomplete until Loans/Collections/Investors/Expenses are also
+  // migrated to real ledger posting (the Auto Vouchers module) — right now it
+  // only contains what's actually been wired so far: Fixed Deposits,
+  // Recurring Deposits, and Manual Vouchers.
+  const [ledgerAccounts, setLedgerAccounts] = useState([]);
+  const [ledgerEntries, setLedgerEntries] = useState([]);
   const [eodRecords, setEodRecords] = useState([]);
   const [eodDenominationSettings, setEodDenominationSettings] = useState(
     [500, 200, 100, 50, 20, 10, 5, 2, 1].map(value => ({ value, enabled: true }))
@@ -450,7 +437,6 @@ export default function App() {
 
   const handleTabChange = (newTab) => {
     setActiveTabState(newTab);
-    setKycReviewBorrowerId(null);
     const targetUrl = `/${moduleForTab(newTab)}/${newTab}`;
     navigateTo(targetUrl);
   };
@@ -473,28 +459,69 @@ export default function App() {
       localStorage.setItem('financial_erp_tenant_id', tenant.id);
       fetchData();
     }
-  }, [tenant, isAuthenticated, user]);
+    // tenant?.id, not the whole `tenant` object — fetchData() -> fetchCompanyProfile()
+    // calls setTenant() with a fresh merged object every time it resolves, which
+    // changes `tenant`'s reference identity even when the actual data is
+    // unchanged. Depending on the whole object here re-triggered this effect on
+    // every fetch, which called fetchData() again, forever — a runaway request
+    // loop. tenant.id is a stable primitive that only actually changes when the
+    // user switches tenants, which is the only time this effect needs to re-run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenant?.id, isAuthenticated, user]);
 
-  // Promise.allSettled, not Promise.all — /employees has no backend route yet
-  // (server/src/modules/employee/employee.routes.js is never registered in app.js),
-  // so that call always rejects. With Promise.all, one rejection fails the whole
-  // batch and silently skips every setter — loans/collections/borrowers/schemes
-  // would never update from real data even though their own calls succeed fine.
-  // Each result is now applied independently based on its own outcome.
+  // Promise.allSettled, not Promise.all — one endpoint failing (network blip,
+  // a single 5xx) shouldn't fail the whole batch and skip every other setter.
+  // Each result is applied independently based on its own outcome.
   const fetchData = async () => {
-    const [loansRes, empsRes, colRes, schemesRes, borrowersRes] = await Promise.allSettled([
+    const [
+      loansRes, empsRes, colRes, schemesRes, borrowersRes,
+      investorsRes, fdRes, rdRes, expCatRes, expReqRes, expVouchRes,
+      ledgerAccountsRes
+    ] = await Promise.allSettled([
       api.get('/finance/loans'),
       api.get('/employees'),
       api.get('/finance/collections'),
       api.get('/finance/schemes'),
-      api.get('/finance/borrowers')
+      api.get('/finance/borrowers'),
+      api.get('/finance/investors'),
+      api.get('/finance/fixed-deposits'),
+      api.get('/finance/recurring-deposits'),
+      api.get('/finance/expenses/categories'),
+      api.get('/finance/expenses/allocation-requests'),
+      api.get('/finance/expenses/vouchers'),
+      api.get('/finance/ledger/accounts')
     ]);
     if (loansRes.status === 'fulfilled' && loansRes.value.data?.data) setLoans(loansRes.value.data.data);
     if (empsRes.status === 'fulfilled' && empsRes.value.data?.data) setEmployees(empsRes.value.data.data);
     if (colRes.status === 'fulfilled' && colRes.value.data?.data) setCollections(colRes.value.data.data);
     if (schemesRes.status === 'fulfilled' && schemesRes.value.data?.data) setLoanSchemes(schemesRes.value.data.data);
     if (borrowersRes.status === 'fulfilled' && borrowersRes.value.data?.data) setBorrowers(borrowersRes.value.data.data);
+    if (investorsRes.status === 'fulfilled' && investorsRes.value.data?.data) setInvestors(investorsRes.value.data.data);
+    if (fdRes.status === 'fulfilled' && fdRes.value.data?.data) setFixedDeposits(fdRes.value.data.data);
+    if (rdRes.status === 'fulfilled' && rdRes.value.data?.data) setRecurringDeposits(rdRes.value.data.data);
+    if (expCatRes.status === 'fulfilled' && expCatRes.value.data?.data) setExpenseCategories(expCatRes.value.data.data);
+    if (expReqRes.status === 'fulfilled' && expReqRes.value.data?.data) setExpenseAllocationRequests(expReqRes.value.data.data);
+    if (expVouchRes.status === 'fulfilled' && expVouchRes.value.data?.data) setExpenseVouchers(expVouchRes.value.data.data);
+    if (ledgerAccountsRes.status === 'fulfilled' && ledgerAccountsRes.value.data?.data) {
+      setLedgerAccounts(ledgerAccountsRes.value.data.data.map(normalizeLedgerAccount));
+    }
+    fetchLedgerEntries();
     fetchOrgHierarchy();
+    fetchCompanyProfile();
+  };
+
+  // Manual Vouchers, General Ledger, and Trial Balance all read from this one
+  // real fetch — same "fetch everything once, filter/paginate on the client"
+  // pattern already used for loans/collections/etc. elsewhere in this file.
+  const fetchLedgerEntries = async () => {
+    try {
+      const res = await api.get('/finance/ledger/vouchers');
+      const rows = res.data?.data || [];
+      setLedgerEntries(rows.map(normalizeLedgerEntry));
+    } catch {
+      // Leave whatever was already loaded rather than wiping the screen blank
+      // on a transient failure — GlobalErrorBanner surfaces the underlying error.
+    }
   };
 
   const fetchOrgHierarchy = async () => {
@@ -504,53 +531,78 @@ export default function App() {
       const branchRes = await api.get('/branches');
       setBranchesList(branchRes.data?.data || []);
     } catch (err) {
-      console.warn('Using demo organization hierarchy (no backend connected).');
+      setOrgError(err?.response?.data?.message || 'Failed to load branches.');
     } finally {
       setOrgLoading(false);
     }
   };
 
-  const handleCreateEmployee = (payload) => {
-    const branchIds = payload.branch_ids || [];
-    const branches = branchIds.map(id => branchesList.find(b => b.id === id)).filter(Boolean).map(b => ({ id: b.id, name: b.name, code: b.code }));
-    const newEmp = {
-      id: Date.now(),
-      company_id: tenant?.id || 1,
-      name: payload.name,
-      email: payload.email,
-      phone: payload.phone || '',
-      role: payload.role,
-      enable_auth: payload.enable_auth !== false,
-      password: payload.enable_auth ? (payload.password || '') : '',
-      photo: payload.photo || null,
-      branchScope: branchIds.length ? 'CUSTOM' : 'GLOBAL',
-      branch_ids: branchIds,
-      branches,
-      permissions: []
-    };
-    setEmployees(prev => [...prev, newEmp]);
-    return newEmp;
+  const handleCreateEmployee = async (payload) => {
+    const res = await api.post('/employees', payload);
+    const created = res.data?.data;
+    if (created) {
+      setEmployees(prev => [...prev, created]);
+      logAudit('EMPLOYEE', created.id, 'CREATE', created.name);
+    }
+    return created;
   };
 
-  const handleUpdateEmployee = (id, payload) => {
+  const handleUpdateEmployee = async (id, payload) => {
     const before = employees.find(e => e.id === id);
-    setEmployees(prev => prev.map(e => e.id === id ? { ...e, ...payload } : e));
-    logAudit('EMPLOYEE', id, 'UPDATE', before?.name);
+    const res = await api.put(`/employees/${id}`, payload);
+    const updated = res.data?.data;
+    if (updated) {
+      setEmployees(prev => prev.map(e => e.id === id ? { ...e, ...updated } : e));
+      logAudit('EMPLOYEE', id, 'UPDATE', updated.name || before?.name);
+    }
+    return updated;
   };
 
-  const handleDeleteEmployee = (id) => {
+  const handleDeleteEmployee = async (id) => {
     const before = employees.find(e => e.id === id);
+    await api.delete(`/employees/${id}`);
     setEmployees(prev => prev.filter(e => e.id !== id));
     logAudit('EMPLOYEE', id, 'DELETE', before?.name);
   };
 
-  // No backend table exists yet for the extended company profile fields
-  // (gstin/pan/phone/address), so this persists to the in-session tenant
-  // state — real for as long as the session lasts, same as the rest of
-  // this app's local-mock handlers.
-  const handleSaveCompanyProfile = (payload) => {
-    setTenant(prev => ({ ...prev, ...payload }));
+  // permissions here is the real [{module, action, allowed}] shape moduleGuard.js
+  // actually reads — not the flattened UI-only key format PermissionMatrix used
+  // to produce. If `role` differs from what's on file, that's a separate real
+  // column update via handleUpdateEmployee; permissions are a separate table.
+  const handleUpdateEmployeePermissions = async (staffId, role, permissions) => {
+    const before = employees.find(e => e.id === staffId);
+    if (role && before && role !== before.role) {
+      await handleUpdateEmployee(staffId, { role });
+    }
+    await api.put(`/employees/${staffId}/permissions`, { permissions });
+    setEmployees(prev => prev.map(e => (e.id === staffId ? { ...e, role: role || e.role, permissions } : e)));
+    logAudit('EMPLOYEE', staffId, 'PERMISSIONS_UPDATE', before?.name);
   };
+
+  const handleSaveCompanyProfile = async (payload) => {
+    const res = await api.patch('/auth/company/profile', payload);
+    const updated = res.data?.data;
+    if (updated) setTenant(prev => ({ ...prev, ...updated }));
+    return updated;
+  };
+
+  const fetchCompanyProfile = async () => {
+    try {
+      const res = await api.get('/auth/company/profile');
+      const data = res.data?.data;
+      if (data) setTenant(prev => ({ ...prev, ...data }));
+    } catch { /* surfaced globally via the axios response interceptor */ }
+  };
+
+  // The brand color is a DB column (companies.theme_color), shared across every
+  // user of this tenant — apply it the instant it arrives from
+  // fetchCompanyProfile, so the whole app repaints without needing the
+  // ThemeCustomizerDrawer to ever be opened.
+  useEffect(() => {
+    if (tenant?.theme_color) {
+      applyTheme(generateThemePalette(tenant.theme_color));
+    }
+  }, [tenant?.theme_color]);
 
   const handleCreateBranch = async (payload) => {
     const res = await api.post('/branches', payload);
@@ -620,322 +672,184 @@ export default function App() {
     logAudit('CUSTOM_FORMULA', id, 'DELETE', before?.name);
   };
 
-  // ── Investor Capital (mock-only, no backend) ──
+  // ── Investor Capital ──
   // A Master-style record — capital_amount/yield_rate/yield_notes live directly on
   // the investor, not derived from a transaction ledger. A "withdrawal" is just
   // editing capital_amount down and/or setting status to EXITED; a yield payout is
   // just a manual note. Not wired into double-entry accounting at all.
-  const handleCreateInvestor = (payload) => {
-    const nextSeq = investors.length ? Math.max(...investors.map(i => parseInt((i.investor_code || 'INV-1000').split('-')[1], 10) || 1000)) + 1 : 1001;
-    const newInvestor = { id: Date.now(), investor_code: `INV-${nextSeq}`, status: 'ACTIVE', ...payload };
-    setInvestors(prev => [...prev, newInvestor]);
+  const handleCreateInvestor = async (payload) => {
+    const res = await api.post('/finance/investors', payload);
+    const created = res.data?.data;
+    if (created) setInvestors(prev => [created, ...prev]);
+    return created;
   };
-  const handleUpdateInvestor = (id, payload) => {
-    setInvestors(prev => prev.map(i => (i.id === id ? { ...i, ...payload } : i)));
+  const handleUpdateInvestor = async (id, payload) => {
+    const res = await api.put(`/finance/investors/${id}`, payload);
+    const updated = res.data?.data;
+    if (updated) setInvestors(prev => prev.map(i => (i.id === id ? updated : i)));
+    return updated;
   };
-  const handleDeleteInvestor = (id) => {
+  const handleDeleteInvestor = async (id) => {
+    await api.delete(`/finance/investors/${id}`);
     setInvestors(prev => prev.filter(i => i.id !== id));
   };
 
-  // ── Fixed Deposits (mock-only, no backend) ──
+  // ── Fixed Deposits ──
   // FD principal in is a liability (owed back to the customer), booked at
   // inception; maturity/premature close pays that liability off plus whatever
-  // interest actually accrued, recognised as an expense at payout time rather
-  // than accrued daily — same "not fully accrual accounting" simplification the
-  // rest of this mock app uses.
-  const handleCreateFixedDeposit = (payload) => {
-    const nextSeq = fixedDeposits.length ? Math.max(...fixedDeposits.map(f => parseInt((f.fd_account_no || 'FD-2026-000').split('-')[2], 10) || 0)) + 1 : 1;
-    const newFd = { id: Date.now(), fd_account_no: `FD-2026-${String(nextSeq).padStart(3, '0')}`, status: 'ACTIVE', ...payload };
-    setFixedDeposits(prev => [...prev, newFd]);
-    const cashAccount = payload.payment_mode === 'BANK' ? '1002' : '1001';
-    postJournal(
-      `Fixed deposit booked — ${newFd.fd_account_no} (${newFd.customer_name})`,
-      [journalLine(cashAccount, newFd.principal_amount, 0), journalLine('2200', 0, newFd.principal_amount)],
-      'FD_BOOKING', newFd.id, newFd.booking_date, payload.branch || null
-    );
+  // interest actually accrued. Unlike most other modules, the ledger posting
+  // for FDs happens server-side, inside the same DB transaction as the FD
+  // status change itself (see server/src/finance/fixedDeposits/fixedDeposit.service.js)
+  // so a booking/maturity/closure and its journal voucher always commit or
+  // roll back together — never one without the other. These handlers just
+  // relay the API call and sync local state from the response.
+  const handleCreateFixedDeposit = async (payload) => {
+    const res = await api.post('/finance/fixed-deposits', payload);
+    const newFd = res.data?.data;
+    if (!newFd) return newFd;
+    setFixedDeposits(prev => [newFd, ...prev]);
+    return newFd;
   };
-  const handleMatureFixedDeposit = (id) => {
-    const fd = fixedDeposits.find(f => f.id === id);
-    if (fd) {
-      const interestPortion = Math.max(0, fd.maturity_value - fd.principal_amount);
-      const lines = [journalLine('2200', fd.principal_amount, 0)];
-      if (interestPortion > 0) lines.push(journalLine('5003', interestPortion, 0));
-      lines.push(journalLine('1001', 0, fd.maturity_value));
-      postJournal(
-        `Fixed deposit matured — ${fd.fd_account_no} (${fd.customer_name})`,
-        lines, 'FD_MATURITY', fd.id, new Date().toISOString().slice(0, 10), fd.branch || null
-      );
-    }
-    setFixedDeposits(prev => prev.map(f => (f.id === id ? { ...f, status: 'MATURED' } : f)));
+  const handleMatureFixedDeposit = async (id) => {
+    const res = await api.post(`/finance/fixed-deposits/${id}/mature`);
+    const updated = res.data?.data;
+    if (updated) setFixedDeposits(prev => prev.map(f => (f.id === id ? updated : f)));
   };
-  const handlePrematureCloseFixedDeposit = (id, customPayoutAmount) => {
-    const fd = fixedDeposits.find(f => f.id === id);
-    if (fd) {
-      const defaultPayout = Math.round(fd.maturity_value * 0.98);
-      const payout = customPayoutAmount !== undefined && customPayoutAmount !== '' ? Math.round(parseFloat(customPayoutAmount) || 0) : defaultPayout;
-      const interestPortion = payout - fd.principal_amount;
-      const lines = [journalLine('2200', fd.principal_amount, 0)];
-      if (interestPortion > 0) lines.push(journalLine('5003', interestPortion, 0));
-      else if (interestPortion < 0) lines.push(journalLine('5003', 0, -interestPortion));
-      lines.push(journalLine('1001', 0, payout));
-      postJournal(
-        `Fixed deposit premature closure — ${fd.fd_account_no} (${fd.customer_name})`,
-        lines, 'FD_PREMATURE_CLOSE', fd.id, new Date().toISOString().slice(0, 10), fd.branch || null
-      );
-      setFixedDeposits(prev => prev.map(f => (f.id === id ? { ...f, status: 'CLOSED_PREMATURE', payout_amount: payout } : f)));
-    }
+  const handlePrematureCloseFixedDeposit = async (id, customPayoutAmount) => {
+    const res = await api.post(`/finance/fixed-deposits/${id}/premature-close`, { payout_amount: customPayoutAmount });
+    const updated = res.data?.data;
+    if (updated) setFixedDeposits(prev => prev.map(f => (f.id === id ? updated : f)));
+  };
+  const handlePayFdMonthlyInterest = async (id, paymentMode) => {
+    const res = await api.post(`/finance/fixed-deposits/${id}/pay-interest`, { payment_mode: paymentMode });
+    return res.data?.data;
   };
 
-  // ── Recurring Deposits (mock-only, no backend) ──
+  // ── Recurring Deposits ──
   // Unlike Fixed Deposits, no cash arrives at account opening — the customer
-  // pays a fixed amount every month. Booking just creates the account and its
-  // persisted installment schedule (`buildRdInstallments`); nothing is posted
-  // to the books until each installment is actually collected below.
-  const handleCreateRecurringDeposit = (payload) => {
-    const nextSeq = recurringDeposits.length ? Math.max(...recurringDeposits.map(r => parseInt((r.rd_account_no || 'RD-2026-000').split('-')[2], 10) || 0)) + 1 : 1;
-    const newRd = {
-      id: Date.now(),
-      rd_account_no: `RD-2026-${String(nextSeq).padStart(3, '0')}`,
-      status: 'ACTIVE',
-      collected_amount: 0,
-      installments: buildRdInstallments(payload.monthly_installment, payload.tenure_months, payload.booking_date),
-      ...payload
-    };
-    setRecurringDeposits(prev => [...prev, newRd]);
+  // pays a fixed amount every month, so nothing is posted to the books until
+  // each installment is actually collected. As with Fixed Deposits, the
+  // ledger posting itself happens server-side, inside the same DB transaction
+  // as the underlying state change (see server/src/finance/recurringDeposits/
+  // recurringDeposit.service.js), so a collection/maturity/closure and its
+  // journal voucher always commit or roll back together. These handlers just
+  // relay the API call and sync local state from the response.
+  const handleCreateRecurringDeposit = async (payload) => {
+    const res = await api.post('/finance/recurring-deposits', payload);
+    const newRd = res.data?.data;
+    if (newRd) setRecurringDeposits(prev => [newRd, ...prev]);
+    return newRd;
   };
-  const handleCollectRdInstallment = (id, monthNo, paymentMode = 'CASH') => {
-    const rd = recurringDeposits.find(r => r.id === id);
-    if (!rd) return;
-    const installment = (rd.installments || []).find(i => i.month_no === monthNo);
-    if (!installment || installment.status === 'PAID') return;
-    const collectionDate = new Date().toISOString().slice(0, 10);
-    const cashAccount = paymentMode === 'BANK' ? '1002' : '1001';
-    postJournal(
-      `Recurring deposit installment collected — ${rd.rd_account_no} (${rd.customer_name}) — month ${monthNo}`,
-      [journalLine(cashAccount, installment.amount, 0), journalLine('2201', 0, installment.amount)],
-      'RD_INSTALLMENT', rd.id, collectionDate, rd.branch || null
-    );
-    setRecurringDeposits(prev => prev.map(r => {
-      if (r.id !== id) return r;
-      const updatedInstallments = r.installments.map(i => (
-        i.month_no === monthNo ? { ...i, status: 'PAID', paid_date: collectionDate } : i
-      ));
-      return { ...r, installments: updatedInstallments, collected_amount: (r.collected_amount || 0) + installment.amount };
-    }));
+  const handleCollectRdInstallment = async (id, monthNo, paymentMode = 'CASH') => {
+    const res = await api.post(`/finance/recurring-deposits/${id}/installments/${monthNo}/collect`, { payment_mode: paymentMode });
+    const updated = res.data?.data;
+    if (updated) setRecurringDeposits(prev => prev.map(r => (r.id === id ? updated : r)));
   };
-  const handleMatureRecurringDeposit = (id) => {
-    const rd = recurringDeposits.find(r => r.id === id);
-    if (rd) {
-      const collected = rd.collected_amount || 0;
-      const interestPortion = Math.max(0, rd.maturity_value - collected);
-      const lines = [journalLine('2201', collected, 0)];
-      if (interestPortion > 0) lines.push(journalLine('5004', interestPortion, 0));
-      lines.push(journalLine('1001', 0, rd.maturity_value));
-      postJournal(
-        `Recurring deposit matured — ${rd.rd_account_no} (${rd.customer_name})`,
-        lines, 'RD_MATURITY', rd.id, new Date().toISOString().slice(0, 10), rd.branch || null
-      );
-    }
-    setRecurringDeposits(prev => prev.map(r => (r.id === id ? { ...r, status: 'MATURED' } : r)));
+  const handleMatureRecurringDeposit = async (id) => {
+    const res = await api.post(`/finance/recurring-deposits/${id}/mature`);
+    const updated = res.data?.data;
+    if (updated) setRecurringDeposits(prev => prev.map(r => (r.id === id ? updated : r)));
   };
-  const handlePrematureCloseRecurringDeposit = (id, customPayoutAmount) => {
-    const rd = recurringDeposits.find(r => r.id === id);
-    if (rd) {
-      const collected = rd.collected_amount || 0;
-      // Early exit returns what was actually paid in (minus a small penalty),
-      // not a share of the full projected maturity value — no bonus interest
-      // for an incomplete term.
-      const defaultPayout = Math.round(collected * 0.98);
-      const payout = customPayoutAmount !== undefined && customPayoutAmount !== '' ? Math.round(parseFloat(customPayoutAmount) || 0) : defaultPayout;
-      const diff = payout - collected;
-      const lines = [journalLine('2201', collected, 0)];
-      if (diff > 0) lines.push(journalLine('5004', diff, 0));
-      else if (diff < 0) lines.push(journalLine('5004', 0, -diff));
-      lines.push(journalLine('1001', 0, payout));
-      postJournal(
-        `Recurring deposit premature closure — ${rd.rd_account_no} (${rd.customer_name})`,
-        lines, 'RD_PREMATURE_CLOSE', rd.id, new Date().toISOString().slice(0, 10), rd.branch || null
-      );
-      setRecurringDeposits(prev => prev.map(r => (r.id === id ? { ...r, status: 'CLOSED_PREMATURE', payout_amount: payout } : r)));
-    }
+  const handlePrematureCloseRecurringDeposit = async (id, customPayoutAmount) => {
+    const res = await api.post(`/finance/recurring-deposits/${id}/premature-close`, { payout_amount: customPayoutAmount });
+    const updated = res.data?.data;
+    if (updated) setRecurringDeposits(prev => prev.map(r => (r.id === id ? updated : r)));
   };
 
-  // ── Expense Allocation (mock-only, no backend) ──
+  // ── Expense Allocation ──
   // Categories are funded directly by whoever creates/tops them up — no approval
   // queue. `expenseAllocationRequests` is kept purely as a funding-history log
   // (AccountHistoryModal reads it), every entry already "applied" the moment it's
   // created since there's no pending state left to approve or reject.
-  const handleCreateExpenseCategory = (payload) => {
-    const catId = Date.now();
-    const amount = Number(payload.amount) || 0;
-    const newCategory = { id: catId, name: payload.name, status: 'ACTIVE', balance: amount, allocated_total: amount };
-    setExpenseCategories(prev => [...prev, newCategory]);
-    setExpenseAllocationRequests(prev => [
-      {
-        id: catId + 1,
-        category_id: catId,
-        category_name: payload.name,
-        type: 'INITIAL',
-        amount,
-        reason: payload.reason || '',
-        requested_by: user?.name || 'Staff',
-        requested_at: new Date().toISOString()
-      },
-      ...prev
-    ]);
-    logAudit('EXPENSE_CATEGORY', catId, 'CREATE', `${payload.name} funded with ₹${amount.toLocaleString('en-IN')}`);
-  };
-
-  const handleUpdateExpenseCategory = (id, payload) => {
-    setExpenseCategories(prev => prev.map(c => (c.id === id ? { ...c, name: payload.name } : c)));
-  };
-
-  const handleDeleteExpenseCategory = (id) => {
-    const category = expenseCategories.find(c => c.id === id);
-    if (!category) return;
-    if (category.balance > 0) {
-      throw new Error(`Cannot delete "${category.name}" — it still has ₹${category.balance.toLocaleString('en-IN')} balance. Spend it down first.`);
+  const handleCreateExpenseCategory = async (payload) => {
+    const res = await api.post('/finance/expenses/categories', payload);
+    const newCategory = res.data?.data;
+    if (newCategory) {
+      setExpenseCategories(prev => [...prev, newCategory]);
+      logAudit('EXPENSE_CATEGORY', newCategory.id, 'CREATE', `${newCategory.name} funded with ₹${Number(newCategory.balance).toLocaleString('en-IN')}`);
     }
+    fetchExpenseAllocationRequests();
+    return newCategory;
+  };
+
+  const handleUpdateExpenseCategory = async (id, payload) => {
+    const res = await api.put(`/finance/expenses/categories/${id}`, payload);
+    const updated = res.data?.data;
+    if (updated) setExpenseCategories(prev => prev.map(c => (c.id === id ? updated : c)));
+    return updated;
+  };
+
+  const handleDeleteExpenseCategory = async (id) => {
+    const category = expenseCategories.find(c => c.id === id);
+    await api.delete(`/finance/expenses/categories/${id}`);
     setExpenseCategories(prev => prev.filter(c => c.id !== id));
-    logAudit('EXPENSE_CATEGORY', id, 'DELETE', category.name);
+    if (category) logAudit('EXPENSE_CATEGORY', id, 'DELETE', category.name);
+  };
+
+  const fetchExpenseAllocationRequests = async () => {
+    try {
+      const res = await api.get('/finance/expenses/allocation-requests');
+      setExpenseAllocationRequests(res.data?.data || []);
+    } catch { /* surfaced globally via the axios response interceptor */ }
   };
 
   // A funded account running low requests a TOPUP; an ad-hoc urgent need not
   // covered by the normal balance requests EMERGENCY funds — both credit the
   // account's balance immediately, tagged separately just for the history log.
-  const handleAddExpenseFunds = (payload) => {
-    const category = expenseCategories.find(c => c.id === Number(payload.category_id));
-    if (!category) return;
-    const amount = Number(payload.amount) || 0;
-    setExpenseCategories(prev => prev.map(c => (
-      c.id === category.id
-        ? { ...c, status: 'ACTIVE', balance: c.balance + amount, allocated_total: c.allocated_total + amount }
-        : c
-    )));
-    setExpenseAllocationRequests(prev => [
-      {
-        id: Date.now(),
-        category_id: category.id,
-        category_name: category.name,
-        type: payload.type || 'TOPUP',
-        amount,
-        reason: payload.reason || '',
-        requested_by: user?.name || 'Staff',
-        requested_at: new Date().toISOString()
-      },
-      ...prev
-    ]);
-    logAudit('EXPENSE_CATEGORY', category.id, 'FUNDS_ADDED', `₹${amount.toLocaleString('en-IN')} added to ${category.name}`);
+  const handleAddExpenseFunds = async (payload) => {
+    const res = await api.post('/finance/expenses/categories/fund', payload);
+    const updated = res.data?.data;
+    if (updated) {
+      setExpenseCategories(prev => prev.map(c => (c.id === updated.id ? updated : c)));
+      logAudit('EXPENSE_CATEGORY', updated.id, 'FUNDS_ADDED', `₹${Number(payload.amount || 0).toLocaleString('en-IN')} added to ${updated.name}`);
+    }
+    fetchExpenseAllocationRequests();
+    return updated;
   };
 
-  // ── Expense Vouchers (mock-only, no backend) ──
+  // ── Expense Vouchers ──
   // Spending against an already-funded account needs no further approval — the money
-  // was pre-authorized when the account was topped up. No negative balances: the actual
-  // block happens in the UI (QuickActionModal) before this is ever called, this is a
-  // defense-in-depth guard.
-  const handleCreateExpenseVoucher = (payload) => {
-    const category = expenseCategories.find(c => c.id === Number(payload.category_id));
-    const amount = Number(payload.amount) || 0;
-    if (!category || category.status !== 'ACTIVE' || amount <= 0 || amount > category.balance) {
-      throw new Error('Insufficient balance in this expense account.');
-    }
+  // was pre-authorized when the account was topped up. Balance is enforced
+  // server-side (conditional UPDATE) as the source of truth; the UI's own check in
+  // QuickActionModal is just a fast-fail before the round trip. The ledger posting
+  // itself now happens server-side too, atomically with the voucher and the balance
+  // debit (see server/src/finance/expenses/expense.service.js) — no more local mock.
+  const handleCreateExpenseVoucher = async (payload) => {
     assertEodNotLocked(payload.branch || user?.branchName || branchesList[0]?.name, new Date().toISOString().slice(0, 10));
 
+    const res = await api.post('/finance/expenses/vouchers', payload);
+    const newVoucher = res.data?.data;
+    if (!newVoucher) return newVoucher;
+
     setExpenseCategories(prev => prev.map(c => (
-      c.id === category.id ? { ...c, balance: c.balance - amount } : c
+      c.id === newVoucher.category_id ? { ...c, balance: Number(c.balance) - Number(newVoucher.amount) } : c
     )));
-
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const seq = String(expenseVouchers.filter(v => v.voucher_no.includes(today)).length + 1).padStart(2, '0');
-    const newVoucher = {
-      id: Date.now(),
-      voucher_no: `EXP-${today}-${seq}`,
-      payee: payload.payee || payload.notes || 'Unnamed Payee',
-      category_id: category.id,
-      category: category.name,
-      amount,
-      date: new Date().toISOString().slice(0, 10),
-      status: 'APPROVED',
-      notes: payload.notes || ''
-    };
     setExpenseVouchers(prev => [newVoucher, ...prev]);
-
-    postJournal(
-      `Expense voucher ${newVoucher.voucher_no} — ${newVoucher.payee} (${category.name})`,
-      [journalLine('5001', amount, 0), journalLine('1001', 0, amount)],
-      'EXPENSE', newVoucher.id, newVoucher.date,
-      payload.branch || user?.branchName || branchesList[0]?.name
-    );
+    fetchLedgerEntries();
+    return newVoucher;
   };
 
-  // ── Customer Directory (mock-only, no backend) ──
-  const handleCreateBorrower = (payload) => {
-    if (borrowers.some(b => b.phone === payload.phone)) {
-      throw { response: { data: { message: 'A customer with this phone number already exists.' } } };
-    }
-    const nextSeq = borrowers.length
-      ? Math.max(...borrowers.map(b => parseInt((b.borrower_code || '').replace(/\D/g, ''), 10) || 0)) + 1
-      : 1;
-    const created = {
-      ...payload,
-      id: Date.now(),
-      company_id: tenant?.id || 1,
-      borrower_code: `BR-${String(nextSeq).padStart(4, '0')}`,
-      kyc_status: 'PENDING',
-      kyc_verified_at: null,
-      status: 'ACTIVE'
-    };
-    setBorrowers(prev => [created, ...prev]);
+  // ── Customer Directory ──
+  const handleCreateBorrower = async (payload) => {
+    const res = await api.post('/finance/borrowers', payload);
+    const created = res.data?.data;
+    if (created) setBorrowers(prev => [created, ...prev]);
+    logAudit('BORROWER', created?.id, 'CREATED', created?.full_name);
     return created;
   };
 
-  const handleUpdateBorrower = (id, payload) => {
-    if (borrowers.some(b => b.id !== id && b.phone === payload.phone)) {
-      throw { response: { data: { message: 'Another customer already uses this phone number.' } } };
-    }
-    let updated = null;
-    setBorrowers(prev => prev.map(b => {
-      if (b.id !== id) return b;
-      updated = { ...b, ...payload };
-      return updated;
-    }));
+  const handleUpdateBorrower = async (id, payload) => {
+    const res = await api.put(`/finance/borrowers/${id}`, payload);
+    const updated = res.data?.data;
+    if (updated) setBorrowers(prev => prev.map(b => (b.id === id ? updated : b)));
+    logAudit('BORROWER', id, 'UPDATED', updated?.full_name);
     return updated;
   };
 
-  const handleDeleteBorrower = (id) => {
-    const hasLoans = loans.some(l => {
-      const b = borrowers.find(bb => bb.id === id);
-      return b && l.phone === b.phone;
-    });
-    if (hasLoans) {
-      throw { response: { data: { message: 'Cannot delete a customer with linked loan accounts.' } } };
-    }
+  const handleDeleteBorrower = async (id) => {
+    await api.delete(`/finance/borrowers/${id}`);
     setBorrowers(prev => prev.filter(b => b.id !== id));
-  };
-
-  const handleVerifyBorrowerKyc = (id) => {
-    let updated = null;
-    setBorrowers(prev => prev.map(b => {
-      if (b.id !== id) return b;
-      updated = { ...b, kyc_status: 'VERIFIED', kyc_verified_at: new Date().toISOString().slice(0, 10) };
-      return updated;
-    }));
-    logAudit('BORROWER', id, 'KYC_VERIFIED', updated?.full_name);
-    return updated;
-  };
-
-  // Only two states exist — verifying and un-verifying are the same toggle in
-  // reverse, with no reason captured (local staff review documents in person;
-  // a typed rejection reason was never actually read anywhere in this app).
-  const handleRejectBorrowerKyc = (id) => {
-    let updated = null;
-    setBorrowers(prev => prev.map(b => {
-      if (b.id !== id) return b;
-      updated = { ...b, kyc_status: 'PENDING', kyc_verified_at: null };
-      return updated;
-    }));
-    logAudit('BORROWER', id, 'KYC_UNVERIFIED', updated?.full_name);
-    return updated;
+    logAudit('BORROWER', id, 'DELETED');
   };
 
   const handleLoginSuccess = (userData, token) => {
@@ -972,7 +886,7 @@ export default function App() {
 
   const [disburseModalMode, setDisburseModalMode] = useState('DISBURSE');
 
-  const handleQuickAction = (actionType, payload) => {
+  const handleQuickAction = async (actionType, payload) => {
     const act = (actionType || '').toUpperCase();
     if (act === 'SUBMIT_APPLICATION' && payload) {
       const schemeId = payload.scheme_id ? Number(payload.scheme_id) : 1;
@@ -983,9 +897,54 @@ export default function App() {
       const loanDate = new Date().toISOString().slice(0, 10);
       const repaymentFrequency = payload.repayment_frequency || matchedScheme?.repayment_frequency || 'DAILY';
 
-      const newApp = {
-        id: Date.now(),
-        loan_account_no: `APP-2026-${Math.floor(100 + Math.random() * 900)}`,
+      // Custom-formula applications stay client-only (see handleDisburseLoan's
+      // comment — the server has no engine for token-based custom formulas).
+      if (isCustom) {
+        const newApp = {
+          id: Date.now(),
+          loan_account_no: `APP-2026-${Math.floor(100 + Math.random() * 900)}`,
+          borrower_id: payload.borrower_id ? Number(payload.borrower_id) : null,
+          scheme_id: schemeId,
+          borrower_name: payload.borrower_name,
+          phone: payload.phone,
+          branch: 'Main Branch',
+          collector: user?.name || 'Admin',
+          loan_date: loanDate,
+          principal_amount: payload.principal_amount,
+          collected_amount: 0,
+          pending_amount: payload.principal_amount,
+          installment_amount: payload.installment_amount,
+          tenure_days: Math.round(payload.tenure_months * 30),
+          monthly_interest_rate: payload.monthly_interest_rate,
+          repayment_frequency: repaymentFrequency,
+          formula_type: 'CUSTOM',
+          accrual_mode: matchedScheme.accrual_mode,
+          interest_formula: matchedScheme.interest_formula,
+          installment_formula: matchedScheme.installment_formula,
+          repayment_method: repaymentMethod,
+          interest_calculation: 'CUSTOM_FORMULA',
+          repayment_schedule: matchedScheme.accrual_mode === 'SCHEDULED' ? generateCustomSchedule({
+            principal: payload.principal_amount,
+            monthlyInterestRate: payload.monthly_interest_rate,
+            tenureMonths: payload.tenure_months,
+            repaymentFrequency,
+            interestFormula: matchedScheme.interest_formula,
+            installmentFormula: matchedScheme.installment_formula,
+            startDate: loanDate
+          }) : null,
+          purpose: payload.purpose,
+          nominee: payload.nominee,
+          security: payload.security,
+          status: 'PENDING'
+        };
+        newApp.total_payable = estimateCustomTotalPayable(newApp)
+          ?? (payload.principal_amount * (1 + (payload.monthly_interest_rate / 100) * payload.tenure_months));
+        setLoans(prev => [newApp, ...prev]);
+        return newApp;
+      }
+
+      const res = await api.post('/finance/loans', {
+        mode: 'APPLICATION',
         borrower_id: payload.borrower_id ? Number(payload.borrower_id) : null,
         scheme_id: schemeId,
         borrower_name: payload.borrower_name,
@@ -994,47 +953,32 @@ export default function App() {
         collector: user?.name || 'Admin',
         loan_date: loanDate,
         principal_amount: payload.principal_amount,
-        collected_amount: 0,
-        pending_amount: payload.principal_amount,
-        installment_amount: payload.installment_amount,
-        tenure_days: Math.round(payload.tenure_months * 30),
         monthly_interest_rate: payload.monthly_interest_rate,
-        repayment_frequency: repaymentFrequency,
-        // Custom schemes snapshot their formulas onto the loan at creation — a later
-        // edit to the scheme's formula can never retroactively change this loan's math.
-        formula_type: isCustom ? 'CUSTOM' : 'STANDARD',
-        accrual_mode: isCustom ? matchedScheme.accrual_mode : undefined,
-        interest_formula: isCustom ? matchedScheme.interest_formula : undefined,
-        installment_formula: isCustom ? matchedScheme.installment_formula : undefined,
+        tenure_days: Math.round(payload.tenure_months * 30),
         repayment_method: repaymentMethod,
-        interest_calculation: isCustom ? 'CUSTOM_FORMULA' : interestCalculation,
-        repayment_schedule: isCustom
-          ? (matchedScheme.accrual_mode === 'SCHEDULED' ? generateCustomSchedule({
-              principal: payload.principal_amount,
-              monthlyInterestRate: payload.monthly_interest_rate,
-              tenureMonths: payload.tenure_months,
-              repaymentFrequency,
-              interestFormula: matchedScheme.interest_formula,
-              installmentFormula: matchedScheme.installment_formula,
-              startDate: loanDate
-            }) : null)
-          : (repaymentMethod === 'EMI' ? generateEmiSchedule({
-              principal: payload.principal_amount,
-              monthlyInterestRate: payload.monthly_interest_rate,
-              tenureMonths: payload.tenure_months,
-              repaymentFrequency,
-              interestCalculation,
-              startDate: loanDate
-            }) : null),
+        interest_calculation: interestCalculation,
+        repayment_frequency: repaymentFrequency,
+        formula_type: 'STANDARD',
         purpose: payload.purpose,
         nominee: payload.nominee,
-        security: payload.security,
-        status: 'PENDING'
-      };
-      newApp.total_payable = estimateCustomTotalPayable(newApp)
-        ?? (payload.principal_amount * (1 + (payload.monthly_interest_rate / 100) * payload.tenure_months));
-      setLoans(prev => [newApp, ...prev]);
-      return;
+        security: payload.security
+      });
+      const created = res.data?.data;
+      if (created) {
+        const newApp = {
+          ...created,
+          borrower_id: payload.borrower_id ? Number(payload.borrower_id) : null,
+          borrower_name: payload.borrower_name,
+          phone: payload.phone,
+          purpose: payload.purpose,
+          nominee: payload.nominee,
+          security: payload.security,
+          repayment_schedule: created.schedule || []
+        };
+        setLoans(prev => [newApp, ...prev]);
+        logAudit('LOAN', created.id, 'APPLICATION_SUBMITTED', created.loan_account_no);
+      }
+      return created;
     }
 
     if (act === 'APPLICATION') {
@@ -1063,83 +1007,112 @@ export default function App() {
     const collectionDate = payload.payment_date || payload.collection_date || new Date().toISOString().slice(0, 10);
     assertEodNotLocked(payload.branch || loans.find(l => l.id === payload.loan_id)?.branch, collectionDate);
 
-    // The backend now runs the exact same interest-first allocation engine, so it's
-    // authoritative when reachable. If the API call fails (offline demo, no server
-    // running), fall back to the split the caller already computed client-side so
-    // the flow still completes — recording locally instead of silently losing the
-    // payment.
+    // The backend runs the authoritative interest-first allocation engine. A failed
+    // API call means the payment was never recorded (no DB row, no voucher, no ledger
+    // entry) — so it must not be silently swallowed into a fake local "success"; that
+    // would show a collector a successful receipt for cash the system never actually
+    // recorded. The one deliberate exception is custom-formula loans below, whose
+    // split the server has no engine for at all.
     let principalPaid = payload.principal_portion || 0;
     let interestPaid = payload.interest_portion || 0;
     let newPendingFromServer;
     let synced = false;
+    let serverData = null;
 
     // A custom-formula loan's interest/principal split is computed here on the client
     // by an engine the server has no concept of — the server would run its own,
     // different (and here, wrong) calculation and silently overwrite the correct
     // numbers below if this were allowed to sync. So these loans skip the server call
     // entirely and always use the client-computed split, same as loan schemes are
-    // already mock-only/client-authoritative elsewhere in this app.
+    // already mock-only/client-authoritative elsewhere in this app. This is a real,
+    // known gap (custom-formula loans have no backing DB row at all, disbursal
+    // included — see handleDisburseLoan) rather than a deliberate design choice;
+    // flagged, not fixed here.
     const isCustomFormulaLoan = loans.find(l => l.id === payload.loan_id)?.formula_type === 'CUSTOM';
 
     if (!isCustomFormulaLoan) {
-      try {
-        const res = await api.post('/finance/collections', {
-          loan_id: payload.loan_id,
-          amount: totalAmt,
-          payment_mode: payload.payment_mode || 'CASH',
-          notes: payload.notes || '',
-          payment_date: collectionDate
-        });
-        const data = res.data?.data;
-        if (data) {
-          principalPaid = data.principal_portion;
-          interestPaid = data.interest_portion;
-          newPendingFromServer = data.new_pending_balance;
-          synced = true;
-        }
-      } catch (err) {
-        console.warn('Collection not synced to server — recording locally only:', err.message);
-      }
+      const res = await api.post('/finance/collections', {
+        loan_id: payload.loan_id,
+        amount: totalAmt,
+        penalty: payload.penalty || 0,
+        payment_mode: payload.payment_mode || 'CASH',
+        notes: payload.notes || '',
+        payment_date: collectionDate,
+        reference_no: payload.reference_no || '',
+        collector_name: payload.collector_name || user?.name || '',
+        branch: payload.branch || loans.find(l => l.id === payload.loan_id)?.branch || '',
+        phone: payload.phone || '',
+        proof_image: payload.proof_image || null,
+        latitude: payload.latitude ?? null,
+        longitude: payload.longitude ?? null
+      });
+      const data = res.data?.data;
+      principalPaid = data.principal_portion;
+      interestPaid = data.interest_portion;
+      newPendingFromServer = data.new_pending_balance;
+      serverData = data;
+      synced = true;
     }
 
-    // One voucher number for the whole transaction — it's minted here so the
-    // same id ends up on both the collection record and the auto-voucher
-    // journal entry posted below, instead of each side generating its own
-    // separate number (the old REC-xxxx "receipt no" concept).
-    const voucherNo = generateVoucherNo();
     const penaltyAmt = payload.penalty || 0;
 
-    const newReceipt = {
-      id: Date.now(),
-      loan_id: payload.loan_id,
-      borrower_name: payload.borrower_name || selectedLoanForCollection?.borrower_name || 'Borrower',
-      loan_account_no: payload.loan_account_no || '',
-      collector_name: payload.collector_name || user?.name || 'Collector',
-      amount: totalAmt,
-      principalPaid,
-      interestPaid,
-      penalty: penaltyAmt,
-      newPrincipalBalance: newPendingFromServer !== undefined ? newPendingFromServer : payload.new_principal_balance,
-      payment_mode: payload.payment_mode || 'CASH',
-      reference_no: payload.reference_no || '',
-      bank_name: payload.bank_name || '',
-      branch: payload.branch || '',
-      received_at: payload.received_at || 'BRANCH_COUNTER',
-      notes: payload.notes || '',
-      voucher_no: voucherNo,
-      collection_date: collectionDate,
-      synced,
-      // Proof-of-payment + field GPS stamp — both optional; nothing blocks
-      // posting if the browser denies location or staff skips the photo.
-      proof_image: payload.proof_image || null,
-      latitude: payload.latitude ?? null,
-      longitude: payload.longitude ?? null,
-      // Cheques don't clear the moment they're handed over — they sit
-      // PENDING_CLEARANCE until an admin marks them Cleared or Bounced.
-      // Every other mode settles instantly.
-      clearance_status: (payload.payment_mode || 'CASH') === 'CHEQUE' ? 'PENDING_CLEARANCE' : 'CLEARED',
-      voided: false
-    };
+    // For a real (synced) collection, every identifying field — id, receipt_no,
+    // voucher_no — comes straight from the server's response, not fabricated
+    // locally. This used to construct its own `id: Date.now()` and its own fake
+    // voucher number even for real, successfully-recorded collections: the
+    // payment was genuinely saved, but the UI showed an id nothing in the
+    // database actually had and a voucher number that didn't match the real
+    // one the server's ledger voucher was posted under — so a same-session
+    // revert/bounce action, or the printed receipt, would have been acting on
+    // a number that didn't exist. Custom-formula (unsynced) collections still
+    // fall back to a local-only placeholder, consistent with their disclosed gap.
+    const newReceipt = synced
+      ? {
+        ...serverData,
+        // DailyCollectionsView (and the printable receipts it builds) reads
+        // these three amounts defensively across several historical naming
+        // schemes (`c.interest_paid ?? c.interest_portion ?? c.interestPaid`,
+        // same pattern for principal/balance) because collections loaded via
+        // GET /finance/collections use the raw DB column names while a
+        // freshly-recorded one used to carry a different, locally-invented
+        // shape. Setting the DB-style names here too means a just-recorded
+        // collection reads identically to one loaded after a refresh.
+        principal_paid: serverData.principal_portion,
+        interest_paid: serverData.interest_portion,
+        penalty: serverData.penalty_portion,
+        new_principal_balance: serverData.new_pending_balance,
+        loan_account_no: payload.loan_account_no || '',
+        bank_name: payload.bank_name || '',
+        received_at: payload.received_at || 'BRANCH_COUNTER',
+        voided: false,
+        synced: true
+      }
+      : {
+        id: Date.now(),
+        loan_id: payload.loan_id,
+        borrower_name: payload.borrower_name || selectedLoanForCollection?.borrower_name || 'Borrower',
+        loan_account_no: payload.loan_account_no || '',
+        collector_name: payload.collector_name || user?.name || 'Collector',
+        amount: totalAmt,
+        principalPaid,
+        interestPaid,
+        penalty: penaltyAmt,
+        newPrincipalBalance: newPendingFromServer !== undefined ? newPendingFromServer : payload.new_principal_balance,
+        payment_mode: payload.payment_mode || 'CASH',
+        reference_no: payload.reference_no || '',
+        bank_name: payload.bank_name || '',
+        branch: payload.branch || '',
+        received_at: payload.received_at || 'BRANCH_COUNTER',
+        notes: payload.notes || '',
+        voucher_no: generateVoucherNo(),
+        collection_date: collectionDate,
+        synced: false,
+        proof_image: payload.proof_image || null,
+        latitude: payload.latitude ?? null,
+        longitude: payload.longitude ?? null,
+        clearance_status: (payload.payment_mode || 'CASH') === 'CHEQUE' ? 'PENDING_CLEARANCE' : 'CLEARED',
+        voided: false
+      };
 
     setLoans(prev => prev.map(l => {
       if (l.id !== payload.loan_id) return l;
@@ -1206,53 +1179,20 @@ export default function App() {
     return { data: newReceipt };
   };
 
-  // Shared undo path for a collection that turns out to be wrong — a straight
-  // void, or a cheque that bounced after it had already reduced the loan
-  // balance. Puts the principal back on the loan, pulls collected_amount back
-  // down, reopens the loan if this payment was the one that sent it to
-  // PENDING_CLOSURE, and posts an exact mirror-image reversing journal entry
-  // instead of editing the original one (so the ledger keeps both sides).
-  const reverseCollectionEffects = (collection, narrationPrefix) => {
-    const loan = loans.find(l => l.id === collection.loan_id);
-    const principalPaid = Math.round((collection.principalPaid || 0) * 100) / 100;
-    const interestPaid = Math.round((collection.interestPaid || 0) * 100) / 100;
-    const penaltyAmt = Math.round((collection.penalty || 0) * 100) / 100;
-    // The cash side is derived from the SAME numbers as the debit lines below
-    // (never from collection.amount independently) — that guarantees this
-    // entry balances even if a historical record's `amount` field ever drifts
-    // from its principal+interest split, since buildJournalEntry throws on
-    // any mismatch and there's no error boundary catching a render crash.
-    const totalAmt = principalPaid + interestPaid;
-
-    setLoans(prev => prev.map(l => (l.id === collection.loan_id ? {
-      ...l,
-      pending_amount: l.pending_amount + principalPaid,
-      collected_amount: Math.max(0, l.collected_amount - totalAmt - penaltyAmt),
-      status: l.status === 'PENDING_CLOSURE' ? 'ACTIVE' : l.status
-    } : l)));
-
-    const glLines = [];
-    if (principalPaid > 0) glLines.push(journalLine('1200', principalPaid, 0));
-    if (interestPaid > 0) glLines.push(journalLine('4001', interestPaid, 0));
-    if (penaltyAmt > 0) glLines.push(journalLine('4002', penaltyAmt, 0));
-    if (totalAmt + penaltyAmt > 0) glLines.push(journalLine('1001', 0, totalAmt + penaltyAmt));
-    if (glLines.length > 0) {
-      postJournal(
-        `${narrationPrefix} — ${collection.loan_account_no || 'Loan #' + collection.loan_id} (${collection.borrower_name})`,
-        glLines, 'COLLECTION_REVERSAL', collection.id, new Date().toISOString().slice(0, 10),
-        collection.branch || loan?.branch
-      );
-    }
-  };
-
   // Admin/manager correction path: the collection stays on record (struck
   // through, tagged REVERTED) instead of being deleted, so the audit trail
   // always shows both the original entry and the fact that it was undone,
-  // by whom, and why.
-  const handleRevertCollection = (collectionId, reason) => {
+  // by whom, and why. The server does the actual reversal (loan balances,
+  // repayment_schedules, mirror-image ledger voucher) inside one transaction —
+  // this just syncs local state to what the server confirms happened.
+  const handleRevertCollection = async (collectionId, reason) => {
     const collection = collections.find(c => c.id === collectionId);
-    if (!collection || collection.reverted) return;
-    reverseCollectionEffects(collection, 'Collection reverted');
+    if (!collection || collection.reverted || collection.clearance_status === 'BOUNCED') return;
+    const res = await api.patch(`/finance/collections/${collectionId}/revert`, { reason });
+    const updatedLoan = res.data?.data?.loan;
+    if (updatedLoan) {
+      setLoans(prev => prev.map(l => (l.id === updatedLoan.id ? { ...l, ...updatedLoan } : l)));
+    }
     setCollections(prev => prev.map(c => (c.id === collectionId ? {
       ...c, reverted: true, revert_reason: reason, reverted_by: user?.name || 'Admin', reverted_at: new Date().toISOString()
     } : c)));
@@ -1262,10 +1202,12 @@ export default function App() {
   // Metadata-only correction — payment mode, reference no, collector, date,
   // notes. Deliberately does NOT touch the amount/principal/interest split:
   // that would require re-running the allocation engine and re-posting the
-  // journal, so a wrong amount goes through Revert + a fresh entry instead.
-  const handleUpdateCollection = (collectionId, updates) => {
+  // journal, so a wrong amount goes through Revert + a fresh entry instead
+  // (the server rejects amount changes here the same way).
+  const handleUpdateCollection = async (collectionId, updates) => {
     const before = collections.find(c => c.id === collectionId);
     if (!before) return;
+    await api.patch(`/finance/collections/${collectionId}`, updates);
     const wasCheque = before.payment_mode === 'CHEQUE';
     const isCheque = updates.payment_mode === 'CHEQUE';
     let clearanceUpdate = {};
@@ -1280,17 +1222,16 @@ export default function App() {
       collection_date: updates.collection_date,
       branch: updates.branch,
       notes: updates.notes,
-      ...clearanceUpdate,
-      edited_by: user?.name || 'Admin',
-      edited_at: new Date().toISOString()
+      ...clearanceUpdate
     } : c)));
     logAudit('COLLECTION', collectionId, 'UPDATE', before.loan_account_no || `Loan #${before.loan_id}`);
   };
 
-  const handleMarkChequeCleared = (collectionId) => {
+  const handleMarkChequeCleared = async (collectionId) => {
     const before = collections.find(c => c.id === collectionId);
+    await api.patch(`/finance/collections/${collectionId}/cheque-cleared`);
     setCollections(prev => prev.map(c => (c.id === collectionId ? {
-      ...c, clearance_status: 'CLEARED', cleared_by: user?.name || 'Admin', cleared_at: new Date().toISOString()
+      ...c, clearance_status: 'CLEARED'
     } : c)));
     logAudit('COLLECTION', collectionId, 'CHEQUE_CLEARED', before?.loan_account_no || `Loan #${before?.loan_id}`);
   };
@@ -1298,17 +1239,21 @@ export default function App() {
   // A bounced cheque never actually settled — reverse it exactly like a void,
   // but keep the distinct BOUNCED status/reason so it's clear this wasn't a
   // data-entry correction but a real failed payment.
-  const handleMarkChequeBounced = (collectionId, reason) => {
+  const handleMarkChequeBounced = async (collectionId, reason) => {
     const collection = collections.find(c => c.id === collectionId);
     if (!collection || collection.clearance_status === 'BOUNCED') return;
-    reverseCollectionEffects(collection, 'Cheque bounced — collection reversed');
+    const res = await api.patch(`/finance/collections/${collectionId}/cheque-bounced`, { reason });
+    const updatedLoan = res.data?.data?.loan;
+    if (updatedLoan) {
+      setLoans(prev => prev.map(l => (l.id === updatedLoan.id ? { ...l, ...updatedLoan } : l)));
+    }
     setCollections(prev => prev.map(c => (c.id === collectionId ? {
       ...c, clearance_status: 'BOUNCED', bounce_reason: reason, bounced_by: user?.name || 'Admin', bounced_at: new Date().toISOString()
     } : c)));
     logAudit('COLLECTION', collectionId, 'CHEQUE_BOUNCED', `${collection.loan_account_no || 'Loan #' + collection.loan_id} — ${reason}`);
   };
 
-  const handleDisburseLoan = (form) => {
+  const handleDisburseLoan = async (form) => {
     const mRate = parseFloat(form.monthly_interest_rate || form.interest_rate) || 2.0;
     const months = (form.tenure_days / 30) || 4;
     const isApplication = form.mode === 'APPLICATION';
@@ -1326,119 +1271,195 @@ export default function App() {
       assertEodNotLocked(matchedBorrower?.branch || 'Main Branch', loanDate);
     }
 
-    const newLoan = {
-      id: Date.now(),
-      loan_account_no: isApplication
-        ? `APP-2026-${Math.floor(100 + Math.random() * 900)}`
-        : `LN-2026-${Math.floor(100 + Math.random() * 900)}`,
+    // Custom-formula loans use a token-based interest engine the server has no
+    // concept of (same reason handleRecordCollection skips syncing collections
+    // for them — see its comment) — creation stays client-only/local for these,
+    // consistent with that existing, deliberate scoping decision. Standard
+    // (EMI / Interest-Only) loans — the overwhelming majority — are real,
+    // persisted via POST /finance/loans below.
+    if (isCustom) {
+      const newLoan = {
+        id: Date.now(),
+        loan_account_no: isApplication
+          ? `APP-2026-${Math.floor(100 + Math.random() * 900)}`
+          : `LN-2026-${Math.floor(100 + Math.random() * 900)}`,
+        borrower_id: matchedBorrower?.id || null,
+        scheme_id: form.scheme_id ? Number(form.scheme_id) : loanSchemes[0]?.id || null,
+        borrower_name: form.borrower_name,
+        phone: form.phone,
+        branch: matchedBorrower?.branch || 'Main Branch',
+        collector: user?.name || 'Admin',
+        loan_date: loanDate,
+        next_due: new Date().toISOString().slice(0, 10),
+        principal_amount: parseFloat(form.principal_amount),
+        collected_amount: 0,
+        pending_amount: parseFloat(form.principal_amount),
+        installment_amount: parseFloat(form.installment_amount),
+        tenure_days: parseInt(form.tenure_days),
+        monthly_interest_rate: mRate,
+        repayment_frequency: repaymentFrequency,
+        formula_type: 'CUSTOM',
+        accrual_mode: matchedScheme.accrual_mode,
+        interest_formula: matchedScheme.interest_formula,
+        installment_formula: matchedScheme.installment_formula,
+        repayment_method: repaymentMethod,
+        interest_calculation: 'CUSTOM_FORMULA',
+        repayment_schedule: matchedScheme.accrual_mode === 'SCHEDULED' ? generateCustomSchedule({
+          principal: parseFloat(form.principal_amount),
+          monthlyInterestRate: mRate,
+          tenureMonths: months,
+          repaymentFrequency,
+          interestFormula: matchedScheme.interest_formula,
+          installmentFormula: matchedScheme.installment_formula,
+          startDate: loanDate
+        }) : null,
+        aadhaar: matchedBorrower?.aadhaar_number || '',
+        pan: matchedBorrower?.pan_number || '',
+        guarantor: matchedBorrower?.guarantor_name || 'Self',
+        purpose: form.purpose || '',
+        status: isApplication ? 'PENDING' : 'ACTIVE'
+      };
+      newLoan.total_payable = estimateCustomTotalPayable(newLoan)
+        ?? (parseFloat(form.principal_amount) * (1 + (mRate / 100) * months));
+
+      setLoans(prev => [newLoan, ...prev]);
+      if (!isApplication) {
+        postJournal(
+          `Loan disbursed — ${newLoan.loan_account_no} (${newLoan.borrower_name})`,
+          [journalLine('1200', newLoan.principal_amount, 0), journalLine('1001', 0, newLoan.principal_amount)],
+          'DISBURSAL', newLoan.id, loanDate, newLoan.branch
+        );
+      }
+      return newLoan;
+    }
+
+    const res = await api.post('/finance/loans', {
+      mode: form.mode,
       borrower_id: matchedBorrower?.id || null,
-      scheme_id: form.scheme_id ? Number(form.scheme_id) : loanSchemes[0]?.id || null,
+      scheme_id: form.scheme_id ? Number(form.scheme_id) : (loanSchemes[0]?.id || null),
       borrower_name: form.borrower_name,
       phone: form.phone,
       branch: matchedBorrower?.branch || 'Main Branch',
       collector: user?.name || 'Admin',
       loan_date: loanDate,
-      next_due: new Date().toISOString().slice(0, 10),
       principal_amount: parseFloat(form.principal_amount),
-      collected_amount: 0,
-      pending_amount: parseFloat(form.principal_amount),
-      installment_amount: parseFloat(form.installment_amount),
-      tenure_days: parseInt(form.tenure_days),
       monthly_interest_rate: mRate,
-      repayment_frequency: repaymentFrequency,
-      // Custom schemes snapshot their formulas onto the loan at creation — a later
-      // edit to the scheme's formula can never retroactively change this loan's math.
-      formula_type: isCustom ? 'CUSTOM' : 'STANDARD',
-      accrual_mode: isCustom ? matchedScheme.accrual_mode : undefined,
-      interest_formula: isCustom ? matchedScheme.interest_formula : undefined,
-      installment_formula: isCustom ? matchedScheme.installment_formula : undefined,
+      tenure_days: parseInt(form.tenure_days),
       repayment_method: repaymentMethod,
-      interest_calculation: isCustom ? 'CUSTOM_FORMULA' : interestCalculation,
-      repayment_schedule: isCustom
-        ? (matchedScheme.accrual_mode === 'SCHEDULED' ? generateCustomSchedule({
-            principal: parseFloat(form.principal_amount),
-            monthlyInterestRate: mRate,
-            tenureMonths: months,
-            repaymentFrequency,
-            interestFormula: matchedScheme.interest_formula,
-            installmentFormula: matchedScheme.installment_formula,
-            startDate: loanDate
-          }) : null)
-        : (repaymentMethod === 'EMI' ? generateEmiSchedule({
-            principal: parseFloat(form.principal_amount),
-            monthlyInterestRate: mRate,
-            tenureMonths: months,
-            repaymentFrequency,
-            interestCalculation,
-            startDate: loanDate
-          }) : null),
+      interest_calculation: interestCalculation,
+      repayment_frequency: repaymentFrequency,
+      formula_type: 'STANDARD',
       aadhaar: matchedBorrower?.aadhaar_number || '',
       pan: matchedBorrower?.pan_number || '',
       guarantor: matchedBorrower?.guarantor_name || 'Self',
-      purpose: form.purpose || '',
-      status: isApplication ? 'PENDING' : 'ACTIVE'
-    };
-    newLoan.total_payable = estimateCustomTotalPayable(newLoan)
-      ?? (parseFloat(form.principal_amount) * (1 + (mRate / 100) * months));
-
-    setLoans(prev => [newLoan, ...prev]);
-
-    // Cash actually leaves the vault only on a real disbursal, not when an
-    // application is merely submitted for approval — an APPLICATION here has no
-    // cash movement yet, so no journal entry until it's approved and disbursed.
-    if (!isApplication) {
-      postJournal(
-        `Loan disbursed — ${newLoan.loan_account_no} (${newLoan.borrower_name})`,
-        [journalLine('1200', newLoan.principal_amount, 0), journalLine('1001', 0, newLoan.principal_amount)],
-        'DISBURSAL', newLoan.id, loanDate, newLoan.branch
-      );
+      purpose: form.purpose || ''
+    });
+    const created = res.data?.data;
+    if (created) {
+      const newLoan = {
+        ...created,
+        borrower_id: matchedBorrower?.id || null,
+        borrower_name: form.borrower_name,
+        phone: form.phone,
+        branch: matchedBorrower?.branch || 'Main Branch',
+        repayment_schedule: created.schedule || []
+      };
+      setLoans(prev => [newLoan, ...prev]);
+      logAudit('LOAN', created.id, isApplication ? 'APPLICATION_SUBMITTED' : 'DISBURSED', created.loan_account_no);
     }
+    return created;
   };
 
-  const handleApproveApplication = (loanId) => {
-    setLoans(prev => prev.map(l => (
-      l.id === loanId
-        // A custom-formula loan already has a correctly-computed total_payable from
-        // submission (estimateCustomTotalPayable) — approval must not clobber it with
-        // this flat estimate, which only applies to standard schemes.
-        ? { ...l, status: 'APPROVED', loan_account_no: l.loan_account_no.replace('APP-', 'LN-'), total_payable: l.formula_type === 'CUSTOM' ? l.total_payable : l.principal_amount * 1.1, next_due: new Date().toISOString().slice(0, 10) }
-        : l
-    )));
+  // Custom-formula loans never sync to the server at all (see handleDisburseLoan) —
+  // their status transitions stay local-only too, since the server has no row
+  // for them to update. Everything else goes through the real
+  // PATCH /finance/loans/:id/status state machine (server/src/finance/loan/loan.service.js).
+  const updateLoanStatusReal = async (loanId, status, reason) => {
+    const res = await api.patch(`/finance/loans/${loanId}/status`, { status, reason });
+    const updated = res.data?.data;
+    if (updated) {
+      setLoans(prev => prev.map(l => (l.id === loanId ? { ...l, ...updated } : l)));
+    }
+    return updated;
   };
 
-  const handleRejectApplication = (loanId, reason) => {
-    setLoans(prev => prev.map(l => (
-      l.id === loanId ? { ...l, status: 'REJECTED', rejection_reason: reason || 'Not specified' } : l
-    )));
+  const handleApproveApplication = async (loanId) => {
+    const loan = loans.find(l => l.id === loanId);
+    if (loan?.formula_type === 'CUSTOM') {
+      setLoans(prev => prev.map(l => (
+        l.id === loanId
+          ? { ...l, status: 'APPROVED', loan_account_no: l.loan_account_no.replace('APP-', 'LN-'), next_due: new Date().toISOString().slice(0, 10) }
+          : l
+      )));
+      return;
+    }
+    await updateLoanStatusReal(loanId, 'APPROVED');
+    logAudit('LOAN', loanId, 'APPLICATION_APPROVED', loan?.loan_account_no);
   };
 
-  const handleRevertApplication = (loanId) => {
-    setLoans(prev => prev.map(l => (
-      l.id === loanId ? { ...l, status: 'PENDING', rejection_reason: null } : l
-    )));
+  const handleRejectApplication = async (loanId, reason) => {
+    const loan = loans.find(l => l.id === loanId);
+    if (loan?.formula_type === 'CUSTOM') {
+      setLoans(prev => prev.map(l => (
+        l.id === loanId ? { ...l, status: 'REJECTED', rejection_reason: reason || 'Not specified' } : l
+      )));
+      return;
+    }
+    await updateLoanStatusReal(loanId, 'REJECTED', reason);
+    logAudit('LOAN', loanId, 'APPLICATION_REJECTED', `${loan?.loan_account_no} — ${reason || 'Not specified'}`);
+  };
+
+  const handleRevertApplication = async (loanId) => {
+    const loan = loans.find(l => l.id === loanId);
+    if (loan?.formula_type === 'CUSTOM') {
+      setLoans(prev => prev.map(l => (
+        l.id === loanId ? { ...l, status: 'PENDING', rejection_reason: null } : l
+      )));
+      return;
+    }
+    await updateLoanStatusReal(loanId, 'PENDING');
+    logAudit('LOAN', loanId, 'APPLICATION_REVERTED', loan?.loan_account_no);
+  };
+
+  // Disburses an already-APPROVED application — cash actually leaves the vault
+  // now (real voucher posted server-side), not at approval time.
+  const handleDisburseApprovedLoan = async (loanId) => {
+    const loan = loans.find(l => l.id === loanId);
+    await updateLoanStatusReal(loanId, 'ACTIVE');
+    logAudit('LOAN', loanId, 'DISBURSED', loan?.loan_account_no);
   };
 
   // A loan that's been fully paid off doesn't close itself — it goes to Admin as a
   // closure request (with the full payment history attached) and only becomes
   // CLOSED once approved. Prevents a mis-entered collection from silently closing
   // an account with no review step.
-  const handleApproveLoanClosure = (loanId) => {
+  const handleApproveLoanClosure = async (loanId) => {
     const before = loans.find(l => l.id === loanId);
-    setLoans(prev => prev.map(l => (
-      l.id === loanId
-        ? { ...l, status: 'CLOSED', closed_at: new Date().toISOString().slice(0, 10), closed_by: user?.name || 'Admin' }
-        : l
-    )));
+    if (before?.formula_type === 'CUSTOM') {
+      setLoans(prev => prev.map(l => (
+        l.id === loanId
+          ? { ...l, status: 'CLOSED', closed_at: new Date().toISOString().slice(0, 10), closed_by: user?.name || 'Admin' }
+          : l
+      )));
+      logAudit('LOAN', loanId, 'CLOSURE_APPROVED', before?.loan_account_no);
+      return;
+    }
+    await updateLoanStatusReal(loanId, 'CLOSED');
     logAudit('LOAN', loanId, 'CLOSURE_APPROVED', before?.loan_account_no);
   };
 
-  const handleRejectLoanClosure = (loanId, reason) => {
+  const handleRejectLoanClosure = async (loanId, reason) => {
     const before = loans.find(l => l.id === loanId);
-    setLoans(prev => prev.map(l => (
-      l.id === loanId
-        ? { ...l, status: 'ACTIVE', closure_rejection_reason: reason || 'Not specified', closure_requested_at: null, closure_requested_by: null }
-        : l
-    )));
+    if (before?.formula_type === 'CUSTOM') {
+      setLoans(prev => prev.map(l => (
+        l.id === loanId
+          ? { ...l, status: 'ACTIVE', closure_rejection_reason: reason || 'Not specified', closure_requested_at: null, closure_requested_by: null }
+          : l
+      )));
+      logAudit('LOAN', loanId, 'CLOSURE_REJECTED', `${before?.loan_account_no} — ${reason || 'Not specified'}`);
+      return;
+    }
+    await updateLoanStatusReal(loanId, 'ACTIVE', reason);
     logAudit('LOAN', loanId, 'CLOSURE_REJECTED', `${before?.loan_account_no} — ${reason || 'Not specified'}`);
   };
 
@@ -1447,11 +1468,15 @@ export default function App() {
   // overwrites any per-employee custom permissions previously set for them. Editing
   // one employee's custom permissions goes through handleUpdateEmployee instead,
   // which only ever touches that single employee.
-  const handleSavePermissions = (roleKey, permissionsMap) => {
+  const handleSavePermissions = async (roleKey, permissionRows) => {
     const employeeRole = roleKey === 'SUPER_ADMIN' ? 'ADMIN' : roleKey;
-    setEmployees(prev => prev.map(emp =>
-      emp.role === employeeRole ? { ...emp, permissions: permissionsMap } : emp
-    ));
+    const targets = employees.filter(emp => emp.role === employeeRole);
+    for (const emp of targets) {
+      // eslint-disable-next-line no-await-in-loop -- sequential on purpose:
+      // these are real writes to employee_permissions, one employee at a time,
+      // not a batch endpoint the server exposes.
+      await handleUpdateEmployeePermissions(emp.id, emp.role, permissionRows);
+    }
   };
 
   const getSettingsSubTab = (tabStr) => {
@@ -1546,6 +1571,7 @@ export default function App() {
       branchesList={branchesList}
       selectedBranch={selectedBranch}
       onChangeBranch={handleChangeBranch}
+      onSaveTheme={handleSaveCompanyProfile}
     >
 
 
@@ -1573,6 +1599,7 @@ export default function App() {
           activeTab={activeTab}
           branches={branchesList}
           selectedBranch={selectedBranch}
+          tenant={tenant}
           onCreateBorrower={handleCreateBorrower}
           onQuickAction={handleQuickAction}
           onApproveApplication={handleApproveApplication}
@@ -1580,6 +1607,7 @@ export default function App() {
           onRevertApplication={handleRevertApplication}
           onApproveLoanClosure={handleApproveLoanClosure}
           onRejectLoanClosure={handleRejectLoanClosure}
+          onDisburseApprovedLoan={handleDisburseApprovedLoan}
         />
       )}
 
@@ -1606,6 +1634,7 @@ export default function App() {
           onCreateFd={handleCreateFixedDeposit}
           onMatureFd={handleMatureFixedDeposit}
           onPrematureCloseFd={handlePrematureCloseFixedDeposit}
+          onPayFdMonthlyInterest={handlePayFdMonthlyInterest}
         />
       )}
 
@@ -1646,7 +1675,7 @@ export default function App() {
 
       {/* Finance & Accounting — each menu item is its own standalone page */}
       {(activeTab.includes('general-ledger') || activeTab === 'finance' || activeTab === 'finance-accounting') && (
-        <GeneralLedgerView chartOfAccounts={chartOfAccounts} journalEntries={journalEntries} branchesList={branchesList} selectedBranch={selectedBranch} />
+        <GeneralLedgerView chartOfAccounts={ledgerAccounts} journalEntries={ledgerEntries} branchesList={branchesList} selectedBranch={selectedBranch} />
       )}
       {(activeTab.includes('loan-ledger')) && (
         <LoanLedgerView loans={loans} collections={collections} branchesList={branchesList} selectedBranch={selectedBranch} />
@@ -1655,15 +1684,15 @@ export default function App() {
         <CustomerLedgerView borrowers={borrowers} loans={loans} collections={collections} branchesList={branchesList} selectedBranch={selectedBranch} />
       )}
       {(activeTab.includes('trial-balance')) && (
-        <TrialBalanceView chartOfAccounts={chartOfAccounts} journalEntries={journalEntries} branchesList={branchesList} selectedBranch={selectedBranch} />
+        <TrialBalanceView chartOfAccounts={ledgerAccounts} journalEntries={ledgerEntries} branchesList={branchesList} selectedBranch={selectedBranch} />
       )}
       {(activeTab.includes('auto-vouchers')) && (
         <AutoVouchersView journalEntries={journalEntries} branchesList={branchesList} chartOfAccounts={chartOfAccounts} tenant={tenant} selectedBranch={selectedBranch} />
       )}
       {(activeTab.includes('manual-vouchers')) && (
         <ManualVouchersView
-          journalEntries={journalEntries}
-          chartOfAccounts={chartOfAccounts}
+          journalEntries={ledgerEntries}
+          chartOfAccounts={ledgerAccounts}
           branchesList={branchesList}
           employees={employees}
           expenseCategories={expenseCategories}
@@ -1692,25 +1721,16 @@ export default function App() {
         />
       )}
       {(activeTab.includes('customer-details')) && (
-        kycReviewBorrowerId ? (
-          <CustomerKycReviewPage
-            borrower={borrowers.find(b => b.id === kycReviewBorrowerId)}
-            onBack={() => setKycReviewBorrowerId(null)}
-            onVerify={handleVerifyBorrowerKyc}
-            onReject={handleRejectBorrowerKyc}
-          />
-        ) : (
-          <BorrowersView
-            borrowers={borrowers}
-            loans={loans}
-            branches={branchesList}
-            selectedBranch={selectedBranch}
-            onCreateBorrower={handleCreateBorrower}
-            onUpdateBorrower={handleUpdateBorrower}
-            onDeleteBorrower={handleDeleteBorrower}
-            onOpenKycReview={(b) => setKycReviewBorrowerId(b.id)}
-          />
-        )
+        <BorrowersView
+          borrowers={borrowers}
+          loans={loans}
+          branches={branchesList}
+          selectedBranch={selectedBranch}
+          tenant={tenant}
+          onCreateBorrower={handleCreateBorrower}
+          onUpdateBorrower={handleUpdateBorrower}
+          onDeleteBorrower={handleDeleteBorrower}
+        />
       )}
 
       {/* Reports Module — each report is a standalone read-only page */}
@@ -1719,9 +1739,6 @@ export default function App() {
       )}
       {(activeTab.includes('reports/collections')) && (
         <CollectionsReportView collections={collections} loans={loans} branchesList={branchesList} journalEntries={journalEntries} tenant={tenant} user={user} selectedBranch={selectedBranch} />
-      )}
-      {(activeTab.includes('reports/borrower-kyc')) && (
-        <BorrowerKycReportView borrowers={borrowers} loans={loans} branchesList={branchesList} tenant={tenant} user={user} selectedBranch={selectedBranch} />
       )}
       {(activeTab.includes('reports/investor-capital')) && (
         <InvestorCapitalReportView investors={investors} tenant={tenant} user={user} />
@@ -1741,14 +1758,6 @@ export default function App() {
 
       {/* Master Settings Module */}
       {(activeTab.startsWith('master-settings') || activeTab.startsWith('settings') || activeTab === 'employees') && !activeTab.includes('customer-details') && (
-        kycReviewBorrowerId ? (
-          <CustomerKycReviewPage
-            borrower={borrowers.find(b => b.id === kycReviewBorrowerId)}
-            onBack={() => setKycReviewBorrowerId(null)}
-            onVerify={handleVerifyBorrowerKyc}
-            onReject={handleRejectBorrowerKyc}
-          />
-        ) : (
           <MasterSettingsView
             initialTab={getSettingsSubTab(activeTab)}
             tenant={tenant}
@@ -1758,13 +1767,13 @@ export default function App() {
             onCreateEmployee={handleCreateEmployee}
             onUpdateEmployee={handleUpdateEmployee}
             onDeleteEmployee={handleDeleteEmployee}
+            onUpdateEmployeePermissions={handleUpdateEmployeePermissions}
             onQuickAction={handleQuickAction}
             borrowers={borrowers}
             loans={loans}
             onCreateBorrower={handleCreateBorrower}
             onUpdateBorrower={handleUpdateBorrower}
             onDeleteBorrower={handleDeleteBorrower}
-            onOpenKycReview={(b) => setKycReviewBorrowerId(b.id)}
             branchesList={branchesList}
             orgLoading={orgLoading}
             orgError={orgError}
@@ -1787,7 +1796,6 @@ export default function App() {
             expenseAllocationRequests={expenseAllocationRequests}
             onAddExpenseFunds={handleAddExpenseFunds}
           />
-        )
       )}
 
       {/* Collection Drawer */}

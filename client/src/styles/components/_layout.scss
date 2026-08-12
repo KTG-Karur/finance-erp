@@ -83,7 +83,7 @@
   }
 
   &--active {
-    background: #059669;
+    background: var(--brand-primary, #15803D);
     color: #FFFFFF;
 
     &:hover {
@@ -103,14 +103,14 @@
     width: 30px;
     height: 30px;
     border-radius: 8px;
-    background: #ECFDF5;
-    border: 1px solid #A7F3D0;
+    background: var(--brand-primary-light, #F0FEF5);
+    border: 1px solid var(--brand-primary-border, #A3F5C1);
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
 
-    svg { width: 18px; height: 18px; color: #059669; }
+    svg { width: 18px; height: 18px; color: var(--brand-primary, #15803D); }
   }
 
   .app-header__tenant-info {
@@ -133,19 +133,19 @@
     align-items: center;
     gap: 4px;
     padding: 2px 7px;
-    background: #ECFDF5;
-    border: 1px solid #A7F3D0;
+    background: var(--brand-primary-light, #F0FEF5);
+    border: 1px solid var(--brand-primary-border, #A3F5C1);
     border-radius: 12px;
     font-size: 9px;
     font-weight: 700;
-    color: #047857;
+    color: var(--brand-primary-hover, #0E5327);
     letter-spacing: 0.04em;
 
     .status-dot {
       width: 5px;
       height: 5px;
       border-radius: 50%;
-      background: #10B981;
+      background: var(--brand-primary, #10B981);
       box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
     }
   }
@@ -236,7 +236,7 @@
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #059669 0%, #0D9488 100%);
+    background: linear-gradient(135deg, var(--brand-primary, #15803D) 0%, var(--brand-primary-hover, #0E5327) 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -262,9 +262,9 @@
   .app-header__user-role {
     font-size: 0.65rem;
     font-weight: 700;
-    color: #047857;
-    background: #ECFDF5;
-    border: 1px solid #A7F3D0;
+    color: var(--brand-primary-hover, #0E5327);
+    background: var(--brand-primary-light, #F0FEF5);
+    border: 1px solid var(--brand-primary-border, #A3F5C1);
     border-radius: 4px;
     padding: 1px 5px;
     letter-spacing: 0.03em;
@@ -316,14 +316,14 @@
   }
 
   &--danger {
-    color: #DC2626;
+    color: var(--color-danger, #DC2626);
     border-top: 1px solid #F1F5F9;
     margin-top: 4px;
     padding-top: 9px;
 
     &:hover {
-      background: #FEF2F2;
-      color: #DC2626;
+      background: var(--color-danger-light, #FEF2F2);
+      color: var(--color-danger, #DC2626);
     }
   }
 

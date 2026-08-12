@@ -33,12 +33,16 @@ export async function createLoanHandler(request, reply) {
 export async function updateLoanStatusHandler(request, reply) {
   try {
     const { status, reason } = request.body || {};
+    if (!status) {
+      return reply.code(400).send({ success: false, message: 'status is required.' });
+    }
     const success = await LoanService.updateStatus(request.tenantDb, request.params.id, status, reason);
     if (!success) {
       return reply.code(404).send({ success: false, message: 'Loan account not found' });
     }
-    return reply.send({ success: true, message: `Loan status updated to ${status}` });
+    const updated = await LoanService.getLoanById(request.tenantDb, request.params.id);
+    return reply.send({ success: true, message: `Loan status updated to ${status}`, data: updated });
   } catch (err) {
-    return reply.code(500).send({ success: false, message: err.message });
+    return reply.code(err.statusCode || 500).send({ success: false, message: err.message });
   }
 }

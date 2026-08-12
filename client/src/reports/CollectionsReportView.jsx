@@ -112,7 +112,7 @@ export default function CollectionsReportView({ collections = [], loans = [], br
       <div className="fin-header-card">
         <div className="fin-page-header">
           <div className="fin-page-header__left">
-            <div className="fin-page-header__icon" style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669' }}>
+            <div className="fin-page-header__icon" style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)' }}>
               <Banknote style={{ width: 18, height: 18 }} />
             </div>
             <div>

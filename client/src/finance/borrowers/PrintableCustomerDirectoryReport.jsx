@@ -5,14 +5,16 @@ import { Printer, ArrowLeft, Download } from 'lucide-react';
 export default function PrintableCustomerDirectoryReport({
   borrowers = [],
   onClose,
-  companyInfo = {
-    name: 'KARUR THANGAMAYIL FINANCE PRIVATE LIMITED',
-    tagline: '(A Non-Banking Financial Company Registered with Reserve Bank of India)',
-    address: 'Regd Office: No. 123, Main Road, Near Bus Stand, Karur, Tamil Nadu - 639001',
-    contact: 'Tel: +91 4324 234567 | Email: customercare@ktgfinance.com | Website: www.ktgfinance.com',
-    reg: 'CIN: U65929TN2023PTC123456 | RBI Reg. No: B-07.01234'
-  }
+  tenant
 }) {
+  const companyInfo = {
+    name: tenant?.name || 'Your Company',
+    tagline: 'Non-Banking Financial Company',
+    address: tenant?.address || '',
+    contact: tenant?.phone ? `Tel: ${tenant.phone}` : '',
+    reg: [tenant?.gstin && `GSTIN: ${tenant.gstin}`, tenant?.pan && `PAN: ${tenant.pan}`].filter(Boolean).join(' | ')
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -23,7 +25,7 @@ export default function PrintableCustomerDirectoryReport({
     const headers = [
       'S.No', 'Customer Code', 'Full Name', 'Father/Spouse Name', 'DOB', 'Gender', 'Occupation',
       'Mobile Phone', 'Alt Phone', 'Email', 'Address Line 1', 'City', 'State', 'Pincode',
-      'Aadhaar Number', 'PAN Number', 'Bank Name', 'Account Number', 'IFSC Code', 'Loans Count', 'Total Outstanding', 'KYC Status'
+      'Aadhaar Number', 'PAN Number', 'Bank Name', 'Account Number', 'IFSC Code', 'Loans Count', 'Total Outstanding'
     ];
 
     const rows = borrowers.map((b, idx) => [
@@ -47,8 +49,7 @@ export default function PrintableCustomerDirectoryReport({
       b.bank_account_no || b.account_number || '',
       b.bank_ifsc || '',
       b.loansCount || 0,
-      b.totalOutstanding || 0,
-      b.kyc_status || 'PENDING'
+      b.totalOutstanding || 0
     ]);
 
     const csvLines = [
@@ -231,15 +232,14 @@ export default function PrintableCustomerDirectoryReport({
                   <th style={{ width: '22%' }}>Residential Address & City</th>
                   <th style={{ width: '14%' }}>Identity Documents</th>
                   <th style={{ width: '10%' }}>Bank Account</th>
-                  <th style={{ width: '5%', textAlign: 'center' }}>Loans</th>
-                  <th style={{ width: '10%', textAlign: 'right' }}>Outstanding</th>
-                  <th style={{ width: '5%', textAlign: 'center' }}>KYC</th>
+                  <th style={{ width: '6%', textAlign: 'center' }}>Loans</th>
+                  <th style={{ width: '13%', textAlign: 'right' }}>Outstanding</th>
                 </tr>
               </thead>
               <tbody>
                 {borrowers.length === 0 ? (
                   <tr>
-                    <td colSpan={10} style={{ textAlign: 'center', padding: '20px', fontSize: '0.8rem' }}>
+                    <td colSpan={9} style={{ textAlign: 'center', padding: '20px', fontSize: '0.8rem' }}>
                       No customer records found in directory.
                     </td>
                   </tr>
@@ -275,9 +275,6 @@ export default function PrintableCustomerDirectoryReport({
                         <td style={{ fontSize: '0.65rem' }}>{bankText || '—'}</td>
                         <td style={{ textAlign: 'center', fontWeight: 600 }}>{b.loansCount || 0}</td>
                         <td style={{ textAlign: 'right', fontWeight: 700, fontFamily: 'monospace' }}>₹{fmt(b.totalOutstanding || 0)}</td>
-                        <td style={{ textAlign: 'center', fontWeight: 700, fontSize: '0.62rem' }}>
-                          {b.kyc_status === 'VERIFIED' ? 'VERIFIED' : (b.kyc_status === 'REJECTED' ? 'REJECTED' : 'PENDING')}
-                        </td>
                       </tr>
                     );
                   })

@@ -12,7 +12,29 @@ export class LedgerRepository {
       sql += ` AND voucher_type = ?`;
       params.push(filters.voucher_type);
     }
+    if (filters.ref_type) {
+      sql += ` AND ref_type = ?`;
+      params.push(filters.ref_type);
+    }
+    if (filters.branch) {
+      sql += ` AND branch = ?`;
+      params.push(filters.branch);
+    }
+    if (filters.date_from) {
+      sql += ` AND entry_date >= ?`;
+      params.push(filters.date_from);
+    }
+    if (filters.date_to) {
+      sql += ` AND entry_date <= ?`;
+      params.push(filters.date_to);
+    }
     sql += ` ORDER BY entry_date DESC, id DESC`;
+
+    // Bounded by default — an unfiltered fetch on a mature ledger would otherwise
+    // pull every voucher this tenant has ever posted in one query.
+    const limit = Math.min(Number(filters.limit) || 1000, 5000);
+    sql += ` LIMIT ?`;
+    params.push(limit);
 
     const [entries] = await db.query(sql, params);
     if (!entries.length) return [];

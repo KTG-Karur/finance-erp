@@ -58,9 +58,9 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
       width: 40px;
       height: 40px;
       border-radius: 12px;
-      background: #ECFDF5;
-      border: 1px solid #A7F3D0;
-      color: #059669;
+      background: var(--brand-primary-light, #F0FEF5);
+      border: 1px solid var(--brand-primary-border, #A3F5C1);
+      color: var(--brand-primary, #15803D);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -97,7 +97,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
 
     .btn-disburse {
       border: none;
-      background: #059669;
+      background: var(--brand-primary, #15803D);
       color: #FFFFFF !important;
       font-size: 0.78rem;
       font-weight: 500 !important;
@@ -108,12 +108,12 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
       align-items: center;
       gap: 6px;
       font-family: $font-macos !important;
-      box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
       transition: all 0.15s ease;
+      box-shadow: 0 2px 6px rgba(var(--brand-primary-rgb), 0.2);
 
       &:hover {
-        background: #047857;
-        transform: translateY(-1px);
+        background: var(--brand-primary-hover, #0E5327);
+        box-shadow: 0 4px 10px rgba(var(--brand-primary-rgb), 0.3);
       }
     }
   }
@@ -156,8 +156,8 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
     justify-content: center;
     flex-shrink: 0;
 
-    &--blue   { background: #EFF6FF; border: 1px solid #BFDBFE; color: #2563EB; }
-    &--green  { background: #ECFDF5; border: 1px solid #A7F3D0; color: #059669; }
+    &--blue   { background: var(--color-info-light, #EFF6FF); border: 1px solid var(--color-info-border, #BFDBFE); color: var(--color-info, #2563EB); }
+    &--green  { background: var(--brand-primary-light, #F0FEF5); border: 1px solid var(--brand-primary-border, #A3F5C1); color: var(--brand-primary, #15803D); }
     &--purple { background: #F3E8FF; border: 1px solid #E9D5FF; color: #7C3AED; }
     &--orange { background: #FFF7ED; border: 1px solid #FFEDD5; color: #EA580C; }
   }
@@ -181,7 +181,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
       font-family: $font-macos !important;
       font-variant-numeric: tabular-nums;
 
-      &.red { color: #DC2626; }
+      &.red { color: var(--color-danger, #DC2626); }
     }
   }
 }
@@ -233,8 +233,8 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
       &:focus {
         outline: none;
         background: #FFFFFF;
-        border-color: #059669;
-        box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.15);
+        border-color: var(--brand-primary, #15803D);
+        box-shadow: 0 0 0 3px rgba(var(--brand-primary-rgb), 0.15);
       }
     }
 
@@ -349,7 +349,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
     font-variant-numeric: tabular-nums;
     font-size: 0.78rem;
     font-weight: 600 !important;
-    color: #059669;
+    color: var(--brand-primary, #15803D);
   }
 
   .status-pill {
@@ -363,15 +363,15 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
     font-family: $font-macos !important;
 
     &--active {
-      background: #ECFDF5;
-      color: #047857;
-      border: 1px solid #A7F3D0;
+      background: var(--brand-primary-light, #F0FEF5);
+      color: var(--brand-primary-hover, #0E5327);
+      border: 1px solid var(--brand-primary-border, #A3F5C1);
     }
 
     &--overdue {
-      background: #FEF2F2;
-      color: #991B1B;
-      border: 1px solid #FECACA;
+      background: var(--color-danger-light, #FEF2F2);
+      color: var(--color-danger-text, #991B1B);
+      border: 1px solid var(--color-danger-border, #FECACA);
     }
 
     &--closed {
@@ -383,7 +383,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
 
   .btn-collect-sm {
     border: none;
-    background: #059669;
+    background: var(--brand-primary, #15803D);
     color: #FFFFFF !important;
     font-size: 0.72rem;
     font-weight: 500 !important;
@@ -394,11 +394,11 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
     align-items: center;
     gap: 4px;
     font-family: $font-macos !important;
-    box-shadow: 0 1px 3px rgba(5, 150, 105, 0.2);
+    box-shadow: 0 1px 3px rgba(var(--brand-primary-rgb), 0.2);
     transition: all 0.15s ease;
 
     &:hover {
-      background: #047857;
+      background: var(--brand-primary-hover, #0E5327);
     }
   }
 }
@@ -508,7 +508,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
         width: 52px;
         height: 52px;
         border-radius: 16px;
-        background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%);
+        background: linear-gradient(135deg, var(--color-info, #3B82F6) 0%, #1D4ED8 100%);
         color: #FFFFFF;
         font-size: 1.25rem;
         font-weight: 700 !important;
@@ -604,15 +604,15 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
       }
 
       &.active-tab--approve {
-        background: #ECFDF5;
-        color: #047857;
-        box-shadow: 0 1px 3px rgba(5, 150, 105, 0.12), 0 0 0 1px #A7F3D0;
+        background: var(--brand-primary-light, #F0FEF5);
+        color: var(--brand-primary-hover, #0E5327);
+        box-shadow: 0 1px 3px rgba(var(--brand-primary-rgb), 0.12), 0 0 0 1px var(--brand-primary-border, #A3F5C1);
       }
 
       &.active-tab--reject {
-        background: #FEF2F2;
-        color: #991B1B;
-        box-shadow: 0 1px 3px rgba(220, 38, 38, 0.12), 0 0 0 1px #FECACA;
+        background: var(--color-danger-light, #FEF2F2);
+        color: var(--color-danger-text, #991B1B);
+        box-shadow: 0 1px 3px rgba(var(--color-danger-rgb), 0.12), 0 0 0 1px var(--color-danger-border, #FECACA);
       }
     }
   }
@@ -697,7 +697,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
 
     .btn-approve-primary {
       border: none;
-      background: #059669;
+      background: var(--brand-primary, #15803D);
       color: #FFFFFF !important;
       padding: 10px 22px;
       border-radius: 10px;
@@ -707,18 +707,18 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      box-shadow: 0 4px 14px rgba(5, 150, 105, 0.3);
+      box-shadow: 0 4px 14px rgba(var(--brand-primary-rgb), 0.3);
       transition: all 0.15s ease;
 
       &:hover {
-        background: #047857;
+        background: var(--brand-primary-hover, #0E5327);
         transform: translateY(-1px);
       }
     }
 
     .btn-reject-primary {
       border: none;
-      background: #DC2626;
+      background: var(--color-danger, #DC2626);
       color: #FFFFFF !important;
       padding: 10px 22px;
       border-radius: 10px;
@@ -728,11 +728,11 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      box-shadow: 0 4px 14px rgba(220, 38, 38, 0.3);
+      box-shadow: 0 4px 14px rgba(var(--color-danger-rgb), 0.3);
       transition: all 0.15s ease;
 
       &:hover:not(:disabled) {
-        background: #B91C1C;
+        background: var(--color-danger-hover, #B91C1C);
         transform: translateY(-1px);
       }
 
@@ -773,7 +773,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
         gap: 6px;
         background: transparent;
         border: none;
-        color: #2563EB;
+        color: var(--color-info, #2563EB);
         font-size: 0.8rem;
         font-weight: 500;
         cursor: pointer;
@@ -842,9 +842,9 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
           width: 48px;
           height: 48px;
           border-radius: 50%;
-          background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
-          border: 2px solid #A7F3D0;
-          color: #059669;
+          background: linear-gradient(135deg, var(--brand-primary-light, #F0FEF5) 0%, #D1FAE5 100%);
+          border: 2px solid var(--brand-primary-border, #A3F5C1);
+          color: var(--brand-primary, #15803D);
           font-size: 1rem;
           font-weight: 600;
           display: flex;
@@ -951,9 +951,9 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
         transform: translateY(-2px);
       }
 
-      &.accent-blue { border-left-color: #2563EB; }
-      &.accent-emerald { border-left-color: #059669; }
-      &.accent-rose { border-left-color: #DC2626; }
+      &.accent-blue { border-left-color: var(--color-info, #2563EB); }
+      &.accent-emerald { border-left-color: var(--brand-primary, #15803D); }
+      &.accent-rose { border-left-color: var(--color-danger, #DC2626); }
       &.accent-violet { border-left-color: #7C3AED; }
 
       .kpi-icon-badge {
@@ -965,9 +965,9 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
         justify-content: center;
         flex-shrink: 0;
 
-        &.badge-blue { background: #EFF6FF; color: #2563EB; }
-        &.badge-emerald { background: #ECFDF5; color: #059669; }
-        &.badge-rose { background: #FEF2F2; color: #DC2626; }
+        &.badge-blue { background: var(--color-info-light, #EFF6FF); color: var(--color-info, #2563EB); }
+        &.badge-emerald { background: var(--brand-primary-light, #F0FEF5); color: var(--brand-primary, #15803D); }
+        &.badge-rose { background: var(--color-danger-light, #FEF2F2); color: var(--color-danger, #DC2626); }
         &.badge-violet { background: #F5F3FF; color: #7C3AED; }
       }
 
@@ -992,9 +992,9 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
         color: #0F172A;
         letter-spacing: -0.01em;
 
-        &.text-blue { color: #2563EB; }
-        &.text-emerald { color: #059669; }
-        &.text-rose { color: #DC2626; }
+        &.text-blue { color: var(--color-info, #2563EB); }
+        &.text-emerald { color: var(--brand-primary, #15803D); }
+        &.text-rose { color: var(--color-danger, #DC2626); }
       }
 
       .sub {
@@ -1002,7 +1002,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
         color: #94A3B8;
         font-weight: 500;
 
-        &.trend-up { color: #059669; }
+        &.trend-up { color: var(--brand-primary, #15803D); }
       }
     }
   }
@@ -1040,7 +1040,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
         color: #0F172A;
         box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
 
-        svg { color: #2563EB; }
+        svg { color: var(--color-info, #2563EB); }
       }
     }
   }
@@ -1132,7 +1132,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
           font-weight: 500;
           text-align: right;
 
-          &.text-emerald { color: #059669; }
+          &.text-emerald { color: var(--brand-primary, #15803D); }
           &.monospace { font-family: monospace; font-size: 0.85rem; }
           &.uppercase { text-transform: uppercase; }
         }
@@ -1191,7 +1191,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
             border-radius: 4px;
             transition: width 0.4s ease;
 
-            &.bg-emerald { background: #059669; }
+            &.bg-emerald { background: var(--brand-primary, #15803D); }
             &.bg-slate { background: #94A3B8; }
           }
         }
@@ -1275,7 +1275,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
           width: 100%;
           max-width: 24px;
           border-radius: 4px 4px 1px 1px;
-          background: linear-gradient(180deg, #34D399 0%, #059669 100%);
+          background: linear-gradient(180deg, var(--brand-primary, #34D399) 0%, var(--brand-primary, #15803D) 100%);
           transition: height 0.3s ease;
         }
 
@@ -1299,9 +1299,9 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
         width: 56px;
         height: 56px;
         border-radius: 50%;
-        background: #ECFDF5;
-        border: 1px solid #A7F3D0;
-        color: #059669;
+        background: var(--brand-primary-light, #F0FEF5);
+        border: 1px solid var(--brand-primary-border, #A3F5C1);
+        color: var(--brand-primary, #15803D);
         font-size: 1.2rem;
         font-weight: 500;
         display: flex;
@@ -1336,9 +1336,9 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
           font-weight: 500;
           padding: 2px 8px;
           border-radius: 12px;
-          background: #ECFDF5;
-          color: #059669;
-          border: 1px solid #A7F3D0;
+          background: var(--brand-primary-light, #F0FEF5);
+          color: var(--brand-primary, #15803D);
+          border: 1px solid var(--brand-primary-border, #A3F5C1);
           width: fit-content;
         }
       }
@@ -1404,7 +1404,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
           .receipt-code {
             font-family: monospace;
             font-weight: 500;
-            color: #2563EB;
+            color: var(--color-info, #2563EB);
           }
 
           .date-time-cell {
@@ -1425,9 +1425,9 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
             border: 1px solid #E2E8F0;
             display: inline-block;
 
-            &.upi { background: #EFF6FF; color: #2563EB; border-color: #BFDBFE; }
-            &.cash { background: #ECFDF5; color: #059669; border-color: #A7F3D0; }
-            &.cheque { background: #FFFBEB; color: #D97706; border-color: #FDE68A; }
+            &.upi { background: var(--color-info-light, #EFF6FF); color: var(--color-info, #2563EB); border-color: var(--color-info-border, #BFDBFE); }
+            &.cash { background: var(--brand-primary-light, #F0FEF5); color: var(--brand-primary, #15803D); border-color: var(--brand-primary-border, #A3F5C1); }
+            &.cheque { background: var(--color-warning-light, #FFFBEB); color: var(--color-warning, #D97706); border-color: var(--color-warning-border, #FDE68A); }
           }
 
           .ref-code {
@@ -1438,7 +1438,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
 
           &.amount-col {
             font-weight: 500;
-            color: #059669;
+            color: var(--brand-primary, #15803D);
           }
 
           &.balance-col {
@@ -1457,7 +1457,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
               gap: 3px;
               font-size: 0.64rem;
               font-weight: 500;
-              color: #059669;
+              color: var(--brand-primary, #15803D);
             }
 
             .remarks-text {

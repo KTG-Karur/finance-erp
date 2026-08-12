@@ -253,18 +253,18 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                 const parentChecked = allowedModules == null || (allowedModules.includes(menu.key) || (hasSubmenus && allSubKeys.every(k => allowedModules.includes(k))));
 
                 return (
-                  <div key={menu.key} style={{ padding: '8px 12px', borderRadius: 6, backgroundColor: parentChecked ? '#F0FDF4' : '#F8FAFC', border: `1px solid ${parentChecked ? '#A7F3D0' : '#E2E8F0'}` }}>
+                  <div key={menu.key} style={{ padding: '8px 12px', borderRadius: 6, backgroundColor: parentChecked ? 'var(--brand-primary-light, #F0FDF4)' : '#F8FAFC', border: `1px solid ${parentChecked ? 'var(--brand-primary-border, #A3F5C1)' : '#E2E8F0'}` }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: hasSubmenus ? 6 : 0 }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem', color: parentChecked ? '#065F46' : '#334155' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem', color: parentChecked ? 'var(--brand-primary-text, #075F27)' : '#334155' }}>
                         <input
                           type="checkbox"
                           checked={parentChecked}
                           onChange={() => toggleKey(menu.key)}
-                          style={{ accentColor: '#059669', width: 15, height: 15 }}
+                          style={{ accentColor: 'var(--brand-primary, #15803D)', width: 15, height: 15 }}
                         />
                         <span>{menu.label}</span>
                       </label>
-                      <span style={{ fontSize: '0.64rem', padding: '2px 8px', borderRadius: 10, background: parentChecked ? '#DCFCE7' : '#FEF2F2', color: parentChecked ? '#15803D' : '#991B1B', border: `1px solid ${parentChecked ? '#86EFAC' : '#FECACA'}`, fontWeight: 700 }}>
+                      <span style={{ fontSize: '0.64rem', padding: '2px 8px', borderRadius: 10, background: parentChecked ? '#DCFCE7' : 'var(--color-danger-light, #FEF2F2)', color: parentChecked ? 'var(--brand-primary-hover, #15803D)' : 'var(--color-danger-text, #991B1B)', border: `1px solid ${parentChecked ? '#86EFAC' : 'var(--color-danger-border, #FECACA)'}`, fontWeight: 700 }}>
                         {parentChecked ? 'ENABLED' : 'DISABLED'}
                       </span>
                     </div>
@@ -274,15 +274,15 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                         {menu.submenus.map(sub => {
                           const subChecked = allowedModules == null || allowedModules.includes(sub.key) || allowedModules.includes(menu.key);
                           return (
-                            <label key={sub.key} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.75rem', color: subChecked ? '#047857' : '#64748B', fontWeight: 500 }}>
+                            <label key={sub.key} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.75rem', color: subChecked ? 'var(--brand-primary-hover, #0E5327)' : '#64748B', fontWeight: 500 }}>
                               <input
                                 type="checkbox"
                                 checked={subChecked}
                                 onChange={() => toggleKey(sub.key)}
-                                style={{ accentColor: '#059669', width: 14, height: 14 }}
+                                style={{ accentColor: 'var(--brand-primary, #15803D)', width: 14, height: 14 }}
                               />
                               <span>↳ {sub.label}</span>
-                              <span style={{ fontSize: '0.62rem', color: subChecked ? '#059669' : '#94A3B8', marginLeft: 'auto', fontWeight: 600 }}>
+                              <span style={{ fontSize: '0.62rem', color: subChecked ? 'var(--brand-primary, #15803D)' : '#94A3B8', marginLeft: 'auto', fontWeight: 600 }}>
                                 {subChecked ? 'Accessible' : 'Restricted'}
                               </span>
                             </label>
@@ -318,13 +318,19 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
     t.db_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const [statusUpdatingId, setStatusUpdatingId] = useState(null);
+
   const handleToggleStatus = async (tenant) => {
+    if (statusUpdatingId) return;
     const nextActive = tenant.is_active === 1 ? 0 : 1;
+    setStatusUpdatingId(tenant.id);
     try {
       await api.patch(`/auth/superadmin/companies/${tenant.id}/status`, { is_active: nextActive });
       setTenants(prev => prev.map(t => (t.id === tenant.id ? { ...t, is_active: nextActive } : t)));
     } catch (err) {
       setTenantsError(err?.response?.data?.message || 'Unable to update tenant status.');
+    } finally {
+      setStatusUpdatingId(null);
     }
   };
 
@@ -438,15 +444,15 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden', backgroundColor: '#F8FAFC', color: '#0F172A', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif' }}>
 
       {/* ── Top Header Bar (Financial ERP Emerald Branding) ────────────────── */}
-      <header className="app-header" style={{ height: 56, minHeight: 56, backgroundColor: '#031E1B', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 40, flexShrink: 0 }}>
+      <header className="app-header" style={{ height: 56, minHeight: 56, backgroundColor: '#041A0C', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 40, flexShrink: 0 }}>
         {/* Brand Identity */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.3)' }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, var(--brand-primary, #15803D) 0%, var(--brand-primary-hover, #0E5327) 100%)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.3)' }}>
             <Crown style={{ width: 18, height: 18 }} />
           </div>
           <div>
             <div style={{ color: '#FFFFFF', fontWeight: 700, fontSize: '0.96rem', letterSpacing: '-0.01em' }}>Super Admin Portal</div>
-            <div style={{ color: '#34D399', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.04em' }}>Central Master System (`master_erp_db`)</div>
+            <div style={{ color: 'var(--brand-primary, #34D399)', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.04em' }}>Central Master System (`master_erp_db`)</div>
           </div>
         </div>
 
@@ -464,13 +470,13 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
             />
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', backgroundColor: 'rgba(5, 150, 105, 0.15)', border: '1px solid rgba(5, 150, 105, 0.3)', borderRadius: 20, fontSize: '0.72rem', color: '#34D399', fontWeight: 600 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#10B981', display: 'inline-block' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', backgroundColor: 'rgba(var(--brand-primary-rgb), 0.15)', border: '1px solid rgba(var(--brand-primary-rgb), 0.3)', borderRadius: 20, fontSize: '0.72rem', color: 'var(--brand-primary, #34D399)', fontWeight: 600 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'var(--brand-primary, #10B981)', display: 'inline-block' }} />
             <span>Master DB Online</span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.78rem', color: '#FFFFFF' }}>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#ECFDF5', color: '#065F46', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #A7F3D0' }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary-text, #075F27)', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--brand-primary-border, #A3F5C1)' }}>
               SA
             </div>
             <span style={{ fontWeight: 600 }}>Super Admin</span>
@@ -490,8 +496,8 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
       <div className="app-body" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
         {/* ── Executive Dark Emerald Sidebar ───────────────────── */}
-        <aside className={`sidebar${mini ? ' sidebar--mini' : ' sidebar--full'}`} style={{ backgroundColor: '#062C27', borderRight: '1px solid rgba(255, 255, 255, 0.08)', width: mini ? 70 : 230, transition: 'width 0.2s ease', display: 'flex', flexDirection: 'column' }}>
-          <div className="sidebar__brand" style={{ display: 'flex', alignItems: 'center', justifyContent: mini ? 'center' : 'space-between', padding: mini ? '0 8px' : '0 14px', height: 60, backgroundColor: '#031E1B', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+        <aside className={`sidebar${mini ? ' sidebar--mini' : ' sidebar--full'}`} style={{ backgroundColor: '#072C15', borderRight: '1px solid rgba(255, 255, 255, 0.08)', width: mini ? 70 : 230, transition: 'width 0.2s ease', display: 'flex', flexDirection: 'column' }}>
+          <div className="sidebar__brand" style={{ display: 'flex', alignItems: 'center', justifyContent: mini ? 'center' : 'space-between', padding: mini ? '0 8px' : '0 14px', height: 60, backgroundColor: '#041A0C', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
             {!mini && (
               <div className="sidebar__brand-text">
                 <span className="sidebar__brand-name" style={{ fontSize: '0.82rem', fontWeight: 600, color: '#FFFFFF', letterSpacing: '-0.01em' }}>
@@ -511,14 +517,14 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
 
           <div className="sidebar__scroll thin-scroll" style={{ padding: '12px 8px', flex: 1, overflowY: 'auto' }}>
             {!mini && (
-              <div className="sidebar__section-label" style={{ color: '#34D399', fontWeight: 600, fontSize: '0.68rem', letterSpacing: '0.08em', padding: '12px 10px 6px' }}>
+              <div className="sidebar__section-label" style={{ color: 'var(--brand-primary, #34D399)', fontWeight: 600, fontSize: '0.68rem', letterSpacing: '0.08em', padding: '12px 10px 6px' }}>
                 MASTER REGISTRY
               </div>
             )}
             <nav className="sidebar__nav" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <button
                 type="button"
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', backgroundColor: activeNav === 'dashboard' ? 'rgba(5, 150, 105, 0.25)' : 'transparent', color: activeNav === 'dashboard' ? '#FFFFFF' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 500, fontSize: '0.82rem' }}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', backgroundColor: activeNav === 'dashboard' ? 'rgba(var(--brand-primary-rgb), 0.25)' : 'transparent', color: activeNav === 'dashboard' ? '#FFFFFF' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 500, fontSize: '0.82rem' }}
                 onClick={() => setActiveNav('dashboard')}
               >
                 <LayoutDashboard style={{ width: 16, height: 16 }} />
@@ -527,7 +533,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
 
               <button
                 type="button"
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', backgroundColor: activeNav === 'registry' || activeNav === 'access-editor' ? 'rgba(5, 150, 105, 0.25)' : 'transparent', color: activeNav === 'registry' || activeNav === 'access-editor' ? '#FFFFFF' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 500, fontSize: '0.82rem' }}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', backgroundColor: activeNav === 'registry' || activeNav === 'access-editor' ? 'rgba(var(--brand-primary-rgb), 0.25)' : 'transparent', color: activeNav === 'registry' || activeNav === 'access-editor' ? '#FFFFFF' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 500, fontSize: '0.82rem' }}
                 onClick={() => setActiveNav('registry')}
               >
                 <Building2 style={{ width: 16, height: 16 }} />
@@ -536,7 +542,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
 
               <button
                 type="button"
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', backgroundColor: activeNav === 'plans' || activeNav === 'plan-editor' ? 'rgba(5, 150, 105, 0.25)' : 'transparent', color: activeNav === 'plans' || activeNav === 'plan-editor' ? '#FFFFFF' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 500, fontSize: '0.82rem' }}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', backgroundColor: activeNav === 'plans' || activeNav === 'plan-editor' ? 'rgba(var(--brand-primary-rgb), 0.25)' : 'transparent', color: activeNav === 'plans' || activeNav === 'plan-editor' ? '#FFFFFF' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 500, fontSize: '0.82rem' }}
                 onClick={() => setActiveNav('plans')}
               >
                 <Crown style={{ width: 16, height: 16 }} />
@@ -545,7 +551,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
 
               <button
                 type="button"
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', backgroundColor: activeNav === 'pools' ? 'rgba(5, 150, 105, 0.25)' : 'transparent', color: activeNav === 'pools' ? '#FFFFFF' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 500, fontSize: '0.82rem' }}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', backgroundColor: activeNav === 'pools' ? 'rgba(var(--brand-primary-rgb), 0.25)' : 'transparent', color: activeNav === 'pools' ? '#FFFFFF' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 500, fontSize: '0.82rem' }}
                 onClick={() => setActiveNav('pools')}
               >
                 <Database style={{ width: 16, height: 16 }} />
@@ -554,14 +560,14 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
             </nav>
 
             {!mini && (
-              <div className="sidebar__section-label" style={{ color: '#34D399', fontWeight: 600, fontSize: '0.68rem', letterSpacing: '0.08em', padding: '18px 10px 6px' }}>
+              <div className="sidebar__section-label" style={{ color: 'var(--brand-primary, #34D399)', fontWeight: 600, fontSize: '0.68rem', letterSpacing: '0.08em', padding: '18px 10px 6px' }}>
                 SYSTEM TELEMETRY
               </div>
             )}
             <nav className="sidebar__nav" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <button
                 type="button"
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', backgroundColor: activeNav === 'audit' ? 'rgba(5, 150, 105, 0.25)' : 'transparent', color: activeNav === 'audit' ? '#FFFFFF' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 500, fontSize: '0.82rem' }}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', backgroundColor: activeNav === 'audit' ? 'rgba(var(--brand-primary-rgb), 0.25)' : 'transparent', color: activeNav === 'audit' ? '#FFFFFF' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 500, fontSize: '0.82rem' }}
                 onClick={() => setActiveNav('audit')}
               >
                 <Activity style={{ width: 16, height: 16 }} />
@@ -570,7 +576,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
 
               <button
                 type="button"
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', backgroundColor: activeNav === 'settings' ? 'rgba(5, 150, 105, 0.25)' : 'transparent', color: activeNav === 'settings' ? '#FFFFFF' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 500, fontSize: '0.82rem' }}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', backgroundColor: activeNav === 'settings' ? 'rgba(var(--brand-primary-rgb), 0.25)' : 'transparent', color: activeNav === 'settings' ? '#FFFFFF' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 500, fontSize: '0.82rem' }}
                 onClick={() => setActiveNav('settings')}
               >
                 <Settings style={{ width: 16, height: 16 }} />
@@ -591,7 +597,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                 <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
                   <div>
                     <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <LayoutDashboard style={{ width: 22, height: 22, color: '#059669' }} />
+                      <LayoutDashboard style={{ width: 22, height: 22, color: 'var(--brand-primary, #15803D)' }} />
                       <span>Dashboard Overview</span>
                     </h1>
                     <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '4px 0 0 0' }}>
@@ -601,7 +607,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
 
                   <button
                     onClick={() => setIsProvisionModalOpen(true)}
-                    style={{ padding: '9px 18px', backgroundColor: '#059669', color: '#FFFFFF', fontWeight: 600, fontSize: '0.82rem', borderRadius: 8, border: 'none', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)' }}
+                    style={{ padding: '9px 18px', backgroundColor: 'var(--brand-primary, #15803D)', color: '#FFFFFF', fontWeight: 600, fontSize: '0.82rem', borderRadius: 8, border: 'none', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.25)' }}
                   >
                     <Plus style={{ width: 16, height: 16 }} />
                     <span>Provision Tenant Company</span>
@@ -614,9 +620,9 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                     <div>
                       <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Companies</span>
                       <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>{tenants.length || 3}</div>
-                      <div style={{ fontSize: '0.7rem', color: '#059669', marginTop: 2, fontWeight: 600 }}>↑ 1 this month</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--brand-primary, #15803D)', marginTop: 2, fontWeight: 600 }}>↑ 1 this month</div>
                     </div>
-                    <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#F1F5F9', color: '#059669', border: '1px solid #E2E8F0' }}>
+                    <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#F1F5F9', color: 'var(--brand-primary, #15803D)', border: '1px solid #E2E8F0' }}>
                       <Building2 style={{ width: 22, height: 22 }} />
                     </div>
                   </div>
@@ -627,7 +633,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                       <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>{tenants.filter(t => t.is_active).length || 2}</div>
                       <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: 2 }}>- 0 this month</div>
                     </div>
-                    <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#ECFDF5', color: '#10B981', border: '1px solid #A7F3D0' }}>
+                    <div style={{ padding: 10, borderRadius: 8, backgroundColor: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #10B981)', border: '1px solid var(--brand-primary-border, #A3F5C1)' }}>
                       <CheckCircle style={{ width: 22, height: 22 }} />
                     </div>
                   </div>
@@ -638,9 +644,9 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                       <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>
                         {tenants.reduce((sum, t) => sum + (t.users_count || 1), 0)}
                       </div>
-                      <div style={{ fontSize: '0.7rem', color: '#059669', marginTop: 2, fontWeight: 600 }}>Across all provisioned companies</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--brand-primary, #15803D)', marginTop: 2, fontWeight: 600 }}>Across all provisioned companies</div>
                     </div>
-                    <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE' }}>
+                    <div style={{ padding: 10, borderRadius: 8, backgroundColor: 'var(--color-info-light, #EFF6FF)', color: 'var(--color-info, #2563EB)', border: '1px solid var(--color-info-border, #BFDBFE)' }}>
                       <Users style={{ width: 22, height: 22 }} />
                     </div>
                   </div>
@@ -649,9 +655,9 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                     <div>
                       <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Revenue</span>
                       <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>₹3,31,000</div>
-                      <div style={{ fontSize: '0.7rem', color: '#059669', marginTop: 2, fontWeight: 600 }}>Active Subscriptions</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--brand-primary, #15803D)', marginTop: 2, fontWeight: 600 }}>Active Subscriptions</div>
                     </div>
-                    <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#FEF3C7', color: '#D97706', border: '1px solid #FDE68A' }}>
+                    <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#FEF3C7', color: 'var(--color-warning, #D97706)', border: '1px solid var(--color-warning-border, #FDE68A)' }}>
                       <Crown style={{ width: 22, height: 22 }} />
                     </div>
                   </div>
@@ -671,7 +677,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                       <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Storage Usage</span>
                       <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>2.12 GB</div>
                     </div>
-                    <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#E0F2FE', color: '#0284C7', border: '1px solid #BAE6FD' }}>
+                    <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#E0F2FE', color: 'var(--color-info-hover, #0284C7)', border: '1px solid var(--color-info-border, #BAE6FD)' }}>
                       <Database style={{ width: 22, height: 22 }} />
                     </div>
                   </div>
@@ -681,7 +687,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                       <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Subscription Expiry</span>
                       <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>0 expiring soon</div>
                     </div>
-                    <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#FEE2E2', color: '#DC2626', border: '1px solid #FECACA' }}>
+                    <div style={{ padding: 10, borderRadius: 8, backgroundColor: 'var(--color-danger-light, #FEE2E2)', color: 'var(--color-danger, #DC2626)', border: '1px solid var(--color-danger-border, #FECACA)' }}>
                       <AlertTriangle style={{ width: 22, height: 22 }} />
                     </div>
                   </div>
@@ -691,7 +697,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                 <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14, boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h2 style={{ fontSize: '0.98rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>Companies</h2>
-                    <button onClick={() => setActiveNav('registry')} style={{ background: 'transparent', border: 'none', color: '#059669', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>View All ({tenants.length}) &rarr;</button>
+                    <button onClick={() => setActiveNav('registry')} style={{ background: 'transparent', border: 'none', color: 'var(--brand-primary, #15803D)', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>View All ({tenants.length}) &rarr;</button>
                   </div>
 
                   <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
@@ -717,7 +723,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                           <tr key={t.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
                             <td style={{ padding: '12px 14px', color: '#64748B' }}>{idx + 1}</td>
                             <td style={{ padding: '12px 14px', fontWeight: 700, color: '#0F172A' }}>{t.name}</td>
-                            <td style={{ padding: '12px 14px', fontFamily: 'SF Mono, Consolas, monospace', color: '#059669', fontWeight: 600 }}>{t.company_code}</td>
+                            <td style={{ padding: '12px 14px', fontFamily: 'SF Mono, Consolas, monospace', color: 'var(--brand-primary, #15803D)', fontWeight: 600 }}>{t.company_code}</td>
                             <td style={{ padding: '12px 14px' }}>
                               <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: 10, background: '#F3E8FF', color: '#7E22CE', fontWeight: 600 }}>
                                 {t.plan_tier || 'Enterprise'}
@@ -725,7 +731,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                             </td>
                             <td style={{ padding: '12px 14px', color: '#475569' }}>{t.users_count || 1}</td>
                             <td style={{ padding: '12px 14px' }}>
-                              <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: 10, background: t.is_active ? '#DCFCE7' : '#FEF2F2', color: t.is_active ? '#065F46' : '#991B1B', fontWeight: 600 }}>
+                              <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: 10, background: t.is_active ? '#DCFCE7' : 'var(--color-danger-light, #FEF2F2)', color: t.is_active ? 'var(--brand-primary-text, #075F27)' : 'var(--color-danger-text, #991B1B)', fontWeight: 600 }}>
                                 {t.is_active ? 'Active' : 'Trial'}
                               </span>
                             </td>
@@ -739,7 +745,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                               </button>
                               <button
                                 onClick={() => handleJumpToCompanyTab(t)}
-                                style={{ padding: '5px 12px', backgroundColor: '#059669', color: '#FFFFFF', border: 'none', borderRadius: 6, fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                style={{ padding: '5px 12px', backgroundColor: 'var(--brand-primary, #15803D)', color: '#FFFFFF', border: 'none', borderRadius: 6, fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
                               >
                                 <ExternalLink style={{ width: 12, height: 12 }} />
                                 <span>Jump</span>
@@ -764,7 +770,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                   </div>
                   <button
                     onClick={() => setIsProvisionModalOpen(true)}
-                    style={{ padding: '9px 18px', backgroundColor: '#059669', color: '#FFFFFF', fontWeight: 600, fontSize: '0.82rem', borderRadius: 8, border: 'none', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)' }}
+                    style={{ padding: '9px 18px', backgroundColor: 'var(--brand-primary, #15803D)', color: '#FFFFFF', fontWeight: 600, fontSize: '0.82rem', borderRadius: 8, border: 'none', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.25)' }}
                   >
                     <Plus style={{ width: 16, height: 16 }} />
                     <span>Provision company</span>
@@ -792,8 +798,8 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                       ) : filteredTenants.map(t => (
                         <tr key={t.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
                           <td style={{ padding: '14px 16px', fontWeight: 700, color: '#0F172A' }}>{t.name}</td>
-                          <td style={{ padding: '14px 16px', fontFamily: 'SF Mono, Consolas, monospace', color: '#059669', fontWeight: 600 }}>{t.company_code}</td>
-                          <td style={{ padding: '14px 16px', fontFamily: 'SF Mono, Consolas, monospace', color: '#2563EB' }}>{t.db_name}</td>
+                          <td style={{ padding: '14px 16px', fontFamily: 'SF Mono, Consolas, monospace', color: 'var(--brand-primary, #15803D)', fontWeight: 600 }}>{t.company_code}</td>
+                          <td style={{ padding: '14px 16px', fontFamily: 'SF Mono, Consolas, monospace', color: 'var(--color-info, #2563EB)' }}>{t.db_name}</td>
                           <td style={{ padding: '14px 16px' }}>
                             <span style={{ fontSize: '0.7rem', padding: '3px 10px', borderRadius: 12, backgroundColor: '#F3E8FF', color: '#7E22CE', fontWeight: 600 }}>
                               {t.plan_tier || 'Enterprise'}
@@ -801,16 +807,17 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                           </td>
                           <td style={{ padding: '14px 16px', color: '#475569' }}>{t.users_count || 1}</td>
                           <td style={{ padding: '14px 16px' }}>
-                            <span style={{ fontSize: '0.7rem', padding: '3px 10px', borderRadius: 12, backgroundColor: t.is_active ? '#DCFCE7' : '#FEF2F2', color: t.is_active ? '#065F46' : '#991B1B', fontWeight: 600 }}>
+                            <span style={{ fontSize: '0.7rem', padding: '3px 10px', borderRadius: 12, backgroundColor: t.is_active ? '#DCFCE7' : 'var(--color-danger-light, #FEF2F2)', color: t.is_active ? 'var(--brand-primary-text, #075F27)' : 'var(--color-danger-text, #991B1B)', fontWeight: 600 }}>
                               {t.is_active ? 'Active' : 'Suspended'}
                             </span>
                           </td>
                           <td style={{ padding: '14px 16px', textAlign: 'right' }}>
                             <button
                               onClick={() => handleToggleStatus(t)}
-                              style={{ padding: '5px 10px', backgroundColor: t.is_active ? '#FEF2F2' : '#ECFDF5', border: `1px solid ${t.is_active ? '#FECACA' : '#A7F3D0'}`, color: t.is_active ? '#DC2626' : '#059669', borderRadius: 6, fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', marginRight: 6 }}
+                              disabled={statusUpdatingId === t.id}
+                              style={{ padding: '5px 10px', backgroundColor: statusUpdatingId === t.id ? '#F1F5F9' : (t.is_active ? 'var(--color-danger-light, #FEF2F2)' : 'var(--brand-primary-light, #F0FEF5)'), border: `1px solid ${statusUpdatingId === t.id ? '#CBD5E1' : (t.is_active ? 'var(--color-danger-border, #FECACA)' : 'var(--brand-primary-border, #A3F5C1)')}`, color: statusUpdatingId === t.id ? '#94A3B8' : (t.is_active ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)'), borderRadius: 6, fontSize: '0.72rem', fontWeight: 600, cursor: statusUpdatingId === t.id ? 'not-allowed' : 'pointer', marginRight: 6 }}
                             >
-                              {t.is_active ? 'Suspend' : 'Activate'}
+                              {statusUpdatingId === t.id ? '...' : (t.is_active ? 'Suspend' : 'Activate')}
                             </button>
                             <button
                               onClick={() => openAccessModal(t)}
@@ -820,7 +827,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                             </button>
                             <button
                               onClick={() => handleJumpToCompanyTab(t)}
-                              style={{ padding: '5px 12px', backgroundColor: '#059669', color: '#FFFFFF', border: 'none', borderRadius: 6, fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                              style={{ padding: '5px 12px', backgroundColor: 'var(--brand-primary, #15803D)', color: '#FFFFFF', border: 'none', borderRadius: 6, fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
                             >
                               <ExternalLink style={{ width: 12, height: 12 }} />
                               <span>Jump</span>
@@ -844,7 +851,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                   </div>
                   <button
                     onClick={openCreatePlanModal}
-                    style={{ padding: '9px 18px', backgroundColor: '#059669', color: '#FFFFFF', fontWeight: 600, fontSize: '0.82rem', borderRadius: 8, border: 'none', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)' }}
+                    style={{ padding: '9px 18px', backgroundColor: 'var(--brand-primary, #15803D)', color: '#FFFFFF', fontWeight: 600, fontSize: '0.82rem', borderRadius: 8, border: 'none', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.25)' }}
                   >
                     <Plus style={{ width: 16, height: 16 }} />
                     <span>Create New Plan</span>
@@ -857,7 +864,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
                           <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>{plan.name}</h3>
-                          <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: 10, backgroundColor: '#EFF6FF', color: '#2563EB', fontWeight: 700, fontFamily: 'SF Mono, monospace' }}>{plan.code}</span>
+                          <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: 10, backgroundColor: 'var(--color-info-light, #EFF6FF)', color: 'var(--color-info, #2563EB)', fontWeight: 700, fontFamily: 'SF Mono, monospace' }}>{plan.code}</span>
                         </div>
                         <button
                           onClick={() => openEditPlanModal(plan)}
@@ -874,7 +881,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                         </div>
                         <div>
                           <span style={{ fontSize: '0.7rem', color: '#64748B' }}>6 Months</span>
-                          <div style={{ fontSize: '1rem', fontWeight: 800, color: '#059669' }}>₹{plan.six_month_price || Math.round(Number(plan.monthly_price || 0) * 5.5)}</div>
+                          <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--brand-primary, #15803D)' }}>₹{plan.six_month_price || Math.round(Number(plan.monthly_price || 0) * 5.5)}</div>
                         </div>
                         <div>
                           <span style={{ fontSize: '0.7rem', color: '#64748B' }}>Yearly</span>
@@ -913,7 +920,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                 </div>
 
                 <form onSubmit={handleCreatePlanSubmit} style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 20, boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)' }}>
-                  {errorMsg && <div style={{ padding: '10px 14px', backgroundColor: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', borderRadius: 8, fontSize: '0.82rem' }}>{errorMsg}</div>}
+                  {errorMsg && <div style={{ padding: '10px 14px', backgroundColor: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger-text, #991B1B)', borderRadius: 8, fontSize: '0.82rem' }}>{errorMsg}</div>}
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                     <div>
@@ -949,8 +956,8 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                       <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>Allowed Sidebar Menus & Submenus Access</h3>
                       <div style={{ display: 'flex', gap: 10 }}>
-                        <button type="button" onClick={selectAllPlanModules} style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Select All</button>
-                        <button type="button" onClick={deselectAllPlanModules} style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Deselect All</button>
+                        <button type="button" onClick={selectAllPlanModules} style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Select All</button>
+                        <button type="button" onClick={deselectAllPlanModules} style={{ background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Deselect All</button>
                       </div>
                     </div>
                     {renderCategorizedMenuTree(planForm.allowed_modules, togglePlanModuleKey, false)}
@@ -958,7 +965,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
 
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 16, borderTop: '1px solid #E2E8F0' }}>
                     <button type="button" onClick={() => setActiveNav('plans')} style={{ background: '#F1F5F9', color: '#475569', border: '1px solid #CBD5E1', borderRadius: 8, padding: '10px 20px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-                    <button type="submit" disabled={loading} style={{ background: '#059669', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)' }}>
+                    <button type="submit" disabled={loading} style={{ background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.25)' }}>
                       {loading ? 'Saving Plan...' : 'Save Subscription Plan'}
                     </button>
                   </div>
@@ -984,7 +991,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                 {/* Company Header Banner Card (Ref Image 3) */}
                 <div style={{ backgroundColor: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 12, padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <div style={{ width: 52, height: 52, borderRadius: 12, backgroundColor: '#10B981', color: '#FFFFFF', fontSize: '1.2rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: 52, height: 52, borderRadius: 12, backgroundColor: 'var(--brand-primary, #10B981)', color: '#FFFFFF', fontSize: '1.2rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {accessTarget.name.slice(0, 2).toUpperCase()}
                     </div>
                     <div>
@@ -1000,9 +1007,9 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                   </div>
 
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: 12, backgroundColor: '#FEF3C7', color: '#D97706', fontWeight: 700 }}>Trial</span>
+                    <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: 12, backgroundColor: '#FEF3C7', color: 'var(--color-warning, #D97706)', fontWeight: 700 }}>Trial</span>
                     <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: 12, backgroundColor: '#F3E8FF', color: '#7E22CE', fontWeight: 700 }}>Enterprise</span>
-                    <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: 12, backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 700 }}>Mobile</span>
+                    <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: 12, backgroundColor: '#DCFCE7', color: 'var(--brand-primary-hover, #15803D)', fontWeight: 700 }}>Mobile</span>
                   </div>
                 </div>
 
@@ -1015,7 +1022,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                     {/* Company Details Form Card */}
                     <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
                       <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Building2 style={{ width: 18, height: 18, color: '#059669' }} />
+                        <Building2 style={{ width: 18, height: 18, color: 'var(--brand-primary, #15803D)' }} />
                         <span>Company Details</span>
                       </h2>
 
@@ -1051,12 +1058,12 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                     <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <ShieldCheck style={{ width: 18, height: 18, color: '#059669' }} />
+                          <ShieldCheck style={{ width: 18, height: 18, color: 'var(--brand-primary, #15803D)' }} />
                           <span>Custom Features (Overrides)</span>
                         </h2>
                         <div style={{ display: 'flex', gap: 10 }}>
-                          <button type="button" onClick={selectAllAccessModules} style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Select All</button>
-                          <button type="button" onClick={deselectAllAccessModules} style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Deselect All</button>
+                          <button type="button" onClick={selectAllAccessModules} style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Select All</button>
+                          <button type="button" onClick={deselectAllAccessModules} style={{ background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Deselect All</button>
                         </div>
                       </div>
 
@@ -1064,7 +1071,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
 
                       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 16, borderTop: '1px solid #E2E8F0' }}>
                         <button type="button" onClick={() => { setAccessTarget(null); setActiveNav('registry'); }} style={{ background: '#F1F5F9', color: '#475569', border: '1px solid #CBD5E1', borderRadius: 8, padding: '10px 20px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-                        <button type="button" onClick={handleSaveAccess} disabled={accessSaving} style={{ background: '#059669', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)' }}>
+                        <button type="button" onClick={handleSaveAccess} disabled={accessSaving} style={{ background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.25)' }}>
                           {accessSaving ? 'Saving...' : 'Save changes'}
                         </button>
                       </div>
@@ -1077,7 +1084,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                     {/* Current Subscription Card (Ref Image 3) */}
                     <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
                       <h2 style={{ fontSize: '1.02rem', fontWeight: 700, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Crown style={{ width: 18, height: 18, color: '#D97706' }} />
+                        <Crown style={{ width: 18, height: 18, color: 'var(--color-warning, #D97706)' }} />
                         <span>Current Subscription</span>
                       </h2>
 
@@ -1096,7 +1103,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
                           <span style={{ color: '#64748B' }}>Status</span>
-                          <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: 10, backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: 700 }}>Active</span>
+                          <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: 10, backgroundColor: '#DCFCE7', color: 'var(--brand-primary-hover, #15803D)', fontWeight: 700 }}>Active</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
                           <span style={{ color: '#64748B' }}>End Date</span>
@@ -1112,12 +1119,12 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                     {/* Admin Access Credentials Card (Ref Image 4) */}
                     <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
                       <h2 style={{ fontSize: '1.02rem', fontWeight: 700, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <KeyRound style={{ width: 18, height: 18, color: '#059669' }} />
+                        <KeyRound style={{ width: 18, height: 18, color: 'var(--brand-primary, #15803D)' }} />
                         <span>Company Admin Password</span>
                       </h2>
 
                       {resetPasswordMsg && (
-                        <div style={{ padding: '8px 12px', borderRadius: 6, fontSize: '0.78rem', backgroundColor: resetPasswordMsg.includes('updated') ? '#ECFDF5' : '#FEF2F2', color: resetPasswordMsg.includes('updated') ? '#065F46' : '#991B1B', border: `1px solid ${resetPasswordMsg.includes('updated') ? '#A7F3D0' : '#FECACA'}` }}>
+                        <div style={{ padding: '8px 12px', borderRadius: 6, fontSize: '0.78rem', backgroundColor: resetPasswordMsg.includes('updated') ? 'var(--brand-primary-light, #F0FEF5)' : 'var(--color-danger-light, #FEF2F2)', color: resetPasswordMsg.includes('updated') ? 'var(--brand-primary-text, #075F27)' : 'var(--color-danger-text, #991B1B)', border: `1px solid ${resetPasswordMsg.includes('updated') ? 'var(--brand-primary-border, #A3F5C1)' : 'var(--color-danger-border, #FECACA)'}` }}>
                           {resetPasswordMsg}
                         </div>
                       )}
@@ -1137,7 +1144,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                           type="button"
                           onClick={handleResetAdminPassword}
                           disabled={resetPasswordLoading || !resetPasswordInput.trim()}
-                          style={{ padding: '8px 14px', backgroundColor: '#059669', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', opacity: (!resetPasswordInput.trim() || resetPasswordLoading) ? 0.6 : 1 }}
+                          style={{ padding: '8px 14px', backgroundColor: 'var(--brand-primary, #15803D)', color: '#FFFFFF', border: 'none', borderRadius: 8, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', opacity: (!resetPasswordInput.trim() || resetPasswordLoading) ? 0.6 : 1 }}
                         >
                           {resetPasswordLoading ? 'Updating Password...' : 'Reset Admin Password'}
                         </button>
@@ -1147,7 +1154,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                     {/* Quick Stats Card (Ref Image 4) */}
                     <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
                       <h2 style={{ fontSize: '1.02rem', fontWeight: 700, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Activity style={{ width: 18, height: 18, color: '#059669' }} />
+                        <Activity style={{ width: 18, height: 18, color: 'var(--brand-primary, #15803D)' }} />
                         <span>Quick Stats</span>
                       </h2>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: '0.82rem' }}>
@@ -1157,7 +1164,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                           <span style={{ color: '#64748B' }}>Database</span>
-                          <strong style={{ fontFamily: 'SF Mono, monospace', color: '#059669' }}>{accessTarget.db_name}</strong>
+                          <strong style={{ fontFamily: 'SF Mono, monospace', color: 'var(--brand-primary, #15803D)' }}>{accessTarget.db_name}</strong>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                           <span style={{ color: '#64748B' }}>Expires</span>
@@ -1183,7 +1190,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                     <h2 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#0F172A', margin: 0 }}>MySQL Connection Pool Factory</h2>
                     <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '4px 0 0 0' }}>Dynamic tenant database connection cache (`mysql2/promise` pool factory)</p>
                   </div>
-                  <button style={{ padding: '6px 14px', backgroundColor: '#ECFDF5', border: '1px solid #A7F3D0', color: '#065F46', borderRadius: 8, fontSize: '0.78rem', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <button style={{ padding: '6px 14px', backgroundColor: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary-text, #075F27)', borderRadius: 8, fontSize: '0.78rem', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                     <RefreshCw style={{ width: 14, height: 14 }} />
                     <span>Flush Cache</span>
                   </button>
@@ -1194,7 +1201,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                     <div key={t.id} style={{ border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px', backgroundColor: '#F8FAFC' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                         <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0F172A' }}>{t.company_code} ({t.name})</span>
-                        <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: 10, background: t.is_active ? '#ECFDF5' : '#FEF2F2', color: t.is_active ? '#065F46' : '#991B1B', fontWeight: 500 }}>
+                        <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: 10, background: t.is_active ? 'var(--brand-primary-light, #F0FEF5)' : 'var(--color-danger-light, #FEF2F2)', color: t.is_active ? 'var(--brand-primary-text, #075F27)' : 'var(--color-danger-text, #991B1B)', fontWeight: 500 }}>
                           {t.is_active ? 'POOL ACTIVE' : 'SUSPENDED'}
                         </span>
                       </div>
@@ -1233,7 +1240,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                         <tr key={log.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
                           <td style={{ padding: '10px 14px', color: '#64748B' }}>{new Date(log.created_at).toLocaleString()}</td>
                           <td style={{ padding: '10px 14px', fontWeight: 500, color: '#0F172A' }}>{log.action}</td>
-                          <td style={{ padding: '10px 14px', fontFamily: 'SF Mono, monospace', color: '#2563EB' }}>
+                          <td style={{ padding: '10px 14px', fontFamily: 'SF Mono, monospace', color: 'var(--color-info, #2563EB)' }}>
                             {log.target_company_code ? `${log.target_company_code} (${log.target_company_name})` : '—'}
                           </td>
                           <td style={{ padding: '10px 14px', color: '#334155' }}>{log.actor_email || '—'}</td>
@@ -1276,7 +1283,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
           <div className="saas-modal-card" style={{ maxWidth: 520, width: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif' }}>
             <div className="saas-modal-header" style={{ borderBottom: '1px solid #E2E8F0', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Building2 style={{ width: 16, height: 16 }} />
                 </div>
                 <div>
@@ -1290,8 +1297,8 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
             </div>
 
             <form onSubmit={handleProvisionSubmit} style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', flex: 1 }}>
-              {errorMsg && <div style={{ padding: '8px 12px', backgroundColor: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', borderRadius: 8, fontSize: '0.78rem' }}>{errorMsg}</div>}
-              {successMsg && <div style={{ padding: '8px 12px', backgroundColor: '#ECFDF5', border: '1px solid #A7F3D0', color: '#065F46', borderRadius: 8, fontSize: '0.78rem' }}>{successMsg}</div>}
+              {errorMsg && <div style={{ padding: '8px 12px', backgroundColor: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger-text, #991B1B)', borderRadius: 8, fontSize: '0.78rem' }}>{errorMsg}</div>}
+              {successMsg && <div style={{ padding: '8px 12px', backgroundColor: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary-text, #075F27)', borderRadius: 8, fontSize: '0.78rem' }}>{successMsg}</div>}
 
               <div>
                 <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Company Name *</label>
@@ -1351,7 +1358,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                 </div>
                 <div>
                   <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Company Phone</label>
-                  <input type="text" value={form.company_phone} onChange={(e) => setForm({ ...form, company_phone: e.target.value })} placeholder="9080274281" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                  <input type="text" value={form.company_phone} onChange={(e) => setForm({ ...form, company_phone: e.target.value.replace(/\D/g, '').slice(0, 10) })} placeholder="9080274281" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
                 </div>
               </div>
 
@@ -1371,7 +1378,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 12, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
                 <button type="button" onClick={() => setIsProvisionModalOpen(false)} style={{ background: '#F1F5F9', color: '#475569', border: '1px solid #CBD5E1', borderRadius: 8, padding: '10px 20px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-                <button type="submit" disabled={loading} style={{ background: '#059669', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)' }}>
+                <button type="submit" disabled={loading} style={{ background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.25)' }}>
                   {loading ? 'Provisioning...' : 'Provision company'}
                 </button>
               </div>

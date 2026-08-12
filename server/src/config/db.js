@@ -32,7 +32,29 @@ export function getMasterDbConfig() {
     user: profile.user,
     password: profile.password,
     database: profile.database,
-    waitForConnections: true
+    waitForConnections: true,
+    // Without this, mysql2 returns DATE/DATETIME columns as JS Date objects
+    // rather than the 'YYYY-MM-DD' strings every date filter/comparison in
+    // this codebase (and the React tables that render them directly) expects
+    // — a Date object silently breaks string comparisons like `date >= from`
+    // (always false), silently sorts wrong, and crashes React if ever
+    // rendered as a raw child. Forcing plain date strings at the connection
+    // level fixes this for every query, everywhere, instead of requiring
+    // every caller to defensively unwrap it.
+    dateStrings: true,
+    // Same disease, different column type: mysql2 also returns DECIMAL/
+    // NEWDECIMAL columns (every money field in this schema) as JS strings by
+    // default, specifically to avoid float rounding — but this codebase
+    // already commits to float-based money math everywhere (parseFloat,
+    // Math.round, toLocaleString, ...), it just doesn't always remember to
+    // wrap a raw DB value first. `row.interest_paid + iCover` with a string
+    // left-hand side is JS string concatenation, not addition — found live
+    // in collection.service.js's schedule-row allocation, silently
+    // corrupting repayment_schedules.principal_paid/interest_paid into
+    // garbage values on essentially every partial EMI payment. Numbers at
+    // the connection level closes off this entire bug class, the same way
+    // dateStrings did for dates.
+    decimalNumbers: true
   };
 }
 
@@ -56,7 +78,13 @@ export function getTenantDbConfig(dbNameOrCode = 'alpha') {
     user: profile.user,
     password: profile.password,
     database: dbName,
-    waitForConnections: true
+    waitForConnections: true,
+    // See the matching comments in getMasterDbConfig() — same reasoning
+    // applies to every tenant DB, since it's exactly the tenant tables
+    // (fixed_deposits, journal_entries, repayment_schedules, borrowers, etc.)
+    // whose DATE/DATETIME and DECIMAL columns these bugs actually surfaced on.
+    dateStrings: true,
+    decimalNumbers: true
   };
 }
 

@@ -45,7 +45,7 @@ export default function QuickActionModal({ type, isOpen, onClose, onSubmit, expe
       await onSubmit(type, form);
       onClose();
     } catch (err) {
-      setError(err.message || t('qa.err_save_generic'));
+      setError(err?.response?.data?.message || err.message || t('qa.err_save_generic'));
     } finally {
       setLoading(false);
     }

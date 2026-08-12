@@ -35,7 +35,7 @@ function Avatar({ name, photo, size = 30 }) {
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%', flexShrink: 0,
-      background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0',
+      background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #15803D)', border: '1px solid var(--brand-primary-border, #A3F5C1)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize: size * 0.38, fontWeight: 700
     }}>
@@ -48,8 +48,8 @@ function Avatar({ name, photo, size = 30 }) {
 function ActionPill({ icon, label, onClick, tone = 'neutral', disabled = false }) {
   const tones = {
     neutral: { bg: '#FFFFFF', border: '#E2E8F0', color: '#334155' },
-    good: { bg: '#ECFDF5', border: '#A7F3D0', color: '#059669' },
-    bad: { bg: '#FEF2F2', border: '#FECACA', color: '#DC2626' }
+    good: { bg: 'var(--brand-primary-light, #F0FEF5)', border: 'var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)' },
+    bad: { bg: 'var(--color-danger-light, #FEF2F2)', border: 'var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)' }
   };
   const c = tones[tone];
   return (
@@ -137,9 +137,9 @@ export default function DailyCollectionsView({
   const [bounceReason, setBounceReason] = useState('');
   const [bounceError, setBounceError] = useState('');
   const [previewImage, setPreviewImage] = useState(null);
-  const [editTarget, setEditTarget] = useState(null);
-  const [editForm, setEditForm] = useState(null);
-  const [editError, setEditError] = useState('');
+  const [chequeClearBusy, setChequeClearBusy] = useState(false);
+  const [chequeClearError, setChequeClearError] = useState('');
+  const [bounceBusy, setBounceBusy] = useState(false);
   const pageSize = 10;
 
   const canControl = user?.role !== 'COLLECTOR';
@@ -171,7 +171,14 @@ export default function DailyCollectionsView({
     );
   });
 
-  const targetLoan = selectedLoanId ? activeLoans.find(l => String(l.id) === String(selectedLoanId)) : null;
+  // While editing, the loan may have since moved past ACTIVE/OVERDUE (e.g. it
+  // fully closed after this collection was made) — the selector itself stays
+  // locked to whatever was originally chosen, so look it up in the full loan
+  // list rather than the active-only one, or a stale edit would fail to even
+  // find its own loan.
+  const targetLoan = selectedLoanId
+    ? (editingCollectionId ? loans : activeLoans).find(l => String(l.id) === String(selectedLoanId))
+    : null;
 
   const selectLoanItem = (loan) => {
     setSelectedLoanId(loan.id);
@@ -204,7 +211,7 @@ export default function DailyCollectionsView({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const liveAllocation = targetLoan && parseFloat(amountPaid) > 0 ? calculatePaymentAllocation({
+  const liveAllocation = (!editingCollectionId && targetLoan && parseFloat(amountPaid) > 0) ? calculatePaymentAllocation({
     loan: targetLoan,
     paymentAmount: parseFloat(amountPaid) || 0,
     paymentDate: collectionDate
@@ -222,50 +229,60 @@ export default function DailyCollectionsView({
       return;
     }
 
-    if (numAmt > targetLoan.pending_amount) {
+    const isEdit = Boolean(editingCollectionId);
+
+    // Editing only ever touches metadata (payment mode/ref/collector/date/
+    // notes) — the amount field is locked in that mode, so re-validating it
+    // against the loan's *current* pending balance would spuriously fail
+    // (that balance has moved since the original collection) and re-running
+    // allocation math nobody's going to use is just wasted work.
+    if (!isEdit && numAmt > targetLoan.pending_amount) {
       setEntryError(`Collection amount (₹${fmt(numAmt)}) cannot exceed pending balance (₹${fmt(targetLoan.pending_amount)}).`);
       return;
     }
 
     setEntryError('');
-    const allocation = calculatePaymentAllocation({
-      loan: targetLoan,
-      paymentAmount: numAmt,
-      paymentDate: collectionDate
-    });
 
     const payload = {
-      is_edit: Boolean(editingCollectionId),
+      is_edit: isEdit,
       collection_id: editingCollectionId,
       loan_id: targetLoan.id,
       loan_account_no: targetLoan.loan_account_no,
       borrower_name: targetLoan.borrower_name,
       phone: targetLoan.phone,
-      branch: targetLoan.branch || tenant?.city || 'Main Branch',
+      branch: targetLoan.branch || '',
       amount: numAmt,
-      principal_portion: allocation.principalPortion,
-      interest_portion: allocation.interestPortion,
-      new_principal_balance: allocation.newPendingPrincipal,
-      updated_schedule: allocation.updatedSchedule,
       payment_mode: paymentMode,
       reference_no: referenceNo,
       collector_name: collectorName,
       collection_date: collectionDate,
-      notes: notes,
-      allocation
+      notes: notes
     };
+
+    if (!isEdit) {
+      const allocation = calculatePaymentAllocation({
+        loan: targetLoan,
+        paymentAmount: numAmt,
+        paymentDate: collectionDate
+      });
+      payload.principal_portion = allocation.principalPortion;
+      payload.interest_portion = allocation.interestPortion;
+      payload.new_principal_balance = allocation.newPendingPrincipal;
+      payload.updated_schedule = allocation.updatedSchedule;
+      payload.allocation = allocation;
+    }
 
     setConfirmCollectionModal(payload);
   };
 
-  const executeConfirmedCollection = () => {
+  const executeConfirmedCollection = async () => {
     if (!confirmCollectionModal) return;
     setPosting(true);
     try {
       if (confirmCollectionModal.is_edit) {
-        onUpdateCollection(confirmCollectionModal.collection_id, confirmCollectionModal);
+        await onUpdateCollection(confirmCollectionModal.collection_id, confirmCollectionModal);
       } else {
-        onRecordCollection(confirmCollectionModal);
+        await onRecordCollection(confirmCollectionModal);
       }
 
       // Show animated tick confirmation badge for 0.3s
@@ -276,7 +293,7 @@ export default function DailyCollectionsView({
       clearCustomerSelection();
       setConfirmCollectionModal(null);
     } catch (err) {
-      setEntryError(err?.message || 'Failed to record collection entry.');
+      setEntryError(err?.response?.data?.message || err?.message || 'Failed to record collection entry.');
     } finally {
       setPosting(false);
     }
@@ -288,9 +305,8 @@ export default function DailyCollectionsView({
     return (borrowers || []).find(b => b.full_name === c.borrower_name || b.phone === c.phone || b.id === c.borrower_id) || {
       full_name: c.borrower_name || 'Customer',
       phone: c.phone || 'Not provided',
-      branch: c.branch || 'Karur Main',
-      borrower_code: 'KTG-CUST',
-      kyc_status: 'VERIFIED'
+      branch: c.branch || '—',
+      borrower_code: null
     };
   };
 
@@ -318,9 +334,9 @@ export default function DailyCollectionsView({
     const q = searchQuery.toLowerCase().trim();
     if (q) {
       const amount = parseFloat(c.amount) || 0;
-      const interestPortion = c.interest_portion !== undefined ? Number(c.interest_portion) : Math.round(amount * 0.15);
-      const principalPortion = c.principal_portion !== undefined ? Number(c.principal_portion) : (amount - interestPortion);
-      const remainingBal = c.new_principal_balance !== undefined ? Number(c.new_principal_balance) : 0;
+      const interestPortion = Number(c.interest_paid ?? c.interest_portion ?? c.interestPaid ?? 0);
+      const principalPortion = Number(c.principal_paid ?? c.principal_portion ?? c.principalPaid ?? (amount - interestPortion));
+      const remainingBal = Number(c.new_principal_balance ?? c.newPrincipalBalance ?? 0);
       const recordDate = c.collection_date || c.date || '';
 
       const matchesSearch = (
@@ -422,62 +438,35 @@ export default function DailyCollectionsView({
     setBounceReason('');
   };
 
-  const openEdit = (c) => {
-    setEditTarget(c);
-    setEditError('');
-    setEditForm({
-      payment_mode: c.payment_mode || 'CASH',
-      reference_no: c.reference_no || '',
-      collector_name: c.collector_name || '',
-      collection_date: c.collection_date || '',
-      branch: c.branch || '',
-      notes: c.notes || ''
-    });
-  };
-
-  const closeEdit = () => {
-    setEditTarget(null);
-    setEditForm(null);
-    setEditError('');
-  };
-
-  const submitEdit = (e) => {
-    e.preventDefault();
-    try {
-      onUpdateCollection(editTarget.id, editForm);
-      closeEdit();
-      closeReceiptModal();
-    } catch (err) {
-      setEditError(err?.message || 'Could not save these changes.');
-    }
-  };
-
-  const confirmRevert = () => {
+  const confirmRevert = async () => {
     setRevertBusy(true);
     setRevertError('');
     try {
-      onRevertCollection(revertTarget.id, revertReason);
+      await onRevertCollection(revertTarget.id, revertReason);
       setRevertTarget(null);
       setRevertReason('');
       closeReceiptModal();
       setShowRevertedAnim(true);
       setTimeout(() => setShowRevertedAnim(false), 1700);
     } catch (err) {
-      setRevertError(err?.message || 'Could not revert this collection.');
+      setRevertError(err?.response?.data?.message || err?.message || 'Could not revert this collection.');
     } finally {
       setRevertBusy(false);
     }
   };
 
-  const confirmBounce = () => {
+  const confirmBounce = async () => {
+    setBounceBusy(true);
     setBounceError('');
     try {
-      onMarkChequeBounced(bounceTarget.id, bounceReason);
+      await onMarkChequeBounced(bounceTarget.id, bounceReason);
       setBounceTarget(null);
       setBounceReason('');
       closeReceiptModal();
     } catch (err) {
-      setBounceError(err?.message || 'Could not mark this cheque as bounced.');
+      setBounceError(err?.response?.data?.message || err?.message || 'Could not mark this cheque as bounced.');
+    } finally {
+      setBounceBusy(false);
     }
   };
 
@@ -494,7 +483,7 @@ export default function DailyCollectionsView({
       <div className="fin-card" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 18, marginBottom: 18, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 8, background: editingCollectionId ? '#EFF6FF' : '#ECFDF5', border: `1px solid ${editingCollectionId ? '#BFDBFE' : '#A7F3D0'}`, color: editingCollectionId ? '#2563EB' : '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <div style={{ width: 34, height: 34, borderRadius: 8, background: editingCollectionId ? 'var(--color-info-light, #EFF6FF)' : 'var(--brand-primary-light, #F0FEF5)', border: `1px solid ${editingCollectionId ? 'var(--color-info-border, #BFDBFE)' : 'var(--brand-primary-border, #A3F5C1)'}`, color: editingCollectionId ? 'var(--color-info, #2563EB)' : 'var(--brand-primary, #15803D)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 {editingCollectionId ? <Pencil style={{ width: 18, height: 18 }} /> : <Receipt style={{ width: 18, height: 18 }} />}
               </div>
               <div>
@@ -508,13 +497,13 @@ export default function DailyCollectionsView({
             </div>
           {targetLoan && (
             <div style={{ fontSize: '0.76rem', color: '#64748B', background: '#F8FAFC', padding: '6px 12px', borderRadius: 6, border: '1px solid #E2E8F0' }}>
-              Pending Bal: <strong style={{ color: '#DC2626' }}>₹{fmt(targetLoan.pending_amount)}</strong> | EMI: <strong style={{ color: '#059669' }}>₹{fmt(targetLoan.installment_amount)}</strong>
+              Pending Bal: <strong style={{ color: 'var(--color-danger, #DC2626)' }}>₹{fmt(targetLoan.pending_amount)}</strong> | EMI: <strong style={{ color: 'var(--brand-primary, #15803D)' }}>₹{fmt(targetLoan.installment_amount)}</strong>
             </div>
           )}
         </div>
 
         {entryError && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 6, padding: '8px 12px', marginBottom: 12, fontSize: '0.76rem', color: '#991B1B' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', borderRadius: 6, padding: '8px 12px', marginBottom: 12, fontSize: '0.76rem', color: 'var(--color-danger-text, #991B1B)' }}>
             <AlertTriangle style={{ width: 14, height: 14, flexShrink: 0 }} />
             <span>{entryError}</span>
           </div>
@@ -541,6 +530,8 @@ export default function DailyCollectionsView({
                   className="input-control"
                   style={{ height: 34, fontSize: '0.78rem', borderRadius: 6, paddingRight: customerSearch ? 28 : 24 }}
                   required={!selectedLoanId}
+                  disabled={Boolean(editingCollectionId)}
+                  title={editingCollectionId ? 'The loan account on an existing collection cannot be changed — revert it and record a new one instead.' : undefined}
                 />
                 {customerSearch ? (
                   <button
@@ -585,15 +576,15 @@ export default function DailyCollectionsView({
                           style={{
                             padding: '8px 12px', fontSize: '0.75rem', cursor: 'pointer',
                             borderBottom: '1px solid #F1F5F9',
-                            background: String(selectedLoanId) === String(l.id) ? '#ECFDF5' : '#FFFFFF'
+                            background: String(selectedLoanId) === String(l.id) ? 'var(--brand-primary-light, #F0FEF5)' : '#FFFFFF'
                           }}
                           onMouseEnter={(e) => e.currentTarget.style.background = '#F8FAFC'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = String(selectedLoanId) === String(l.id) ? '#ECFDF5' : '#FFFFFF'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = String(selectedLoanId) === String(l.id) ? 'var(--brand-primary-light, #F0FEF5)' : '#FFFFFF'}
                         >
                           <div style={{ fontWeight: 600, color: '#0F172A' }}>{l.borrower_name}</div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748B', fontSize: '0.7rem' }}>
                             <span>{l.loan_account_no} ({l.phone || 'No phone'})</span>
-                            <span style={{ color: '#DC2626', fontWeight: 600 }}>Bal: ₹{fmt(l.pending_amount)}</span>
+                            <span style={{ color: 'var(--color-danger, #DC2626)', fontWeight: 600 }}>Bal: ₹{fmt(l.pending_amount)}</span>
                           </div>
                         </div>
                       ))
@@ -625,8 +616,10 @@ export default function DailyCollectionsView({
                 }}
                 placeholder="0.00"
                 className="input-control mono"
-                style={{ height: 34, fontSize: '0.85rem', fontWeight: 700, color: '#059669', borderRadius: 6 }}
+                style={{ height: 34, fontSize: '0.85rem', fontWeight: 700, color: 'var(--brand-primary, #15803D)', borderRadius: 6 }}
                 required
+                disabled={Boolean(editingCollectionId)}
+                title={editingCollectionId ? 'The amount on an existing collection cannot be changed — revert it and record a new one instead.' : undefined}
               />
             </div>
 
@@ -675,8 +668,8 @@ export default function DailyCollectionsView({
                       height: 34,
                       flex: 1,
                       justifyContent: 'center',
-                      background: '#2563EB',
-                      borderColor: '#2563EB',
+                      background: 'var(--color-info, #2563EB)',
+                      borderColor: 'var(--color-info, #2563EB)',
                       borderRadius: 6,
                       fontSize: '0.78rem',
                       fontWeight: 600,
@@ -714,8 +707,8 @@ export default function DailyCollectionsView({
                     height: 34,
                     width: '100%',
                     justifyContent: 'center',
-                    background: '#059669',
-                    borderColor: '#059669',
+                    background: 'var(--brand-primary, #15803D)',
+                    borderColor: 'var(--brand-primary, #15803D)',
                     borderRadius: 6,
                     fontSize: '0.78rem',
                     fontWeight: 600,
@@ -746,7 +739,7 @@ export default function DailyCollectionsView({
                 </div>
                 <div>
                   <span style={{ color: '#64748B' }}>New Pending Bal: </span>
-                  <strong style={{ color: liveAllocation.newPendingPrincipal > 0 ? '#DC2626' : '#059669' }}>
+                  <strong style={{ color: liveAllocation.newPendingPrincipal > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)' }}>
                     ₹{fmt(liveAllocation.newPendingPrincipal)}
                   </strong>
                 </div>
@@ -937,14 +930,16 @@ export default function DailyCollectionsView({
               ) : (
                 paginatedCollections.map((c, idx) => {
                   const amount = parseFloat(c.amount) || 0;
-                  const interestPortion = c.interest_portion !== undefined ? Number(c.interest_portion) : Math.round(amount * 0.15);
-                  const principalPortion = c.principal_portion !== undefined ? Number(c.principal_portion) : (amount - interestPortion);
-                  const timestamp = c.collection_date || c.date || new Date().toISOString().slice(0, 10);
-                  const timeStr = c.time || '10:30 AM';
+                  const interestPortion = Number(c.interest_paid ?? c.interest_portion ?? c.interestPaid ?? 0);
+                  const principalPortion = Number(c.principal_paid ?? c.principal_portion ?? c.principalPaid ?? (amount - interestPortion));
+                  const timestamp = c.collection_date || c.date || '—';
+                  const timeStr = c.created_at ? new Date(c.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
 
                   const matchedLoan = loans.find(l => String(l.id) === String(c.loan_id) || l.loan_account_no === c.loan_account_no) || null;
-                  const loanAccNo = c.loan_account_no || matchedLoan?.loan_account_no || `STL-Y26-${String(c.id || idx + 1).padStart(3, '0')}`;
-                  const remainingBal = c.new_principal_balance !== undefined ? Number(c.new_principal_balance) : (matchedLoan?.pending_amount || 0);
+                  const loanAccNo = c.loan_account_no || matchedLoan?.loan_account_no || '—';
+                  const remainingBal = c.new_principal_balance !== undefined && c.new_principal_balance !== null
+                    ? Number(c.new_principal_balance)
+                    : (c.newPrincipalBalance ?? (matchedLoan?.pending_amount ?? 0));
                   const linkedBorrower = getLinkedBorrower(c);
                   const rowBg = c.reverted ? '#F8FAFC' : 'transparent';
                   const rowStyle = {
@@ -969,7 +964,7 @@ export default function DailyCollectionsView({
                             onClick={() => setSelectedCustomerForProfile(linkedBorrower)}
                             title="Click to view Customer Profile"
                             style={{ color: '#0F172A', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', ...textDecor }}
-                            onMouseEnter={(e) => { e.currentTarget.style.color = '#059669'; e.currentTarget.style.textDecoration = 'underline'; }}
+                            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--brand-primary, #15803D)'; e.currentTarget.style.textDecoration = 'underline'; }}
                             onMouseLeave={(e) => { e.currentTarget.style.color = '#0F172A'; e.currentTarget.style.textDecoration = c.reverted ? 'line-through' : 'none'; }}
                           >
                             {c.borrower_name || `Loan #${c.loan_id}`}
@@ -979,7 +974,7 @@ export default function DailyCollectionsView({
 
                       <td className="code" style={{ fontWeight: 400 }}>
                         <span
-                          style={{ color: '#059669', fontWeight: 600, cursor: 'pointer', ...textDecor }}
+                          style={{ color: 'var(--brand-primary, #15803D)', fontWeight: 600, cursor: 'pointer', ...textDecor }}
                           onClick={() => setSelectedReceipt(c)}
                           title="Click to view Official Collection Voucher"
                         >
@@ -987,10 +982,10 @@ export default function DailyCollectionsView({
                         </span>
                       </td>
 
-                      <td className="num" style={{ color: '#059669', fontWeight: 600, ...textDecor }}>₹{fmt(amount)}</td>
+                      <td className="num" style={{ color: 'var(--brand-primary, #15803D)', fontWeight: 600, ...textDecor }}>₹{fmt(amount)}</td>
                       <td className="num" style={{ fontWeight: 400, ...textDecor }}>₹{fmt(principalPortion)}</td>
                       <td className="num" style={{ color: '#0E7490', fontWeight: 400, ...textDecor }}>₹{fmt(interestPortion)}</td>
-                      <td className="num" style={{ color: remainingBal > 0 ? '#DC2626' : '#059669', fontWeight: 400 }}>₹{fmt(remainingBal)}</td>
+                      <td className="num" style={{ color: remainingBal > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)', fontWeight: 400 }}>₹{fmt(remainingBal)}</td>
 
                       <td style={{ textAlign: 'center', fontWeight: 400 }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center' }}>
@@ -998,13 +993,13 @@ export default function DailyCollectionsView({
                             {c.payment_mode || 'CASH'}
                           </span>
                           {c.reverted && (
-                            <span style={{ fontSize: '0.62rem', color: '#DC2626' }}>{t('coll.reverted_badge')}</span>
+                            <span style={{ fontSize: '0.62rem', color: 'var(--color-danger, #DC2626)' }}>{t('coll.reverted_badge')}</span>
                           )}
                           {!c.reverted && c.clearance_status === 'PENDING_CLEARANCE' && (
-                            <span style={{ fontSize: '0.62rem', color: '#B45309' }}>{t('coll.pending_clearance_badge')}</span>
+                            <span style={{ fontSize: '0.62rem', color: 'var(--color-warning-hover, #B45309)' }}>{t('coll.pending_clearance_badge')}</span>
                           )}
                           {!c.reverted && c.clearance_status === 'BOUNCED' && (
-                            <span style={{ fontSize: '0.62rem', color: '#DC2626' }}>{t('coll.bounced_badge')}</span>
+                            <span style={{ fontSize: '0.62rem', color: 'var(--color-danger, #DC2626)' }}>{t('coll.bounced_badge')}</span>
                           )}
                         </div>
                       </td>
@@ -1030,25 +1025,27 @@ export default function DailyCollectionsView({
                                 onClick={() => prefillCollectionForEdit(c)}
                                 title="Edit Collection (Prefills Form)"
                                 style={{
-                                  background: '#EFF6FF', border: '1px solid #93C5FD', borderRadius: 6,
-                                  padding: '6px 9px', color: '#2563EB', cursor: 'pointer', display: 'inline-flex',
+                                  background: 'var(--color-info-light, #EFF6FF)', border: '1px solid #93C5FD', borderRadius: 6,
+                                  padding: '6px 9px', color: 'var(--color-info, #2563EB)', cursor: 'pointer', display: 'inline-flex',
                                   alignItems: 'center', justifyContent: 'center'
                                 }}
                               >
-                                <Pencil style={{ width: 16, height: 16, strokeWidth: 2, color: '#2563EB' }} />
+                                <Pencil style={{ width: 16, height: 16, strokeWidth: 2, color: 'var(--color-info, #2563EB)' }} />
                               </button>
+                              {c.clearance_status !== 'BOUNCED' && (
                               <button
                                 type="button"
                                 onClick={() => setRevertTarget(c)}
                                 title="Revert Collection"
                                 style={{
-                                  background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 6,
-                                  padding: '6px 9px', color: '#DC2626', cursor: 'pointer', display: 'inline-flex',
+                                  background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FCA5A5)', borderRadius: 6,
+                                  padding: '6px 9px', color: 'var(--color-danger, #DC2626)', cursor: 'pointer', display: 'inline-flex',
                                   alignItems: 'center', justifyContent: 'center'
                                 }}
                               >
-                                <Undo2 style={{ width: 16, height: 16, strokeWidth: 2, color: '#DC2626' }} />
+                                <Undo2 style={{ width: 16, height: 16, strokeWidth: 2, color: 'var(--color-danger, #DC2626)' }} />
                               </button>
+                              )}
                             </>
                           )}
                         </div>
@@ -1102,7 +1099,7 @@ export default function DailyCollectionsView({
                 {/* Modal Header */}
                 <div className="saas-modal-header" style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', padding: '16px 20px' }}>
                   <div className="head-left">
-                    <div className="head-icon-badge" style={{ background: '#ECFDF5', borderColor: '#A7F3D0', color: '#059669' }}>
+                    <div className="head-icon-badge" style={{ background: 'var(--brand-primary-light, #F0FEF5)', borderColor: 'var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)' }}>
                       <Receipt style={{ width: 18, height: 18 }} />
                     </div>
                     <div className="head-titles">
@@ -1119,8 +1116,8 @@ export default function DailyCollectionsView({
                 <div className="saas-modal-body" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {/* Reverted / Bounced alert banner */}
                   {(isReverted || isBounced) && (
-                    <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 14px', fontSize: '0.78rem', color: '#991B1B', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <AlertTriangle style={{ width: 16, height: 16, flexShrink: 0, color: '#DC2626' }} />
+                    <div style={{ background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', borderRadius: 8, padding: '10px 14px', fontSize: '0.78rem', color: 'var(--color-danger-text, #991B1B)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <AlertTriangle style={{ width: 16, height: 16, flexShrink: 0, color: 'var(--color-danger, #DC2626)' }} />
                       <div>
                         <strong>{isReverted ? 'Collection Reverted' : 'Cheque Bounced'}</strong>
                         {selectedReceipt.revert_reason && <div>Reason: {selectedReceipt.revert_reason}</div>}
@@ -1133,12 +1130,12 @@ export default function DailyCollectionsView({
                     <Avatar name={selectedReceipt.borrower_name} photo={linkedBorrower.profile_image || linkedBorrower.photo} size={40} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.9rem' }}>{selectedReceipt.borrower_name}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 600 }}>{selectedReceipt.loan_account_no || selectedReceipt.loan_code}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--brand-primary, #15803D)', fontWeight: 600 }}>{selectedReceipt.loan_account_no || selectedReceipt.loan_code}</div>
                       <div style={{ fontSize: '0.72rem', color: '#64748B' }}>Phone: {linkedBorrower.phone}</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: '0.66rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 600 }}>Total Paid</div>
-                      <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#059669' }}>₹{fmt(selectedReceipt.amount)}</div>
+                      <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--brand-primary, #15803D)' }}>₹{fmt(selectedReceipt.amount)}</div>
                     </div>
                   </div>
 
@@ -1160,11 +1157,11 @@ export default function DailyCollectionsView({
                       )}
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#64748B' }}>Principal Portion:</span>
-                        <strong style={{ color: '#0F172A' }}>₹{fmt(selectedReceipt.principal_portion || selectedReceipt.principalPaid || 0)}</strong>
+                        <strong style={{ color: '#0F172A' }}>₹{fmt(selectedReceipt.principal_paid ?? selectedReceipt.principal_portion ?? selectedReceipt.principalPaid ?? 0)}</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#64748B' }}>Interest Portion:</span>
-                        <strong style={{ color: '#0E7490' }}>₹{fmt(selectedReceipt.interest_portion || selectedReceipt.interestPaid || 0)}</strong>
+                        <strong style={{ color: '#0E7490' }}>₹{fmt(selectedReceipt.interest_paid ?? selectedReceipt.interest_portion ?? selectedReceipt.interestPaid ?? 0)}</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #F1F5F9', paddingTop: 6 }}>
                         <span style={{ color: '#64748B' }}>Remaining Balance:</span>
@@ -1172,7 +1169,7 @@ export default function DailyCollectionsView({
                           const linkedLoan = (loans || []).find(l => String(l.id) === String(selectedReceipt.loan_id) || l.loan_account_no === selectedReceipt.loan_account_no);
                           const remainingBal = selectedReceipt.new_principal_balance ?? selectedReceipt.newPrincipalBalance ?? (linkedLoan ? linkedLoan.pending_amount : 0);
                           return (
-                            <strong style={{ color: Number(remainingBal) > 0 ? '#DC2626' : '#059669' }}>
+                            <strong style={{ color: Number(remainingBal) > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)' }}>
                               ₹{fmt(remainingBal)}
                             </strong>
                           );
@@ -1180,11 +1177,17 @@ export default function DailyCollectionsView({
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #F1F5F9', paddingTop: 6 }}>
                         <span style={{ color: '#64748B' }}>Collector Name:</span>
-                        <span style={{ color: '#334155', fontWeight: 600 }}>{selectedReceipt.collector_name || user?.name || 'Main Branch'}</span>
+                        <span style={{ color: '#334155', fontWeight: 600 }}>{selectedReceipt.collector_name || user?.name || '—'}</span>
                       </div>
                     </div>
                   </div>
                 </div>
+
+                {chequeClearError && (
+                  <div style={{ padding: '8px 20px', fontSize: '0.76rem', color: 'var(--color-danger-text, #991B1B)', background: 'var(--color-danger-light, #FEF2F2)', borderTop: '1px solid var(--color-danger-border, #FECACA)' }}>
+                    {chequeClearError}
+                  </div>
+                )}
 
                 {/* Modal Footer */}
                 <div className="saas-modal-footer" style={{ background: '#F8FAFC', borderTop: '1px solid #E2E8F0', padding: '12px 20px', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
@@ -1192,10 +1195,10 @@ export default function DailyCollectionsView({
                     type="button"
                     onClick={() => setPrintThermalReceipt(selectedReceipt)}
                     style={{
-                      background: '#059669', border: '1px solid #059669', color: '#FFFFFF',
+                      background: 'var(--brand-primary, #15803D)', border: '1px solid var(--brand-primary, #15803D)', color: '#FFFFFF',
                       padding: '7px 14px', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600,
                       cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
-                      boxShadow: '0 2px 4px rgba(5, 150, 105, 0.2)'
+                      boxShadow: '0 2px 4px rgba(var(--brand-primary-rgb), 0.2)'
                     }}
                   >
                     <Printer style={{ width: 14, height: 14, color: '#FFFFFF' }} />
@@ -1206,16 +1209,28 @@ export default function DailyCollectionsView({
                     <>
                       <button
                         type="button"
-                        onClick={() => { onMarkChequeCleared(selectedReceipt.id); closeReceiptModal(); }}
-                        style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', padding: '7px 14px', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                        disabled={chequeClearBusy}
+                        onClick={async () => {
+                          setChequeClearBusy(true);
+                          setChequeClearError('');
+                          try {
+                            await onMarkChequeCleared(selectedReceipt.id);
+                            closeReceiptModal();
+                          } catch (err) {
+                            setChequeClearError(err?.response?.data?.message || err?.message || 'Could not mark this cheque as cleared.');
+                          } finally {
+                            setChequeClearBusy(false);
+                          }
+                        }}
+                        style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', padding: '7px 14px', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600, cursor: chequeClearBusy ? 'not-allowed' : 'pointer', opacity: chequeClearBusy ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 5 }}
                       >
                         <CheckCircle2 style={{ width: 14, height: 14 }} />
-                        <span>Mark Cleared</span>
+                        <span>{chequeClearBusy ? 'Processing…' : 'Mark Cleared'}</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => { setBounceTarget(selectedReceipt); setSelectedReceipt(null); }}
-                        style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', padding: '7px 14px', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                        style={{ background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)', padding: '7px 14px', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}
                       >
                         <XCircle style={{ width: 14, height: 14 }} />
                         <span>Mark Bounced</span>
@@ -1248,8 +1263,8 @@ export default function DailyCollectionsView({
               payment_mode: printThermalReceipt.payment_mode,
               reference_no: printThermalReceipt.reference_no,
               amount: printThermalReceipt.amount,
-              principal_paid: printThermalReceipt.principal_portion || printThermalReceipt.principalPaid,
-              interest_paid: printThermalReceipt.interest_portion || printThermalReceipt.interestPaid,
+              principal_paid: printThermalReceipt.principal_paid ?? printThermalReceipt.principal_portion ?? printThermalReceipt.principalPaid ?? 0,
+              interest_paid: printThermalReceipt.interest_paid ?? printThermalReceipt.interest_portion ?? printThermalReceipt.interestPaid ?? 0,
               pending_balance: printThermalReceipt.new_principal_balance ?? printThermalReceipt.newPrincipalBalance ?? (linkedLoan ? linkedLoan.pending_amount : 0),
               collector_name: printThermalReceipt.collector_name || user?.name
             }}
@@ -1266,7 +1281,7 @@ export default function DailyCollectionsView({
           <div className="saas-modal-card" style={{ maxWidth: 460 }}>
             <div className="saas-modal-header">
               <div className="head-left">
-                <div className="head-icon-badge" style={{ background: '#ECFDF5', borderColor: '#A7F3D0', color: '#059669' }}>
+                <div className="head-icon-badge" style={{ background: 'var(--brand-primary-light, #F0FEF5)', borderColor: 'var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)' }}>
                   <Receipt style={{ width: 18, height: 18 }} />
                 </div>
                 <div className="head-titles">
@@ -1284,7 +1299,7 @@ export default function DailyCollectionsView({
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
                   <span style={{ color: '#64748B' }}>Loan Account:</span>
-                  <span style={{ color: '#059669', fontWeight: 600 }}>{confirmCollectionModal.loan_account_no}</span>
+                  <span style={{ color: 'var(--brand-primary, #15803D)', fontWeight: 600 }}>{confirmCollectionModal.loan_account_no}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
                   <span style={{ color: '#64748B' }}>Collection Date:</span>
@@ -1302,24 +1317,24 @@ export default function DailyCollectionsView({
                 )}
                 <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 8, marginTop: 2, display: 'flex', justifyContent: 'space-between', fontSize: '0.86rem' }}>
                   <span style={{ color: '#0F172A', fontWeight: 600 }}>Total Paid Amount:</span>
-                  <strong style={{ color: '#059669', fontSize: '1rem' }}>₹{fmt(confirmCollectionModal.amount)}</strong>
+                  <strong style={{ color: 'var(--brand-primary, #15803D)', fontSize: '1rem' }}>₹{fmt(confirmCollectionModal.amount)}</strong>
                 </div>
               </div>
 
               {/* Breakdown details */}
               {confirmCollectionModal.allocation && (
-                <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: '10px 12px', fontSize: '0.76rem', display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', borderRadius: 8, padding: '10px 12px', fontSize: '0.76rem', display: 'flex', justifyContent: 'space-between' }}>
                   <div>
-                    <span style={{ color: '#047857' }}>Principal: </span>
+                    <span style={{ color: 'var(--brand-primary-hover, #0E5327)' }}>Principal: </span>
                     <strong style={{ color: '#0F172A' }}>₹{fmt(confirmCollectionModal.allocation.principalPortion)}</strong>
                   </div>
                   <div>
-                    <span style={{ color: '#047857' }}>Interest: </span>
+                    <span style={{ color: 'var(--brand-primary-hover, #0E5327)' }}>Interest: </span>
                     <strong style={{ color: '#0E7490' }}>₹{fmt(confirmCollectionModal.allocation.interestPortion)}</strong>
                   </div>
                   <div>
-                    <span style={{ color: '#047857' }}>New Balance: </span>
-                    <strong style={{ color: confirmCollectionModal.allocation.newPendingPrincipal > 0 ? '#DC2626' : '#059669' }}>₹{fmt(confirmCollectionModal.allocation.newPendingPrincipal)}</strong>
+                    <span style={{ color: 'var(--brand-primary-hover, #0E5327)' }}>New Balance: </span>
+                    <strong style={{ color: confirmCollectionModal.allocation.newPendingPrincipal > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)' }}>₹{fmt(confirmCollectionModal.allocation.newPendingPrincipal)}</strong>
                   </div>
                 </div>
               )}
@@ -1332,7 +1347,7 @@ export default function DailyCollectionsView({
                 onClick={executeConfirmedCollection}
                 disabled={posting}
                 className="btn-submit"
-                style={{ background: '#059669', boxShadow: '0 2px 6px rgba(5, 150, 105, 0.3)', opacity: posting ? 0.7 : 1, cursor: posting ? 'not-allowed' : 'pointer' }}
+                style={{ background: 'var(--brand-primary, #15803D)', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.3)', opacity: posting ? 0.7 : 1, cursor: posting ? 'not-allowed' : 'pointer' }}
               >
                 {posting ? 'Processing...' : (confirmCollectionModal.is_edit ? 'Confirm Update' : 'Confirm Collection')}
               </button>
@@ -1365,8 +1380,8 @@ export default function DailyCollectionsView({
               }
             `}</style>
             <div style={{
-              width: 56, height: 56, borderRadius: '50%', background: '#ECFDF5',
-              border: '2px solid #A7F3D0', color: '#059669', display: 'flex',
+              width: 56, height: 56, borderRadius: '50%', background: 'var(--brand-primary-light, #F0FEF5)',
+              border: '2px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', display: 'flex',
               alignItems: 'center', justifyContent: 'center'
             }}>
               <CheckCircle2 style={{ width: 36, height: 36 }} />
@@ -1387,7 +1402,7 @@ export default function DailyCollectionsView({
           <div className="saas-modal-card" style={{ maxWidth: 440 }}>
             <div className="saas-modal-header">
               <div className="head-left">
-                <div className="head-icon-badge" style={{ background: '#FEF2F2', color: '#DC2626' }}>
+                <div className="head-icon-badge" style={{ background: 'var(--color-danger-light, #FEF2F2)', color: 'var(--color-danger, #DC2626)' }}>
                   <Undo2 style={{ width: 18, height: 18 }} />
                 </div>
                 <div className="head-titles">
@@ -1400,7 +1415,7 @@ export default function DailyCollectionsView({
             <div className="saas-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <p style={{ fontSize: '0.8rem', color: '#334155', margin: 0, lineHeight: 1.5 }}>{t('coll.revert_confirm_desc')}</p>
               {revertError && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 9, padding: '9px 12px', fontSize: '0.76rem', color: '#991B1B' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', borderRadius: 9, padding: '9px 12px', fontSize: '0.76rem', color: 'var(--color-danger-text, #991B1B)' }}>
                   <AlertTriangle style={{ width: 14, height: 14, flexShrink: 0 }} />
                   <span>{revertError}</span>
                 </div>
@@ -1417,7 +1432,7 @@ export default function DailyCollectionsView({
                 onClick={confirmRevert}
                 disabled={revertBusy}
                 className="btn-submit"
-                style={{ background: '#DC2626', boxShadow: '0 2px 6px rgba(220, 38, 38, 0.3)', opacity: revertBusy ? 0.7 : 1, cursor: revertBusy ? 'not-allowed' : 'pointer' }}
+                style={{ background: 'var(--color-danger, #DC2626)', boxShadow: '0 2px 6px rgba(var(--color-danger-rgb), 0.3)', opacity: revertBusy ? 0.7 : 1, cursor: revertBusy ? 'not-allowed' : 'pointer' }}
               >
                 {revertBusy ? '...' : t('coll.revert_collection')}
               </button>
@@ -1432,7 +1447,7 @@ export default function DailyCollectionsView({
           <div className="saas-modal-card" style={{ maxWidth: 440 }}>
             <div className="saas-modal-header">
               <div className="head-left">
-                <div className="head-icon-badge" style={{ background: '#FEF2F2', color: '#DC2626' }}>
+                <div className="head-icon-badge" style={{ background: 'var(--color-danger-light, #FEF2F2)', color: 'var(--color-danger, #DC2626)' }}>
                   <XCircle style={{ width: 18, height: 18 }} />
                 </div>
                 <div className="head-titles">
@@ -1445,7 +1460,7 @@ export default function DailyCollectionsView({
             <div className="saas-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <p style={{ fontSize: '0.8rem', color: '#334155', margin: 0, lineHeight: 1.5 }}>{t('coll.bounce_confirm_desc')}</p>
               {bounceError && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 9, padding: '9px 12px', fontSize: '0.76rem', color: '#991B1B' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', borderRadius: 9, padding: '9px 12px', fontSize: '0.76rem', color: 'var(--color-danger-text, #991B1B)' }}>
                   <AlertTriangle style={{ width: 14, height: 14, flexShrink: 0 }} />
                   <span>{bounceError}</span>
                 </div>
@@ -1456,14 +1471,15 @@ export default function DailyCollectionsView({
               </div>
             </div>
             <div className="saas-modal-footer">
-              <button type="button" onClick={() => { setBounceTarget(null); setBounceError(''); }} className="btn-cancel">{t('btn.cancel')}</button>
+              <button type="button" disabled={bounceBusy} onClick={() => { setBounceTarget(null); setBounceError(''); }} className="btn-cancel">{t('btn.cancel')}</button>
               <button
                 type="button"
+                disabled={bounceBusy}
                 onClick={confirmBounce}
                 className="btn-submit"
-                style={{ background: '#DC2626', boxShadow: '0 2px 6px rgba(220, 38, 38, 0.3)' }}
+                style={{ background: 'var(--color-danger, #DC2626)', boxShadow: '0 2px 6px rgba(var(--color-danger-rgb), 0.3)', opacity: bounceBusy ? 0.6 : 1, cursor: bounceBusy ? 'not-allowed' : 'pointer' }}
               >
-                {t('coll.mark_bounced')}
+                {bounceBusy ? 'Processing…' : t('coll.mark_bounced')}
               </button>
             </div>
           </div>
@@ -1482,10 +1498,10 @@ export default function DailyCollectionsView({
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000002, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <style>{`
             @keyframes collRevertPop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.15); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
-            @keyframes collRevertPulse { 0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); } 70% { box-shadow: 0 0 0 24px rgba(220, 38, 38, 0); } 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); } }
+            @keyframes collRevertPulse { 0% { box-shadow: 0 0 0 0 rgba(var(--color-danger-rgb), 0.4); } 70% { box-shadow: 0 0 0 24px rgba(var(--color-danger-rgb), 0); } 100% { box-shadow: 0 0 0 0 rgba(var(--color-danger-rgb), 0); } }
           `}</style>
           <div style={{ background: '#FFFFFF', borderRadius: 22, padding: '32px 44px', textAlign: 'center', animation: 'collRevertPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }}>
-            <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#DC2626', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px auto', animation: 'collRevertPulse 1.6s infinite' }}>
+            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--color-danger, #DC2626)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px auto', animation: 'collRevertPulse 1.6s infinite' }}>
               <Undo2 style={{ width: 32, height: 32, strokeWidth: 2.5 }} />
             </div>
             <h3 style={{ margin: '0 0 4px 0', fontSize: '1.1rem', fontWeight: 700, color: '#0F172A' }}>{t('coll.reverted_badge')}</h3>

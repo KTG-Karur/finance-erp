@@ -55,7 +55,7 @@ export default function FormulaDurationPreview({
 
       content = (
         <>
-          {rowError && <p style={{ margin: '0 0 8px', fontSize: '0.76rem', color: '#DC2626' }}>{rowError}</p>}
+          {rowError && <p style={{ margin: '0 0 8px', fontSize: '0.76rem', color: 'var(--color-danger, #DC2626)' }}>{rowError}</p>}
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', fontSize: '0.74rem', borderCollapse: 'collapse' }}>
               <thead>
@@ -110,7 +110,7 @@ export default function FormulaDurationPreview({
 
     content = (
       <>
-        {rowError && <p style={{ margin: '0 0 8px', fontSize: '0.76rem', color: '#DC2626' }}>{rowError}</p>}
+        {rowError && <p style={{ margin: '0 0 8px', fontSize: '0.76rem', color: 'var(--color-danger, #DC2626)' }}>{rowError}</p>}
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', fontSize: '0.74rem', borderCollapse: 'collapse' }}>
             <thead>

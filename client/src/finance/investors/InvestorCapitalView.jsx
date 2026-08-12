@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Wallet, Users, Plus, Trash2, Pencil, X, AlertTriangle,
-  Eye, ArrowLeft, Search, Camera, Phone, Mail, MapPin, Landmark, UserCheck, ChevronLeft, ChevronRight, TrendingUp
+  Eye, ArrowLeft, Search, Camera, Phone, Mail, MapPin, UserCheck, ChevronLeft, ChevronRight, TrendingUp
 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 
@@ -18,7 +18,7 @@ function Avatar({ name, photo, size = 32 }) {
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%', flexShrink: 0,
-      background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0',
+      background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #15803D)', border: '1px solid var(--brand-primary-border, #A3F5C1)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize: size * 0.38, fontWeight: 700
     }}>
@@ -29,7 +29,7 @@ function Avatar({ name, photo, size = 32 }) {
 
 function ErrorBanner({ children }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 9, fontSize: '0.78rem', fontWeight: 600, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 9, fontSize: '0.78rem', fontWeight: 600, background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger-hover, #B91C1C)' }}>
       <AlertTriangle style={{ width: 14, height: 14, flexShrink: 0 }} />
       <span>{children}</span>
     </div>
@@ -41,8 +41,8 @@ function ErrorBanner({ children }) {
 function ActionPill({ icon, label, onClick, tone = 'neutral' }) {
   const tones = {
     neutral: { bg: '#FFFFFF', border: '#E2E8F0', color: '#334155' },
-    good: { bg: '#ECFDF5', border: '#A7F3D0', color: '#059669' },
-    bad: { bg: '#FEF2F2', border: '#FECACA', color: '#DC2626' }
+    good: { bg: 'var(--brand-primary-light, #F0FEF5)', border: 'var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)' },
+    bad: { bg: 'var(--color-danger-light, #FEF2F2)', border: 'var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)' }
   };
   const c = tones[tone];
   return (
@@ -75,17 +75,17 @@ function StatusTabs({ tabs, active, onChange }) {
             onClick={() => onChange(tab.id)}
             style={{
               display: 'flex', alignItems: 'center', gap: 6, padding: '9px 4px', marginBottom: -1,
-              border: 'none', borderBottom: isActive ? '2px solid #059669' : '2px solid transparent',
+              border: 'none', borderBottom: isActive ? '2px solid var(--brand-primary, #15803D)' : '2px solid transparent',
               background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
               fontSize: '0.8rem', fontWeight: isActive ? 700 : 500,
-              color: isActive ? '#059669' : '#64748B', marginRight: 18
+              color: isActive ? 'var(--brand-primary, #15803D)' : '#64748B', marginRight: 18
             }}
           >
             <span>{tab.label}</span>
             <span style={{
               fontSize: '0.68rem', fontWeight: 700, borderRadius: 999, padding: '1px 7px',
-              background: isActive ? '#ECFDF5' : '#F1F5F9',
-              color: isActive ? '#059669' : '#94A3B8'
+              background: isActive ? 'var(--brand-primary-light, #F0FEF5)' : '#F1F5F9',
+              color: isActive ? 'var(--brand-primary, #15803D)' : '#94A3B8'
             }}>{tab.count}</span>
           </button>
         );
@@ -123,9 +123,8 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
   const { t, tStatus } = useLanguage();
   const [form, setForm] = useState(() => initialData || {
     name: '', phone: '', email: '', address: '', city: '', state: '', pincode: '',
-    status: 'ACTIVE', bank_name: '', account_holder_name: '',
-    account_no: '', ifsc_no: '', nominee_name: '', nominee_phone: '', nominee_relation: '',
-    capital_amount: '', join_date: new Date().toISOString().slice(0, 10), yield_rate: '', yield_notes: '', exit_date: '',
+    status: 'ACTIVE', nominee_name: '', nominee_phone: '', nominee_relation: '',
+    capital_amount: '', join_date: new Date().toISOString().slice(0, 10), exit_date: '',
     notes: '', photo: null
   });
   const [error, setError] = useState('');
@@ -135,7 +134,17 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
 
   const handlePhotoChange = (e) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Please upload an image file (JPG or PNG).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Photo is too large — please upload an image under 5MB.');
+      return;
+    }
+    setError('');
     const reader = new FileReader();
     reader.onload = () => setField('photo', reader.result);
     reader.readAsDataURL(file);
@@ -153,7 +162,6 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
       await onSubmit({
         ...form,
         capital_amount: form.capital_amount === '' ? 0 : Number(form.capital_amount),
-        yield_rate: form.yield_rate === '' ? null : Number(form.yield_rate),
         exit_date: form.status === 'EXITED' ? (form.exit_date || new Date().toISOString().slice(0, 10)) : null
       }, initialData?.id);
     } catch (err) {
@@ -187,7 +195,7 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
       <form onSubmit={handleSubmit} className="cf-wizard-body">
         <div className="cf-step-pane" style={{ padding: '20px 22px', gap: 16 }}>
           <div className="cf-pane-title" style={{ paddingBottom: 12 }}>
-            <Users style={{ width: 16, height: 16, color: '#059669' }} />
+            <Users style={{ width: 16, height: 16, color: 'var(--brand-primary, #15803D)' }} />
             <div>
               <h3>{t('inv.section_profile_title')}</h3>
               <p>{t('inv.section_profile_subtitle')}</p>
@@ -199,12 +207,12 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
               {t('cf.profile_photo_label')}
             </div>
             <div className="cf-photo-flex" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div className="cf-photo-avatar" style={{ width: 52, height: 52, borderRadius: '50%', overflow: 'hidden', border: '2px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ECFDF5' }}>
+              <div className="cf-photo-avatar" style={{ width: 52, height: 52, borderRadius: '50%', overflow: 'hidden', border: '2px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--brand-primary-light, #F0FEF5)' }}>
                 <Avatar name={form.name} photo={form.photo} size={48} />
               </div>
               <div className="cf-photo-actions" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <label htmlFor="investor-photo-upload" className="btn-upload-photo" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', padding: '6px 12px', fontSize: '0.75rem', fontWeight: 600, background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 6, color: '#334155' }}>
-                  <Camera style={{ width: 13, height: 13, color: '#059669' }} />
+                  <Camera style={{ width: 13, height: 13, color: 'var(--brand-primary, #15803D)' }} />
                   <span>{form.photo ? t('inv.change_photo') : t('inv.upload_photo')}</span>
                 </label>
                 <input id="investor-photo-upload" type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: 'none' }} />
@@ -220,7 +228,7 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
             </div>
             <div className="form-group">
               <label>{t('inv.modal.phone_label')}</label>
-              <input type="text" required value={form.phone} onChange={e => setField('phone', e.target.value)} className="input-control mono" placeholder="10-digit mobile" />
+              <input type="text" required value={form.phone} onChange={e => setField('phone', e.target.value.replace(/\D/g, '').slice(0, 10))} className="input-control mono" placeholder="10-digit mobile" />
             </div>
             <div className="form-group">
               <label>{t('form.email')}</label>
@@ -260,10 +268,10 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
 
         <div className="cf-step-pane" style={{ padding: '20px 22px', gap: 16 }}>
           <div className="cf-pane-title" style={{ paddingBottom: 12 }}>
-            <TrendingUp style={{ width: 16, height: 16, color: '#059669' }} />
+            <TrendingUp style={{ width: 16, height: 16, color: 'var(--brand-primary, #15803D)' }} />
             <div>
               <h3>Capital</h3>
-              <p>How much this investor has put in, and what they earn on it</p>
+              <p>How much this investor has put in</p>
             </div>
           </div>
           <div className="form-row form-row--2">
@@ -287,10 +295,9 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
         </div>
 
 
-
         <div className="cf-step-pane" style={{ padding: '20px 22px', gap: 16 }}>
           <div className="cf-pane-title" style={{ paddingBottom: 12 }}>
-            <UserCheck style={{ width: 16, height: 16, color: '#059669' }} />
+            <UserCheck style={{ width: 16, height: 16, color: 'var(--brand-primary, #15803D)' }} />
             <div>
               <h3>{t('inv.section_nominee_title')}</h3>
               <p>{t('inv.section_nominee_subtitle')}</p>
@@ -303,7 +310,7 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
             </div>
             <div className="form-group">
               <label>{t('inv.modal.nominee_phone_label')}</label>
-              <input type="text" value={form.nominee_phone} onChange={e => setField('nominee_phone', e.target.value)} className="input-control mono" placeholder="10-digit mobile" />
+              <input type="text" value={form.nominee_phone} onChange={e => setField('nominee_phone', e.target.value.replace(/\D/g, '').slice(0, 10))} className="input-control mono" placeholder="10-digit mobile" />
             </div>
             <div className="form-group">
               <label>{t('inv.nominee_relation_label')}</label>
@@ -362,7 +369,7 @@ function InvestorProfileView({ investor, onBack, onEdit }) {
                 <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.02em' }}>
                   {investor.name}
                 </h1>
-                <span className="code" style={{ fontSize: '0.75rem', padding: '3px 9px', background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', borderRadius: 6, fontWeight: 700 }}>
+                <span className="code" style={{ fontSize: '0.75rem', padding: '3px 9px', background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', borderRadius: 6, fontWeight: 700 }}>
                   {investor.investor_code || `INV-${String(investor.id).padStart(4, '0')}`}
                 </span>
                 <span className={`fin-badge ${investor.status === 'ACTIVE' ? 'fin-badge--ok' : 'fin-badge--warn'}`}>
@@ -381,8 +388,8 @@ function InvestorProfileView({ investor, onBack, onEdit }) {
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
               padding: '8px 16px', borderRadius: 8, border: 'none',
-              background: '#059669', color: '#FFFFFF', fontSize: '0.78rem',
-              fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(5,150,105,0.25)'
+              background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', fontSize: '0.78rem',
+              fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb),0.25)'
             }}
           >
             <Pencil style={{ width: 14, height: 14 }} />
@@ -394,16 +401,16 @@ function InvestorProfileView({ investor, onBack, onEdit }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginTop: 24, paddingTop: 20, borderTop: '1px solid #E2E8F0' }}>
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '14px 18px', borderRadius: 10 }}>
             <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Capital Invested</span>
-            <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#059669', marginTop: 4 }}>₹{fmt(investor.capital_amount)}</div>
+            <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--brand-primary, #15803D)', marginTop: 4 }}>₹{fmt(investor.capital_amount)}</div>
           </div>
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '14px 18px', borderRadius: 10 }}>
             <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Joining Date</span>
             <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0F172A', marginTop: 4 }}>{investor.join_date || '—'}</div>
           </div>
           {investor.status === 'EXITED' && (
-            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '14px 18px', borderRadius: 10 }}>
-              <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#DC2626', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Exit Date</span>
-              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#991B1B', marginTop: 4 }}>{investor.exit_date || '—'}</div>
+            <div style={{ background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', padding: '14px 18px', borderRadius: 10 }}>
+              <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--color-danger, #DC2626)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Exit Date</span>
+              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--color-danger-text, #991B1B)', marginTop: 4 }}>{investor.exit_date || '—'}</div>
             </div>
           )}
         </div>
@@ -415,7 +422,7 @@ function InvestorProfileView({ investor, onBack, onEdit }) {
         {/* Contact & Address Card */}
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #F1F5F9', paddingBottom: 12 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Phone style={{ width: 15, height: 15 }} />
             </div>
             <div>
@@ -456,7 +463,7 @@ function InvestorProfileView({ investor, onBack, onEdit }) {
         {/* Nominee Details Card */}
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #F1F5F9', paddingBottom: 12 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <UserCheck style={{ width: 15, height: 15 }} />
             </div>
             <div>
@@ -481,6 +488,7 @@ function InvestorProfileView({ investor, onBack, onEdit }) {
         </div>
 
       </div>
+
 
       {/* Internal Notes Card */}
       {investor.notes && (
@@ -512,6 +520,7 @@ export default function InvestorCapitalView({
   const [editingInvestor, setEditingInvestor] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteError, setDeleteError] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [viewingInvestorId, setViewingInvestorId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusTab, setStatusTab] = useState('ACTIVE');
@@ -553,7 +562,11 @@ export default function InvestorCapitalView({
   const byTab = investors.filter(i => (i.status || 'ACTIVE') === statusTab);
   const filteredInvestors = byTab.filter(i => {
     const q = searchQuery.toLowerCase().trim();
-    return !q || i.name.toLowerCase().includes(q);
+    return !q || (
+      (i.name && i.name.toLowerCase().includes(q)) ||
+      (i.investor_code && i.investor_code.toLowerCase().includes(q)) ||
+      (i.phone && i.phone.includes(q))
+    );
   });
 
   const totalPages = Math.ceil(filteredInvestors.length / pageSize) || 1;
@@ -566,7 +579,7 @@ export default function InvestorCapitalView({
       <div className="fin-header-card">
         <div className="fin-page-header">
           <div className="fin-page-header__left">
-            <div className="fin-page-header__icon" style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669' }}>
+            <div className="fin-page-header__icon" style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)' }}>
               <Wallet style={{ width: 18, height: 18 }} />
             </div>
             <div>
@@ -575,7 +588,7 @@ export default function InvestorCapitalView({
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="fin-btn-primary" style={{ background: '#059669' }} onClick={() => { setEditingInvestor(null); setScreen('ADD_INVESTOR'); }}>
+            <button type="button" className="fin-btn-primary" style={{ background: 'var(--brand-primary, #15803D)' }} onClick={() => { setEditingInvestor(null); setScreen('ADD_INVESTOR'); }}>
               <Plus style={{ width: 14, height: 14 }} />
               <span>{t('inv.add_investor')}</span>
             </button>
@@ -627,7 +640,7 @@ export default function InvestorCapitalView({
             ) : pagedInvestors.map((inv, idx) => (
               <tr key={inv.id} onClick={() => setViewingInvestorId(inv.id)} style={{ cursor: 'pointer' }}>
                 <td style={{ textAlign: 'center', color: '#64748B' }}>{startIndex + idx + 1}</td>
-                <td className="code" style={{ color: '#059669', fontWeight: 600 }}>{inv.investor_code || `INV-${String(inv.id).padStart(4, '0')}`}</td>
+                <td className="code" style={{ color: 'var(--brand-primary, #15803D)', fontWeight: 600 }}>{inv.investor_code || `INV-${String(inv.id).padStart(4, '0')}`}</td>
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <Avatar name={inv.name} photo={inv.photo} size={30} />
@@ -637,7 +650,7 @@ export default function InvestorCapitalView({
                 <td>{inv.phone}</td>
                 <td style={{ color: '#64748B', fontSize: '0.78rem' }}>{inv.email || '—'}</td>
                 <td style={{ color: '#64748B', fontSize: '0.78rem' }}>{inv.city || '—'}</td>
-                <td className="num" style={{ fontWeight: 600, color: '#059669' }}>₹{fmt(inv.capital_amount)}</td>
+                <td className="num" style={{ fontWeight: 600, color: 'var(--brand-primary, #15803D)' }}>₹{fmt(inv.capital_amount)}</td>
                 <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                   <div style={{ display: 'inline-flex', gap: 6 }}>
                     <ActionPill icon={<Eye style={{ width: 11, height: 11 }} />} label={t('inv.view_profile')} onClick={() => setViewingInvestorId(inv.id)} />
@@ -657,7 +670,7 @@ export default function InvestorCapitalView({
           <div className="saas-modal-card">
             <div className="saas-modal-header">
               <div className="head-left">
-                <div className="head-icon-badge" style={{ background: '#FEF2F2', borderColor: '#FECACA', color: '#DC2626' }}>
+                <div className="head-icon-badge" style={{ background: 'var(--color-danger-light, #FEF2F2)', borderColor: 'var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)' }}>
                   <Trash2 style={{ width: 18, height: 18 }} />
                 </div>
                 <div className="head-titles">
@@ -665,28 +678,34 @@ export default function InvestorCapitalView({
                   <p>{t('inv.delete_investor_subtitle')}</p>
                 </div>
               </div>
-              <button onClick={() => setDeleteTarget(null)} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>
+              <button onClick={() => setDeleteTarget(null)} className="close-btn" type="button" disabled={deleteLoading}><X style={{ width: 16, height: 16 }} /></button>
             </div>
             <div className="saas-modal-body">
               <p style={{ fontSize: '0.85rem', color: '#334155', margin: 0 }}>{t('inv.delete_investor_confirm')} <strong>{deleteTarget.name}</strong>?</p>
               {deleteError && <div className="form-alert form-alert--error"><AlertTriangle style={{ width: 14, height: 14 }} /><span>{deleteError}</span></div>}
             </div>
             <div className="saas-modal-footer">
-              <button type="button" onClick={() => setDeleteTarget(null)} className="btn-cancel">{t('btn.cancel')}</button>
+              <button type="button" onClick={() => setDeleteTarget(null)} disabled={deleteLoading} className="btn-cancel">{t('btn.cancel')}</button>
               <button
                 type="button"
+                disabled={deleteLoading}
                 onClick={async () => {
+                  if (deleteLoading) return;
+                  setDeleteLoading(true);
+                  setDeleteError('');
                   try {
                     await onDeleteInvestor(deleteTarget.id);
                     setDeleteTarget(null);
                   } catch (err) {
                     setDeleteError(err?.response?.data?.message || t('inv.delete_investor_error'));
+                  } finally {
+                    setDeleteLoading(false);
                   }
                 }}
                 className="btn-submit"
-                style={{ background: '#DC2626', boxShadow: '0 2px 6px rgba(220, 38, 38, 0.3)' }}
+                style={{ background: deleteLoading ? '#94A3B8' : 'var(--color-danger, #DC2626)', boxShadow: deleteLoading ? 'none' : '0 2px 6px rgba(var(--color-danger-rgb), 0.3)', cursor: deleteLoading ? 'not-allowed' : 'pointer' }}
               >
-                {t('inv.delete_investor_title')}
+                {deleteLoading ? '...' : t('inv.delete_investor_title')}
               </button>
             </div>
           </div>

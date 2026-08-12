@@ -10,6 +10,7 @@ export const DataTypes = {
   INTEGER: { key: 'INTEGER' },
   DECIMAL: (precision = 15, scale = 2) => ({ key: 'DECIMAL', precision, scale }),
   TEXT: { key: 'TEXT' },
+  MEDIUMTEXT: { key: 'MEDIUMTEXT' },
   BOOLEAN: { key: 'BOOLEAN' },
   DATE: { key: 'DATE' },
   DATEONLY: { key: 'DATEONLY' },
@@ -28,6 +29,7 @@ function columnTypeSql(spec) {
     case 'INTEGER': return 'INT';
     case 'DECIMAL': return `DECIMAL(${type.precision},${type.scale})`;
     case 'TEXT': return 'TEXT';
+    case 'MEDIUMTEXT': return 'MEDIUMTEXT';
     case 'BOOLEAN': return 'TINYINT(1)';
     case 'DATEONLY': return 'DATE';
     case 'DATE': return 'DATETIME';
@@ -88,6 +90,13 @@ export function createQueryInterface(conn) {
 
     async bulkDelete(tableName) {
       await conn.query(`DELETE FROM \`${tableName}\`;`);
+    },
+
+    async addIndex(tableName, fields, options = {}) {
+      const cols = fields.map(f => `\`${f}\``).join(', ');
+      const kind = options.unique ? 'UNIQUE INDEX' : 'INDEX';
+      const name = options.name || `${tableName}_${fields.join('_')}${options.unique ? '_unique' : '_idx'}`;
+      await conn.query(`ALTER TABLE \`${tableName}\` ADD ${kind} \`${name}\` (${cols})`);
     }
   };
 }

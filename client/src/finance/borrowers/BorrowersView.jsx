@@ -29,25 +29,7 @@ import { useLanguage } from '../../i18n/LanguageContext.jsx';
 
 const normalizePhone = (p) => (p || '').toString().replace(/\D/g, '');
 
-function KycBadge({ status }) {
-  const { tStatus } = useLanguage();
-  if (status === 'VERIFIED') {
-    return (
-      <span className="kyc-dot-badge kyc-dot-badge--verified">
-        <span className="dot"></span>
-        <span>{tStatus('VERIFIED')}</span>
-      </span>
-    );
-  }
-  return (
-    <span className="kyc-dot-badge kyc-dot-badge--pending">
-      <span className="dot"></span>
-      <span>{tStatus('PENDING')}</span>
-    </span>
-  );
-}
-
-export default function BorrowersView({ borrowers = [], loans = [], branches = [], selectedBranch = 'ALL', onCreateBorrower, onUpdateBorrower, onDeleteBorrower, onOpenKycReview }) {
+export default function BorrowersView({ borrowers = [], loans = [], branches = [], selectedBranch = 'ALL', tenant, onCreateBorrower, onUpdateBorrower, onDeleteBorrower }) {
   const { t, tStatus } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -75,7 +57,7 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
   const handleExportCsv = () => {
     const headers = [
       'Customer Code', 'Full Name', 'Father/Spouse Name', 'DOB', 'Gender', 'Phone', 'Alt Phone',
-      'Email', 'Address Line 1', 'City', 'State', 'Pincode', 'Aadhaar Number', 'PAN Number', 'Loans Count', 'KYC Status'
+      'Email', 'Address Line 1', 'City', 'State', 'Pincode', 'Aadhaar Number', 'PAN Number', 'Loans Count', 'Active Loans', 'Completed Loans'
     ];
 
     const rows = borrowersList.map(b => [
@@ -94,7 +76,8 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
       b.aadhaar_number || '',
       b.pan_number || '',
       b.loansCount || 0,
-      b.kyc_status || 'PENDING'
+      b.activeLoansCount || 0,
+      b.completedLoansCount || 0
     ]);
 
     const csvLines = [
@@ -120,9 +103,15 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
       const relatedLoans = loans.filter(l => normalizePhone(l.phone) === normalizePhone(b.phone) && normalizePhone(b.phone));
       const totalOutstanding = relatedLoans.reduce((acc, l) => acc + (parseFloat(l.pending_amount) || 0), 0);
       const disbursedAmount = relatedLoans.reduce((acc, l) => acc + (parseFloat(l.principal_amount) || 0), 0);
+      // Same status grouping as the Loans Register page (LoansView.jsx) so the
+      // counts shown here always agree with what that page calls Active/Closed.
+      const activeLoansCount = relatedLoans.filter(l => l.status === 'ACTIVE' || l.status === 'OVERDUE' || l.status === 'APPROVED').length;
+      const completedLoansCount = relatedLoans.filter(l => l.status === 'CLOSED').length;
       return {
         ...b,
         loansCount: relatedLoans.length,
+        activeLoansCount,
+        completedLoansCount,
         totalOutstanding,
         disbursedAmount,
         loansList: relatedLoans
@@ -147,19 +136,17 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
       (b.pincode || '').includes(q) ||
       (b.street_address || b.address || '').toLowerCase().includes(q) ||
       (b.occupation || '').toLowerCase().includes(q) ||
-      (b.kyc_status || '').toLowerCase().includes(q) ||
       (b.loansList || []).some(l => (l.loan_code || l.loan_number || '').toLowerCase().includes(q))
     );
     if (!matchesSearch) return false;
     if (branchFilter !== 'ALL' && b.branch !== branchFilter) return false;
     if (statusFilter === 'ACTIVE_LOANS') return b.totalOutstanding > 0;
-    if (statusFilter === 'VERIFIED') return b.kyc_status === 'VERIFIED';
-    if (statusFilter === 'PENDING_KYC') return b.kyc_status === 'PENDING' || !b.kyc_status;
     return true;
   });
 
   const totalPages = Math.ceil(borrowersList.length / pageSize) || 1;
-  const startIndex = (currentPage - 1) * pageSize;
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
   const paginatedList = borrowersList.slice(startIndex, startIndex + pageSize);
 
   const totalBorrowers = enrichedBorrowers.length;
@@ -191,6 +178,7 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
         mode={formMode}
         initialData={formInitialData}
         branches={branches}
+        tenant={tenant}
         onCancel={() => setFormOpen(false)}
         onSubmit={handleFormSubmit}
       />
@@ -218,7 +206,7 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
       <div className="fin-header-card">
         <div className="fin-page-header">
           <div className="fin-page-header__left">
-            <div className="fin-page-header__icon" style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669' }}>
+            <div className="fin-page-header__icon" style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)' }}>
               <Users style={{ width: 18, height: 18 }} />
             </div>
             <div>
@@ -271,8 +259,6 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
           >
             <option value="ALL">All Customers ({totalBorrowers})</option>
             <option value="ACTIVE_LOANS">Active Loans Only</option>
-            <option value="VERIFIED">Verified KYC</option>
-            <option value="PENDING_KYC">Pending KYC</option>
           </select>
         </div>
 
@@ -297,7 +283,7 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
               className="btn-export-trigger"
               onClick={() => setExportDropdownOpen(prev => !prev)}
             >
-              <Printer style={{ width: 15, height: 15, color: '#059669' }} />
+              <Printer style={{ width: 15, height: 15, color: 'var(--brand-primary, #15803D)' }} />
               <span>Export / Print</span>
               <ChevronDown style={{ width: 14, height: 14, color: '#64748B' }} />
             </button>
@@ -308,21 +294,21 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
                   type="button"
                   onClick={() => { setShowDirectoryReport(true); setExportDropdownOpen(false); }}
                 >
-                  <Printer style={{ width: 14, height: 14, color: '#059669' }} />
+                  <Printer style={{ width: 14, height: 14, color: 'var(--brand-primary, #15803D)' }} />
                   <span>Print Directory Report (B&W Sheet)</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => { setShowDirectoryReport(true); setExportDropdownOpen(false); }}
                 >
-                  <FileText style={{ width: 14, height: 14, color: '#2563EB' }} />
+                  <FileText style={{ width: 14, height: 14, color: 'var(--color-info, #2563EB)' }} />
                   <span>Export PDF Report</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => { handleExportCsv(); setExportDropdownOpen(false); }}
                 >
-                  <Download style={{ width: 14, height: 14, color: '#D97706' }} />
+                  <Download style={{ width: 14, height: 14, color: 'var(--color-warning, #D97706)' }} />
                   <span>Export Excel Spreadsheet (.csv)</span>
                 </button>
               </div>
@@ -359,6 +345,8 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
                   <th>{t('col.branch')}</th>
                   <th>{t('col.government_ids')}</th>
                   <th className="num">No. of Loans</th>
+                  <th className="num">Active Loans</th>
+                  <th className="num">Completed Loans</th>
                   <th className="num">{t('col.loan_exposure')}</th>
                   <th style={{ textAlign: 'right' }}>{t('col.actions')}</th>
                 </tr>
@@ -366,7 +354,7 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
               <tbody>
                 {paginatedList.length === 0 ? (
                   <tr>
-                    <td colSpan="8" style={{ textAlign: 'center', padding: 40, color: '#94A3B8' }}>
+                    <td colSpan="10" style={{ textAlign: 'center', padding: 40, color: '#94A3B8' }}>
                       No customer master records match your search criteria.
                     </td>
                   </tr>
@@ -379,7 +367,7 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{
                             width: 30, height: 30, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
-                            background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0',
+                            background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #15803D)', border: '1px solid var(--brand-primary-border, #A3F5C1)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             fontSize: '0.78rem', fontWeight: 700
                           }}>
@@ -391,7 +379,7 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
                           </div>
                           <div style={{ minWidth: 0 }}>
                             <div style={{ color: '#0F172A', fontSize: '0.8rem', fontWeight: 600 }}>{b.full_name}</div>
-                            <div className="code" style={{ fontSize: '0.7rem' }}>{b.borrower_code || 'KTG-CUST'}</div>
+                            <div className="code" style={{ fontSize: '0.7rem' }}>{b.borrower_code || '—'}</div>
                           </div>
                         </div>
                       </td>
@@ -403,7 +391,7 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
                         </div>
                       </td>
 
-                      <td>{b.branch || 'Karur Main'}</td>
+                      <td>{b.branch || '—'}</td>
 
                       <td>
                         <div style={{ display: 'flex', flexDirection: 'column', fontSize: '0.75rem' }}>
@@ -417,7 +405,11 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
 
                       <td className="num" style={{ fontWeight: 600, color: '#0F172A' }}>{b.loansCount}</td>
 
-                      <td className="num" style={{ fontWeight: 600, color: b.totalOutstanding > 0 ? '#DC2626' : '#059669' }}>
+                      <td className="num" style={{ fontWeight: 600, color: b.activeLoansCount > 0 ? 'var(--brand-primary, #15803D)' : '#94A3B8' }}>{b.activeLoansCount}</td>
+
+                      <td className="num" style={{ fontWeight: 600, color: '#64748B' }}>{b.completedLoansCount}</td>
+
+                      <td className="num" style={{ fontWeight: 600, color: b.totalOutstanding > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)' }}>
                         ₹{fmt(b.totalOutstanding)}
                       </td>
 
@@ -429,7 +421,7 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
                             onClick={(e) => { e.stopPropagation(); setPrintTarget(b); }}
                             title="Print Customer Application Form (Xerox Sheet)"
                           >
-                            <Printer style={{ width: 14, height: 14, color: '#059669' }} />
+                            <Printer style={{ width: 14, height: 14, color: 'var(--brand-primary, #15803D)' }} />
                           </button>
                           <button
                             type="button"
@@ -462,17 +454,17 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
             <div className="table-pagination__controls">
               <button
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
+                disabled={safePage === 1}
               >
                 <ChevronLeft style={{ width: 14, height: 14 }} />
                 <span>Previous</span>
               </button>
               <span className="page-indicator">
-                Page {currentPage} of {totalPages}
+                Page {safePage} of {totalPages}
               </span>
               <button
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
+                disabled={safePage === totalPages}
               >
                 <span>Next</span>
                 <ChevronRight style={{ width: 14, height: 14 }} />
@@ -501,27 +493,8 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
                     </div>
                     <div className="name-box">
                       <h4>{b.full_name}</h4>
-                      <span>{b.borrower_code || 'KTG-CUST'}</span>
+                      <span>{b.borrower_code || '—'}</span>
                     </div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                    <KycBadge status={b.kyc_status} />
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); onOpenKycReview?.(b); }}
-                      style={{
-                        border: b.kyc_status === 'VERIFIED' ? '1px solid #CBD5E1' : 'none',
-                        background: b.kyc_status === 'VERIFIED' ? '#FFFFFF' : '#D97706',
-                        color: b.kyc_status === 'VERIFIED' ? '#475569' : '#FFFFFF',
-                        fontSize: '0.65rem',
-                        fontWeight: 600,
-                        padding: '2px 8px',
-                        borderRadius: 12,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {b.kyc_status === 'VERIFIED' ? 'Inspect' : 'Review'}
-                    </button>
                   </div>
                 </div>
 
@@ -532,15 +505,19 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
                   </div>
                   <div className="info-item">
                     <span className="lbl">Branch</span>
-                    <span className="val">{b.branch || 'Karur Main'}</span>
+                    <span className="val">{b.branch || '—'}</span>
                   </div>
                   <div className="info-item">
                     <span className="lbl">Active Loans</span>
-                    <span className="val">{b.loansCount} Accounts</span>
+                    <span className="val">{b.activeLoansCount} Accounts</span>
+                  </div>
+                  <div className="info-item">
+                    <span className="lbl">Completed Loans</span>
+                    <span className="val">{b.completedLoansCount} Accounts</span>
                   </div>
                   <div className="info-item">
                     <span className="lbl">Exposure</span>
-                    <span className="val" style={{ color: b.totalOutstanding > 0 ? '#DC2626' : '#059669' }}>
+                    <span className="val" style={{ color: b.totalOutstanding > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)' }}>
                       ₹{fmt(b.totalOutstanding)}
                     </span>
                   </div>
@@ -557,7 +534,7 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
                       onClick={(e) => { e.stopPropagation(); setPrintTarget(b); }}
                       title="Print Customer Form"
                     >
-                      <Printer style={{ width: 13, height: 13, color: '#059669' }} />
+                      <Printer style={{ width: 13, height: 13, color: 'var(--brand-primary, #15803D)' }} />
                     </button>
                     <button
                       type="button"
@@ -589,7 +566,7 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
           <div className="saas-modal-card">
             <div className="saas-modal-header">
               <div className="head-left">
-                <div className="head-icon-badge" style={{ background: '#FEF2F2', borderColor: '#FECACA', color: '#DC2626' }}>
+                <div className="head-icon-badge" style={{ background: 'var(--color-danger-light, #FEF2F2)', borderColor: 'var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)' }}>
                   <Trash2 style={{ width: 18, height: 18 }} />
                 </div>
                 <div className="head-titles">
@@ -621,7 +598,7 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
                 onClick={confirmDelete}
                 disabled={deleteLoading}
                 className="btn-submit"
-                style={{ background: '#DC2626', boxShadow: '0 2px 6px rgba(220, 38, 38, 0.3)' }}
+                style={{ background: 'var(--color-danger, #DC2626)', boxShadow: '0 2px 6px rgba(var(--color-danger-rgb), 0.3)' }}
               >
                 {deleteLoading ? 'Deleting...' : 'Delete Permanently'}
               </button>
@@ -636,7 +613,6 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
           borrower={profileTarget}
           onClose={() => setProfileTarget(null)}
           onEdit={() => { openEditForm(profileTarget); setProfileTarget(null); }}
-          onReviewKyc={() => { onOpenKycReview?.(profileTarget); setProfileTarget(null); }}
         />
       )}
 
@@ -646,6 +622,7 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
           formData={printTarget}
           profileImage={printTarget.profile_image}
           documents={printTarget.documents || []}
+          tenant={tenant}
           onClose={() => setPrintTarget(null)}
         />
       )}
@@ -654,6 +631,7 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
       {showDirectoryReport && (
         <PrintableCustomerDirectoryReport
           borrowers={borrowersList}
+          tenant={tenant}
           onClose={() => setShowDirectoryReport(false)}
         />
       )}

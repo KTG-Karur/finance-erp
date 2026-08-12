@@ -19,8 +19,15 @@ import financeRoutes from './finance/finance.routes.js';
 import orgRoutes from './modules/org/org.routes.js';
 import employeeRoutes from './modules/employee/employee.routes.js';
 
+// Fastify's default bodyLimit is 1MB — too small for real uploads: a single
+// 5MB photo becomes ~6.7MB once base64-encoded in the JSON body, and the
+// borrower KYC form can submit up to 6 documents (10MB each) in one request —
+// worst case ~87MB of base64. Actual per-file ceilings are still enforced
+// individually server-side (see shared/validators/fileSize.js); this is just
+// the outer transport limit, set with headroom above that worst case.
 const fastify = Fastify({
-  logger: false
+  logger: false,
+  bodyLimit: 100 * 1024 * 1024
 });
 
 // Origin allowlist instead of `origin: true` (which reflects any caller's Origin
@@ -55,9 +62,11 @@ await fastify.register(helmet, {
   crossOriginResourcePolicy: { policy: 'cross-origin' }
 });
 
+// global: false — rate limiting is opt-in per route now, not applied to every
+// endpoint by default. Only the login/credential-guessing routes in
+// auth.routes.js (bruteForceGuard) opt in via their own `config.rateLimit`.
 await fastify.register(rateLimit, {
-  max: 300,
-  timeWindow: '1 minute',
+  global: false,
   // @fastify/rate-limit throws whatever this returns and relies on `.statusCode`
   // to set the reply status — omitting it silently produces a 500 instead of 429.
   errorResponseBuilder: (request, context) => ({

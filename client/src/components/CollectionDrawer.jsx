@@ -20,12 +20,12 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
   const profileImage = currentLoan.photo || currentLoan.profile_image || borrowerData?.photo || borrowerData?.profile_image || null;
   const borrowerName = currentLoan.borrower_name || borrowerData?.full_name || 'Borrower';
   const phoneNo = currentLoan.phone || borrowerData?.phone || borrowerData?.alt_phone || '—';
-  const branchLoc = currentLoan.branch || borrowerData?.branch || 'Main Branch';
+  const branchLoc = currentLoan.branch || borrowerData?.branch || '—';
   const aadhaarNo = currentLoan.aadhaar || borrowerData?.aadhaar_number || '—';
   const panNo = currentLoan.pan || borrowerData?.pan_number || '—';
   const guarantorName = currentLoan.guarantor || borrowerData?.guarantor_name || '—';
 
-  const dailyEmi = currentLoan.installment_amount || 500;
+  const dailyEmi = currentLoan.installment_amount || 0;
   const pendingBal = currentLoan.pending_amount || 0;
   const principalAmt = currentLoan.principal_amount || 0;
   const collectedAmt = currentLoan.collected_amount || 0;
@@ -45,6 +45,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
   const [loading, setLoading] = useState(false);
   const [receipt, setReceipt] = useState(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   useEffect(() => {
     if (loan) {
@@ -77,6 +78,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
     if (receivedVal <= 0) return;
 
     setLoading(true);
+    setSubmitError('');
     try {
       const modeDetails = paymentMode === 'UPI' ? ` (UPI UTR: ${upiTxnId})`
         : paymentMode === 'CHEQUE' ? ` (Cheque No: ${chequeNo}, Bank: ${chequeBank})`
@@ -96,6 +98,9 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
         updated_schedule: allocation.updatedSchedule,
         notes: `${remarks}${modeDetails}`,
         collector_name: collectorName,
+        reference_no: upiTxnId || chequeNo || bankRefNo || '',
+        branch: branchLoc,
+        phone: phoneNo,
         payment_details: {
           upiTxnId,
           chequeNo,
@@ -115,6 +120,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
       });
     } catch (err) {
       console.error(err);
+      setSubmitError(err?.response?.data?.message || err?.message || 'Failed to record this payment. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -171,9 +177,9 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                     height: 68,
                     borderRadius: '50%',
                     objectFit: 'cover',
-                    border: '2px solid #A7F3D0',
+                    border: '2px solid var(--brand-primary-border, #A3F5C1)',
                     margin: '0 auto 10px auto',
-                    boxShadow: '0 4px 14px rgba(5, 150, 105, 0.2)'
+                    boxShadow: '0 4px 14px rgba(var(--brand-primary-rgb), 0.2)'
                   }}
                   onError={(e) => { e.target.style.display = 'none'; }}
                 />
@@ -182,16 +188,16 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                   width: 68,
                   height: 68,
                   borderRadius: '50%',
-                  background: '#ECFDF5',
-                  border: '2px solid #A7F3D0',
-                  color: '#059669',
+                  background: 'var(--brand-primary-light, #F0FEF5)',
+                  border: '2px solid var(--brand-primary-border, #A3F5C1)',
+                  color: 'var(--brand-primary, #15803D)',
                   fontSize: '1.4rem',
                   fontWeight: 600,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   margin: '0 auto 10px auto',
-                  boxShadow: '0 4px 14px rgba(5, 150, 105, 0.15)'
+                  boxShadow: '0 4px 14px rgba(var(--brand-primary-rgb), 0.15)'
                 }}>
                   {(borrowerName || 'C').slice(0, 2).toUpperCase()}
                 </div>
@@ -206,7 +212,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                 marginTop: 4,
                 background: '#FFFFFF',
                 border: '1px solid #CBD5E1',
-                color: '#059669',
+                color: 'var(--brand-primary, #15803D)',
                 padding: '2px 10px',
                 borderRadius: 20,
                 fontSize: '0.72rem',
@@ -262,25 +268,25 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
 
                 <div>
                   <span style={{ fontSize: '0.65rem', color: '#64748B', display: 'block', fontWeight: 400 }}>{t('cd.daily_emi')}</span>
-                  <span style={{ fontSize: '0.92rem', color: '#2563EB', fontWeight: 600, marginTop: 2, display: 'block' }}>₹{fmt(dailyEmi)}</span>
+                  <span style={{ fontSize: '0.92rem', color: 'var(--color-info, #2563EB)', fontWeight: 600, marginTop: 2, display: 'block' }}>₹{fmt(dailyEmi)}</span>
                 </div>
 
                 <div style={{ gridColumn: 'span 2', height: 1, background: '#F1F5F9' }} />
 
                 <div>
-                  <span style={{ fontSize: '0.65rem', color: '#047857', display: 'block', fontWeight: 500 }}>{t('cd.total_paid')}</span>
-                  <span style={{ fontSize: '0.95rem', color: '#059669', fontWeight: 600, marginTop: 2, display: 'block' }}>₹{fmt(collectedAmt)}</span>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--brand-primary-hover, #0E5327)', display: 'block', fontWeight: 500 }}>{t('cd.total_paid')}</span>
+                  <span style={{ fontSize: '0.95rem', color: 'var(--brand-primary, #15803D)', fontWeight: 600, marginTop: 2, display: 'block' }}>₹{fmt(collectedAmt)}</span>
                 </div>
 
                 <div>
-                  <span style={{ fontSize: '0.65rem', color: '#991B1B', display: 'block', fontWeight: 500 }}>{t('cd.pending_amount')}</span>
-                  <span style={{ fontSize: '0.95rem', color: pendingBal > 0 ? '#DC2626' : '#059669', fontWeight: 600, marginTop: 2, display: 'block' }}>₹{fmt(pendingBal)}</span>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--color-danger-text, #991B1B)', display: 'block', fontWeight: 500 }}>{t('cd.pending_amount')}</span>
+                  <span style={{ fontSize: '0.95rem', color: pendingBal > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)', fontWeight: 600, marginTop: 2, display: 'block' }}>₹{fmt(pendingBal)}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <div style={{ paddingTop: 14, borderTop: '1px solid #E2E8F0', fontSize: '0.72rem', color: '#047857', textAlign: 'center', fontWeight: 500 }}>
+          <div style={{ paddingTop: 14, borderTop: '1px solid #E2E8F0', fontSize: '0.72rem', color: 'var(--brand-primary-hover, #0E5327)', textAlign: 'center', fontWeight: 500 }}>
             {t('cd.active_loan_account')}
           </div>
         </div>
@@ -305,7 +311,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
             zIndex: 10
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Receipt style={{ width: 20, height: 20, color: '#059669' }} />
+              <Receipt style={{ width: 20, height: 20, color: 'var(--brand-primary, #15803D)' }} />
               <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 500, color: '#0F172A' }}>
                 {t('cd.record_loan_collection')}
               </h3>
@@ -338,9 +344,9 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                 width: 56,
                 height: 56,
                 borderRadius: '50%',
-                background: '#ECFDF5',
-                border: '1px solid #A7F3D0',
-                color: '#059669',
+                background: 'var(--brand-primary-light, #F0FEF5)',
+                border: '1px solid var(--brand-primary-border, #A3F5C1)',
+                color: 'var(--brand-primary, #15803D)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -353,7 +359,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                 {t('cd.recorded_successfully')}
               </h3>
               <p style={{ fontSize: '0.82rem', color: '#64748B', marginTop: 6, fontWeight: 400 }}>
-                {t('cd.voucher_number')} <span style={{ color: '#059669', fontFamily: 'monospace', fontWeight: 500 }}>{receipt.voucher_no}</span>
+                {t('cd.voucher_number')} <span style={{ color: 'var(--brand-primary, #15803D)', fontFamily: 'monospace', fontWeight: 500 }}>{receipt.voucher_no}</span>
               </p>
 
               <div style={{
@@ -368,17 +374,17 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                 gap: 12
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.82rem', color: '#047857', fontWeight: 500 }}>{t('cd.today_paid_amount')}</span>
-                  <span style={{ fontSize: '1.1rem', color: '#059669', fontWeight: 500 }}>₹{fmt(receipt.amount || receivedVal)} ✓</span>
+                  <span style={{ fontSize: '0.82rem', color: 'var(--brand-primary-hover, #0E5327)', fontWeight: 500 }}>{t('cd.today_paid_amount')}</span>
+                  <span style={{ fontSize: '1.1rem', color: 'var(--brand-primary, #15803D)', fontWeight: 500 }}>₹{fmt(receipt.amount || receivedVal)} ✓</span>
                 </div>
                 <div style={{ height: 1, background: '#E2E8F0' }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
                   <span style={{ color: '#64748B' }}>{t('cd.updated_paid_amount')}</span>
-                  <span style={{ color: '#059669', fontWeight: 500 }}>₹{fmt(updatedCollectedAmt)}</span>
+                  <span style={{ color: 'var(--brand-primary, #15803D)', fontWeight: 500 }}>₹{fmt(updatedCollectedAmt)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
                   <span style={{ color: '#64748B' }}>{t('cd.updated_pending_outstanding')}</span>
-                  <span style={{ color: updatedPendingBal > 0 ? '#DC2626' : '#059669', fontWeight: 500 }}>₹{fmt(updatedPendingBal)}</span>
+                  <span style={{ color: updatedPendingBal > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)', fontWeight: 500 }}>₹{fmt(updatedPendingBal)}</span>
                 </div>
               </div>
 
@@ -410,7 +416,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                   onClick={onClose}
                   style={{
                     border: 'none',
-                    background: '#059669',
+                    background: 'var(--brand-primary, #15803D)',
                     color: '#FFFFFF',
                     padding: '11px 26px',
                     borderRadius: 9,
@@ -432,7 +438,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                   {t('cd.collection_amount_rs')}
                 </label>
                 <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: 14, top: 11, fontSize: '0.98rem', color: '#059669', fontWeight: 500 }}>₹</span>
+                  <span style={{ position: 'absolute', left: 14, top: 11, fontSize: '0.98rem', color: 'var(--brand-primary, #15803D)', fontWeight: 500 }}>₹</span>
                   <input
                     type="number"
                     value={amountPaid}
@@ -446,7 +452,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                       border: '1px solid #CBD5E1',
                       fontSize: '1rem',
                       fontWeight: 500,
-                      color: '#059669',
+                      color: 'var(--brand-primary, #15803D)',
                       background: '#FFFFFF',
                       boxSizing: 'border-box'
                     }}
@@ -466,8 +472,8 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                     <strong style={{ fontSize: '0.85rem', color: '#7C3AED' }}>₹{fmt(allocation.interestPortion)}</strong>
                   </div>
                   <div>
-                    <span style={{ fontSize: '0.62rem', color: '#047857', display: 'block' }}>{t('nce.updated_pending_balance')}</span>
-                    <strong style={{ fontSize: '0.85rem', color: updatedPendingBal > 0 ? '#DC2626' : '#059669' }}>₹{fmt(updatedPendingBal)}</strong>
+                    <span style={{ fontSize: '0.62rem', color: 'var(--brand-primary-hover, #0E5327)', display: 'block' }}>{t('nce.updated_pending_balance')}</span>
+                    <strong style={{ fontSize: '0.85rem', color: updatedPendingBal > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)' }}>₹{fmt(updatedPendingBal)}</strong>
                   </div>
                 </div>
               )}
@@ -503,7 +509,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
               {/* Dynamic Payment Fields */}
               {paymentMode === 'UPI' && (
                 <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 9, padding: 14 }}>
-                  <label style={{ fontSize: '0.75rem', color: '#0284C7', fontWeight: 500, display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: '0.75rem', color: 'var(--color-info-hover, #0284C7)', fontWeight: 500, display: 'block', marginBottom: 6 }}>
                     {t('cd.upi_txn_id')}
                   </label>
                   <input
@@ -516,7 +522,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                       height: 40,
                       padding: '0 12px',
                       borderRadius: 8,
-                      border: '1px solid #BAE6FD',
+                      border: '1px solid var(--color-info-border, #BAE6FD)',
                       fontSize: '0.85rem',
                       color: '#0F172A',
                       background: '#FFFFFF',
@@ -528,7 +534,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
 
               {paymentMode === 'BANK_TRANSFER' && (
                 <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 9, padding: 14 }}>
-                  <label style={{ fontSize: '0.75rem', color: '#0284C7', fontWeight: 500, display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: '0.75rem', color: 'var(--color-info-hover, #0284C7)', fontWeight: 500, display: 'block', marginBottom: 6 }}>
                     {t('cd.bank_ref_no')}
                   </label>
                   <input
@@ -541,7 +547,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                       height: 40,
                       padding: '0 12px',
                       borderRadius: 8,
-                      border: '1px solid #BAE6FD',
+                      border: '1px solid var(--color-info-border, #BAE6FD)',
                       fontSize: '0.85rem',
                       color: '#0F172A',
                       background: '#FFFFFF',
@@ -554,7 +560,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
               {paymentMode === 'CHEQUE' && (
                 <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 9, padding: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
-                    <label style={{ fontSize: '0.72rem', color: '#0284C7', fontWeight: 500, display: 'block', marginBottom: 4 }}>
+                    <label style={{ fontSize: '0.72rem', color: 'var(--color-info-hover, #0284C7)', fontWeight: 500, display: 'block', marginBottom: 4 }}>
                       {t('cd.cheque_number')}
                     </label>
                     <input
@@ -567,7 +573,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                         height: 40,
                         padding: '0 12px',
                         borderRadius: 8,
-                        border: '1px solid #BAE6FD',
+                        border: '1px solid var(--color-info-border, #BAE6FD)',
                         fontSize: '0.85rem',
                         color: '#0F172A',
                         background: '#FFFFFF',
@@ -577,7 +583,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                   </div>
 
                   <div>
-                    <label style={{ fontSize: '0.72rem', color: '#0284C7', fontWeight: 500, display: 'block', marginBottom: 4 }}>
+                    <label style={{ fontSize: '0.72rem', color: 'var(--color-info-hover, #0284C7)', fontWeight: 500, display: 'block', marginBottom: 4 }}>
                       {t('cd.issuing_bank_name')}
                     </label>
                     <input
@@ -590,7 +596,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                         height: 40,
                         padding: '0 12px',
                         borderRadius: 8,
-                        border: '1px solid #BAE6FD',
+                        border: '1px solid var(--color-info-border, #BAE6FD)',
                         fontSize: '0.85rem',
                         color: '#0F172A',
                         background: '#FFFFFF',
@@ -676,6 +682,15 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                 />
               </div>
 
+              {submitError && (
+                <div style={{
+                  background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger-text, #991B1B)',
+                  padding: '10px 14px', borderRadius: 9, fontSize: '0.8rem', fontWeight: 500
+                }}>
+                  {submitError}
+                </div>
+              )}
+
               {/* Footer Actions */}
               <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 14 }}>
                 <button
@@ -699,7 +714,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                   disabled={loading || receivedVal <= 0}
                   style={{
                     border: 'none',
-                    background: '#059669',
+                    background: 'var(--brand-primary, #15803D)',
                     color: '#FFFFFF',
                     padding: '11px 28px',
                     borderRadius: 9,
@@ -707,7 +722,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                     fontWeight: 500,
                     cursor: receivedVal > 0 ? 'pointer' : 'not-allowed',
                     opacity: receivedVal > 0 ? 1 : 0.5,
-                    boxShadow: '0 4px 14px rgba(5, 150, 105, 0.25)'
+                    boxShadow: '0 4px 14px rgba(var(--brand-primary-rgb), 0.25)'
                   }}
                 >
                   {loading ? t('cd.recording') : t('cd.confirm_record')}

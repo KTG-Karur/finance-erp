@@ -22,7 +22,7 @@ function computeRdMaturity(monthlyInstallment, tenureMonths, annualRate) {
 
 function ErrorBanner({ children }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 9, fontSize: '0.78rem', fontWeight: 600, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 9, fontSize: '0.78rem', fontWeight: 600, background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger-hover, #B91C1C)' }}>
       <AlertTriangle style={{ width: 14, height: 14, flexShrink: 0 }} />
       <span>{children}</span>
     </div>
@@ -35,7 +35,7 @@ function ErrorBanner({ children }) {
 function BookRdScreen({ borrowers, onCancel, onSubmit }) {
   const { t } = useLanguage();
   const [form, setForm] = useState({
-    borrower_id: borrowers[0]?.id || '',
+    borrower_id: '',
     monthly_installment: '',
     tenure_months: 12,
     interest_rate: 8,
@@ -102,7 +102,7 @@ function BookRdScreen({ borrowers, onCancel, onSubmit }) {
       <form onSubmit={handleSubmit} className="cf-wizard-body">
         <div className="cf-step-pane" style={{ padding: '20px 22px', gap: 16 }}>
           <div className="cf-pane-title" style={{ paddingBottom: 12 }}>
-            <Landmark style={{ width: 16, height: 16, color: '#059669' }} />
+            <Landmark style={{ width: 16, height: 16, color: 'var(--brand-primary, #15803D)' }} />
             <div>
               <h3>{t('rd.section_details_title')}</h3>
               <p>{t('rd.section_details_subtitle')}</p>
@@ -130,7 +130,7 @@ function BookRdScreen({ borrowers, onCancel, onSubmit }) {
             </div>
             <div className="form-group">
               <label>{t('rd.modal.rate_label')}</label>
-              <input type="number" step="0.1" required value={form.interest_rate} onChange={e => setField('interest_rate', e.target.value)} className="input-control mono" placeholder="e.g. 8" />
+              <input type="number" step="0.1" min="0" max="100" required value={form.interest_rate} onChange={e => setField('interest_rate', e.target.value)} className="input-control mono" placeholder="e.g. 8" />
             </div>
           </div>
 
@@ -139,7 +139,9 @@ function BookRdScreen({ borrowers, onCancel, onSubmit }) {
               <label>{t('rd.payment_mode_label')}</label>
               <select value={form.payment_mode} onChange={e => setField('payment_mode', e.target.value)} className="input-control">
                 <option value="CASH">{t('fin.mode_cash')}</option>
-                <option value="BANK">{t('fin.mode_bank')}</option>
+                <option value="BANK_TRANSFER">Bank Transfer</option>
+                <option value="UPI">UPI</option>
+                <option value="CHEQUE">Cheque</option>
               </select>
             </div>
           </div>
@@ -147,18 +149,18 @@ function BookRdScreen({ borrowers, onCancel, onSubmit }) {
           <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '12px 16px', display: 'flex', justifyContent: 'space-between' }}>
             <div>
               <span style={{ fontSize: '0.65rem', color: '#64748B', display: 'block', textTransform: 'uppercase' }}>{t('col.maturity_date')}</span>
-              <strong style={{ fontSize: '0.88rem', color: '#2563EB' }}>{form.tenure_months ? `${form.tenure_months} ${t('rd.modal.months_from_booking')}` : '—'}</strong>
+              <strong style={{ fontSize: '0.88rem', color: 'var(--color-info, #2563EB)' }}>{form.tenure_months ? `${form.tenure_months} ${t('rd.modal.months_from_booking')}` : '—'}</strong>
             </div>
             <div style={{ textAlign: 'right' }}>
               <span style={{ fontSize: '0.65rem', color: '#64748B', display: 'block', textTransform: 'uppercase' }}>{t('col.maturity_value')}</span>
-              <strong style={{ fontSize: '0.95rem', color: '#059669' }}>₹{fmt(maturityValue)}</strong>
+              <strong style={{ fontSize: '0.95rem', color: 'var(--brand-primary, #15803D)' }}>₹{fmt(maturityValue)}</strong>
             </div>
           </div>
         </div>
 
         <div className="cf-step-pane" style={{ padding: '20px 22px', gap: 16 }}>
           <div className="cf-pane-title" style={{ paddingBottom: 12 }}>
-            <UserCheck style={{ width: 16, height: 16, color: '#059669' }} />
+            <UserCheck style={{ width: 16, height: 16, color: 'var(--brand-primary, #15803D)' }} />
             <div>
               <h3>{t('rd.section_notes_title')}</h3>
             </div>
@@ -188,21 +190,22 @@ function statusBadgeCls(status) {
   return 'fin-badge';
 }
 
-function ActionPill({ icon, label, onClick, tone = 'neutral' }) {
+function ActionPill({ icon, label, onClick, tone = 'neutral', disabled = false }) {
   const tones = {
     neutral: { bg: '#FFFFFF', border: '#E2E8F0', color: '#334155' },
-    good: { bg: '#ECFDF5', border: '#A7F3D0', color: '#059669' },
-    bad: { bg: '#FEF2F2', border: '#FECACA', color: '#DC2626' }
+    good: { bg: 'var(--brand-primary-light, #F0FEF5)', border: 'var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)' },
+    bad: { bg: 'var(--color-danger-light, #FEF2F2)', border: 'var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)' }
   };
-  const c = tones[tone];
+  const c = disabled ? { bg: '#F1F5F9', border: '#E2E8F0', color: '#94A3B8' } : tones[tone];
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
         border: `1px solid ${c.border}`, background: c.bg, color: c.color,
-        borderRadius: 6, padding: '4px 9px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer'
+        borderRadius: 6, padding: '4px 9px', fontSize: '0.7rem', fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer'
       }}
     >
       {icon}
@@ -223,17 +226,17 @@ function StatusTabs({ tabs, active, onChange }) {
             onClick={() => onChange(tab.id)}
             style={{
               display: 'flex', alignItems: 'center', gap: 6, padding: '9px 4px', marginBottom: -1,
-              border: 'none', borderBottom: isActive ? '2px solid #059669' : '2px solid transparent',
+              border: 'none', borderBottom: isActive ? '2px solid var(--brand-primary, #15803D)' : '2px solid transparent',
               background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
               fontSize: '0.8rem', fontWeight: isActive ? 700 : 500,
-              color: isActive ? '#059669' : '#64748B', marginRight: 18
+              color: isActive ? 'var(--brand-primary, #15803D)' : '#64748B', marginRight: 18
             }}
           >
             <span>{tab.label}</span>
             <span style={{
               fontSize: '0.68rem', fontWeight: 700, borderRadius: 999, padding: '1px 7px',
-              background: isActive ? '#ECFDF5' : '#F1F5F9',
-              color: isActive ? '#059669' : '#94A3B8'
+              background: isActive ? 'var(--brand-primary-light, #F0FEF5)' : '#F1F5F9',
+              color: isActive ? 'var(--brand-primary, #15803D)' : '#94A3B8'
             }}>{tab.count}</span>
           </button>
         );
@@ -282,6 +285,8 @@ export default function RecurringDepositsView({ recurringDeposits = [], borrower
   const pageSize = 8;
 
   const [customPayoutAmount, setCustomPayoutAmount] = useState('');
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [confirmError, setConfirmError] = useState('');
 
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
@@ -318,7 +323,7 @@ export default function RecurringDepositsView({ recurringDeposits = [], borrower
       <div className="fin-header-card">
         <div className="fin-page-header">
           <div className="fin-page-header__left">
-            <div className="fin-page-header__icon" style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669' }}>
+            <div className="fin-page-header__icon" style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)' }}>
               <Landmark style={{ width: 18, height: 18 }} />
             </div>
             <div>
@@ -401,7 +406,7 @@ export default function RecurringDepositsView({ recurringDeposits = [], borrower
             ) : pagedRds.map((rd, idx) => (
               <tr key={rd.id}>
                 <td style={{ textAlign: 'center', color: '#64748B' }}>{startIndex + idx + 1}</td>
-                <td className="code" style={{ color: '#059669', fontWeight: 600 }}>{rd.rd_account_no}</td>
+                <td className="code" style={{ color: 'var(--brand-primary, #15803D)', fontWeight: 600 }}>{rd.rd_account_no}</td>
                 <td>{rd.customer_name}</td>
                 <td className="num">₹{fmt(rd.monthly_installment)}</td>
                 <td style={{ textAlign: 'center', color: '#64748B' }}>{rd.tenure_months}mo</td>
@@ -411,7 +416,7 @@ export default function RecurringDepositsView({ recurringDeposits = [], borrower
                 </td>
                 <td style={{ fontSize: '0.78rem', color: '#64748B' }}>{rd.booking_date}</td>
                 <td>{rd.maturity_date}</td>
-                <td className="num" style={{ color: rd.status === 'CLOSED_PREMATURE' ? '#DC2626' : '#059669' }}>₹{fmt(rd.status === 'CLOSED_PREMATURE' ? rd.payout_amount : rd.maturity_value)}</td>
+                <td className="num" style={{ color: rd.status === 'CLOSED_PREMATURE' ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)' }}>₹{fmt(rd.status === 'CLOSED_PREMATURE' ? rd.payout_amount : rd.maturity_value)}</td>
                 <td style={{ textAlign: 'center' }}><span className={statusBadgeCls(rd.status)}>{tStatus(rd.status)}</span></td>
                 <td style={{ textAlign: 'right' }}>
                   <div style={{ display: 'inline-flex', gap: 6 }}>
@@ -437,7 +442,7 @@ export default function RecurringDepositsView({ recurringDeposits = [], borrower
         const payoutAmount = isMature
           ? confirmAction.rd.maturity_value
           : (customPayoutAmount !== '' ? (parseFloat(customPayoutAmount) || 0) : defaultPenaltyPayout);
-        const tone = isMature ? { bg: '#ECFDF5', border: '#A7F3D0', color: '#059669', icon: '#059669' } : { bg: '#FEF2F2', border: '#FECACA', color: '#DC2626', icon: '#DC2626' };
+        const tone = isMature ? { bg: 'var(--brand-primary-light, #F0FEF5)', border: 'var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', icon: 'var(--brand-primary, #15803D)' } : { bg: 'var(--color-danger-light, #FEF2F2)', border: 'var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)', icon: 'var(--color-danger, #DC2626)' };
         return (
           <div className="saas-modal-backdrop">
             <div className="saas-modal-card" style={{ maxWidth: 440 }}>
@@ -451,9 +456,12 @@ export default function RecurringDepositsView({ recurringDeposits = [], borrower
                     <p>{confirmAction.rd.rd_account_no} — {confirmAction.rd.customer_name}</p>
                   </div>
                 </div>
-                <button onClick={() => { setConfirmAction(null); setCustomPayoutAmount(''); }} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>
+                <button onClick={() => { setConfirmAction(null); setCustomPayoutAmount(''); setConfirmError(''); }} className="close-btn" type="button" disabled={confirmLoading}><X style={{ width: 16, height: 16 }} /></button>
               </div>
               <div className="saas-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {confirmError && (
+                  <div className="form-alert form-alert--error"><span>{confirmError}</span></div>
+                )}
                 <div style={{ background: tone.bg, border: `1px solid ${tone.border}`, borderRadius: 12, padding: '16px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
@@ -495,22 +503,32 @@ export default function RecurringDepositsView({ recurringDeposits = [], borrower
                 </p>
               </div>
               <div className="saas-modal-footer">
-                <button type="button" onClick={() => { setConfirmAction(null); setCustomPayoutAmount(''); }} className="btn-cancel">{t('btn.cancel')}</button>
+                <button type="button" onClick={() => { setConfirmAction(null); setCustomPayoutAmount(''); setConfirmError(''); }} disabled={confirmLoading} className="btn-cancel">{t('btn.cancel')}</button>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (isMature) {
-                      onMatureRd(confirmAction.rd.id);
-                    } else {
-                      onPrematureCloseRd(confirmAction.rd.id, customPayoutAmount);
+                  disabled={confirmLoading}
+                  onClick={async () => {
+                    if (confirmLoading) return;
+                    setConfirmLoading(true);
+                    setConfirmError('');
+                    try {
+                      if (isMature) {
+                        await onMatureRd(confirmAction.rd.id);
+                      } else {
+                        await onPrematureCloseRd(confirmAction.rd.id, customPayoutAmount);
+                      }
+                      setConfirmAction(null);
+                      setCustomPayoutAmount('');
+                    } catch (err) {
+                      setConfirmError(err?.response?.data?.message || 'Action failed. Please try again.');
+                    } finally {
+                      setConfirmLoading(false);
                     }
-                    setConfirmAction(null);
-                    setCustomPayoutAmount('');
                   }}
                   className="btn-submit"
-                  style={{ background: tone.color, boxShadow: `0 2px 6px ${tone.color}4D` }}
+                  style={{ background: confirmLoading ? '#94A3B8' : tone.color, boxShadow: confirmLoading ? 'none' : `0 2px 6px ${tone.color}4D`, cursor: confirmLoading ? 'not-allowed' : 'pointer' }}
                 >
-                  {t('rd.confirm_btn')}
+                  {confirmLoading ? 'Processing...' : t('rd.confirm_btn')}
                 </button>
               </div>
             </div>
@@ -535,15 +553,26 @@ export default function RecurringDepositsView({ recurringDeposits = [], borrower
 function RdScheduleModal({ rd, onCollect, onClose }) {
   const { t } = useLanguage();
   const [modeByMonth, setModeByMonth] = useState({});
+  const [collectingMonth, setCollectingMonth] = useState(null);
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
   const todayStr = new Date().toISOString().slice(0, 10);
+
+  const handleCollect = async (monthNo, mode) => {
+    if (collectingMonth) return;
+    setCollectingMonth(monthNo);
+    try {
+      await onCollect(monthNo, mode);
+    } finally {
+      setCollectingMonth(null);
+    }
+  };
 
   return (
     <div className="saas-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="saas-modal-card" style={{ maxWidth: 560 }}>
         <div className="saas-modal-header">
           <div className="head-left">
-            <div className="head-icon-badge" style={{ background: '#ECFDF5', color: '#059669' }}>
+            <div className="head-icon-badge" style={{ background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #15803D)' }}>
               <CalendarClock style={{ width: 18, height: 18 }} />
             </div>
             <div className="head-titles">
@@ -592,13 +621,22 @@ function RdScheduleModal({ rd, onCollect, onClose }) {
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                             <select
                               value={mode}
+                              disabled={collectingMonth === inst.month_no}
                               onChange={(e) => setModeByMonth(prev => ({ ...prev, [inst.month_no]: e.target.value }))}
                               style={{ height: 26, borderRadius: 5, border: '1px solid #CBD5E1', fontSize: '0.7rem', padding: '0 4px' }}
                             >
                               <option value="CASH">{t('fin.mode_cash')}</option>
-                              <option value="BANK">{t('fin.mode_bank')}</option>
+                              <option value="BANK_TRANSFER">Bank Transfer</option>
+                              <option value="UPI">UPI</option>
+                              <option value="CHEQUE">Cheque</option>
                             </select>
-                            <ActionPill icon={<CheckCircle2 style={{ width: 11, height: 11 }} />} label={t('rd.collect_btn')} tone="good" onClick={() => onCollect(inst.month_no, mode)} />
+                            <ActionPill
+                              icon={<CheckCircle2 style={{ width: 11, height: 11 }} />}
+                              label={collectingMonth === inst.month_no ? '...' : t('rd.collect_btn')}
+                              tone="good"
+                              disabled={collectingMonth !== null}
+                              onClick={() => handleCollect(inst.month_no, mode)}
+                            />
                           </div>
                         )}
                       </td>

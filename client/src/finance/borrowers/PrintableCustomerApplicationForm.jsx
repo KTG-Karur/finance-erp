@@ -6,24 +6,35 @@ export default function PrintableCustomerApplicationForm({
   profileImage = null,
   documents = [],
   onClose,
-  companyInfo = {
-    name: 'KARUR THANGAMAYIL FINANCE PRIVATE LIMITED',
-    tagline: '(A Non-Banking Financial Company Registered with Reserve Bank of India)',
-    address: 'Regd Office: No. 123, Main Road, Near Bus Stand, Karur, Tamil Nadu - 639001',
-    contact: 'Tel: +91 4324 234567 | Email: customercare@ktgfinance.com | Website: www.ktgfinance.com',
-    reg: 'CIN: U65929TN2023PTC123456 | RBI Reg. No: B-07.01234'
-  }
+  tenant
 }) {
+  const companyInfo = {
+    name: tenant?.name || 'Your Company',
+    tagline: 'Non-Banking Financial Company',
+    address: tenant?.address || '',
+    contact: tenant?.phone ? `Tel: ${tenant.phone}` : '',
+    reg: [tenant?.gstin && `GSTIN: ${tenant.gstin}`, tenant?.pan && `PAN: ${tenant.pan}`].filter(Boolean).join(' | ')
+  };
+
   const handlePrint = () => {
     window.print();
   };
 
-  const appNo = formData.borrower_code || `KTG/APP/2026/${Math.floor(100000 + Math.random() * 900000)}`;
+  const appNo = formData.borrower_code || '—';
   const appDate = new Date().toLocaleDateString('en-IN', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric'
   });
+
+  const formatDisplayDate = (value) => {
+    if (!value) return '—';
+    const str = String(value);
+    const dateOnly = str.slice(0, 10);
+    const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(dateOnly) ? `${dateOnly}T00:00:00` : str);
+    if (Number.isNaN(d.getTime())) return dateOnly;
+    return d.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
 
   return (
     <div className="printable-form-overlay">
@@ -47,7 +58,7 @@ export default function PrintableCustomerApplicationForm({
         {/* 1. Official Bank Letterhead Header */}
         <div className="bank-header-row">
           <div className="bank-logo-col">
-            <div className="bank-emblem">KTG</div>
+            <div className="bank-emblem">{(companyInfo.name || 'CO').split(/\s+/).map(w => w[0]).join('').slice(0, 3).toUpperCase()}</div>
           </div>
 
           <div className="bank-title-col">
@@ -84,7 +95,7 @@ export default function PrintableCustomerApplicationForm({
               <td className="meta-lbl">Date:</td>
               <td className="meta-val">{appDate}</td>
               <td className="meta-lbl">Branch:</td>
-              <td className="meta-val">{formData.branch || 'Karur Main'}</td>
+              <td className="meta-val">{formData.branch || '—'}</td>
             </tr>
           </tbody>
         </table>
@@ -107,9 +118,9 @@ export default function PrintableCustomerApplicationForm({
               </tr>
               <tr>
                 <td className="field-lbl" style={{ width: '22%' }}>Date of Birth</td>
-                <td className="field-val val-mono" style={{ width: '28%' }}>{formData.dob || '—'}</td>
+                <td className="field-val val-mono" style={{ width: '28%' }}>{formatDisplayDate(formData.dob)}</td>
                 <td className="field-lbl" style={{ width: '22%' }}>Gender</td>
-                <td className="field-val" style={{ width: '28%' }}>{formData.gender || 'Male'}</td>
+                <td className="field-val" style={{ width: '28%' }}>{formData.gender || '—'}</td>
               </tr>
               <tr>
                 <td className="field-lbl">Primary Mobile *</td>
@@ -139,7 +150,7 @@ export default function PrintableCustomerApplicationForm({
                 <td className="field-lbl" style={{ width: '22%' }}>City / Taluk</td>
                 <td className="field-val" style={{ width: '28%' }}>{formData.city || '—'}</td>
                 <td className="field-lbl" style={{ width: '22%' }}>State</td>
-                <td className="field-val" style={{ width: '28%' }}>{formData.state || 'Tamil Nadu'}</td>
+                <td className="field-val" style={{ width: '28%' }}>{formData.state || '—'}</td>
               </tr>
               <tr>
                 <td className="field-lbl">Postal Pincode *</td>
@@ -160,7 +171,7 @@ export default function PrintableCustomerApplicationForm({
               <tr>
                 <td className="field-lbl" style={{ width: '22%' }}>Primary ID Type</td>
                 <td className="field-val" colSpan={3}>
-                  {formData.id_proof_type || 'Aadhaar Card'}
+                  {formData.id_proof_type || '—'}
                 </td>
               </tr>
               <tr>
@@ -180,28 +191,30 @@ export default function PrintableCustomerApplicationForm({
         {/* 7. Section D: Applicant Declaration & Undertaking */}
         <div className="bank-section">
           <div className="section-header-bar">Section D: Applicant Declaration & Undertaking</div>
-
-          <div className="bank-declaration-text">
-            I hereby declare that all information furnished in this enrollment form is true and correct. I authorize Karur Thangamayil Finance Pvt Ltd to verify my KYC documents and Aadhaar/PAN records as per RBI guidelines.
-          </div>
         </div>
 
-        {/* 8. Signatures & Bank Verification Stamp Row */}
-        <div className="bank-signatures-container">
-          <div className="sig-box">
-            <div className="sig-space"></div>
-            <div className="sig-title">Signature of Applicant</div>
-            <div className="sig-date">Date: {appDate}</div>
+        <div className="bank-declaration-box">
+          <div className="bank-declaration-text">
+            I hereby declare that all information furnished in this enrollment form is true and correct. I authorize {companyInfo.name} to verify my KYC documents and Aadhaar/PAN records as per RBI guidelines.
           </div>
 
-          <div className="bank-seal-box">
-            <span>Branch Stamp / Seal</span>
-          </div>
+          {/* 8. Signatures & Bank Verification Stamp Row */}
+          <div className="bank-signatures-container">
+            <div className="sig-box">
+              <div className="sig-space"></div>
+              <div className="sig-title">Signature of Applicant</div>
+              <div className="sig-date">Date: {appDate}</div>
+            </div>
 
-          <div className="sig-box">
-            <div className="sig-space"></div>
-            <div className="sig-title">Authorised Manager Signature</div>
-            <div className="sig-date">Verified & Approved By</div>
+            <div className="bank-seal-box">
+              <span>Branch Stamp / Seal</span>
+            </div>
+
+            <div className="sig-box">
+              <div className="sig-space"></div>
+              <div className="sig-title">Authorised Manager Signature</div>
+              <div className="sig-date">Verified & Approved By</div>
+            </div>
           </div>
         </div>
 

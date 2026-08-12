@@ -6,14 +6,13 @@ const COLUMNS = [
   'id_proof_type', 'aadhaar_number', 'pan_number', 'voter_id', 'occupation',
   'monthly_income', 'employer_name', 'bank_name', 'account_number', 'ifsc_code',
   'guarantor_name', 'guarantor_phone', 'nominee_name', 'nominee_relation', 'branch',
-  'status', 'notes', 'profile_image', 'documents', 'kyc_status'
+  'status', 'notes', 'profile_image', 'documents'
 ];
 
 function toRowValues(data) {
   return COLUMNS.map(col => {
     if (col === 'documents') return JSON.stringify(data.documents || []);
     if (col === 'status') return data.status || 'ACTIVE';
-    if (col === 'kyc_status') return data.kyc_status || 'PENDING';
     return data[col] ?? null;
   });
 }
@@ -53,13 +52,74 @@ export class BorrowerRepository {
     return borrower;
   }
 
-  static async create(db, data) {
-    const code = `BR-${Date.now().toString().slice(-4)}`;
-    const insertColumns = ['borrower_code', ...COLUMNS];
-    const [res] = await db.query(
-      `INSERT INTO borrowers (${insertColumns.join(', ')}) VALUES (${insertColumns.map(() => '?').join(', ')})`,
-      [code, ...toRowValues(data)]
+  static async findByPhone(db, phone, excludeId = null) {
+    let sql = `SELECT id FROM borrowers WHERE phone = ?`;
+    const params = [phone];
+    if (excludeId) {
+      sql += ` AND id != ?`;
+      params.push(excludeId);
+    }
+    const [rows] = await db.query(sql, params);
+    return rows[0] || null;
+  }
+
+  static async nextBorrowerCode(db) {
+    const [rows] = await db.query(
+      "SELECT borrower_code FROM borrowers WHERE borrower_code LIKE 'BR-%' ORDER BY id DESC LIMIT 1"
     );
-    return this.findById(db, res.insertId);
+    const last = rows[0]?.borrower_code;
+    const lastSeq = last ? parseInt(last.split('-')[1], 10) || 1000 : 1000;
+    return `BR-${lastSeq + 1}`;
+  }
+
+  static async create(db, data) {
+    const insertColumns = ['borrower_code', ...COLUMNS];
+
+    // borrower_code is derived from MAX(id), which is racy under concurrent
+    // double-submits — retry once on the unique-constraint collision (same
+    // pattern as investor.service.js's nextInvestorCode) rather than take a
+    // table lock for what's a rare, self-resolving conflict.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const code = await this.nextBorrowerCode(db);
+      try {
+        const [res] = await db.query(
+          `INSERT INTO borrowers (${insertColumns.join(', ')}) VALUES (${insertColumns.map(() => '?').join(', ')})`,
+          [code, ...toRowValues(data)]
+        );
+        return this.findById(db, res.insertId);
+      } catch (err) {
+        if (err.code === 'ER_DUP_ENTRY' && attempt === 0) continue;
+        throw err;
+      }
+    }
+  }
+
+  static async update(db, id, data) {
+    const sets = COLUMNS.map(col => `${col} = ?`);
+    const values = toRowValues(data);
+    await db.query(
+      `UPDATE borrowers SET ${sets.join(', ')} WHERE id = ?`,
+      [...values, id]
+    );
+    return this.findById(db, id);
+  }
+
+  static async delete(db, id) {
+    const [res] = await db.query(`DELETE FROM borrowers WHERE id = ?`, [id]);
+    return res.affectedRows > 0;
+  }
+
+  static async countLinkedLoans(db, id) {
+    const [borrowerRows] = await db.query(`SELECT phone FROM borrowers WHERE id = ?`, [id]);
+    if (!borrowerRows.length) return 0;
+    // Loans link to a borrower by borrower_id when created through the
+    // Customer Directory, but the quick-disburse flow can also create a loan
+    // for a phone number with no borrower_id set at all — count both so a
+    // borrower with either kind of linked loan can't be silently deleted.
+    const [rows] = await db.query(
+      `SELECT COUNT(*) as cnt FROM loans WHERE borrower_id = ? OR phone = ?`,
+      [id, borrowerRows[0].phone]
+    );
+    return rows[0]?.cnt || 0;
   }
 }

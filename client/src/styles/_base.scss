@@ -50,7 +50,7 @@ body {
 }
 
 ::selection {
-  background: rgba(37, 99, 235, 0.15);
+  background: rgba(var(--color-info-rgb), 0.15);
   color: $brand-primary-dark;
 }
 
@@ -106,7 +106,7 @@ button, input, select, textarea { font: inherit; }
     width: 600px;
     height: 600px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(5, 150, 105, 0.35) 0%, rgba(15, 23, 42, 0.25) 50%, transparent 75%);
+    background: radial-gradient(circle, rgba(var(--brand-primary-rgb), 0.35) 0%, rgba(15, 23, 42, 0.25) 50%, transparent 75%);
     backdrop-filter: blur(4px);
     animation: rippleExpand 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
@@ -140,7 +140,7 @@ textarea {
 
   &:focus {
     border-color: $brand-primary;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    box-shadow: 0 0 0 3px rgba(var(--color-info-rgb), 0.12);
   }
 
   &:disabled {
@@ -200,7 +200,7 @@ button {
     background: $danger-bg;
     color: $danger-text;
     border: 1px solid $danger-border;
-    &:hover { background: #FEE2E2; }
+    &:hover { background: var(--color-danger-light, #FEE2E2); }
   }
 
   // Sizes
@@ -234,10 +234,10 @@ button {
     flex-shrink: 0;
   }
 
-  &--active  { background: #ECFDF5; color: #047857; border-color: #A7F3D0; }
-  &--overdue { background: #FEF2F2; color: #991B1B; border-color: #FECACA; }
-  &--closed  { background: #EFF6FF; color: #1D4ED8; border-color: #BFDBFE; }
-  &--pending { background: #FFFBEB; color: #B45309; border-color: #FDE68A; }
+  &--active  { background: var(--brand-primary-light, #F0FEF5); color: var(--brand-primary-hover, #0E5327); border-color: var(--brand-primary-border, #A3F5C1); }
+  &--overdue { background: var(--color-danger-light, #FEF2F2); color: var(--color-danger-text, #991B1B); border-color: var(--color-danger-border, #FECACA); }
+  &--closed  { background: var(--color-info-light, #EFF6FF); color: #1D4ED8; border-color: var(--color-info-border, #BFDBFE); }
+  &--pending { background: var(--color-warning-light, #FFFBEB); color: var(--color-warning-hover, #B45309); border-color: var(--color-warning-border, #FDE68A); }
   &--info    { background: #F8FAFC; color: #475569; border-color: #CBD5E1; }
 }
 
@@ -402,11 +402,11 @@ button {
 .text-gray-500, .text-slate-500 { color: $neutral-500; }
 .text-gray-400, .text-slate-400 { color: $neutral-400; }
 .text-blue-600     { color: $brand-primary; }
-.text-emerald-700  { color: #047857; }
+.text-emerald-700  { color: var(--brand-primary-hover, #0E5327); }
 .text-emerald-800  { color: $success-text; }
 .text-red-600      { color: $danger-icon; }
-.text-red-700      { color: #B91C1C; }
-.text-amber-700    { color: #B45309; }
+.text-red-700      { color: var(--color-danger-hover, #B91C1C); }
+.text-amber-700    { color: var(--color-warning-hover, #B45309); }
 .text-emerald-950  { color: #022C22; }
 
 .bg-white          { background: $surface-white; }
@@ -529,7 +529,7 @@ button {
 
 // ── CUSTOM 3D ATOM SPIN LOADER ─────────────────────────────────
 .loader {
-  --color-1: #059669;
+  --color-1: var(--brand-primary, #15803D);
   --color-2: #00FF38;
   --size: 0.8px;
 
@@ -634,7 +634,7 @@ button {
   &__title {
     font-size: 1.15rem;
     font-weight: 700;
-    color: #065F46;
+    color: var(--brand-primary-text, #075F27);
     letter-spacing: -0.01em;
   }
 

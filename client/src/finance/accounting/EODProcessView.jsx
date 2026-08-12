@@ -121,14 +121,14 @@ function EODModal({ mode, isOpen, record, expectedCash, activeDenominations, onC
     <div className="saas-modal-backdrop">
       <div className="saas-modal-card" style={{ maxWidth: 680, width: '92vw', borderRadius: 14, overflow: 'hidden', border: '1px solid #E2E8F0', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
         {/* Sleek Non-Bold Executive Header Banner */}
-        <div style={{ background: '#062C27', padding: '16px 20px', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ background: '#072C15', padding: '16px 20px', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
-              <Calculator style={{ width: 16, height: 16, color: '#A7F3D0' }} />
+              <Calculator style={{ width: 16, height: 16, color: 'var(--brand-primary-border, #A3F5C1)' }} />
             </div>
             <div>
               <h3 style={{ margin: 0, fontWeight: 500, fontSize: '0.95rem', color: '#FFFFFF' }}>{t(titleKey)}</h3>
-              <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: '#A7F3D0', opacity: 0.85, fontWeight: 400 }}>Physical Vault Cash Counter & Reconciliation</p>
+              <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: 'var(--brand-primary-border, #A3F5C1)', opacity: 0.85, fontWeight: 400 }}>Physical Vault Cash Counter & Reconciliation</p>
             </div>
           </div>
           <button onClick={onClose} type="button" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#FFFFFF', width: 28, height: 28, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -138,7 +138,7 @@ function EODModal({ mode, isOpen, record, expectedCash, activeDenominations, onC
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '20px', maxHeight: '80vh', overflowY: 'auto', background: '#FFFFFF' }}>
           {error && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, fontSize: '0.76rem', fontWeight: 500, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, fontSize: '0.76rem', fontWeight: 500, background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger-hover, #B91C1C)' }}>
               {error}
             </div>
           )}
@@ -151,8 +151,8 @@ function EODModal({ mode, isOpen, record, expectedCash, activeDenominations, onC
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontSize: '0.7rem', fontWeight: 500, color: '#047857' }}>Counted Vault Cash</span>
-              <span style={{ fontSize: '1.1rem', fontWeight: 500, color: '#047857' }}>₹{fmt(countedCash)}</span>
+              <span style={{ fontSize: '0.7rem', fontWeight: 500, color: 'var(--brand-primary-hover, #0E5327)' }}>Counted Vault Cash</span>
+              <span style={{ fontSize: '1.1rem', fontWeight: 500, color: 'var(--brand-primary-hover, #0E5327)' }}>₹{fmt(countedCash)}</span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -176,7 +176,7 @@ function EODModal({ mode, isOpen, record, expectedCash, activeDenominations, onC
           <div>
             <div style={{ fontSize: '0.78rem', fontWeight: 500, color: '#475569', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span>Physical Denomination Count</span>
-              <span style={{ color: '#047857', fontWeight: 500 }}>Total Counted: ₹{fmt(countedCash)}</span>
+              <span style={{ color: 'var(--brand-primary-hover, #0E5327)', fontWeight: 500 }}>Total Counted: ₹{fmt(countedCash)}</span>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
@@ -188,7 +188,7 @@ function EODModal({ mode, isOpen, record, expectedCash, activeDenominations, onC
                   <div
                     key={v}
                     style={{
-                      background: countVal > 0 ? '#F0FDF4' : '#F8FAFC',
+                      background: countVal > 0 ? 'var(--brand-primary-light, #F0FDF4)' : '#F8FAFC',
                       border: countVal > 0 ? '1px solid #BBF7D0' : '1px solid #E2E8F0',
                       borderRadius: 10,
                       padding: '10px 14px',
@@ -273,7 +273,7 @@ function EODModal({ mode, isOpen, record, expectedCash, activeDenominations, onC
 
                     {/* Row Subtotal */}
                     <div style={{ textAlign: 'right', minWidth: 70 }}>
-                      <span style={{ fontSize: '0.82rem', fontWeight: 500, color: countVal > 0 ? '#047857' : '#94A3B8' }}>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 500, color: countVal > 0 ? 'var(--brand-primary-hover, #0E5327)' : '#94A3B8' }}>
                         ₹{fmt(subtotal)}
                       </span>
                     </div>
@@ -330,7 +330,7 @@ function EODModal({ mode, isOpen, record, expectedCash, activeDenominations, onC
               disabled={saving}
               className="fin-btn-primary"
               style={{
-                background: '#047857',
+                background: 'var(--brand-primary-hover, #0E5327)',
                 padding: '8px 20px',
                 fontSize: '0.8rem',
                 fontWeight: 500,
@@ -385,7 +385,7 @@ function ReopenRequestModal({ isOpen, onClose, onSubmit, t }) {
       <div className="saas-modal-card">
         <div className="saas-modal-header">
           <div className="head-left">
-            <div className="head-icon-badge" style={{ background: '#FFFBEB', color: '#B45309', border: '1px solid #FDE68A' }}>
+            <div className="head-icon-badge" style={{ background: 'var(--color-warning-light, #FFFBEB)', color: 'var(--color-warning-hover, #B45309)', border: '1px solid var(--color-warning-border, #FDE68A)' }}>
               <Unlock style={{ width: 16, height: 16 }} />
             </div>
             <div className="head-titles">
@@ -396,7 +396,7 @@ function ReopenRequestModal({ isOpen, onClose, onSubmit, t }) {
         </div>
         <form onSubmit={handleSubmit} className="saas-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '20px 24px' }}>
           {error && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 9, fontSize: '0.75rem', fontWeight: 600, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 9, fontSize: '0.75rem', fontWeight: 600, background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger-hover, #B91C1C)' }}>
               {error}
             </div>
           )}
@@ -414,7 +414,7 @@ function ReopenRequestModal({ isOpen, onClose, onSubmit, t }) {
             <button type="button" onClick={onClose} style={{ background: '#F1F5F9', color: '#475569', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer' }}>
               {t('fin.cancel_edit_btn')}
             </button>
-            <button type="submit" disabled={saving} className="fin-btn-primary" style={{ background: '#B45309' }}>
+            <button type="submit" disabled={saving} className="fin-btn-primary" style={{ background: 'var(--color-warning-hover, #B45309)' }}>
               {saving ? t('fin.saving_closure') : t('fin.submit_request_btn')}
             </button>
           </div>
@@ -566,7 +566,7 @@ export default function EODProcessView({
       <div className="fin-header-card">
         <div className="fin-page-header">
           <div className="fin-page-header__left">
-            <div className="fin-page-header__icon" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', color: '#B45309' }}>
+            <div className="fin-page-header__icon" style={{ background: 'var(--color-warning-light, #FFFBEB)', border: '1px solid var(--color-warning-border, #FDE68A)', color: 'var(--color-warning-hover, #B45309)' }}>
               <Calculator style={{ width: 18, height: 18 }} />
             </div>
             <div>
@@ -649,12 +649,12 @@ export default function EODProcessView({
               </div>
 
               {/* Expected Closing Balance Card */}
-              <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 12, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 4, boxShadow: '0 2px 6px rgba(5,150,105,0.06)' }}>
-                <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#047857', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Expected Closing Balance</span>
-                <strong style={{ fontSize: '1.35rem', fontWeight: 600, color: '#047857', fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>
+              <div style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', borderRadius: 12, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 4, boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb),0.06)' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--brand-primary-hover, #0E5327)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Expected Closing Balance</span>
+                <strong style={{ fontSize: '1.35rem', fontWeight: 600, color: 'var(--brand-primary-hover, #0E5327)', fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>
                   ₹{fmt(closingBalance)}
                 </strong>
-                <span style={{ fontSize: '0.68rem', color: '#059669' }}>Ledger balance required at day-end</span>
+                <span style={{ fontSize: '0.68rem', color: 'var(--brand-primary, #15803D)' }}>Ledger balance required at day-end</span>
               </div>
 
               {/* Day Closure Status Card & Close Day Action */}
@@ -678,7 +678,7 @@ export default function EODProcessView({
                     type="button"
                     className="fin-btn-primary"
                     onClick={() => setModalState({ mode: 'CLOSE', record: null })}
-                    style={{ padding: '9px 18px', fontSize: '0.8rem', fontWeight: 500, borderRadius: 8, background: '#047857', whiteSpace: 'nowrap' }}
+                    style={{ padding: '9px 18px', fontSize: '0.8rem', fontWeight: 500, borderRadius: 8, background: 'var(--brand-primary-hover, #0E5327)', whiteSpace: 'nowrap' }}
                   >
                     <Calculator style={{ width: 14, height: 14 }} />
                     <span>{t('fin.close_day_btn')}</span>
@@ -701,7 +701,7 @@ export default function EODProcessView({
                 </span>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {isAdmin && existingRecord.status === 'PENDING_REVIEW' && (
-                    <button type="button" className="fin-btn-primary" style={{ background: '#B45309' }} onClick={() => setModalState({ mode: 'REVIEW', record: existingRecord })}>
+                    <button type="button" className="fin-btn-primary" style={{ background: 'var(--color-warning-hover, #B45309)' }} onClick={() => setModalState({ mode: 'REVIEW', record: existingRecord })}>
                       <ShieldCheck style={{ width: 13, height: 13 }} />
                       <span>{t('fin.review_variance_btn')}</span>
                     </button>
@@ -734,13 +734,13 @@ export default function EODProcessView({
                       <select className="fin-select" value={reopenHours} onChange={(e) => setReopenHours(e.target.value)}>
                         {[1, 2, 4, 8, 24].map(h => <option key={h} value={h}>{h}{t('fin.hours_suffix')}</option>)}
                       </select>
-                      <button type="button" className="fin-btn-primary" style={{ background: '#B45309' }} onClick={handleGrantReopen}>
+                      <button type="button" className="fin-btn-primary" style={{ background: 'var(--color-warning-hover, #B45309)' }} onClick={handleGrantReopen}>
                         <Unlock style={{ width: 13, height: 13 }} />
                         <span>{t('fin.grant_reopen_btn')}</span>
                       </button>
                     </div>
                   ) : (
-                    <button type="button" className="fin-btn-primary" style={{ background: '#B45309' }} onClick={() => setRequestModalOpen(true)}>
+                    <button type="button" className="fin-btn-primary" style={{ background: 'var(--color-warning-hover, #B45309)' }} onClick={() => setRequestModalOpen(true)}>
                       <Unlock style={{ width: 13, height: 13 }} />
                       <span>{t('fin.request_reopen_btn')}</span>
                     </button>
@@ -772,7 +772,7 @@ export default function EODProcessView({
                         <button
                           type="button"
                           className="fin-btn-primary"
-                          style={{ background: '#059669' }}
+                          style={{ background: 'var(--brand-primary, #15803D)' }}
                           onClick={() => onApproveEodReopen(existingRecord.id, pendingRequest.id, Number(approveHours))}
                         >
                           <Unlock style={{ width: 13, height: 13 }} />
@@ -794,7 +794,7 @@ export default function EODProcessView({
                         <button
                           type="button"
                           className="fin-btn-primary"
-                          style={{ background: '#DC2626' }}
+                          style={{ background: 'var(--color-danger, #DC2626)' }}
                           onClick={() => {
                             if (!rejectReason.trim()) return;
                             onRejectEodReopen(existingRecord.id, pendingRequest.id, rejectReason.trim());
@@ -866,7 +866,7 @@ export default function EODProcessView({
                 <div style={{ padding: '10px 18px', fontSize: '0.82rem', color: '#64748B' }}>{t('fin.remarks_label')}: {existingRecord.remarks}</div>
               )}
               {existingRecord.resolution_note && (
-                <div style={{ padding: '0 18px 12px', fontSize: '0.82rem', color: '#047857' }}>
+                <div style={{ padding: '0 18px 12px', fontSize: '0.82rem', color: 'var(--brand-primary-hover, #0E5327)' }}>
                   {t('fin.resolution_note_label')}: {existingRecord.resolution_note} ({existingRecord.reviewed_by})
                 </div>
               )}
@@ -912,7 +912,7 @@ export default function EODProcessView({
                       <td style={{ fontWeight: 500 }}>{r.date}</td>
                       <td>{r.branch}</td>
                       <td className="num">₹{fmt(r.expected_cash)}</td>
-                      <td className="num" style={{ fontWeight: 600, color: '#047857' }}>₹{fmt(r.counted_cash)}</td>
+                      <td className="num" style={{ fontWeight: 600, color: 'var(--brand-primary-hover, #0E5327)' }}>₹{fmt(r.counted_cash)}</td>
                       <td className="num"><span className={`fin-badge ${b.cls}`}>{b.label}</span></td>
                       <td>{r.closed_by}</td>
                       <td>

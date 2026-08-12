@@ -4,6 +4,10 @@ import collectionRoutes from './collection/collection.routes.js';
 import ledgerRoutes from './ledger/ledger.routes.js';
 import npaRoutes from './npa/npa.routes.js';
 import schemeRoutes from './scheme/scheme.routes.js';
+import investorRoutes from './investors/investor.routes.js';
+import fixedDepositRoutes from './fixedDeposits/fixedDeposit.routes.js';
+import recurringDepositRoutes from './recurringDeposits/recurringDeposit.routes.js';
+import expenseRoutes from './expenses/expense.routes.js';
 
 export default async function financeRoutes(fastify, opts) {
   await fastify.register(loanRoutes);
@@ -12,4 +16,8 @@ export default async function financeRoutes(fastify, opts) {
   await fastify.register(ledgerRoutes);
   await fastify.register(npaRoutes);
   await fastify.register(schemeRoutes);
+  await fastify.register(investorRoutes);
+  await fastify.register(fixedDepositRoutes);
+  await fastify.register(recurringDepositRoutes);
+  await fastify.register(expenseRoutes);
 }

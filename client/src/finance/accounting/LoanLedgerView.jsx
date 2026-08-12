@@ -81,7 +81,7 @@ export default function LoanLedgerView({ loans = [], collections = [], branchesL
       <div className="fin-header-card">
         <div className="fin-page-header">
           <div className="fin-page-header__left">
-            <div className="fin-page-header__icon" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1D4ED8' }}>
+            <div className="fin-page-header__icon" style={{ background: 'var(--color-info-light, #EFF6FF)', border: '1px solid var(--color-info-border, #BFDBFE)', color: '#1D4ED8' }}>
               <FileText style={{ width: 18, height: 18 }} />
             </div>
             <div>

@@ -40,6 +40,18 @@ export default async function authRoutes(fastify, options) {
   // Central Audit Trail (GET /api/v1/auth/superadmin/audit-logs)
   fastify.get('/superadmin/audit-logs', superAdminOnly, authController.getAuditLogsHandler);
 
+  // Tenant self-service Company Profile view/edit (name/gstin/pan/address/phone/
+  // logo only — max_branches/allowed_modules/is_active stay SuperAdmin-exclusive,
+  // see updateCompanyAccessHandler above).
+  fastify.get('/company/profile', {
+    onRequest: [fastify.authenticate, fastify.tenantGuard]
+  }, authController.getOwnCompanyProfileHandler);
+
+  fastify.patch('/company/profile', {
+    onRequest: [fastify.authenticate, fastify.tenantGuard],
+    preHandler: fastify.moduleGuard('ORG', 'EDIT')
+  }, authController.updateOwnCompanyProfileHandler);
+
   // General Login Endpoint
   fastify.post('/login', bruteForceGuard, authController.loginHandler);
 

@@ -92,7 +92,12 @@ export function computeAccountBalances(chartOfAccounts, journalEntries) {
 
 export function computeCashBookEntries(journalEntries, cashAccountCodes) {
   const rows = [];
-  const sorted = [...journalEntries].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
+  // Same-day entries tie-break on created_at (a real, always-present ISO
+  // timestamp on both the mock and real-backend entry shapes) rather than
+  // `id` — `id` is a voucher_no string on real entries (e.g. "VOU-..."),
+  // so `a.id - b.id` silently evaluated to NaN and left same-day rows in
+  // whatever order the DB happened to return them in, not chronological order.
+  const sorted = [...journalEntries].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0)));
   let running = 0;
   sorted.forEach(je => {
     je.lines.forEach(l => {
@@ -119,7 +124,12 @@ export function computeCashBookEntries(journalEntries, cashAccountCodes) {
 // instead of just its final balance.
 export function computeLedgerFolio(account, journalEntries) {
   const rows = [];
-  const sorted = [...journalEntries].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
+  // Same-day entries tie-break on created_at (a real, always-present ISO
+  // timestamp on both the mock and real-backend entry shapes) rather than
+  // `id` — `id` is a voucher_no string on real entries (e.g. "VOU-..."),
+  // so `a.id - b.id` silently evaluated to NaN and left same-day rows in
+  // whatever order the DB happened to return them in, not chronological order.
+  const sorted = [...journalEntries].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0)));
   const normalSide = ACCOUNT_TYPES[account.type] || 'DEBIT';
   let running = 0;
   sorted.forEach(je => {
@@ -238,6 +248,44 @@ export function refTimeMap(journalEntries) {
     }
   });
   return map;
+}
+
+// Adapters between the real backend's row shape (server/src/finance/ledger) and
+// the shape every accounting util/view in this file already works with. Keeping
+// the transform in one place means a screen can be cut over to the real API
+// just by swapping its data source — the rendering/computation code underneath
+// (computeAccountBalances, computeLedgerFolio, etc.) never has to change.
+export function normalizeLedgerAccount(row) {
+  return {
+    code: row.account_code,
+    name: row.account_name,
+    name_key: row.name_key,
+    type: row.account_type,
+    category: row.category,
+    is_active: Boolean(row.is_active)
+  };
+}
+
+export function normalizeLedgerEntry(row) {
+  return {
+    id: row.voucher_no,
+    db_id: row.id,
+    voucher_no: row.voucher_no,
+    date: row.entry_date,
+    narration: row.description,
+    lines: (row.lines || []).map(l => ({
+      account_code: l.account_code,
+      account_name: l.account_name,
+      debit: Number(l.debit) || 0,
+      credit: Number(l.credit) || 0
+    })),
+    ref_type: row.ref_type,
+    ref_id: row.ref_id,
+    branch: row.branch,
+    voucher_type: row.voucher_type,
+    created_by: row.created_by,
+    created_at: row.created_at
+  };
 }
 
 export function computeBalanceSheet(balances, netProfit) {

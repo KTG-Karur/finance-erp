@@ -35,7 +35,7 @@ export default class ErrorBoundary extends React.Component {
             <button
               type="button"
               onClick={() => window.location.reload()}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#059669', color: '#FFFFFF', border: 'none', borderRadius: 10, padding: '10px 22px', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', border: 'none', borderRadius: 10, padding: '10px 22px', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}
             >
               <RotateCcw style={{ width: 15, height: 15 }} />
               <span>Reload App</span>

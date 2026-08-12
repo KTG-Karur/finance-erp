@@ -21,11 +21,21 @@ async function tenantGuardPlugin(fastify, options) {
       });
     }
 
-    // 1. Identify Company Code from Header or Authenticated JWT User
-    const companyCode = request.headers['x-company-code'] || request.user?.companyCode || 'ALPHA';
+    // 1. Identify Company Code from the verified JWT only — never a client header.
+    // By the time this preHandler runs, fastify.authenticate (onRequest) has
+    // already verified the token, so request.user.companyCode is tamper-proof.
+    // A client-supplied `x-company-code` header used to take priority over it,
+    // which meant ANY authenticated user could be silently routed into a
+    // different tenant's database just by sending a different header value —
+    // and since the client's axios interceptor always sent a hardcoded
+    // 'ALPHA' default (nothing ever set the real tenant's code there), every
+    // request for every real tenant was misrouted to a company code that
+    // usually doesn't exist, falling through to a dead 'finance_db_alpha'
+    // default and crashing with "Unknown database".
+    const companyCode = request.user?.companyCode;
 
     let companyId = request.user?.companyId;
-    let dbName = null;
+    let dbName = request.user?.dbName || null;
     let maxBranches = request.user?.maxBranches ?? null;
     let allowedModules = parseAllowedModules(request.user?.allowedModules);
 
@@ -54,33 +64,18 @@ async function tenantGuardPlugin(fastify, options) {
         // carried (unlimited/unrestricted if it carried nothing), consistent with
         // this app's existing offline-fallback philosophy elsewhere (moduleGuard).
         console.warn('[WARN] Master DB lookup warning in tenantGuard:', err.message);
-        dbName = dbName || request.user?.dbName;
       }
     }
 
-    // Default fallback if master DB connection is offline
     if (!dbName) {
-      dbName = 'finance_db_alpha';
-      companyId = 1;
+      return reply.code(403).send({
+        success: false,
+        message: 'Unable to resolve your tenant company/database. Please log in again.'
+      });
     }
 
-    // 3. Impersonation Audit for Super Admin
-    if (isSuperAdmin && impersonationDbName) {
-      try {
-        await fastify.masterDb.query(
-          `INSERT INTO superadmin_audit_logs (superadmin_id, target_tenant_id, action, details, ip_address) VALUES (?, ?, ?, ?, ?)`,
-          [
-            request.user.userId,
-            companyId,
-            'SUPER_ADMIN_IMPERSONATION',
-            JSON.stringify({ targetDb: dbName, url: request.url, method: request.method }),
-            request.ip
-          ]
-        );
-      } catch (err) {
-        console.warn('[WARN] Impersonation audit log warning:', err.message);
-      }
-    }
+    // Note: there's no SuperAdmin impersonation path through this guard — SUPER_ADMIN
+    // requests are rejected outright above, before reaching here.
 
     request.companyId = companyId;
     request.companyCode = companyCode;

@@ -41,13 +41,13 @@ export default function MasterSettingsView({
   onCreateEmployee,
   onUpdateEmployee,
   onDeleteEmployee,
+  onUpdateEmployeePermissions,
   onQuickAction,
   borrowers,
   loans,
   onCreateBorrower,
   onUpdateBorrower,
   onDeleteBorrower,
-  onOpenKycReview,
   branchesList = [],
   orgLoading,
   orgError,
@@ -75,6 +75,7 @@ export default function MasterSettingsView({
   const [activeModal, setActiveModal] = useState(null); // 'CREATE_STAFF' | 'EDIT_STAFF' | 'DELETE_STAFF' | 'STAFF_PERMISSIONS' | null
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [selectedStaffForRbac, setSelectedStaffForRbac] = useState(null);
+  const [staffFormError, setStaffFormError] = useState('');
 
   const [staffForm, setStaffForm] = useState({
     name: '',
@@ -98,14 +99,28 @@ export default function MasterSettingsView({
   }, [initialTab]);
 
   const [companyForm, setCompanyForm] = useState({
-    name: tenant?.name || 'Alpha Financial Services Ltd',
-    gstin: tenant?.gstin || '33AAAAA0000A1Z5',
-    pan: tenant?.pan || 'ABCDE1234F',
-    address: tenant?.address || '123 Enterprise Financial Towers, Commerce Road, Chennai - 600001',
-    phone: tenant?.phone || '+91 44 2850 1000',
+    name: tenant?.name || '',
+    gstin: tenant?.gstin || '',
+    pan: tenant?.pan || '',
+    address: tenant?.address || '',
+    phone: tenant?.phone || '',
     logo: tenant?.logo || null
   });
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  // `tenant` starts out with only what the login response carries (id/name) —
+  // gstin/pan/address/phone/logo arrive later via App.jsx's fetchCompanyProfile
+  // API call, which can resolve after this component has already mounted.
+  useEffect(() => {
+    setCompanyForm({
+      name: tenant?.name || '',
+      gstin: tenant?.gstin || '',
+      pan: tenant?.pan || '',
+      address: tenant?.address || '',
+      phone: tenant?.phone || '',
+      logo: tenant?.logo || null
+    });
+  }, [tenant?.name, tenant?.gstin, tenant?.pan, tenant?.address, tenant?.phone, tenant?.logo]);
 
   const handleOpenStaffRbacModal = (emp) => {
     setSelectedStaffForRbac(emp);
@@ -125,6 +140,7 @@ export default function MasterSettingsView({
       branch_ids: []
     });
     setSelectedStaff(null);
+    setStaffFormError('');
     setActiveModal('CREATE_STAFF');
   };
 
@@ -142,6 +158,7 @@ export default function MasterSettingsView({
       password: '',
       branch_ids: branchIds
     });
+    setStaffFormError('');
     setActiveModal('EDIT_STAFF');
   };
 
@@ -152,8 +169,17 @@ export default function MasterSettingsView({
 
   const handlePhotoUpload = (e) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
-
+    if (!file.type.startsWith('image/')) {
+      setStaffFormError('Please upload an image file (JPG or PNG).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setStaffFormError('Photo is too large — please upload an image under 5MB.');
+      return;
+    }
+    setStaffFormError('');
     const reader = new FileReader();
     reader.onloadend = () => {
       setStaffForm(prev => ({ ...prev, photo: reader.result }));
@@ -161,8 +187,13 @@ export default function MasterSettingsView({
     reader.readAsDataURL(file);
   };
 
+  const [staffActionLoading, setStaffActionLoading] = useState(false);
+
   const handleStaffFormSubmit = async (e) => {
     e.preventDefault();
+    if (staffActionLoading) return;
+    setStaffActionLoading(true);
+    setStaffFormError('');
     try {
       if (activeModal === 'CREATE_STAFF') {
         await onCreateEmployee?.(staffForm);
@@ -173,34 +204,58 @@ export default function MasterSettingsView({
       setSelectedStaff(null);
     } catch (err) {
       console.error(err);
+      setStaffFormError(err?.response?.data?.message || err?.message || 'Failed to save this staff member.');
+    } finally {
+      setStaffActionLoading(false);
     }
   };
 
   const handleConfirmDeleteStaff = async () => {
-    if (!selectedStaff) return;
+    if (!selectedStaff || staffActionLoading) return;
+    setStaffActionLoading(true);
     try {
       await onDeleteEmployee?.(selectedStaff.id);
       setActiveModal(null);
       setSelectedStaff(null);
     } catch (err) {
       console.error(err);
+    } finally {
+      setStaffActionLoading(false);
     }
   };
 
-  const handleSaveStaffPermissions = (staffId, updatedRole, permissions, scope) => {
-    if (staffId && onUpdateEmployee) {
-      onUpdateEmployee(staffId, { role: updatedRole, permissions: permissions, scope: scope });
+  // `permissions` here is the real [{module, action, allowed}] row shape the
+  // server's moduleGuard actually reads (see PermissionMatrix.jsx) — this must
+  // go through onUpdateEmployeePermissions (PUT /employees/:id/permissions),
+  // not onUpdateEmployee (a plain profile update that silently drops anything
+  // it doesn't recognize, including a `permissions` field).
+  const handleSaveStaffPermissions = async (staffId, updatedRole, permissions) => {
+    if (staffId && onUpdateEmployeePermissions) {
+      await onUpdateEmployeePermissions(staffId, updatedRole, permissions);
+      setActiveModal(null);
     } else if (onSavePermissions) {
-      onSavePermissions(updatedRole, permissions, scope);
+      await onSavePermissions(updatedRole, permissions);
+      setActiveModal(null);
     }
-    setActiveModal(null);
   };
 
-  const handleCompanySave = (e) => {
+  const [companySaveError, setCompanySaveError] = useState('');
+  const [companySaving, setCompanySaving] = useState(false);
+
+  const handleCompanySave = async (e) => {
     e.preventDefault();
-    onSaveCompanyProfile?.(companyForm);
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+    if (companySaving) return;
+    setCompanySaving(true);
+    setCompanySaveError('');
+    try {
+      await onSaveCompanyProfile?.(companyForm);
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3000);
+    } catch (err) {
+      setCompanySaveError(err?.response?.data?.message || 'Failed to save company profile.');
+    } finally {
+      setCompanySaving(false);
+    }
   };
 
   const filteredEmployees = employees.filter(emp => 
@@ -217,9 +272,10 @@ export default function MasterSettingsView({
 
   const getRoleLabel = (roleCode) => {
     if (roleCode === 'ADMIN' || roleCode === 'SUPER_ADMIN') return 'System Administrator';
+    if (roleCode === 'COMPANY_ADMIN') return 'Company Admin';
     if (roleCode === 'MANAGER') return 'Branch Manager';
     if (roleCode === 'COLLECTOR') return 'Field Collector Agent';
-    if (roleCode === 'ACCOUNTANT') return 'Accountant & Auditor';
+    if (roleCode === 'STAFF') return 'General Staff';
     return roleCode || 'Staff';
   };
 
@@ -232,7 +288,6 @@ export default function MasterSettingsView({
         onCreateBorrower={onCreateBorrower}
         onUpdateBorrower={onUpdateBorrower}
         onDeleteBorrower={onDeleteBorrower}
-        onOpenKycReview={onOpenKycReview}
       />
     );
   }
@@ -279,6 +334,8 @@ export default function MasterSettingsView({
         setCompanyForm={setCompanyForm}
         onSaveCompany={handleCompanySave}
         savedSuccess={savedSuccess}
+        companySaveError={companySaveError}
+        companySaving={companySaving}
       />
     );
   }
@@ -474,7 +531,7 @@ export default function MasterSettingsView({
                               style={{
                                 border: '1px solid #CBD5E1',
                                 background: '#FFFFFF',
-                                color: '#2563EB',
+                                color: 'var(--color-info, #2563EB)',
                                 padding: '4px 7px',
                                 borderRadius: 5,
                                 cursor: 'pointer'
@@ -489,9 +546,9 @@ export default function MasterSettingsView({
                               type="button"
                               onClick={() => handleOpenDeleteStaff(emp)}
                               style={{
-                                border: '1px solid #FCA5A5',
-                                background: '#FEF2F2',
-                                color: '#DC2626',
+                                border: '1px solid var(--color-danger-border, #FCA5A5)',
+                                background: 'var(--color-danger-light, #FEF2F2)',
+                                color: 'var(--color-danger, #DC2626)',
                                 padding: '4px 7px',
                                 borderRadius: 5,
                                 cursor: 'pointer'
@@ -545,6 +602,7 @@ export default function MasterSettingsView({
           <PermissionMatrix
             initialRole="MANAGER"
             selectedStaffMember={null}
+            employees={employees}
             onSaveStaffPermissions={handleSaveStaffPermissions}
           />
         </div>
@@ -586,7 +644,7 @@ export default function MasterSettingsView({
               background: '#F8FAFC'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Shield style={{ width: 22, height: 22, color: '#059669' }} />
+                <Shield style={{ width: 22, height: 22, color: 'var(--brand-primary, #15803D)' }} />
                 <div>
                   <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600, color: '#0F172A' }}>
                     Custom Permissions: {selectedStaffForRbac.name}
@@ -622,9 +680,7 @@ export default function MasterSettingsView({
               <PermissionMatrix
                 initialRole={selectedStaffForRbac.role}
                 selectedStaffMember={selectedStaffForRbac}
-                onSaveStaffPermissions={(staffId, role, perms, scope) => {
-                  handleSaveStaffPermissions(staffId, role, perms, scope);
-                }}
+                onSaveStaffPermissions={handleSaveStaffPermissions}
               />
             </div>
           </div>
@@ -672,9 +728,9 @@ export default function MasterSettingsView({
                   width: 38,
                   height: 38,
                   borderRadius: 10,
-                  background: activeModal === 'CREATE_STAFF' ? '#ECFDF5' : '#EFF6FF',
-                  border: `1px solid ${activeModal === 'CREATE_STAFF' ? '#A7F3D0' : '#BFDBFE'}`,
-                  color: activeModal === 'CREATE_STAFF' ? '#059669' : '#2563EB',
+                  background: activeModal === 'CREATE_STAFF' ? 'var(--brand-primary-light, #F0FEF5)' : 'var(--color-info-light, #EFF6FF)',
+                  border: `1px solid ${activeModal === 'CREATE_STAFF' ? 'var(--brand-primary-border, #A3F5C1)' : 'var(--color-info-border, #BFDBFE)'}`,
+                  color: activeModal === 'CREATE_STAFF' ? 'var(--brand-primary, #15803D)' : 'var(--color-info, #2563EB)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
@@ -713,7 +769,13 @@ export default function MasterSettingsView({
 
             {/* Form Split 2-Panel Grid */}
             <form onSubmit={handleStaffFormSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-              
+
+              {staffFormError && (
+                <div style={{ margin: '0 24px', padding: '10px 14px', borderRadius: 9, fontSize: '0.8rem', fontWeight: 600, background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger-hover, #B91C1C)' }}>
+                  {staffFormError}
+                </div>
+              )}
+
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr',
@@ -744,8 +806,8 @@ export default function MasterSettingsView({
                             height: 72,
                             borderRadius: '50%',
                             objectFit: 'cover',
-                            border: '2px solid #059669',
-                            boxShadow: '0 4px 12px rgba(5, 150, 105, 0.2)'
+                            border: '2px solid var(--brand-primary, #15803D)',
+                            boxShadow: '0 4px 12px rgba(var(--brand-primary-rgb), 0.2)'
                           }}
                         />
                       ) : (
@@ -770,7 +832,7 @@ export default function MasterSettingsView({
                         position: 'absolute',
                         bottom: -2,
                         right: -2,
-                        background: '#059669',
+                        background: 'var(--brand-primary, #15803D)',
                         color: '#FFFFFF',
                         width: 26,
                         height: 26,
@@ -797,7 +859,7 @@ export default function MasterSettingsView({
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 6, borderBottom: '1px solid #F1F5F9' }}>
-                    <User style={{ width: 15, height: 15, color: '#2563EB' }} />
+                    <User style={{ width: 15, height: 15, color: 'var(--color-info, #2563EB)' }} />
                     <span style={{ fontSize: '0.75rem', color: '#0F172A', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       {t('staff.modal.details_role')}
                     </span>
@@ -835,7 +897,7 @@ export default function MasterSettingsView({
                       <input
                         type="text"
                         value={staffForm.phone}
-                        onChange={e => setStaffForm({ ...staffForm, phone: e.target.value })}
+                        onChange={e => setStaffForm({ ...staffForm, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
                         placeholder="e.g. 9876543210"
                         style={{
                           width: '100%',
@@ -899,7 +961,7 @@ export default function MasterSettingsView({
                     >
                       <option value="COLLECTOR">{t('staff.modal.role_collector')}</option>
                       <option value="MANAGER">{t('staff.modal.role_manager')}</option>
-                      <option value="ACCOUNTANT">{t('staff.modal.role_accountant')}</option>
+                      <option value="STAFF">{t('staff.modal.role_staff')}</option>
                       <option value="ADMIN">{t('staff.modal.role_admin')}</option>
                     </select>
                   </div>
@@ -914,7 +976,7 @@ export default function MasterSettingsView({
                   background: '#F8FAFC'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 8, borderBottom: '1px solid #E2E8F0' }}>
-                    <Key style={{ width: 16, height: 16, color: '#059669' }} />
+                    <Key style={{ width: 16, height: 16, color: 'var(--brand-primary, #15803D)' }} />
                     <span style={{ fontSize: '0.78rem', color: '#0F172A', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       {t('staff.modal.branch_scope_auth')}
                     </span>
@@ -935,7 +997,7 @@ export default function MasterSettingsView({
                         type="checkbox"
                         checked={staffForm.enable_auth}
                         onChange={(e) => setStaffForm({ ...staffForm, enable_auth: e.target.checked })}
-                        style={{ width: 18, height: 18, accentColor: '#059669', cursor: 'pointer' }}
+                        style={{ width: 18, height: 18, accentColor: 'var(--brand-primary, #15803D)', cursor: 'pointer' }}
                       />
                       <span>{t('staff.modal.enable_auth')}</span>
                     </label>
@@ -1031,7 +1093,7 @@ export default function MasterSettingsView({
                                   : prev.branch_ids.filter(id => id !== b.id)
                               }));
                             }}
-                            style={{ width: 16, height: 16, accentColor: '#059669' }}
+                            style={{ width: 16, height: 16, accentColor: 'var(--brand-primary, #15803D)' }}
                           />
                           <span>{b.name} <span style={{ color: '#94A3B8', fontFamily: 'monospace', fontSize: '0.72rem' }}>({b.code})</span></span>
                         </label>
@@ -1055,6 +1117,7 @@ export default function MasterSettingsView({
                 <button
                   type="button"
                   onClick={() => setActiveModal(null)}
+                  disabled={staffActionLoading}
                   style={{
                     border: '1px solid #CBD5E1',
                     background: '#FFFFFF',
@@ -1063,26 +1126,27 @@ export default function MasterSettingsView({
                     borderRadius: 8,
                     fontSize: '0.85rem',
                     fontWeight: 500,
-                    cursor: 'pointer'
+                    cursor: staffActionLoading ? 'not-allowed' : 'pointer'
                   }}
                 >
                   {t('btn.cancel')}
                 </button>
                 <button
                   type="submit"
+                  disabled={staffActionLoading}
                   style={{
                     border: 'none',
-                    background: '#0F172A',
+                    background: staffActionLoading ? '#94A3B8' : '#0F172A',
                     color: '#FFFFFF',
                     padding: '10px 24px',
                     borderRadius: 8,
                     fontSize: '0.85rem',
                     fontWeight: 600,
-                    cursor: 'pointer',
+                    cursor: staffActionLoading ? 'not-allowed' : 'pointer',
                     boxShadow: '0 4px 12px rgba(15, 23, 42, 0.2)'
                   }}
                 >
-                  {activeModal === 'CREATE_STAFF' ? t('staff.modal.save') : t('staff.modal.update')}
+                  {staffActionLoading ? t('form.saving') : (activeModal === 'CREATE_STAFF' ? t('staff.modal.save') : t('staff.modal.update'))}
                 </button>
               </div>
 
@@ -1105,7 +1169,7 @@ export default function MasterSettingsView({
           padding: 20
         }}>
           <div style={{ maxWidth: 420, width: '100%', background: '#FFF', borderRadius: 14, padding: 24, textAlign: 'center', border: '1px solid #E2E8F0' }}>
-            <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#FEF2F2', border: '1px solid #FEE2E2', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px auto' }}>
+            <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-light, #FEE2E2)', color: 'var(--color-danger, #DC2626)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px auto' }}>
               <Trash2 style={{ width: 22, height: 22 }} />
             </div>
 
@@ -1120,16 +1184,18 @@ export default function MasterSettingsView({
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
-                style={{ background: '#F1F5F9', color: '#475569', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: '0.82rem', fontWeight: 500, cursor: 'pointer' }}
+                disabled={staffActionLoading}
+                style={{ background: '#F1F5F9', color: '#475569', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: '0.82rem', fontWeight: 500, cursor: staffActionLoading ? 'not-allowed' : 'pointer' }}
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDeleteStaff}
-                style={{ background: '#DC2626', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}
+                disabled={staffActionLoading}
+                style={{ background: staffActionLoading ? '#94A3B8' : 'var(--color-danger, #DC2626)', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: '0.82rem', fontWeight: 600, cursor: staffActionLoading ? 'not-allowed' : 'pointer' }}
               >
-                Delete Staff Member
+                {staffActionLoading ? 'Deleting...' : 'Delete Staff Member'}
               </button>
             </div>
           </div>

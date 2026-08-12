@@ -30,14 +30,13 @@ export default function InvestorCapitalReportView({ investors = [], tenant, user
 
   const COLUMNS = [
     { label: t('fin.investor_name_label') }, { label: t('col.phone') },
-    { label: t('fin.bank_name_label') }, { label: t('fin.account_no_label') }, { label: t('fin.ifsc_label') },
-    { label: 'Capital Amount', align: 'right' }, { label: 'Yield Rate', align: 'right' },
+    { label: 'Capital Amount', align: 'right' },
     { label: t('col.status') }, { label: 'Join Date' }
   ];
 
   const buildRows = () => filtered.map(i => [
-    i.name, i.phone, i.bank_name, i.account_no, i.ifsc_no,
-    fmt(i.capital_amount), i.yield_rate != null ? `${i.yield_rate}%` : '—',
+    i.name, i.phone,
+    fmt(i.capital_amount),
     tStatus(i.status || 'ACTIVE'), i.join_date || '—'
   ]);
 
@@ -61,7 +60,7 @@ export default function InvestorCapitalReportView({ investors = [], tenant, user
       <div className="fin-header-card">
         <div className="fin-page-header">
           <div className="fin-page-header__left">
-            <div className="fin-page-header__icon" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', color: '#B45309' }}>
+            <div className="fin-page-header__icon" style={{ background: 'var(--color-warning-light, #FFFBEB)', border: '1px solid var(--color-warning-border, #FDE68A)', color: 'var(--color-warning-hover, #B45309)' }}>
               <Wallet style={{ width: 18, height: 18 }} />
             </div>
             <div>
@@ -113,27 +112,19 @@ export default function InvestorCapitalReportView({ investors = [], tenant, user
             <tr>
               <th>{t('fin.investor_name_label')}</th>
               <th>{t('col.phone')}</th>
-              <th>{t('fin.bank_name_label')}</th>
-              <th>{t('fin.account_no_label')}</th>
-              <th>{t('fin.ifsc_label')}</th>
               <th className="num">Capital Amount</th>
-              <th className="num">Yield Rate</th>
               <th>{t('col.status')}</th>
               <th>Join Date</th>
             </tr>
           </thead>
           <tbody>
             {pagedRows.length === 0 ? (
-              <tr><td colSpan="9" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>{t('fin.no_results_hint')}</td></tr>
+              <tr><td colSpan="5" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>{t('fin.no_results_hint')}</td></tr>
             ) : pagedRows.map(i => (
               <tr key={i.id}>
                 <td>{i.name}</td>
                 <td>{i.phone}</td>
-                <td>{i.bank_name}</td>
-                <td>{i.account_no}</td>
-                <td>{i.ifsc_no}</td>
                 <td className="num" style={{ fontWeight: 600, color: '#0F172A' }}>₹{fmt(i.capital_amount)}</td>
-                <td className="num">{i.yield_rate != null ? `${i.yield_rate}%` : '—'}</td>
                 <td>{tStatus(i.status || 'ACTIVE')}</td>
                 <td>{i.join_date || '—'}</td>
               </tr>

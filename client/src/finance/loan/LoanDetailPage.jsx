@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  ArrowLeft, User, ShieldCheck, Receipt, Wallet, PieChart,
+  ArrowLeft, User, Receipt, Wallet, PieChart,
   Phone, MapPin, CreditCard, Building2, Calendar, Clock,
   CheckCircle2, AlertTriangle, FileText, Download, TrendingUp, TrendingDown, History,
   Check, FileCheck, CalendarClock
@@ -10,7 +10,7 @@ import { useLanguage } from '../../i18n/LanguageContext.jsx';
 const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
 // Progress ring component with non-bold typography
-function ProgressRing({ pct, size = 140, stroke = 10, color = '#059669', trackColor = '#F1F5F9' }) {
+function ProgressRing({ pct, size = 140, stroke = 10, color = 'var(--brand-primary, #15803D)', trackColor = '#F1F5F9' }) {
   const { t } = useLanguage();
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
@@ -45,7 +45,7 @@ function LoanBreakdownChart({ principal, interest, size = 140, stroke = 16 }) {
   const interestLen = circumference * (interest / total);
 
   const center = hovered === 'principal'
-    ? { label: t('ld.principal_amount'), value: principal, color: '#2563EB' }
+    ? { label: t('ld.principal_amount'), value: principal, color: 'var(--color-info, #2563EB)' }
     : hovered === 'interest'
       ? { label: t('ld.total_interest'), value: interest, color: '#7C3AED' }
       : { label: t('ld.total_sanctioned_payable'), value: total, color: '#0F172A' };
@@ -55,7 +55,7 @@ function LoanBreakdownChart({ principal, interest, size = 140, stroke = 16 }) {
       <svg width={size} height={size} style={{ display: 'block', flexShrink: 0 }}>
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#F1F5F9" strokeWidth={stroke} />
         <circle
-          cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#2563EB" strokeWidth={stroke}
+          cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--color-info, #2563EB)" strokeWidth={stroke}
           strokeDasharray={`${principalLen} ${circumference - principalLen}`}
           strokeLinecap="butt"
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
@@ -90,7 +90,7 @@ function LoanBreakdownChart({ principal, interest, size = 140, stroke = 16 }) {
           className={`legend-item ${hovered === 'principal' ? 'active' : ''}`}
         >
           <div className="legend-left">
-            <span className="dot-indicator" style={{ background: '#2563EB' }} />
+            <span className="dot-indicator" style={{ background: 'var(--color-info, #2563EB)' }} />
             <span className="legend-label">{t('ld.principal_amount')}</span>
           </div>
           <span className="legend-val">₹{fmt(principal)}</span>
@@ -148,75 +148,42 @@ export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }
     .filter(r => r.loan_id === loan.id || r.loan_account_no === loan.loan_account_no)
     .sort((a, b) => new Date(b.collection_date || b.date) - new Date(a.collection_date || a.date));
 
-  // Construct detailed payment ledger rows with full transaction details
-  const loanReceipts = rawReceipts.length > 0 ? rawReceipts.map((r, idx) => {
-    const totalAmt = Number(r.amount || r.paid || loan.installment_amount || 500);
-    const principalAmt = r.principal_portion !== undefined ? Number(r.principal_portion) : Math.round(totalAmt * 0.8);
-    const interestAmt = r.interest_portion !== undefined ? Number(r.interest_portion) : (totalAmt - principalAmt);
-    const penaltyAmt = Number(r.penalty || r.late_fee || 0);
+  // Construct detailed payment ledger rows strictly from real collection records
+  // — no fabricated fallback rows when there's no history yet (principal_paid/
+  // interest_paid/new_principal_balance are the actual `collections` table columns).
+  const loanReceipts = rawReceipts.map((r, idx) => {
+    const principalAmt = Number(r.principal_paid ?? r.principalPaid ?? 0);
+    const interestAmt = Number(r.interest_paid ?? r.interestPaid ?? 0);
+    const penaltyAmt = Number(r.penalty ?? 0);
+    const totalAmt = Number(r.amount ?? (principalAmt + interestAmt));
     return {
       id: r.id || idx,
-      voucher_no: r.voucher_no || `JE-${loan.loan_account_no?.replace('LN-', '') || '100'}-00${idx + 1}`,
-      date: r.collection_date || r.date || '2026-08-01',
-      time: r.time || '10:30 AM',
-      mode: r.payment_mode || r.mode || 'CASH',
-      txn_ref: r.txn_ref || r.reference_no || `TXN-${Math.floor(100000 + Math.random() * 900000)}`,
-      collector: r.collector || loan.collector || 'K. Ramesh (Field Officer)',
-      branch: loan.branch || 'Karur Main Branch',
+      voucher_no: r.voucher_no || r.receipt_no || '—',
+      date: r.collection_date || r.date || '—',
+      time: r.created_at ? new Date(r.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—',
+      mode: r.payment_mode || r.mode || '—',
+      txn_ref: r.reference_no || r.txn_ref || '—',
+      collector: r.collector_name || r.collector || loan.collector || '—',
+      branch: r.branch || loan.branch || '—',
       principal: principalAmt,
       interest: interestAmt,
       penalty: penaltyAmt,
       total_paid: totalAmt + penaltyAmt,
-      balance_after: r.balance_after !== undefined ? r.balance_after : Math.max(0, (loan.total_payable || 50000) - (idx + 1) * totalAmt),
-      status: r.status || 'VERIFIED',
-      remarks: r.remarks || t('ld.emi_payment_received')
+      balance_after: (r.new_principal_balance ?? r.balance_after) ?? null,
+      status: r.voided ? 'VOIDED' : (r.reverted ? 'REVERTED' : (r.clearance_status || r.status || 'CLEARED')),
+      remarks: r.notes || r.remarks || t('ld.emi_payment_received')
     };
-  }) : [
-    {
-      id: 1,
-      voucher_no: `JE-${loan.loan_account_no?.replace('LN-', '') || '100'}-001`,
-      date: '2026-07-20',
-      time: '11:15 AM',
-      mode: 'CASH',
-      txn_ref: 'POS-KARUR-0921',
-      collector: loan.collector || 'K. Ramesh (Field Officer)',
-      branch: loan.branch || 'Karur Main Branch',
-      principal: 400,
-      interest: 100,
-      penalty: 0,
-      total_paid: 500,
-      balance_after: Math.max(0, (loan.pending_amount || 45000)),
-      status: 'VERIFIED',
-      remarks: t('ld.pos_cash_collection')
-    },
-    {
-      id: 2,
-      voucher_no: `JE-${loan.loan_account_no?.replace('LN-', '') || '100'}-002`,
-      date: '2026-07-28',
-      time: '04:30 PM',
-      mode: 'UPI',
-      txn_ref: 'UPI/629104812/SUCCESS',
-      collector: loan.collector || 'Online Self-Pay',
-      branch: loan.branch || 'Karur Main Branch',
-      principal: 400,
-      interest: 100,
-      penalty: 0,
-      total_paid: 500,
-      balance_after: Math.max(0, (loan.pending_amount || 45000) - 500),
-      status: 'VERIFIED',
-      remarks: t('ld.gpay_mobile_transfer')
-    }
-  ];
+  });
 
   const isOverdue = loan.status === 'OVERDUE';
   const totalPayable = loan.total_payable || loan.principal_amount || 0;
   const progressPct = totalPayable ? Math.min(100, Math.round(((loan.collected_amount || 0) / totalPayable) * 100)) : 0;
 
   const statusColors = {
-    ACTIVE: { bg: '#ECFDF5', border: '#A7F3D0', color: '#059669', label: t('ld.status_active_loan') },
-    OVERDUE: { bg: '#FEF2F2', border: '#FCA5A5', color: '#DC2626', label: tStatus('OVERDUE') },
+    ACTIVE: { bg: 'var(--brand-primary-light, #F0FEF5)', border: 'var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', label: t('ld.status_active_loan') },
+    OVERDUE: { bg: 'var(--color-danger-light, #FEF2F2)', border: 'var(--color-danger-border, #FCA5A5)', color: 'var(--color-danger, #DC2626)', label: tStatus('OVERDUE') },
     CLOSED: { bg: '#F1F5F9', border: '#CBD5E1', color: '#475569', label: t('ld.status_closed') },
-    PENDING: { bg: '#FFFBEB', border: '#FDE68A', color: '#D97706', label: t('kyc.pending_review') }
+    PENDING: { bg: 'var(--color-warning-light, #FFFBEB)', border: 'var(--color-warning-border, #FDE68A)', color: 'var(--color-warning, #D97706)', label: t('kyc.pending_review') }
   };
   const sc = statusColors[loan.status] || statusColors.ACTIVE;
 
@@ -265,8 +232,8 @@ export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }
 
               <div className="meta-pills-row">
                 <span className="info-chip"><CreditCard style={{ width: 12, height: 12 }} />{loan.loan_account_no}</span>
-                <span className="info-chip"><User style={{ width: 12, height: 12 }} />{borrower?.borrower_code || 'KTG-CUST'}</span>
-                <span className="info-chip"><Building2 style={{ width: 12, height: 12 }} />{loan.branch || 'Karur Main'}</span>
+                <span className="info-chip"><User style={{ width: 12, height: 12 }} />{borrower?.borrower_code || '—'}</span>
+                <span className="info-chip"><Building2 style={{ width: 12, height: 12 }} />{loan.branch || '—'}</span>
                 <span className="info-chip"><FileCheck style={{ width: 12, height: 12 }} />{loan.collector || '—'}</span>
                 <span className="info-chip"><Phone style={{ width: 12, height: 12 }} />{loan.phone || borrower?.phone || '—'}</span>
               </div>
@@ -368,7 +335,7 @@ export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }
           {/* Card 1: Loan Contract Terms */}
           <div className="detail-card">
             <div className="detail-card-header">
-              <Wallet style={{ width: 16, height: 16, color: '#2563EB' }} />
+              <Wallet style={{ width: 16, height: 16, color: 'var(--color-info, #2563EB)' }} />
               <h3>{t('ld.sanction_terms')}</h3>
             </div>
             <div className="detail-meta-list">
@@ -406,12 +373,12 @@ export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }
           {/* Card 2: Repayment Progress Ring */}
           <div className="detail-card">
             <div className="detail-card-header">
-              <TrendingUp style={{ width: 16, height: 16, color: '#059669' }} />
+              <TrendingUp style={{ width: 16, height: 16, color: 'var(--brand-primary, #15803D)' }} />
               <h3>{t('ld.repayment_progress')}</h3>
             </div>
 
             <div className="ring-container">
-              <ProgressRing pct={progressPct} color={isOverdue ? '#DC2626' : '#059669'} />
+              <ProgressRing pct={progressPct} color={isOverdue ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)'} />
             </div>
 
             <div className="progress-breakdown-bars">
@@ -463,12 +430,6 @@ export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }
               </div>
               <div className="borrower-identity-info">
                 <h2>{loan.borrower_name}</h2>
-                {borrower?.kyc_status && (
-                  <span className="kyc-badge">
-                    <ShieldCheck style={{ width: 12, height: 12 }} />
-                    KYC {tStatus(borrower.kyc_status)}
-                  </span>
-                )}
               </div>
             </div>
 
@@ -499,7 +460,7 @@ export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }
               </div>
               <div className="meta-row full-width">
                 <span className="lbl">{t('ld.full_address')}</span>
-                <span className="val">{borrower ? [borrower.address_line1, borrower.city, borrower.state, borrower.pincode].filter(Boolean).join(', ') : loan.branch || 'Karur, TN'}</span>
+                <span className="val">{borrower ? [borrower.address_line1, borrower.city, borrower.state, borrower.pincode].filter(Boolean).join(', ') || '—' : loan.branch || '—'}</span>
               </div>
             </div>
           </div>
@@ -511,7 +472,7 @@ export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }
         <div className="detail-tab-content-single">
           <div className="detail-card">
             <div className="detail-card-header">
-              <Receipt style={{ width: 16, height: 16, color: '#059669' }} />
+              <Receipt style={{ width: 16, height: 16, color: 'var(--brand-primary, #15803D)' }} />
               <h3>{t('ld.complete_ledger')}</h3>
             </div>
 
@@ -563,7 +524,7 @@ export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }
                         <td style={{ textAlign: 'right' }}>₹{fmt(r.interest)}</td>
                         <td style={{ textAlign: 'right' }}>{r.penalty > 0 ? `₹${fmt(r.penalty)}` : '₹0'}</td>
                         <td style={{ textAlign: 'right' }} className="amount-col">₹{fmt(r.total_paid)}</td>
-                        <td style={{ textAlign: 'right' }} className="balance-col">₹{fmt(r.balance_after)}</td>
+                        <td style={{ textAlign: 'right' }} className="balance-col">{r.balance_after !== null ? `₹${fmt(r.balance_after)}` : '—'}</td>
                         <td>
                           <div className="status-cell">
                             <span className="status-tag-verified">

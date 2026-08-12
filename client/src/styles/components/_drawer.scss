@@ -111,7 +111,7 @@
   }
   &__fill {
     height: 100%;
-    background: linear-gradient(90deg, $success-icon 0%, #059669 100%);
+    background: linear-gradient(90deg, $success-icon 0%, var(--brand-primary, #15803D) 100%);
     border-radius: $radius-full;
     transition: width 0.5s $ease-out;
     min-width: 4px;

@@ -23,7 +23,7 @@ export async function up(queryInterface, Sequelize) {
     name: { type: DataTypes.STRING(255), allowNull: false },
     email: { type: DataTypes.STRING(255), allowNull: false, unique: true },
     phone: { type: DataTypes.STRING(20), allowNull: true },
-    photo: { type: DataTypes.TEXT, allowNull: true },
+    photo: { type: DataTypes.MEDIUMTEXT, allowNull: true },
     password: { type: DataTypes.STRING(255), allowNull: false },
     role: { type: DataTypes.ENUM('COMPANY_ADMIN', 'ADMIN', 'COLLECTOR', 'MANAGER', 'STAFF'), defaultValue: 'STAFF' },
     status: { type: DataTypes.ENUM('ACTIVE', 'INACTIVE'), defaultValue: 'ACTIVE' },
@@ -73,6 +73,16 @@ export async function up(queryInterface, Sequelize) {
     action: { type: DataTypes.STRING(50), allowNull: false },
     allowed: { type: DataTypes.BOOLEAN, defaultValue: true }
   });
+  // employee.service.js's updateEmployeePermissions relies on
+  // `ON DUPLICATE KEY UPDATE` to update-in-place rather than accumulate
+  // duplicate rows — that silently does nothing without a real unique key
+  // backing it (MySQL just inserts a new row every time), which meant
+  // revoking a permission never actually took effect: moduleGuard's lookup
+  // would keep returning whichever row happened to sort first.
+  await queryInterface.addIndex('employee_permissions', ['user_id', 'module', 'action'], {
+    unique: true,
+    name: 'employee_permissions_user_module_action_unique'
+  });
 
   // 0e. User <-> Branch Assignments — auth.service.js's resolveUserBranches,
   // employee.service.js's updateEmployeeBranches, org.service.js's delete-branch
@@ -119,10 +129,8 @@ export async function up(queryInterface, Sequelize) {
     branch: { type: DataTypes.STRING(100), allowNull: true },
     status: { type: DataTypes.ENUM('ACTIVE', 'INACTIVE'), defaultValue: 'ACTIVE' },
     notes: { type: DataTypes.TEXT, allowNull: true },
-    profile_image: { type: DataTypes.TEXT, allowNull: true },
+    profile_image: { type: DataTypes.MEDIUMTEXT, allowNull: true },
     documents: { type: DataTypes.JSON, allowNull: true },
-    kyc_status: { type: DataTypes.ENUM('PENDING', 'VERIFIED', 'REJECTED'), defaultValue: 'PENDING' },
-    kyc_verified_at: { type: DataTypes.DATE, allowNull: true },
     created_at: { type: DataTypes.DATE, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') }
   });
 
@@ -186,9 +194,14 @@ export async function up(queryInterface, Sequelize) {
     purpose: { type: DataTypes.STRING(255), allowNull: true },
     nominee: { type: DataTypes.JSON, allowNull: true },
     security: { type: DataTypes.JSON, allowNull: true },
-    status: { type: DataTypes.ENUM('PENDING', 'ACTIVE', 'OVERDUE', 'CLOSED', 'REJECTED'), defaultValue: 'PENDING' },
+    // PENDING = application awaiting review; APPROVED = reviewed, not yet
+    // disbursed; ACTIVE = disbursed, cash out the door; PENDING_CLOSURE = fully
+    // collected but awaiting an admin's close-out review (see collection.service.js);
+    // CLOSED/REJECTED are terminal.
+    status: { type: DataTypes.ENUM('PENDING', 'APPROVED', 'ACTIVE', 'OVERDUE', 'PENDING_CLOSURE', 'CLOSED', 'REJECTED'), defaultValue: 'PENDING' },
     dpd_days: { type: DataTypes.INTEGER, defaultValue: 0 },
     npa_status: { type: DataTypes.ENUM('STANDARD', 'SUB_STANDARD', 'DOUBTFUL', 'LOSS'), defaultValue: 'STANDARD' },
+    rejection_reason: { type: DataTypes.TEXT, allowNull: true },
     closure_requested_at: { type: DataTypes.DATE, allowNull: true },
     closure_requested_by: { type: DataTypes.STRING(255), allowNull: true },
     closure_rejection_reason: { type: DataTypes.TEXT, allowNull: true },
@@ -238,7 +251,7 @@ export async function up(queryInterface, Sequelize) {
     branch: { type: DataTypes.STRING(100), allowNull: true },
     received_at: { type: DataTypes.DATE, allowNull: true },
     notes: { type: DataTypes.TEXT, allowNull: true },
-    proof_image: { type: DataTypes.TEXT, allowNull: true },
+    proof_image: { type: DataTypes.MEDIUMTEXT, allowNull: true },
     latitude: { type: DataTypes.DECIMAL(10, 7), allowNull: true },
     longitude: { type: DataTypes.DECIMAL(10, 7), allowNull: true },
     clearance_status: { type: DataTypes.ENUM('CLEARED', 'PENDING_CLEARANCE', 'BOUNCED'), defaultValue: 'CLEARED' },
@@ -273,7 +286,7 @@ export async function up(queryInterface, Sequelize) {
     voucher_no: { type: DataTypes.STRING(50), allowNull: false, unique: true },
     entry_date: { type: DataTypes.DATEONLY, allowNull: false },
     description: { type: DataTypes.TEXT, allowNull: false },
-    voucher_type: { type: DataTypes.ENUM('RECEIPT', 'PAYMENT', 'JOURNAL', 'CONTRA'), defaultValue: 'JOURNAL' },
+    voucher_type: { type: DataTypes.ENUM('RECEIPT', 'PAYMENT', 'JOURNAL', 'CONTRA', 'CASH_RECEIPT', 'CASH_PAYMENT', 'BANK_RECEIPT', 'BANK_PAYMENT'), defaultValue: 'JOURNAL' },
     is_auto: { type: DataTypes.BOOLEAN, defaultValue: false },
     total_amount: { type: DataTypes.DECIMAL(15, 2), allowNull: false },
     ref_type: { type: DataTypes.STRING(50), allowNull: true },
@@ -305,21 +318,14 @@ export async function up(queryInterface, Sequelize) {
     city: { type: DataTypes.STRING(100), allowNull: true },
     state: { type: DataTypes.STRING(100), allowNull: true },
     pincode: { type: DataTypes.STRING(10), allowNull: true },
-    kyc_status: { type: DataTypes.ENUM('PENDING', 'VERIFIED', 'REJECTED'), defaultValue: 'VERIFIED' },
-    bank_name: { type: DataTypes.STRING(100), allowNull: true },
-    account_holder_name: { type: DataTypes.STRING(255), allowNull: true },
-    account_no: { type: DataTypes.STRING(50), allowNull: true },
-    ifsc_no: { type: DataTypes.STRING(20), allowNull: true },
     nominee_name: { type: DataTypes.STRING(255), allowNull: true },
     nominee_phone: { type: DataTypes.STRING(20), allowNull: true },
     nominee_relation: { type: DataTypes.STRING(50), allowNull: true },
     capital_amount: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
     join_date: { type: DataTypes.DATEONLY, allowNull: true },
-    yield_rate: { type: DataTypes.DECIMAL(6, 3), allowNull: true },
-    yield_notes: { type: DataTypes.TEXT, allowNull: true },
     exit_date: { type: DataTypes.DATEONLY, allowNull: true },
     notes: { type: DataTypes.TEXT, allowNull: true },
-    photo: { type: DataTypes.TEXT, allowNull: true },
+    photo: { type: DataTypes.MEDIUMTEXT, allowNull: true },
     status: { type: DataTypes.ENUM('ACTIVE', 'EXITED'), defaultValue: 'ACTIVE' },
     created_at: { type: DataTypes.DATE, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') }
   });
@@ -377,6 +383,7 @@ export async function up(queryInterface, Sequelize) {
     amount: { type: DataTypes.DECIMAL(15, 2), allowNull: false },
     status: { type: DataTypes.ENUM('PENDING', 'PAID', 'MISSED'), defaultValue: 'PENDING' },
     paid_date: { type: DataTypes.DATEONLY, allowNull: true },
+    payment_mode: { type: DataTypes.ENUM('CASH', 'UPI', 'BANK_TRANSFER', 'CHEQUE'), allowNull: true },
     voucher_no: { type: DataTypes.STRING(50), allowNull: true }
   });
 

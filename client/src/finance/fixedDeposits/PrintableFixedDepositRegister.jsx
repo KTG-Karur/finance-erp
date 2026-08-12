@@ -73,7 +73,7 @@ export default function PrintableFixedDepositRegister({ company = {}, fixedDepos
             )}
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--brand-primary, #15803D)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Fixed Deposit Register
             </div>
             <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginTop: 2 }}>
@@ -93,11 +93,11 @@ export default function PrintableFixedDepositRegister({ company = {}, fixedDepos
           </div>
           <div style={{ flex: 1 }}>
             <span style={{ fontSize: '0.66rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>Total Principal</span>
-            <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#059669' }}>₹{fmt(totalPrincipal)}</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--brand-primary, #15803D)' }}>₹{fmt(totalPrincipal)}</div>
           </div>
           <div style={{ flex: 1 }}>
             <span style={{ fontSize: '0.66rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>Total Maturity Liability</span>
-            <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#2563EB' }}>₹{fmt(totalMaturity)}</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--color-info, #2563EB)' }}>₹{fmt(totalMaturity)}</div>
           </div>
         </div>
 
@@ -129,7 +129,7 @@ export default function PrintableFixedDepositRegister({ company = {}, fixedDepos
               fixedDeposits.map((fd, idx) => (
                 <tr key={fd.id}>
                   <td style={{ textAlign: 'center', color: '#64748B' }}>{idx + 1}</td>
-                  <td style={{ fontWeight: 700, color: '#059669', fontFamily: 'monospace' }}>{fd.fd_account_no}</td>
+                  <td style={{ fontWeight: 700, color: 'var(--brand-primary, #15803D)', fontFamily: 'monospace' }}>{fd.fd_account_no}</td>
                   <td style={{ fontWeight: 600, color: '#0F172A' }}>{fd.customer_name}</td>
                   <td style={{ color: '#475569' }}>{fd.scheme === 'CUMULATIVE' ? 'Cumulative' : 'Monthly Payout'}</td>
                   <td style={{ textAlign: 'right', fontWeight: 600 }}>₹{fmt(fd.principal_amount)}</td>
@@ -137,10 +137,10 @@ export default function PrintableFixedDepositRegister({ company = {}, fixedDepos
                   <td style={{ textAlign: 'right' }}>{fd.interest_rate}%</td>
                   <td style={{ textAlign: 'center', color: '#475569' }}>{fd.booking_date}</td>
                   <td style={{ textAlign: 'center', color: '#475569' }}>{fd.maturity_date}</td>
-                  <td style={{ textAlign: 'right', color: fd.status === 'CLOSED_PREMATURE' ? '#DC2626' : '#059669' }}>
+                  <td style={{ textAlign: 'right', color: fd.status === 'CLOSED_PREMATURE' ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)' }}>
                     ₹{fmt(fd.status === 'CLOSED_PREMATURE' ? fd.payout_amount : fd.maturity_value)}
                   </td>
-                  <td style={{ textAlign: 'center', fontWeight: 700, fontSize: '0.68rem', color: fd.status === 'ACTIVE' ? '#059669' : fd.status === 'MATURED' ? '#2563EB' : '#DC2626' }}>
+                  <td style={{ textAlign: 'center', fontWeight: 700, fontSize: '0.68rem', color: fd.status === 'ACTIVE' ? 'var(--brand-primary, #15803D)' : fd.status === 'MATURED' ? 'var(--color-info, #2563EB)' : 'var(--color-danger, #DC2626)' }}>
                     {fd.status}
                   </td>
                 </tr>

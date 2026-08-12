@@ -8,19 +8,18 @@ const api = axios.create({
   }
 });
 
-// Interceptor to attach Authorization JWT token and Tenant Company Code headers
+// Interceptor to attach the Authorization JWT token. Which tenant/company a
+// request belongs to is resolved server-side from the verified token itself
+// (see tenantGuard.js) — it used to also trust client-sent X-Company-Code /
+// X-Company-ID / X-Tenant-DB headers, but those were never populated with the
+// real tenant's values (always a hardcoded 'ALPHA' fallback) and, worse, a
+// client header should never be able to override what the signed JWT says
+// about which tenant a request belongs to.
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('financial_erp_token');
-  const companyCode = localStorage.getItem('financial_erp_company_code') || 'ALPHA';
-  const tenantId = localStorage.getItem('financial_erp_tenant_id') || '1';
-  const dbName = localStorage.getItem('financial_erp_db_name') || 'tenant_alpha_db';
-
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  config.headers['X-Company-Code'] = companyCode;
-  config.headers['X-Company-ID'] = tenantId;
-  config.headers['X-Tenant-DB'] = dbName;
   return config;
 }, (error) => Promise.reject(error));
 

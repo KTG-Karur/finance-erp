@@ -29,6 +29,15 @@ export default function GeneralLedgerView({ chartOfAccounts = [], journalEntries
   useEffect(() => {
     if (selectedBranch && selectedBranch !== 'ALL') setBranch(selectedBranch);
   }, [selectedBranch]);
+  // chartOfAccounts now arrives from an async API fetch, so it's empty on the
+  // very first render — the useState initializer above only runs once and
+  // would otherwise leave accountCode stuck at '' forever once accounts load.
+  useEffect(() => {
+    if (!accountCode && chartOfAccounts[0]?.code) {
+      setAccountCode(chartOfAccounts[0].code);
+      setApplied(prev => ({ ...prev, account: chartOfAccounts[0].code }));
+    }
+  }, [chartOfAccounts, accountCode]);
   const [instantSearch, setInstantSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
@@ -67,7 +76,7 @@ export default function GeneralLedgerView({ chartOfAccounts = [], journalEntries
       <div className="fin-header-card">
         <div className="fin-page-header">
           <div className="fin-page-header__left">
-            <div className="fin-page-header__icon" style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669' }}>
+            <div className="fin-page-header__icon" style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)' }}>
               <Layers style={{ width: 18, height: 18 }} />
             </div>
             <div>

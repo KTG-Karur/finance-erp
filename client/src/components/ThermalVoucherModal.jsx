@@ -41,7 +41,7 @@ export default function ThermalVoucherModal({ company = {}, receipt, voidInfo = 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px', borderBottom: '1px solid #E2E8F0', background: '#F8FAFC' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <FileText style={{ width: 18, height: 18 }} />
             </div>
             <div>
@@ -56,19 +56,19 @@ export default function ThermalVoucherModal({ company = {}, receipt, voidInfo = 
 
         <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
           {isVoid && (
-            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '10px 14px', fontSize: '0.78rem', color: '#991B1B' }}>
+            <div style={{ background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', borderRadius: 10, padding: '10px 14px', fontSize: '0.78rem', color: 'var(--color-danger-text, #991B1B)' }}>
               <strong>{voidInfo.label}</strong> — {voidInfo.reason || '—'}
-              <div style={{ fontSize: '0.7rem', color: '#B91C1C', marginTop: 3 }}>By {voidInfo.by || '—'} · {voidInfo.at ? new Date(voidInfo.at).toLocaleString('en-IN') : ''}</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--color-danger-hover, #B91C1C)', marginTop: 3 }}>By {voidInfo.by || '—'} · {voidInfo.at ? new Date(voidInfo.at).toLocaleString('en-IN') : ''}</div>
             </div>
           )}
 
           {/* Amount hero */}
-          <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 14, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', borderRadius: 14, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <span style={{ fontSize: '0.66rem', color: '#047857', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.03em' }}>Amount Collected</span>
-              <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#047857', marginTop: 2 }}>₹{fmt(receipt.amount)}</div>
+              <span style={{ fontSize: '0.66rem', color: 'var(--brand-primary-hover, #0E5327)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.03em' }}>Amount Collected</span>
+              <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--brand-primary-hover, #0E5327)', marginTop: 2 }}>₹{fmt(receipt.amount)}</div>
             </div>
-            <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: '0.72rem', fontWeight: 600, background: '#FFFFFF', border: '1px solid #A7F3D0', color: '#047857' }}>{receipt.payment_mode}</span>
+            <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: '0.72rem', fontWeight: 600, background: '#FFFFFF', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary-hover, #0E5327)' }}>{receipt.payment_mode}</span>
           </div>
 
           {/* Details grid */}
@@ -94,7 +94,7 @@ export default function ThermalVoucherModal({ company = {}, receipt, voidInfo = 
               {[
                 receipt.principal_paid !== undefined ? ['Principal Portion', `₹${fmt(receipt.principal_paid)}`] : null,
                 receipt.interest_paid !== undefined ? ['Interest Portion', `₹${fmt(receipt.interest_paid)}`] : null,
-                receipt.pending_balance !== undefined ? ['Pending Balance', `₹${fmt(receipt.pending_balance)}`, receipt.pending_balance > 0 ? '#DC2626' : '#059669'] : null
+                receipt.pending_balance !== undefined ? ['Pending Balance', `₹${fmt(receipt.pending_balance)}`, receipt.pending_balance > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)'] : null
               ].filter(Boolean).map(([label, value, color], i, arr) => (
                 <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: i < arr.length - 1 ? '1px solid #E2E8F0' : 'none' }}>
                   <span style={{ fontSize: '0.76rem', color: '#64748B', fontWeight: 500 }}>{label}</span>
@@ -109,7 +109,7 @@ export default function ThermalVoucherModal({ company = {}, receipt, voidInfo = 
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 500 }}>Proof of Payment:</span>
                 {proofImage ? (
-                  <img src={proofImage} alt="Proof" onClick={() => onViewProof?.(proofImage)} style={{ width: 34, height: 34, borderRadius: 7, objectFit: 'cover', border: '1px solid #A7F3D0', cursor: 'pointer' }} />
+                  <img src={proofImage} alt="Proof" onClick={() => onViewProof?.(proofImage)} style={{ width: 34, height: 34, borderRadius: 7, objectFit: 'cover', border: '1px solid var(--brand-primary-border, #A3F5C1)', cursor: 'pointer' }} />
                 ) : (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.74rem', color: '#94A3B8' }}><ImageOff style={{ width: 12, height: 12 }} />Not attached</span>
                 )}
@@ -117,7 +117,7 @@ export default function ThermalVoucherModal({ company = {}, receipt, voidInfo = 
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 500 }}>Location:</span>
                 {location ? (
-                  <a href={mapsUrl(location.lat, location.lng)} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.76rem', color: '#059669', fontWeight: 600, textDecoration: 'none' }}>
+                  <a href={mapsUrl(location.lat, location.lng)} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.76rem', color: 'var(--brand-primary, #15803D)', fontWeight: 600, textDecoration: 'none' }}>
                     <MapPin style={{ width: 12, height: 12 }} />View on Map
                   </a>
                 ) : (
@@ -141,7 +141,7 @@ export default function ThermalVoucherModal({ company = {}, receipt, voidInfo = 
           <button
             type="button"
             onClick={() => window.print()}
-            style={{ background: '#059669', fontWeight: 500, color: '#FFF', border: 'none', padding: '8px 18px', borderRadius: 10, cursor: 'pointer', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            style={{ background: 'var(--brand-primary, #15803D)', fontWeight: 500, color: '#FFF', border: 'none', padding: '8px 18px', borderRadius: 10, cursor: 'pointer', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
             <Printer style={{ width: 14, height: 14 }} />
             <span>Print Voucher</span>

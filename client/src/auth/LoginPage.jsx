@@ -91,8 +91,8 @@ export default function LoginPage({ company, module, onLoginSuccess, onBackToMod
         {/* Precision Coordinate Grid Overlay */}
         <svg className="mesh-grid-svg" viewBox="0 0 1440 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
           <pattern id="fluid-grid" width="64" height="64" patternUnits="userSpaceOnUse">
-            <path d="M 64 0 L 0 0 0 64" fill="none" stroke="#059669" strokeOpacity="0.04" strokeWidth="1" />
-            <circle cx="64" cy="64" r="1.25" fill="#059669" fillOpacity="0.08" />
+            <path d="M 64 0 L 0 0 0 64" fill="none" stroke="var(--brand-primary, #15803D)" strokeOpacity="0.04" strokeWidth="1" />
+            <circle cx="64" cy="64" r="1.25" fill="var(--brand-primary, #15803D)" fillOpacity="0.08" />
           </pattern>
           <rect width="100%" height="100%" fill="url(#fluid-grid)" />
         </svg>
@@ -155,11 +155,11 @@ export default function LoginPage({ company, module, onLoginSuccess, onBackToMod
             <div className="telemetry-sparkline">
               <svg viewBox="0 0 280 48" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M0 38 Q 35 15, 70 30 T 140 20 T 210 35 T 280 10 L 280 48 L 0 48 Z" fill="url(#spark-grad)" />
-                <path d="M0 38 Q 35 15, 70 30 T 140 20 T 210 35 T 280 10" stroke="#059669" strokeWidth="2" fill="none" />
+                <path d="M0 38 Q 35 15, 70 30 T 140 20 T 210 35 T 280 10" stroke="var(--brand-primary, #15803D)" strokeWidth="2" fill="none" />
                 <defs>
                   <linearGradient id="spark-grad" x1="0" y1="0" x2="0" y2="48" gradientUnits="userSpaceOnUse">
-                    <stop stopColor="#059669" stopOpacity="0.18" />
-                    <stop offset="1" stopColor="#059669" stopOpacity="0.0" />
+                    <stop stopColor="var(--brand-primary, #15803D)" stopOpacity="0.18" />
+                    <stop offset="1" stopColor="var(--brand-primary, #15803D)" stopOpacity="0.0" />
                   </linearGradient>
                 </defs>
               </svg>
@@ -211,7 +211,7 @@ export default function LoginPage({ company, module, onLoginSuccess, onBackToMod
 
               <div className="saas-verified-bar">
                 <div className="verified-info">
-                  <CheckCircle2 style={{ width: 14, height: 14, color: '#059669' }} />
+                  <CheckCircle2 style={{ width: 14, height: 14, color: 'var(--brand-primary, #15803D)' }} />
                   <span>{company.companyName} ({company.companyCode}) — {module.title}</span>
                 </div>
                 <button
