@@ -132,7 +132,17 @@ export default function NewCollectionEntryPage({
 
   const handleProofChange = (e) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setSubmitError('Please upload an image file (JPG or PNG).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setSubmitError('Proof image is too large — please upload an image under 5MB.');
+      return;
+    }
+    setSubmitError('');
     const reader = new FileReader();
     reader.onload = () => setProofImage(reader.result);
     reader.readAsDataURL(file);
@@ -334,9 +344,9 @@ export default function NewCollectionEntryPage({
         </div>
 
         <span style={{
-          background: '#ECFDF5',
-          border: '1px solid #A7F3D0',
-          color: '#047857',
+          background: 'var(--brand-primary-light, #F0FEF5)',
+          border: '1px solid var(--brand-primary-border, #A3F5C1)',
+          color: 'var(--brand-primary-hover, #0E5327)',
           padding: '5px 14px',
           borderRadius: 20,
           fontSize: '0.74rem',
@@ -345,7 +355,7 @@ export default function NewCollectionEntryPage({
           alignItems: 'center',
           gap: 6
         }}>
-          <ShieldCheck style={{ width: 14, height: 14, color: '#059669' }} />
+          <ShieldCheck style={{ width: 14, height: 14, color: 'var(--brand-primary, #15803D)' }} />
           <span>{t('nce.branch_terminal_active')}</span>
         </span>
       </div>
@@ -416,15 +426,15 @@ export default function NewCollectionEntryPage({
                         <div
                           key={item.id}
                           onClick={() => { setSelectedLoanId(item.id); setSearchQuery(''); }}
-                          style={{ padding: '8px 10px', borderRadius: 8, background: isSelected ? '#ECFDF5' : '#FFFFFF', cursor: 'pointer' }}
+                          style={{ padding: '8px 10px', borderRadius: 8, background: isSelected ? 'var(--brand-primary-light, #F0FEF5)' : '#FFFFFF', cursor: 'pointer' }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <span style={{ fontSize: '0.82rem', fontWeight: 500, color: isSelected ? '#059669' : '#0F172A' }}>{item.borrower_name}</span>
-                            <span style={{ fontSize: '0.7rem', color: '#2563EB', fontFamily: 'monospace' }}>{item.loan_account_no}</span>
+                            <span style={{ fontSize: '0.82rem', fontWeight: 500, color: isSelected ? 'var(--brand-primary, #15803D)' : '#0F172A' }}>{item.borrower_name}</span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--color-info, #2563EB)', fontFamily: 'monospace' }}>{item.loan_account_no}</span>
                           </div>
                           <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: 2, display: 'flex', justifyContent: 'space-between' }}>
                             <span>{item.phone || '—'}</span>
-                            <span style={{ color: item.pending_amount > 0 ? '#DC2626' : '#059669', fontWeight: 500 }}>₹{fmt(item.pending_amount)}</span>
+                            <span style={{ color: item.pending_amount > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)', fontWeight: 500 }}>₹{fmt(item.pending_amount)}</span>
                           </div>
                         </div>
                       );
@@ -451,9 +461,9 @@ export default function NewCollectionEntryPage({
 
             <div style={{ textAlign: 'center', marginBottom: 16 }}>
               {profilePhoto ? (
-                <img src={profilePhoto} alt={borrowerName} style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid #A7F3D0', margin: '0 auto 10px auto' }} />
+                <img src={profilePhoto} alt={borrowerName} style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--brand-primary-border, #A3F5C1)', margin: '0 auto 10px auto' }} />
               ) : (
-                <div style={{ width: 64, height: 64, borderRadius: '50%', background: targetLoan ? 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)' : '#F1F5F9', border: `2px solid ${targetLoan ? '#A7F3D0' : '#E2E8F0'}`, color: targetLoan ? '#059669' : '#CBD5E1', fontSize: '1.25rem', fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto' }}>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: targetLoan ? 'linear-gradient(135deg, var(--brand-primary-light, #F0FEF5) 0%, #D1FAE5 100%)' : '#F1F5F9', border: `2px solid ${targetLoan ? 'var(--brand-primary-border, #A3F5C1)' : '#E2E8F0'}`, color: targetLoan ? 'var(--brand-primary, #15803D)' : '#CBD5E1', fontSize: '1.25rem', fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto' }}>
                   {targetLoan ? (borrowerName || 'C').slice(0, 2).toUpperCase() : <User style={{ width: 24, height: 24 }} />}
                 </div>
               )}
@@ -467,22 +477,22 @@ export default function NewCollectionEntryPage({
 
               <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                 {targetLoan && (
-                  <span style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#2563EB', padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem', fontWeight: 500, fontFamily: 'monospace' }}>
+                  <span style={{ background: 'var(--color-info-light, #EFF6FF)', border: '1px solid var(--color-info-border, #BFDBFE)', color: 'var(--color-info, #2563EB)', padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem', fontWeight: 500, fontFamily: 'monospace' }}>
                     {targetLoan.loan_account_no}
                   </span>
                 )}
                 {targetLoan && (
-                  <span style={{ background: '#FEF3C7', border: '1px solid #FDE68A', color: '#92400E', padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem', fontWeight: 500 }}>
+                  <span style={{ background: '#FEF3C7', border: '1px solid var(--color-warning-border, #FDE68A)', color: 'var(--color-warning-text, #92400E)', padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem', fontWeight: 500 }}>
                     {repaymentTypeLabel}
                   </span>
                 )}
                 {isLoanCompleted && (
-                  <span style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#047857', padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary-hover, #0E5327)', padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                     <CheckCircle2 style={{ width: 11, height: 11 }} /> Completed
                   </span>
                 )}
                 {!isLoanCompleted && paidToday && (
-                  <span style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#047857', padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem', fontWeight: 600 }}>
+                  <span style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary-hover, #0E5327)', padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem', fontWeight: 600 }}>
                     Today Paid
                   </span>
                 )}
@@ -504,7 +514,7 @@ export default function NewCollectionEntryPage({
               </div>
               <div>
                 <span style={{ fontSize: '0.62rem', color: '#64748B', display: 'block' }}>{targetLoan ? installmentFieldLabel : t('nce.daily_emi')}</span>
-                <span style={{ fontSize: '0.8rem', color: targetLoan ? '#2563EB' : '#CBD5E1', fontWeight: 500 }}>{targetLoan ? `₹${fmt(dailyEmi)}` : '—'}</span>
+                <span style={{ fontSize: '0.8rem', color: targetLoan ? 'var(--color-info, #2563EB)' : '#CBD5E1', fontWeight: 500 }}>{targetLoan ? `₹${fmt(dailyEmi)}` : '—'}</span>
               </div>
               {!isLoanCompleted && (
                 <>
@@ -514,7 +524,7 @@ export default function NewCollectionEntryPage({
                   </div>
                   <div>
                     <span style={{ fontSize: '0.62rem', color: '#64748B', display: 'block' }}>Missed Days</span>
-                    <span style={{ fontSize: '0.8rem', color: targetLoan ? (daysSinceLastPayment > 2 ? '#DC2626' : '#0F172A') : '#CBD5E1', fontWeight: 600 }}>
+                    <span style={{ fontSize: '0.8rem', color: targetLoan ? (daysSinceLastPayment > 2 ? 'var(--color-danger, #DC2626)' : '#0F172A') : '#CBD5E1', fontWeight: 600 }}>
                       {targetLoan ? (daysSinceLastPayment === null ? '—' : `${daysSinceLastPayment}d`) : '—'}
                     </span>
                   </div>
@@ -522,15 +532,15 @@ export default function NewCollectionEntryPage({
               )}
             </div>
 
-            <div style={{ background: targetLoan ? 'linear-gradient(135deg, #ECFDF5 0%, #F0FDF4 100%)' : '#F8FAFC', border: `1px solid ${targetLoan ? '#A7F3D0' : '#E2E8F0'}`, borderRadius: 12, padding: 14 }}>
+            <div style={{ background: targetLoan ? 'linear-gradient(135deg, var(--brand-primary-light, #F0FEF5) 0%, var(--brand-primary-light, #F0FDF4) 100%)' : '#F8FAFC', border: `1px solid ${targetLoan ? 'var(--brand-primary-border, #A3F5C1)' : '#E2E8F0'}`, borderRadius: 12, padding: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ fontSize: '0.72rem', color: '#047857', fontWeight: 500 }}>{t('nce.total_collected_prefix')} ₹{fmt(collectedAmt)}</span>
-                <span style={{ fontSize: '0.72rem', color: '#991B1B', fontWeight: 500 }}>{t('nce.pending_prefix')} ₹{fmt(pendingBal)}</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--brand-primary-hover, #0E5327)', fontWeight: 500 }}>{t('nce.total_collected_prefix')} ₹{fmt(collectedAmt)}</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--color-danger-text, #991B1B)', fontWeight: 500 }}>{t('nce.pending_prefix')} ₹{fmt(pendingBal)}</span>
               </div>
               <div style={{ height: 7, background: '#CBD5E1', borderRadius: 10, overflow: 'hidden' }}>
-                <div style={{ width: `${progressPercent}%`, height: '100%', background: '#059669', borderRadius: 10, transition: 'width 0.4s ease' }} />
+                <div style={{ width: `${progressPercent}%`, height: '100%', background: 'var(--brand-primary, #15803D)', borderRadius: 10, transition: 'width 0.4s ease' }} />
               </div>
-              <span style={{ fontSize: '0.66rem', color: '#047857', display: 'block', textAlign: 'right', marginTop: 5 }}>
+              <span style={{ fontSize: '0.66rem', color: 'var(--brand-primary-hover, #0E5327)', display: 'block', textAlign: 'right', marginTop: 5 }}>
                 {progressPercent}% {t('nce.principal_repaid_suffix')}
               </span>
             </div>
@@ -547,8 +557,8 @@ export default function NewCollectionEntryPage({
               <div style={{ fontSize: '0.88rem' }}>Select a customer to begin recording a collection.</div>
             </div>
           ) : isLoanCompleted ? (
-            <div style={{ background: '#FFFFFF', border: '1px solid #A7F3D0', borderRadius: 16, padding: 48, textAlign: 'center' }}>
-              <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px auto' }}>
+            <div style={{ background: '#FFFFFF', border: '1px solid var(--brand-primary-border, #A3F5C1)', borderRadius: 16, padding: 48, textAlign: 'center' }}>
+              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px auto' }}>
                 <Lock style={{ width: 26, height: 26 }} />
               </div>
               <h3 style={{ margin: '0 0 6px 0', fontSize: '1.05rem', color: '#0F172A' }}>This loan is fully paid</h3>
@@ -566,7 +576,7 @@ export default function NewCollectionEntryPage({
                   {t('nce.collection_amount_rs')}
                 </label>
                 <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: 14, top: 10, fontSize: '1.05rem', color: '#059669', fontWeight: 500 }}>₹</span>
+                  <span style={{ position: 'absolute', left: 14, top: 10, fontSize: '1.05rem', color: 'var(--brand-primary, #15803D)', fontWeight: 500 }}>₹</span>
                   <input
                     type="number"
                     value={amountPaid}
@@ -574,7 +584,7 @@ export default function NewCollectionEntryPage({
                     max={maxPayableAmount}
                     min={0}
                     placeholder="0.00"
-                    style={{ width: '100%', height: 44, padding: '0 14px 0 32px', borderRadius: 10, border: '1px solid #A7F3D0', background: '#F0FDF4', fontSize: '1.1rem', fontWeight: 500, color: '#059669', boxSizing: 'border-box' }}
+                    style={{ width: '100%', height: 44, padding: '0 14px 0 32px', borderRadius: 10, border: '1px solid var(--brand-primary-border, #A3F5C1)', background: 'var(--brand-primary-light, #F0FDF4)', fontSize: '1.1rem', fontWeight: 500, color: 'var(--brand-primary, #15803D)', boxSizing: 'border-box' }}
                     required
                   />
                 </div>
@@ -594,21 +604,21 @@ export default function NewCollectionEntryPage({
                   <span style={{ fontSize: '0.95rem', color: '#7C3AED', fontWeight: 500 }}>₹{fmt(interestPortion)}</span>
                 </div>
                 <div style={{ borderLeft: '1px solid #E2E8F0', paddingLeft: 10 }}>
-                  <span style={{ fontSize: '0.64rem', color: '#047857', display: 'block' }}>{t('nce.updated_pending_balance')}</span>
-                  <span style={{ fontSize: '1rem', color: updatedPendingBal > 0 ? '#DC2626' : '#059669', fontWeight: 500 }}>₹{fmt(updatedPendingBal)}</span>
+                  <span style={{ fontSize: '0.64rem', color: 'var(--brand-primary-hover, #0E5327)', display: 'block' }}>{t('nce.updated_pending_balance')}</span>
+                  <span style={{ fontSize: '1rem', color: updatedPendingBal > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)', fontWeight: 500 }}>₹{fmt(updatedPendingBal)}</span>
                 </div>
               </div>
 
               {(interestShortfall > 0 || overdueEmiPeriods.length > 0 || willCloseLoan) && (
                 <div style={{ fontSize: '0.74rem', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {interestShortfall > 0 && (
-                    <span style={{ color: '#991B1B' }}>⚠ ₹{fmt(interestShortfall)} interest still due after this payment</span>
+                    <span style={{ color: 'var(--color-danger-text, #991B1B)' }}>⚠ ₹{fmt(interestShortfall)} interest still due after this payment</span>
                   )}
                   {overdueEmiPeriods.length > 0 && (
-                    <span style={{ color: '#991B1B' }}>⚠ {overdueEmiPeriods.length} overdue installment{overdueEmiPeriods.length === 1 ? '' : 's'} (₹{fmt(overdueEmiPrincipal + overdueEmiInterest)} owed)</span>
+                    <span style={{ color: 'var(--color-danger-text, #991B1B)' }}>⚠ {overdueEmiPeriods.length} overdue installment{overdueEmiPeriods.length === 1 ? '' : 's'} (₹{fmt(overdueEmiPrincipal + overdueEmiInterest)} owed)</span>
                   )}
                   {willCloseLoan && (
-                    <span style={{ color: '#047857' }}>✓ This clears the loan — it will be sent to Admin for closure approval</span>
+                    <span style={{ color: 'var(--brand-primary-hover, #0E5327)' }}>✓ This clears the loan — it will be sent to Admin for closure approval</span>
                   )}
                 </div>
               )}
@@ -641,7 +651,7 @@ export default function NewCollectionEntryPage({
                         key={item.id}
                         type="button"
                         onClick={() => setPaymentMode(item.id)}
-                        style={{ height: 42, borderRadius: 10, border: `1px solid ${isSelected ? '#A7F3D0' : '#E2E8F0'}`, background: isSelected ? '#ECFDF5' : '#FFFFFF', color: isSelected ? '#047857' : '#475569', fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                        style={{ height: 42, borderRadius: 10, border: `1px solid ${isSelected ? 'var(--brand-primary-border, #A3F5C1)' : '#E2E8F0'}`, background: isSelected ? 'var(--brand-primary-light, #F0FEF5)' : '#FFFFFF', color: isSelected ? 'var(--brand-primary-hover, #0E5327)' : '#475569', fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                       >
                         <Icon style={{ width: 14, height: 14 }} />
                         <span>{item.label}</span>
@@ -674,11 +684,11 @@ export default function NewCollectionEntryPage({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   {proofImage ? (
                     <div style={{ position: 'relative' }}>
-                      <img src={proofImage} alt="Proof" style={{ width: 54, height: 54, borderRadius: 8, objectFit: 'cover', border: '1px solid #A7F3D0' }} />
+                      <img src={proofImage} alt="Proof" style={{ width: 54, height: 54, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--brand-primary-border, #A3F5C1)' }} />
                       <button
                         type="button"
                         onClick={() => setProofImage(null)}
-                        style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: '#DC2626', color: '#FFFFFF', border: '2px solid #FFFFFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: 'var(--color-danger, #DC2626)', color: '#FFFFFF', border: '2px solid #FFFFFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       >
                         <X style={{ width: 10, height: 10 }} />
                       </button>
@@ -693,7 +703,7 @@ export default function NewCollectionEntryPage({
 
                   <span style={{
                     display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.7rem', fontWeight: 500,
-                    color: geoStatus === 'granted' ? '#047857' : '#94A3B8', marginLeft: 'auto'
+                    color: geoStatus === 'granted' ? 'var(--brand-primary-hover, #0E5327)' : '#94A3B8', marginLeft: 'auto'
                   }}>
                     <MapPin style={{ width: 12, height: 12 }} />
                     {geoStatus === 'locating' && t('nce.geo_locating')}
@@ -703,7 +713,7 @@ export default function NewCollectionEntryPage({
                     {geoStatus === 'insecure' && t('nce.geo_insecure')}
                     {geoStatus === 'timeout' && t('nce.geo_timeout')}
                     {(geoStatus === 'denied' || geoStatus === 'unavailable' || geoStatus === 'timeout') && (
-                      <button type="button" onClick={requestLocation} style={{ border: 'none', background: 'none', color: '#059669', fontWeight: 600, cursor: 'pointer', fontSize: '0.7rem', textDecoration: 'underline', padding: 0 }}>
+                      <button type="button" onClick={requestLocation} style={{ border: 'none', background: 'none', color: 'var(--brand-primary, #15803D)', fontWeight: 600, cursor: 'pointer', fontSize: '0.7rem', textDecoration: 'underline', padding: 0 }}>
                         {t('nce.geo_retry')}
                       </button>
                     )}
@@ -754,9 +764,9 @@ export default function NewCollectionEntryPage({
               </div>
 
               {submitError && (
-                <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 9, padding: '9px 12px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <AlertTriangle style={{ width: 13, height: 13, color: '#DC2626', flexShrink: 0 }} />
-                  <span style={{ fontSize: '0.76rem', color: '#991B1B' }}>{submitError}</span>
+                <div style={{ background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', borderRadius: 9, padding: '9px 12px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <AlertTriangle style={{ width: 13, height: 13, color: 'var(--color-danger, #DC2626)', flexShrink: 0 }} />
+                  <span style={{ fontSize: '0.76rem', color: 'var(--color-danger-text, #991B1B)' }}>{submitError}</span>
                 </div>
               )}
 
@@ -772,7 +782,7 @@ export default function NewCollectionEntryPage({
                   type="button"
                   onClick={handleInitiatePayment}
                   disabled={posting || numericAmt <= 0}
-                  style={{ background: (posting || numericAmt <= 0) ? '#94A3B8' : '#059669', border: 'none', borderRadius: 10, padding: '10px 28px', fontSize: '0.86rem', fontWeight: 500, color: '#FFFFFF', cursor: (posting || numericAmt <= 0) ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                  style={{ background: (posting || numericAmt <= 0) ? '#94A3B8' : 'var(--brand-primary, #15803D)', border: 'none', borderRadius: 10, padding: '10px 28px', fontSize: '0.86rem', fontWeight: 500, color: '#FFFFFF', cursor: (posting || numericAmt <= 0) ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}
                 >
                   <Send style={{ width: 15, height: 15 }} />
                   <span>{posting ? t('nce.posting_payment') : t('nce.post_collection_payment')}</span>
@@ -790,7 +800,7 @@ export default function NewCollectionEntryPage({
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 18, padding: 22, marginTop: 20, boxShadow: '0 4px 20px rgba(0, 0, 0, 0.03)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 500, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Clock style={{ width: 16, height: 16, color: '#059669' }} />
+              <Clock style={{ width: 16, height: 16, color: 'var(--brand-primary, #15803D)' }} />
               Payment History
             </h3>
             <span style={{ fontSize: '0.74rem', color: '#64748B' }}>{loanHistory.length} payment{loanHistory.length === 1 ? '' : 's'}</span>
@@ -817,7 +827,7 @@ export default function NewCollectionEntryPage({
                   {loanHistory.map(rec => (
                     <tr key={rec.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
                       <td style={{ padding: '7px 8px', color: '#334155' }}>{rec.collection_date}</td>
-                      <td style={{ padding: '7px 8px', color: '#2563EB', fontFamily: 'monospace' }}>{rec.voucher_no}</td>
+                      <td style={{ padding: '7px 8px', color: 'var(--color-info, #2563EB)', fontFamily: 'monospace' }}>{rec.voucher_no}</td>
                       <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 600, color: '#0F172A' }}>₹{fmt(rec.amount)}</td>
                       <td style={{ padding: '7px 8px', textAlign: 'right', color: '#0F172A' }}>₹{fmt(rec.principalPaid)}</td>
                       <td style={{ padding: '7px 8px', textAlign: 'right', color: '#7C3AED' }}>₹{fmt(rec.interestPaid)}</td>
@@ -836,7 +846,7 @@ export default function NewCollectionEntryPage({
         <div style={{ position: 'fixed', inset: 0, zIndex: 999999, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ background: '#FFFFFF', borderRadius: 18, width: '100%', maxWidth: 440, padding: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <CheckCircle2 style={{ width: 20, height: 20 }} />
               </div>
               <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 500, color: '#0F172A' }}>
@@ -847,12 +857,12 @@ export default function NewCollectionEntryPage({
             <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: 14, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
                 <span style={{ color: '#64748B' }}>{borrowerName}</span>
-                <span style={{ color: '#2563EB', fontFamily: 'monospace' }}>{targetLoan?.loan_account_no}</span>
+                <span style={{ color: 'var(--color-info, #2563EB)', fontFamily: 'monospace' }}>{targetLoan?.loan_account_no}</span>
               </div>
               <div style={{ height: 1, background: '#E2E8F0' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem' }}>
-                <span style={{ color: '#047857', fontWeight: 500 }}>{t('nce.collection_amount_label')}</span>
-                <span style={{ color: '#059669', fontWeight: 500 }}>₹{fmt(numericAmt)}</span>
+                <span style={{ color: 'var(--brand-primary-hover, #0E5327)', fontWeight: 500 }}>{t('nce.collection_amount_label')}</span>
+                <span style={{ color: 'var(--brand-primary, #15803D)', fontWeight: 500 }}>₹{fmt(numericAmt)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: '#64748B' }}>
                 <span>Principal ₹{fmt(principalPortion)} • Interest ₹{fmt(interestPortion)}</span>
@@ -867,17 +877,17 @@ export default function NewCollectionEntryPage({
             </div>
 
             {paidToday && (
-              <div style={{ fontSize: '0.74rem', color: '#92400E', marginBottom: 12 }}>⚠ A payment was already recorded for this loan today.</div>
+              <div style={{ fontSize: '0.74rem', color: 'var(--color-warning-text, #92400E)', marginBottom: 12 }}>⚠ A payment was already recorded for this loan today.</div>
             )}
             {willCloseLoan && (
-              <div style={{ fontSize: '0.74rem', color: '#047857', marginBottom: 12 }}>✓ This fully clears the loan — it will go to Admin for closure approval.</div>
+              <div style={{ fontSize: '0.74rem', color: 'var(--brand-primary-hover, #0E5327)', marginBottom: 12 }}>✓ This fully clears the loan — it will go to Admin for closure approval.</div>
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
               <button type="button" onClick={() => setShowConfirmModal(false)} style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 9, padding: '9px 16px', fontSize: '0.8rem', color: '#475569', cursor: 'pointer' }}>
                 {t('btn.cancel')}
               </button>
-              <button type="button" onClick={executePostPayment} style={{ background: '#059669', border: 'none', borderRadius: 9, padding: '9px 22px', fontSize: '0.8rem', fontWeight: 500, color: '#FFFFFF', cursor: 'pointer' }}>
+              <button type="button" onClick={executePostPayment} style={{ background: 'var(--brand-primary, #15803D)', border: 'none', borderRadius: 9, padding: '9px 22px', fontSize: '0.8rem', fontWeight: 500, color: '#FFFFFF', cursor: 'pointer' }}>
                 {t('nce.confirm_post_payment')}
               </button>
             </div>
@@ -890,20 +900,20 @@ export default function NewCollectionEntryPage({
         <div style={{ position: 'fixed', inset: 0, zIndex: 999999, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <style>{`
             @keyframes tickPop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.15); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
-            @keyframes tickPulse { 0% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.4); } 70% { box-shadow: 0 0 0 24px rgba(5, 150, 105, 0); } 100% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0); } }
+            @keyframes tickPulse { 0% { box-shadow: 0 0 0 0 rgba(var(--brand-primary-rgb), 0.4); } 70% { box-shadow: 0 0 0 24px rgba(var(--brand-primary-rgb), 0); } 100% { box-shadow: 0 0 0 0 rgba(var(--brand-primary-rgb), 0); } }
           `}</style>
           <div style={{ background: '#FFFFFF', borderRadius: 22, padding: '32px 40px', textAlign: 'center', animation: 'tickPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }}>
-            <div style={{ width: 68, height: 68, borderRadius: '50%', background: '#059669', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px auto', animation: 'tickPulse 1.8s infinite' }}>
+            <div style={{ width: 68, height: 68, borderRadius: '50%', background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px auto', animation: 'tickPulse 1.8s infinite' }}>
               <Check style={{ width: 38, height: 38, strokeWidth: 3 }} />
             </div>
             <h3 style={{ margin: '0 0 6px 0', fontSize: '1.15rem', fontWeight: 500, color: '#0F172A' }}>
               {t('nce.payment_recorded')}
             </h3>
-            <span style={{ fontSize: '0.82rem', color: '#059669', fontWeight: 500 }}>
+            <span style={{ fontSize: '0.82rem', color: 'var(--brand-primary, #15803D)', fontWeight: 500 }}>
               {t('nce.posted_to_ledger')}
             </span>
             {lastReceipt?.synced === false && (
-              <div style={{ marginTop: 8, fontSize: '0.7rem', color: '#B45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '6px 10px' }}>
+              <div style={{ marginTop: 8, fontSize: '0.7rem', color: 'var(--color-warning-hover, #B45309)', background: 'var(--color-warning-light, #FFFBEB)', border: '1px solid var(--color-warning-border, #FDE68A)', borderRadius: 8, padding: '6px 10px' }}>
                 Saved locally — will sync once the server is reachable.
               </div>
             )}
@@ -912,7 +922,7 @@ export default function NewCollectionEntryPage({
                 <Printer style={{ width: 14, height: 14 }} />
                 <span>Print Receipt</span>
               </button>
-              <button type="button" onClick={() => setShowTickAnimation(false)} style={{ border: 'none', background: '#059669', color: '#FFFFFF', padding: '9px 22px', borderRadius: 9, fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer' }}>
+              <button type="button" onClick={() => setShowTickAnimation(false)} style={{ border: 'none', background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', padding: '9px 22px', borderRadius: 9, fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer' }}>
                 Done
               </button>
             </div>

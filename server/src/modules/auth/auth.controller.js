@@ -1,6 +1,7 @@
 import * as authService from './auth.service.js';
 import { provisionNewTenantCompany } from '../../core/tenantProvisioner.js';
 import { getTenantDbPool } from '../../plugins/tenantDb.js';
+import { assertValidEmail } from '../../shared/validators/contact.js';
 
 const GLOBAL_SCOPE_ROLES = ['ADMIN', 'COMPANY_ADMIN', 'SUPER_ADMIN'];
 
@@ -151,6 +152,7 @@ export async function provisionCompanyHandler(request, reply) {
     if (!company_code || !name) {
       return reply.code(400).send({ error: 'Bad Request', message: 'Company Code and Company Name are required.' });
     }
+    assertValidEmail(admin_email, { fieldLabel: 'Admin email', required: false });
 
     const result = await provisionNewTenantCompany(request.server.masterDb, {
       company_code,
@@ -175,7 +177,7 @@ export async function provisionCompanyHandler(request, reply) {
       company: result
     });
   } catch (err) {
-    return reply.code(500).send({ error: 'Provisioning Error', message: err.message });
+    return reply.code(err.statusCode || 500).send({ error: err.statusCode ? 'Bad Request' : 'Provisioning Error', message: err.message });
   }
 }
 
@@ -302,6 +304,29 @@ export async function loginHandler(request, reply) {
     return tenantLoginHandler(request, reply);
   }
   return superAdminLoginHandler(request, reply);
+}
+
+// Tenant self-service Company Profile fetch (GET /api/v1/auth/company/profile)
+export async function getOwnCompanyProfileHandler(request, reply) {
+  try {
+    const data = await authService.getOwnCompanyProfile(request.server.masterDb, request.companyId);
+    return reply.send({ success: true, data });
+  } catch (err) {
+    return reply.code(err.statusCode || 500).send({ error: 'Server Error', message: err.message });
+  }
+}
+
+// Tenant self-service Company Profile update (PATCH /api/v1/auth/company/profile)
+export async function updateOwnCompanyProfileHandler(request, reply) {
+  try {
+    const { name, gstin, pan, address, phone, logo, theme_color } = request.body || {};
+    const data = await authService.updateOwnCompanyProfile(request.server.masterDb, request.companyId, {
+      name, gstin, pan, address, phone, logo, theme_color
+    });
+    return reply.send({ success: true, data });
+  } catch (err) {
+    return reply.code(err.statusCode || 500).send({ error: 'Server Error', message: err.message });
+  }
 }
 
 export async function getCurrentUserHandler(request, reply) {

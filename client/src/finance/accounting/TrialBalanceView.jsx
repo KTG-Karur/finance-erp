@@ -10,10 +10,10 @@ function todayStr() {
 // Plain-language label + color per raw account type, so the table never shows
 // jargon like ASSET/LIABILITY/EQUITY/REVENUE/EXPENSE directly to staff.
 const ACCOUNT_TYPE_META = {
-  ASSET: { key: 'fin.acct_type_asset', bg: '#ECFDF5', color: '#047857', border: '#A7F3D0' },
-  LIABILITY: { key: 'fin.acct_type_liability', bg: '#FEF2F2', color: '#B91C1C', border: '#FECACA' },
-  EQUITY: { key: 'fin.acct_type_equity', bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
-  REVENUE: { key: 'fin.acct_type_revenue', bg: '#F0FDF4', color: '#15803D', border: '#BBF7D0' },
+  ASSET: { key: 'fin.acct_type_asset', bg: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary-hover, #0E5327)', border: 'var(--brand-primary-border, #A3F5C1)' },
+  LIABILITY: { key: 'fin.acct_type_liability', bg: 'var(--color-danger-light, #FEF2F2)', color: 'var(--color-danger-hover, #B91C1C)', border: 'var(--color-danger-border, #FECACA)' },
+  EQUITY: { key: 'fin.acct_type_equity', bg: 'var(--color-info-light, #EFF6FF)', color: '#1D4ED8', border: 'var(--color-info-border, #BFDBFE)' },
+  REVENUE: { key: 'fin.acct_type_revenue', bg: 'var(--brand-primary-light, #F0FDF4)', color: 'var(--brand-primary-hover, #15803D)', border: '#BBF7D0' },
   EXPENSE: { key: 'fin.acct_type_expense', bg: '#FFF7ED', color: '#C2410C', border: '#FFEDD5' }
 };
 
@@ -55,7 +55,7 @@ export default function TrialBalanceView({ chartOfAccounts = [], journalEntries 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           {/* Left Title & Description */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: '#F0FDF4', border: '1px solid #BBF7D0', color: '#15803D', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--brand-primary-light, #F0FDF4)', border: '1px solid #BBF7D0', color: 'var(--brand-primary-hover, #15803D)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Scale style={{ width: 20, height: 20 }} />
             </div>
             <div>
@@ -68,17 +68,17 @@ export default function TrialBalanceView({ chartOfAccounts = [], journalEntries 
           <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontSize: '0.7rem', fontWeight: 500, color: '#64748B', textTransform: 'uppercase' }}>Total Debit</span>
-              <span style={{ fontSize: '1.1rem', fontWeight: 600, color: '#047857' }}>₹{fmt(totals.debit)}</span>
+              <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--brand-primary-hover, #0E5327)' }}>₹{fmt(totals.debit)}</span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontSize: '0.7rem', fontWeight: 500, color: '#64748B', textTransform: 'uppercase' }}>Total Credit</span>
-              <span style={{ fontSize: '1.1rem', fontWeight: 600, color: '#B91C1C' }}>₹{fmt(totals.credit)}</span>
+              <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--color-danger-hover, #B91C1C)' }}>₹{fmt(totals.credit)}</span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontSize: '0.7rem', fontWeight: 500, color: '#64748B', textTransform: 'uppercase' }}>Reconciliation Status</span>
-              <span style={{ fontSize: '0.85rem', fontWeight: 500, color: isBalanced ? '#047857' : '#D97706' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 500, color: isBalanced ? 'var(--brand-primary-hover, #0E5327)' : 'var(--color-warning, #D97706)' }}>
                 {isBalanced ? t('fin.balanced_badge') : `Off by ₹${fmt(Math.abs(totals.debit - totals.credit))}`}
               </span>
             </div>
@@ -159,8 +159,8 @@ export default function TrialBalanceView({ chartOfAccounts = [], journalEntries 
             )}
             <tr className="fin-row-total">
               <td colSpan="2" style={{ fontWeight: 600 }}>{t('fin.total_row')}</td>
-              <td className="num" style={{ fontWeight: 600, color: '#047857' }}>₹{fmt(totals.debit)}</td>
-              <td className="num" style={{ fontWeight: 600, color: '#B91C1C' }}>₹{fmt(totals.credit)}</td>
+              <td className="num" style={{ fontWeight: 600, color: 'var(--brand-primary-hover, #0E5327)' }}>₹{fmt(totals.debit)}</td>
+              <td className="num" style={{ fontWeight: 600, color: 'var(--color-danger-hover, #B91C1C)' }}>₹{fmt(totals.credit)}</td>
             </tr>
           </tbody>
         </table>

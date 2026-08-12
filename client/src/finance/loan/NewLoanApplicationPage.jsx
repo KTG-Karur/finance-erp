@@ -36,6 +36,7 @@ export default function NewLoanApplicationPage({
   borrowers = [],
   loanSchemes = [],
   branches = [],
+  tenant,
   onCreateBorrower,
   onCancel,
   onSubmit
@@ -127,6 +128,7 @@ export default function NewLoanApplicationPage({
 
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   // Paper Printing Black & White Preview Sheet State
   const [previewSheetOpen, setPreviewSheetOpen] = useState(false);
@@ -208,7 +210,8 @@ export default function NewLoanApplicationPage({
 
   const handleNomineeChange = (e) => {
     const { name, value } = e.target;
-    setNominee(prev => ({ ...prev, [name]: value }));
+    const cleaned = name === 'mobile' ? value.replace(/\D/g, '').slice(0, 10) : value;
+    setNominee(prev => ({ ...prev, [name]: cleaned }));
   };
 
   // Handle Multiple File Selection & Object URL Creation
@@ -339,15 +342,18 @@ export default function NewLoanApplicationPage({
   };
 
   // Final Confirmation Submit after reviewing Paper Application Form Sheet
-  const handleFinalSubmit = () => {
-    if (!pendingPayload) return;
+  const handleFinalSubmit = async () => {
+    if (!pendingPayload || submitting) return;
     setSubmitting(true);
-    setPreviewSheetOpen(false);
-
-    setTimeout(() => {
-      onSubmit(pendingPayload);
+    setSubmitError('');
+    try {
+      await onSubmit(pendingPayload);
+      setPreviewSheetOpen(false);
+    } catch (err) {
+      setSubmitError(err?.response?.data?.message || err?.message || 'Failed to submit this loan application.');
+    } finally {
       setSubmitting(false);
-    }, 500);
+    }
   };
 
   // Helper renderer for visual image/file thumbnail grid preview box
@@ -425,7 +431,7 @@ export default function NewLoanApplicationPage({
 
             <div className="card-body">
               {customerCreatedMsg && (
-                <div className="form-group-full" style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#047857', borderRadius: 8, padding: '8px 12px', fontSize: '0.8rem', fontWeight: 500 }}>
+                <div className="form-group-full" style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary-hover, #0E5327)', borderRadius: 8, padding: '8px 12px', fontSize: '0.8rem', fontWeight: 500 }}>
                   <CheckCircle2 style={{ width: 14, height: 14 }} />
                   <span>{customerCreatedMsg}</span>
                 </div>
@@ -755,7 +761,7 @@ export default function NewLoanApplicationPage({
               {selectedDocType === 'PROPERTY' && (
                 <div className="document-revealed-subcard">
                   <div className="doc-subhead">
-                    <Building style={{ width: 15, height: 15, color: '#2563EB' }} />
+                    <Building style={{ width: 15, height: 15, color: 'var(--color-info, #2563EB)' }} />
                     <span>{t('nla.property_document_details')}</span>
                   </div>
 
@@ -842,7 +848,7 @@ export default function NewLoanApplicationPage({
               {selectedDocType === 'VEHICLE' && (
                 <div className="document-revealed-subcard">
                   <div className="doc-subhead">
-                    <Car style={{ width: 15, height: 15, color: '#059669' }} />
+                    <Car style={{ width: 15, height: 15, color: 'var(--brand-primary, #15803D)' }} />
                     <span>{t('nla.vehicle_rc_details')}</span>
                   </div>
 
@@ -912,7 +918,7 @@ export default function NewLoanApplicationPage({
               {selectedDocType === 'CHEQUE' && (
                 <div className="document-revealed-subcard">
                   <div className="doc-subhead">
-                    <CreditCard style={{ width: 15, height: 15, color: '#D97706' }} />
+                    <CreditCard style={{ width: 15, height: 15, color: 'var(--color-warning, #D97706)' }} />
                     <span>{t('nla.cheque_pdc_details')}</span>
                   </div>
 
@@ -1055,12 +1061,7 @@ export default function NewLoanApplicationPage({
 
             <div className="cust-main-text">
               <h3>{selectedBorrower?.full_name || t('nla.no_customer_selected')}</h3>
-              <span className="code-pill">{selectedBorrower?.borrower_code || 'KTG-CUST-???'}</span>
-              {selectedBorrower && (
-                <span className={`kyc-status-badge kyc-status-badge--${(selectedBorrower?.kyc_status || 'PENDING').toLowerCase()}`}>
-                  {t('nla.kyc_prefix')} {tStatus(selectedBorrower?.kyc_status || 'PENDING')}
-                </span>
-              )}
+              <span className="code-pill">{selectedBorrower?.borrower_code || '—'}</span>
             </div>
 
             <div className="cust-meta-rows">
@@ -1104,7 +1105,7 @@ export default function NewLoanApplicationPage({
 
             <div className="preview-row">
               <span>{t('nla.total_estimated_interest_label')}</span>
-              <strong style={{ color: '#D97706' }}>+ ₹{fmt(creditSummary.totalInterest)}</strong>
+              <strong style={{ color: 'var(--color-warning, #D97706)' }}>+ ₹{fmt(creditSummary.totalInterest)}</strong>
             </div>
 
             <div className="preview-row preview-row--total">
@@ -1127,8 +1128,11 @@ export default function NewLoanApplicationPage({
         <PrintableLoanApplicationSheet
           applicationData={pendingPayload}
           borrowerData={selectedBorrower || {}}
+          tenant={tenant}
           onClose={() => setPreviewSheetOpen(false)}
           onConfirmSubmit={handleFinalSubmit}
+          submitting={submitting}
+          submitError={submitError}
         />
       )}
 

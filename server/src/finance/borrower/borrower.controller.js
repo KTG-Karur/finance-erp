@@ -26,6 +26,24 @@ export async function createBorrowerHandler(request, reply) {
     const borrower = await BorrowerService.createBorrower(request.tenantDb, request.body);
     return reply.code(201).send({ success: true, message: 'Borrower registered successfully', data: borrower });
   } catch (err) {
-    return reply.code(400).send({ success: false, message: err.message });
+    return reply.code(err.statusCode || 400).send({ success: false, message: err.message });
+  }
+}
+
+export async function updateBorrowerHandler(request, reply) {
+  try {
+    const borrower = await BorrowerService.updateBorrower(request.tenantDb, request.params.id, request.body);
+    return reply.send({ success: true, message: 'Borrower updated successfully', data: borrower });
+  } catch (err) {
+    return reply.code(err.statusCode || 400).send({ success: false, message: err.message });
+  }
+}
+
+export async function deleteBorrowerHandler(request, reply) {
+  try {
+    await BorrowerService.deleteBorrower(request.tenantDb, request.params.id);
+    return reply.send({ success: true, message: 'Borrower deleted successfully' });
+  } catch (err) {
+    return reply.code(err.statusCode || 400).send({ success: false, message: err.message });
   }
 }

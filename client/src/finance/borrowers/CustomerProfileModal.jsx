@@ -35,24 +35,6 @@ const DOC_LABELS = {
   OTHER: 'Additional Document'
 };
 
-function KycBadge({ status }) {
-  const { t } = useLanguage();
-  if (status === 'VERIFIED') {
-    return (
-      <span className="cpx-kyc cpx-kyc--verified">
-        <ShieldCheck style={{ width: 12, height: 12 }} />
-        <span>{t('kyc.verified')}</span>
-      </span>
-    );
-  }
-  return (
-    <span className="cpx-kyc cpx-kyc--pending">
-      <ShieldCheck style={{ width: 12, height: 12 }} />
-      <span>{t('kyc.pending')}</span>
-    </span>
-  );
-}
-
 function Field({ label, value }) {
   const { t } = useLanguage();
   const isEmpty = value === undefined || value === null || value === '';
@@ -66,7 +48,7 @@ function Field({ label, value }) {
   );
 }
 
-export default function CustomerProfileModal({ borrower, onClose, onEdit, onReviewKyc }) {
+export default function CustomerProfileModal({ borrower, onClose, onEdit }) {
   const { t } = useLanguage();
   const docs = borrower?.documents || [];
   const [selectedDocId, setSelectedDocId] = useState(docs[0]?.id || null);
@@ -160,7 +142,7 @@ export default function CustomerProfileModal({ borrower, onClose, onEdit, onRevi
           </div>
 
           <h2 className="cpx-name">{borrower.full_name}</h2>
-          <span className="cpx-code">{borrower.borrower_code || 'KTG-CUST'}</span>
+          <span className="cpx-code">{borrower.borrower_code || '—'}</span>
 
           <div className="cpx-contact-list">
             <div className="cpx-contact-row">
@@ -175,7 +157,7 @@ export default function CustomerProfileModal({ borrower, onClose, onEdit, onRevi
             )}
             <div className="cpx-contact-row">
               <Building2 style={{ width: 14, height: 14 }} />
-              <span>{borrower.branch || 'Karur Main'}</span>
+              <span>{borrower.branch || '—'}</span>
             </div>
             {address && (
               <div className="cpx-contact-row">
@@ -229,7 +211,7 @@ export default function CustomerProfileModal({ borrower, onClose, onEdit, onRevi
             {/* Associated Loans at top */}
             <div className="cpx-card-section">
               <div className="cpx-card-section-head">
-                <CreditCard style={{ width: 14, height: 14, color: '#059669' }} />
+                <CreditCard style={{ width: 14, height: 14, color: 'var(--brand-primary, #15803D)' }} />
                 <h4>{t('cp.associated_loans')} ({borrower.loansList?.length || 0})</h4>
               </div>
               {(!borrower.loansList || borrower.loansList.length === 0) ? (
@@ -254,7 +236,7 @@ export default function CustomerProfileModal({ borrower, onClose, onEdit, onRevi
             {/* Section 1: Personal Details */}
             <div className="cpx-card-section">
               <div className="cpx-card-section-head">
-                <Users style={{ width: 14, height: 14, color: '#059669' }} />
+                <Users style={{ width: 14, height: 14, color: 'var(--brand-primary, #15803D)' }} />
                 <h4>{t('cp.personal_details')}</h4>
               </div>
               <div className="cpx-grid">
@@ -270,7 +252,7 @@ export default function CustomerProfileModal({ borrower, onClose, onEdit, onRevi
             {/* Section 2: ID & Government Identification */}
             <div className="cpx-card-section">
               <div className="cpx-card-section-head">
-                <ShieldCheck style={{ width: 14, height: 14, color: '#059669' }} />
+                <ShieldCheck style={{ width: 14, height: 14, color: 'var(--brand-primary, #15803D)' }} />
                 <h4>{t('cp.id_kyc')}</h4>
               </div>
               <div className="cpx-grid">
@@ -284,7 +266,7 @@ export default function CustomerProfileModal({ borrower, onClose, onEdit, onRevi
             {/* Section 3: Employment & Income */}
             <div className="cpx-card-section">
               <div className="cpx-card-section-head">
-                <Briefcase style={{ width: 14, height: 14, color: '#059669' }} />
+                <Briefcase style={{ width: 14, height: 14, color: 'var(--brand-primary, #15803D)' }} />
                 <h4>{t('cp.employment_income')}</h4>
               </div>
               <div className="cpx-grid">
@@ -297,7 +279,7 @@ export default function CustomerProfileModal({ borrower, onClose, onEdit, onRevi
             {/* Section 4: Financial & Bank Details */}
             <div className="cpx-card-section">
               <div className="cpx-card-section-head">
-                <Landmark style={{ width: 14, height: 14, color: '#059669' }} />
+                <Landmark style={{ width: 14, height: 14, color: 'var(--brand-primary, #15803D)' }} />
                 <h4>{t('cp.bank_details')}</h4>
               </div>
               <div className="cpx-grid">
@@ -310,7 +292,7 @@ export default function CustomerProfileModal({ borrower, onClose, onEdit, onRevi
             {/* Section 5: Guarantor & Nominee */}
             <div className="cpx-card-section">
               <div className="cpx-card-section-head">
-                <Users style={{ width: 14, height: 14, color: '#059669' }} />
+                <Users style={{ width: 14, height: 14, color: 'var(--brand-primary, #15803D)' }} />
                 <h4>{t('cp.guarantor_nominee')}</h4>
               </div>
               <div className="cpx-grid">
@@ -327,7 +309,7 @@ export default function CustomerProfileModal({ borrower, onClose, onEdit, onRevi
               <div className="cpx-canvas">
                 <div className="cpx-canvas__head">
                   <div className="cpx-canvas__title">
-                    <Eye style={{ width: 14, height: 14, color: '#059669' }} />
+                    <Eye style={{ width: 14, height: 14, color: 'var(--brand-primary, #15803D)' }} />
                     <span>{t('cp.canvas_title')}</span>
                   </div>
                   {docs.length > 0 && <span className="cpx-canvas__hint">{t('cp.canvas_hint')}</span>}

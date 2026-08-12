@@ -28,7 +28,7 @@ export default function DedicatedThermalPrintModal({ company = {}, receipt, onCl
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #E2E8F0', background: '#F8FAFC' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 8, background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Printer style={{ width: 18, height: 18 }} />
             </div>
             <div>
@@ -92,7 +92,7 @@ export default function DedicatedThermalPrintModal({ company = {}, receipt, onCl
           <button type="button" onClick={onClose} style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#475569', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
             Cancel
           </button>
-          <button type="button" onClick={() => window.print()} style={{ padding: '8px 20px', borderRadius: 6, border: 'none', background: '#059669', color: '#FFFFFF', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 6px rgba(5, 150, 105, 0.3)' }}>
+          <button type="button" onClick={() => window.print()} style={{ padding: '8px 20px', borderRadius: 6, border: 'none', background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.3)' }}>
             <Printer style={{ width: 15, height: 15 }} />
             <span>Print Now</span>
           </button>

@@ -109,7 +109,7 @@ export default function FinancialStatementsReportView({ chartOfAccounts = [], jo
       <div className="fin-header-card">
         <div className="fin-page-header">
           <div className="fin-page-header__left">
-            <div className="fin-page-header__icon" style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', color: '#15803D' }}>
+            <div className="fin-page-header__icon" style={{ background: 'var(--brand-primary-light, #F0FDF4)', border: '1px solid #BBF7D0', color: 'var(--brand-primary-hover, #15803D)' }}>
               <TrendingUp style={{ width: 18, height: 18 }} />
             </div>
             <div>

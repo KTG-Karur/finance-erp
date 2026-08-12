@@ -16,7 +16,6 @@ import {
   Sparkles,
   FileCheck,
   CheckCircle2,
-  Zap,
   Printer
 } from 'lucide-react';
 import PrintableCustomerApplicationForm from './PrintableCustomerApplicationForm';
@@ -159,11 +158,13 @@ function DocPreviewItem({ doc, onRemove }) {
   );
 }
 
-export default function CustomerFormPage({ mode = 'CREATE', initialData, branches = [], onCancel, onSubmit }) {
+export default function CustomerFormPage({ mode = 'CREATE', initialData, branches = [], tenant, onCancel, onSubmit }) {
   const { t } = useLanguage();
   const DOC_CATEGORIES = useDocCategories();
   const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'vault'
   const [showPrintableSheet, setShowPrintableSheet] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [showSuccessTick, setShowSuccessTick] = useState(false);
   const [form, setForm] = useState(() => {
     if (!initialData) return { ...EMPTY_FORM };
     return {
@@ -250,16 +251,7 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
 
   const removeDoc = (id) => setDocuments(prev => prev.filter(d => d.id !== id));
 
-  const completeness = (() => {
-    const checks = [
-      form.full_name, form.phone, form.dob, form.address_line1, form.aadhaar_number || form.pan_number,
-      form.branch, profileImage, documents.length > 0
-    ];
-    const filled = checks.filter(Boolean).length;
-    return Math.round((filled / checks.length) * 100);
-  })();
-
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     if (e) e.preventDefault();
     setServerError('');
     const validationErrors = validate(form, t);
@@ -272,7 +264,10 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
       setActiveTab('profile');
       return;
     }
+    setShowConfirm(true);
+  };
 
+  const handleConfirmSubmit = async () => {
     setLoading(true);
     try {
       const payload = {
@@ -283,9 +278,15 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
         documents
       };
       await onSubmit(payload, initialData?.id);
-      // Auto open printable Black & White Xerox application form sheet!
-      setShowPrintableSheet(true);
+      setShowConfirm(false);
+      setShowSuccessTick(true);
+      setTimeout(() => {
+        setShowSuccessTick(false);
+        // Auto open printable Black & White Xerox application form sheet!
+        setShowPrintableSheet(true);
+      }, 300);
     } catch (error) {
+      setShowConfirm(false);
       setServerError(error?.response?.data?.message || t('cf.err.submit_generic'));
     } finally {
       setLoading(false);
@@ -294,12 +295,39 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
 
   return (
     <div className="borrowers-page customer-form-page mnc-form-root">
+      {showConfirm && (
+        <div className="cf-confirm-overlay" role="dialog" aria-modal="true">
+          <div className="cf-confirm-card">
+            <div className="cf-confirm-icon"><AlertCircle style={{ width: 22, height: 22 }} /></div>
+            <h3>{mode === 'EDIT' ? 'Confirm Update' : 'Confirm Registration'}</h3>
+            <p>Please confirm all details entered are correct. {mode === 'EDIT' ? 'Save changes to this customer record?' : 'Register this customer with the details provided?'}</p>
+            <div className="cf-confirm-actions">
+              <button type="button" className="btn-cancel" onClick={() => setShowConfirm(false)} disabled={loading}>
+                {t('btn.cancel')}
+              </button>
+              <button type="button" className="btn-submit" onClick={handleConfirmSubmit} disabled={loading}>
+                {loading ? t('cf.saving_record') : 'Yes, Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSuccessTick && (
+        <div className="cf-confirm-overlay cf-success-overlay" role="status" aria-live="polite">
+          <div className="cf-success-tick">
+            <CheckCircle2 style={{ width: 56, height: 56 }} />
+          </div>
+        </div>
+      )}
+
       {showPrintableSheet && (
-        <PrintableCustomerApplicationForm 
+        <PrintableCustomerApplicationForm
           formData={form}
           profileImage={profileImage}
           documents={documents}
-          onClose={() => setShowPrintableSheet(false)} 
+          tenant={tenant}
+          onClose={() => setShowPrintableSheet(false)}
         />
       )}
 
@@ -319,16 +347,11 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
             type="button"
             onClick={() => setShowPrintableSheet(true)}
             className="btn-cancel"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, borderColor: '#059669', color: '#047857', background: '#ECFDF5' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, borderColor: 'var(--brand-primary, #15803D)', color: 'var(--brand-primary-hover, #0E5327)', background: 'var(--brand-primary-light, #F0FEF5)' }}
           >
             <Printer style={{ width: 14, height: 14 }} />
             <span>{t('cf.form_sheet_preview')}</span>
           </button>
-          <div className="cf-completeness-pill">
-            <Zap style={{ width: 13, height: 13, color: '#059669' }} />
-            <span>{t('cf.profile_completeness')}</span>
-            <strong>{completeness}%</strong>
-          </div>
           <button type="button" onClick={onCancel} className="btn-cancel" disabled={loading}>{t('btn.cancel')}</button>
           <button type="submit" onClick={handleSubmit} disabled={loading} className="btn-submit">
             {loading ? t('cf.saving_record') : mode === 'EDIT' ? t('form.save_changes') : t('cf.register_customer')}
@@ -352,7 +375,7 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
 
           {/* Section 1: Customer Profile & Personal Details */}
           <div className="cf-pane-title">
-            <User style={{ width: 16, height: 16, color: '#059669' }} />
+            <User style={{ width: 16, height: 16, color: 'var(--brand-primary, #15803D)' }} />
             <div>
               <h3>{t('cf.section1_title')}</h3>
               <p>{t('cf.section1_subtitle')}</p>
@@ -587,7 +610,7 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
 
           {/* Section 2: Primary ID Selection, Numbers & Document Proof Uploads */}
           <div className="cf-pane-title">
-            <FileCheck style={{ width: 16, height: 16, color: '#059669' }} />
+            <FileCheck style={{ width: 16, height: 16, color: 'var(--brand-primary, #15803D)' }} />
             <div>
               <h3>{t('cf.section2_title')}</h3>
               <p>{t('cf.section2_subtitle')}</p>
@@ -597,12 +620,12 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
           {/* Dynamic Primary ID Selector Row */}
           <div className="form-row" style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', padding: 14, borderRadius: 12, marginBottom: 16 }}>
             <div className="form-group">
-              <label style={{ color: '#059669', fontWeight: 700 }}>{t('cf.primary_id_type')}</label>
+              <label style={{ color: 'var(--brand-primary, #15803D)', fontWeight: 700 }}>{t('cf.primary_id_type')}</label>
               <select
                 value={form.id_proof_type}
                 onChange={(e) => setField('id_proof_type', e.target.value)}
                 className="input-control"
-                style={{ fontWeight: 600, borderColor: '#10B981' }}
+                style={{ fontWeight: 600, borderColor: 'var(--brand-primary, #10B981)' }}
               >
                 <option value="AADHAAR">{t('cf.aadhaar_card')}</option>
                 <option value="PAN_CARD">{t('cf.doc.pan_card')}</option>
@@ -735,7 +758,7 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
                           onChange={(e) => handleCategoryUpload(catId, e.target.files)}
                         />
                         <label htmlFor={`input-${catId}`} className="cf-vcat-label">
-                          <UploadCloud style={{ width: 18, height: 18, color: '#3B82F6' }} />
+                          <UploadCloud style={{ width: 18, height: 18, color: 'var(--color-info, #3B82F6)' }} />
                           <span>{t('cf.upload_prefix')} {catObj?.name}</span>
                         </label>
                       </div>
@@ -778,7 +801,7 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
                     onChange={(e) => handleCategoryUpload(form.id_proof_type, e.target.files)}
                   />
                   <label htmlFor={`input-${form.id_proof_type}`} className="cf-vcat-label">
-                    <UploadCloud style={{ width: 18, height: 18, color: '#3B82F6' }} />
+                    <UploadCloud style={{ width: 18, height: 18, color: 'var(--color-info, #3B82F6)' }} />
                     <span>{t('cf.upload_prefix')} {form.id_proof_type.replace('_', ' ')} {t('cf.image_suffix')}</span>
                   </label>
                 </div>
@@ -824,7 +847,7 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
                       onChange={(e) => handleCategoryUpload(catId, e.target.files)}
                     />
                     <label htmlFor={`input-${catId}`} className="cf-vcat-label">
-                      <UploadCloud style={{ width: 18, height: 18, color: '#3B82F6' }} />
+                      <UploadCloud style={{ width: 18, height: 18, color: 'var(--color-info, #3B82F6)' }} />
                       <span>{t('cf.upload_prefix')} {catObj?.name || catId}</span>
                     </label>
                   </div>

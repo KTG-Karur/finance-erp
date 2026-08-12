@@ -39,7 +39,13 @@ export async function up(queryInterface, Sequelize) {
     { account_code: '4001', account_name: 'Loan Interest Income', name_key: 'coa.interest_income', account_type: 'REVENUE', category: 'OPERATING_INCOME', balance: 0.00, is_active: true },
     { account_code: '4002', account_name: 'Loan Penalty / Overdue Fee Income', name_key: 'coa.penalty_income', account_type: 'REVENUE', category: 'OTHER_INCOME', balance: 0.00, is_active: true },
     { account_code: '5001', account_name: 'Bad Debt Provision Expense', name_key: 'coa.bad_debt_provision', account_type: 'EXPENSE', category: 'PROVISIONS', balance: 0.00, is_active: true },
-    { account_code: '5002', account_name: 'Branch Operating Expenses', name_key: 'coa.operating_expenses', account_type: 'EXPENSE', category: 'ADMINISTRATIVE', balance: 0.00, is_active: true }
+    { account_code: '5002', account_name: 'Branch Operating Expenses', name_key: 'coa.operating_expenses', account_type: 'EXPENSE', category: 'ADMINISTRATIVE', balance: 0.00, is_active: true },
+    { account_code: '2200', account_name: 'Fixed Deposit Liability', name_key: 'coa.fd_liability', account_type: 'LIABILITY', category: 'FIXED_DEPOSITS', balance: 0.00, is_active: true },
+    { account_code: '5003', account_name: 'Fixed Deposit Interest Expense', name_key: 'coa.fd_interest_expense', account_type: 'EXPENSE', category: 'INTEREST_EXPENSE', balance: 0.00, is_active: true },
+    { account_code: '2201', account_name: 'Recurring Deposit Liability', name_key: 'coa.rd_liability', account_type: 'LIABILITY', category: 'RECURRING_DEPOSITS', balance: 0.00, is_active: true },
+    { account_code: '5004', account_name: 'Recurring Deposit Interest Expense', name_key: 'coa.rd_interest_expense', account_type: 'EXPENSE', category: 'INTEREST_EXPENSE', balance: 0.00, is_active: true },
+    { account_code: '4099', account_name: 'Miscellaneous Income', name_key: 'coa.misc_income', account_type: 'REVENUE', category: 'OTHER_INCOME', balance: 0.00, is_active: true },
+    { account_code: '5099', account_name: 'Miscellaneous Expense', name_key: 'coa.misc_expense', account_type: 'EXPENSE', category: 'ADMINISTRATIVE', balance: 0.00, is_active: true }
   ]);
 
   // 2. Default Loan Schemes
@@ -92,8 +98,7 @@ export async function up(queryInterface, Sequelize) {
       pincode: '600001',
       guarantor_name: 'Mahesh Kumar',
       branch: 'Karur Branch',
-      status: 'ACTIVE',
-      kyc_status: 'VERIFIED'
+      status: 'ACTIVE'
     },
     {
       borrower_code: 'BR-0002',
@@ -108,8 +113,7 @@ export async function up(queryInterface, Sequelize) {
       pincode: '600002',
       guarantor_name: 'Sunil Sharma',
       branch: 'Karur Branch',
-      status: 'ACTIVE',
-      kyc_status: 'VERIFIED'
+      status: 'ACTIVE'
     }
   ]);
 
@@ -149,14 +153,8 @@ export async function up(queryInterface, Sequelize) {
       email: 'karthik@example.com',
       city: 'Chennai',
       state: 'Tamil Nadu',
-      kyc_status: 'VERIFIED',
-      bank_name: 'HDFC Bank',
-      account_holder_name: 'Karthik Investments Pvt Ltd',
-      account_no: '50100123456789',
-      ifsc_no: 'HDFC0001234',
       capital_amount: 650000.00,
       join_date: '2026-01-15',
-      yield_rate: 12.000,
       status: 'ACTIVE'
     }
   ]);
@@ -246,7 +244,13 @@ export async function seedDefaults(queryInterface) {
     { account_code: '4001', account_name: 'Loan Interest Income', name_key: 'coa.interest_income', account_type: 'REVENUE', category: 'OPERATING_INCOME', balance: 0.00, is_active: true },
     { account_code: '4002', account_name: 'Loan Penalty / Overdue Fee Income', name_key: 'coa.penalty_income', account_type: 'REVENUE', category: 'OTHER_INCOME', balance: 0.00, is_active: true },
     { account_code: '5001', account_name: 'Bad Debt Provision Expense', name_key: 'coa.bad_debt_provision', account_type: 'EXPENSE', category: 'PROVISIONS', balance: 0.00, is_active: true },
-    { account_code: '5002', account_name: 'Branch Operating Expenses', name_key: 'coa.operating_expenses', account_type: 'EXPENSE', category: 'ADMINISTRATIVE', balance: 0.00, is_active: true }
+    { account_code: '5002', account_name: 'Branch Operating Expenses', name_key: 'coa.operating_expenses', account_type: 'EXPENSE', category: 'ADMINISTRATIVE', balance: 0.00, is_active: true },
+    { account_code: '2200', account_name: 'Fixed Deposit Liability', name_key: 'coa.fd_liability', account_type: 'LIABILITY', category: 'FIXED_DEPOSITS', balance: 0.00, is_active: true },
+    { account_code: '5003', account_name: 'Fixed Deposit Interest Expense', name_key: 'coa.fd_interest_expense', account_type: 'EXPENSE', category: 'INTEREST_EXPENSE', balance: 0.00, is_active: true },
+    { account_code: '2201', account_name: 'Recurring Deposit Liability', name_key: 'coa.rd_liability', account_type: 'LIABILITY', category: 'RECURRING_DEPOSITS', balance: 0.00, is_active: true },
+    { account_code: '5004', account_name: 'Recurring Deposit Interest Expense', name_key: 'coa.rd_interest_expense', account_type: 'EXPENSE', category: 'INTEREST_EXPENSE', balance: 0.00, is_active: true },
+    { account_code: '4099', account_name: 'Miscellaneous Income', name_key: 'coa.misc_income', account_type: 'REVENUE', category: 'OTHER_INCOME', balance: 0.00, is_active: true },
+    { account_code: '5099', account_name: 'Miscellaneous Expense', name_key: 'coa.misc_expense', account_type: 'EXPENSE', category: 'ADMINISTRATIVE', balance: 0.00, is_active: true }
   ]);
 
   await queryInterface.bulkInsert('eod_denomination_settings',

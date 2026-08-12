@@ -62,7 +62,10 @@ function NewVoucherModal({ isOpen, onClose, onSubmit, chartOfAccounts, branchesL
   const isContra = form.voucher_type === 'CONTRA';
   const isReceipt = form.voucher_type === 'CASH_RECEIPT' || form.voucher_type === 'BANK_RECEIPT';
   const isPayment = form.voucher_type === 'CASH_PAYMENT' || form.voucher_type === 'BANK_PAYMENT';
-  const isOfficeExpense = isPayment && form.other_account_code === '5001';
+  // '5002' is the real chart-of-accounts code for Branch Operating Expenses
+  // (server/src/tenant-configuration/seeders/tenantSeeders.js) — not '5001',
+  // which is Bad Debt Provision Expense, an unrelated account.
+  const isOfficeExpense = isPayment && form.other_account_code === '5002';
   const selectedCategory = expenseCategories.find(c => c.id === Number(form.expense_category_id)) || null;
   const isMiscCategory = Boolean(selectedCategory && selectedCategory.name.toLowerCase().includes('miscellaneous'));
   const isOthers = form.other_account_code === 'OTHERS';
@@ -161,7 +164,7 @@ function NewVoucherModal({ isOpen, onClose, onSubmit, chartOfAccounts, branchesL
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '20px 24px', maxHeight: '70vh', overflowY: 'auto' }}>
           {error && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 9, fontSize: '0.75rem', fontWeight: 600, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 9, fontSize: '0.75rem', fontWeight: 600, background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger-hover, #B91C1C)' }}>
               {error}
             </div>
           )}
@@ -263,7 +266,7 @@ function NewVoucherModal({ isOpen, onClose, onSubmit, chartOfAccounts, branchesL
                     </select>
                     <input type="number" min="0" step="0.01" className="fin-input" placeholder={t('fin.col_debit')} value={line.debit} onChange={(e) => setLine(idx, 'debit', e.target.value)} />
                     <input type="number" min="0" step="0.01" className="fin-input" placeholder={t('fin.col_credit')} value={line.credit} onChange={(e) => setLine(idx, 'credit', e.target.value)} />
-                    <button type="button" onClick={() => removeLine(idx)} disabled={form.lines.length <= 2} style={{ border: 'none', background: 'transparent', color: '#DC2626', cursor: form.lines.length <= 2 ? 'default' : 'pointer', opacity: form.lines.length <= 2 ? 0.3 : 1 }}>
+                    <button type="button" onClick={() => removeLine(idx)} disabled={form.lines.length <= 2} style={{ border: 'none', background: 'transparent', color: 'var(--color-danger, #DC2626)', cursor: form.lines.length <= 2 ? 'default' : 'pointer', opacity: form.lines.length <= 2 ? 0.3 : 1 }}>
                       <Trash2 style={{ width: 14, height: 14 }} />
                     </button>
                   </div>

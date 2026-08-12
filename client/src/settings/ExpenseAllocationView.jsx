@@ -18,9 +18,9 @@ const fmtDateTime = (v) => {
 function useRequestTypeMeta() {
   const { t } = useLanguage();
   return {
-    INITIAL: { label: t('exp.req_type.initial'), bg: '#EFF6FF', color: '#2563EB', border: '#BFDBFE' },
-    TOPUP: { label: t('exp.req_type.topup'), bg: '#ECFDF5', color: '#059669', border: '#A7F3D0' },
-    EMERGENCY: { label: t('exp.req_type.emergency'), bg: '#FEF2F2', color: '#DC2626', border: '#FCA5A5' }
+    INITIAL: { label: t('exp.req_type.initial'), bg: 'var(--color-info-light, #EFF6FF)', color: 'var(--color-info, #2563EB)', border: 'var(--color-info-border, #BFDBFE)' },
+    TOPUP: { label: t('exp.req_type.topup'), bg: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #15803D)', border: 'var(--brand-primary-border, #A3F5C1)' },
+    EMERGENCY: { label: t('exp.req_type.emergency'), bg: 'var(--color-danger-light, #FEF2F2)', color: 'var(--color-danger, #DC2626)', border: 'var(--color-danger-border, #FCA5A5)' }
   };
 }
 
@@ -49,9 +49,10 @@ function CreateAccountModal({ isOpen, onClose, onSubmit }) {
   const { t } = useLanguage();
   const [form, setForm] = useState({ name: '', amount: '', reason: '' });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   React.useEffect(() => {
-    if (isOpen) setForm({ name: '', amount: '', reason: '' });
+    if (isOpen) { setForm({ name: '', amount: '', reason: '' }); setError(''); }
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -60,9 +61,12 @@ function CreateAccountModal({ isOpen, onClose, onSubmit }) {
     e.preventDefault();
     if (!form.name.trim() || !form.amount || Number(form.amount) <= 0) return;
     setLoading(true);
+    setError('');
     try {
       await onSubmit({ name: form.name.trim(), amount: Number(form.amount), reason: form.reason.trim() });
       onClose();
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to create expense account.');
     } finally {
       setLoading(false);
     }
@@ -73,7 +77,7 @@ function CreateAccountModal({ isOpen, onClose, onSubmit }) {
       <div className="saas-modal-card" style={{ maxWidth: 460 }}>
         <div className="saas-modal-header">
           <div className="head-left">
-            <div className="head-icon-badge" style={{ background: '#ECFDF5', color: '#059669' }}><Wallet style={{ width: 18, height: 18 }} /></div>
+            <div className="head-icon-badge" style={{ background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #15803D)' }}><Wallet style={{ width: 18, height: 18 }} /></div>
             <div className="head-titles">
               <h3 style={{ fontWeight: 600 }}>{t('exp.create.title')}</h3>
               <p>{t('exp.create.subtitle')}</p>
@@ -82,6 +86,7 @@ function CreateAccountModal({ isOpen, onClose, onSubmit }) {
           <button onClick={onClose} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>
         </div>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '20px 24px' }}>
+          {error && <div className="form-alert form-alert--error"><AlertTriangle style={{ width: 14, height: 14 }} /><span>{error}</span></div>}
           <div>
             <label style={labelStyle}>{t('exp.create.name_label')}</label>
             <input type="text" required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Food Expense" style={inputStyle} />
@@ -96,7 +101,7 @@ function CreateAccountModal({ isOpen, onClose, onSubmit }) {
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
             <button type="button" onClick={onClose} style={{ background: '#F1F5F9', color: '#475569', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer' }}>{t('btn.cancel')}</button>
-            <button type="submit" disabled={loading} style={{ background: '#059669', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+            <button type="submit" disabled={loading} style={{ background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
               {loading ? t('exp.create.submitting') : t('exp.create.submit')}
             </button>
           </div>
@@ -112,9 +117,10 @@ function RequestFundsModal({ isOpen, account, onClose, onSubmit }) {
   const { t } = useLanguage();
   const [form, setForm] = useState({ type: 'TOPUP', amount: '', reason: '' });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   React.useEffect(() => {
-    if (isOpen) setForm({ type: 'TOPUP', amount: '', reason: '' });
+    if (isOpen) { setForm({ type: 'TOPUP', amount: '', reason: '' }); setError(''); }
   }, [isOpen, account]);
 
   if (!isOpen || !account) return null;
@@ -124,9 +130,12 @@ function RequestFundsModal({ isOpen, account, onClose, onSubmit }) {
     if (!form.amount || Number(form.amount) <= 0) return;
     if (form.type === 'EMERGENCY' && !form.reason.trim()) return;
     setLoading(true);
+    setError('');
     try {
       await onSubmit({ category_id: account.id, type: form.type, amount: Number(form.amount), reason: form.reason.trim() });
       onClose();
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to add funds.');
     } finally {
       setLoading(false);
     }
@@ -137,7 +146,7 @@ function RequestFundsModal({ isOpen, account, onClose, onSubmit }) {
       <div className="saas-modal-card" style={{ maxWidth: 460 }}>
         <div className="saas-modal-header">
           <div className="head-left">
-            <div className="head-icon-badge" style={{ background: '#FFFBEB', color: '#D97706' }}><ArrowUpCircle style={{ width: 18, height: 18 }} /></div>
+            <div className="head-icon-badge" style={{ background: 'var(--color-warning-light, #FFFBEB)', color: 'var(--color-warning, #D97706)' }}><ArrowUpCircle style={{ width: 18, height: 18 }} /></div>
             <div className="head-titles">
               <h3 style={{ fontWeight: 600 }}>{t('exp.fund.title')} {account.name}</h3>
               <p>{t('exp.fund.current_balance')} ₹{fmt(account.balance)}</p>
@@ -146,6 +155,7 @@ function RequestFundsModal({ isOpen, account, onClose, onSubmit }) {
           <button onClick={onClose} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>
         </div>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '20px 24px' }}>
+          {error && <div className="form-alert form-alert--error"><AlertTriangle style={{ width: 14, height: 14 }} /><span>{error}</span></div>}
           <div>
             <label style={labelStyle}>{t('exp.fund.request_type')}</label>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -154,8 +164,8 @@ function RequestFundsModal({ isOpen, account, onClose, onSubmit }) {
                 onClick={() => setForm({ ...form, type: 'TOPUP' })}
                 style={{
                   flex: 1, padding: '8px 12px', borderRadius: 8, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
-                  border: form.type === 'TOPUP' ? '1px solid #059669' : '1px solid #CBD5E1',
-                  background: form.type === 'TOPUP' ? '#059669' : '#FFFFFF',
+                  border: form.type === 'TOPUP' ? '1px solid var(--brand-primary, #15803D)' : '1px solid #CBD5E1',
+                  background: form.type === 'TOPUP' ? 'var(--brand-primary, #15803D)' : '#FFFFFF',
                   color: form.type === 'TOPUP' ? '#FFFFFF' : '#334155'
                 }}
               >
@@ -166,8 +176,8 @@ function RequestFundsModal({ isOpen, account, onClose, onSubmit }) {
                 onClick={() => setForm({ ...form, type: 'EMERGENCY' })}
                 style={{
                   flex: 1, padding: '8px 12px', borderRadius: 8, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
-                  border: form.type === 'EMERGENCY' ? '1px solid #DC2626' : '1px solid #CBD5E1',
-                  background: form.type === 'EMERGENCY' ? '#DC2626' : '#FFFFFF',
+                  border: form.type === 'EMERGENCY' ? '1px solid var(--color-danger, #DC2626)' : '1px solid #CBD5E1',
+                  background: form.type === 'EMERGENCY' ? 'var(--color-danger, #DC2626)' : '#FFFFFF',
                   color: form.type === 'EMERGENCY' ? '#FFFFFF' : '#334155',
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5
                 }}
@@ -191,7 +201,7 @@ function RequestFundsModal({ isOpen, account, onClose, onSubmit }) {
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
             <button type="button" onClick={onClose} style={{ background: '#F1F5F9', color: '#475569', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer' }}>{t('btn.cancel')}</button>
-            <button type="submit" disabled={loading} style={{ background: '#D97706', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+            <button type="submit" disabled={loading} style={{ background: 'var(--color-warning, #D97706)', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
               {loading ? t('exp.create.submitting') : t('exp.fund.submit')}
             </button>
           </div>
@@ -205,9 +215,10 @@ function RenameAccountModal({ isOpen, account, onClose, onSubmit }) {
   const { t } = useLanguage();
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   React.useEffect(() => {
-    if (isOpen && account) setName(account.name);
+    if (isOpen && account) { setName(account.name); setError(''); }
   }, [isOpen, account]);
 
   if (!isOpen || !account) return null;
@@ -216,9 +227,12 @@ function RenameAccountModal({ isOpen, account, onClose, onSubmit }) {
     e.preventDefault();
     if (!name.trim()) return;
     setLoading(true);
+    setError('');
     try {
       await onSubmit(account.id, { name: name.trim() });
       onClose();
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to rename account.');
     } finally {
       setLoading(false);
     }
@@ -235,13 +249,14 @@ function RenameAccountModal({ isOpen, account, onClose, onSubmit }) {
           <button onClick={onClose} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>
         </div>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '20px 24px' }}>
+          {error && <div className="form-alert form-alert--error"><AlertTriangle style={{ width: 14, height: 14 }} /><span>{error}</span></div>}
           <div>
             <label style={labelStyle}>{t('exp.rename.name_label')}</label>
             <input type="text" required value={name} onChange={e => setName(e.target.value)} style={inputStyle} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
             <button type="button" onClick={onClose} style={{ background: '#F1F5F9', color: '#475569', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer' }}>{t('btn.cancel')}</button>
-            <button type="submit" disabled={loading} style={{ background: '#059669', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+            <button type="submit" disabled={loading} style={{ background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
               {loading ? t('form.saving') : t('exp.rename.save')}
             </button>
           </div>
@@ -316,6 +331,7 @@ export default function ExpenseAllocationView({
   const [renameAccount, setRenameAccount] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteError, setDeleteError] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [historyAccount, setHistoryAccount] = useState(null);
 
   return (
@@ -331,7 +347,7 @@ export default function ExpenseAllocationView({
           </div>
         </div>
         <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={() => setCreateModalOpen(true)} style={{ background: '#059669', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '9px 16px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <button onClick={() => setCreateModalOpen(true)} style={{ background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '9px 16px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <Plus style={{ width: 15, height: 15 }} /><span>{t('exp.new_account')}</span>
           </button>
         </div>
@@ -339,7 +355,7 @@ export default function ExpenseAllocationView({
 
       <div className="loans-table-card">
         <div style={{ padding: '16px 20px', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Wallet style={{ width: 16, height: 16, color: '#059669' }} />
+          <Wallet style={{ width: 16, height: 16, color: 'var(--brand-primary, #15803D)' }} />
           <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#0F172A' }}>Expense Accounts</span>
         </div>
         <div className="table-responsive">
@@ -360,7 +376,7 @@ export default function ExpenseAllocationView({
                 <tr key={c.id}>
                   <td style={{ textAlign: 'center', color: '#64748B' }}>{idx + 1}</td>
                   <td><strong style={{ fontWeight: 600, color: '#0F172A' }}>{c.name}</strong></td>
-                  <td style={{ textAlign: 'right', fontWeight: 600, color: c.balance > 0 ? '#059669' : '#DC2626' }}>₹{fmt(c.balance)}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 600, color: c.balance > 0 ? 'var(--brand-primary, #15803D)' : 'var(--color-danger, #DC2626)' }}>₹{fmt(c.balance)}</td>
                   <td style={{ textAlign: 'right', color: '#64748B' }}>₹{fmt(c.allocated_total)}</td>
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
@@ -368,7 +384,7 @@ export default function ExpenseAllocationView({
                         onClick={() => setFundAccount(c)}
                         title="Add Funds"
                         style={{
-                          border: '1px solid #FDE68A', background: '#FFFBEB', color: '#D97706', borderRadius: 7,
+                          border: '1px solid var(--color-warning-border, #FDE68A)', background: 'var(--color-warning-light, #FFFBEB)', color: 'var(--color-warning, #D97706)', borderRadius: 7,
                           padding: '6px 12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
                           fontSize: '0.76rem', fontWeight: 600
                         }}
@@ -382,7 +398,7 @@ export default function ExpenseAllocationView({
                       <button onClick={() => setRenameAccount(c)} title="Rename" style={{ border: '1px solid #E2E8F0', background: '#FFFFFF', color: '#334155', borderRadius: 7, padding: '6px', cursor: 'pointer', display: 'inline-flex' }}>
                         <Pencil style={{ width: 16, height: 16 }} />
                       </button>
-                      <button onClick={() => { setDeleteTarget(c); setDeleteError(''); }} title="Delete" style={{ border: 'none', background: '#FEE2E2', color: '#DC2626', borderRadius: 7, padding: '6px', cursor: 'pointer', display: 'inline-flex' }}>
+                      <button onClick={() => { setDeleteTarget(c); setDeleteError(''); }} title="Delete" style={{ border: 'none', background: 'var(--color-danger-light, #FEE2E2)', color: 'var(--color-danger, #DC2626)', borderRadius: 7, padding: '6px', cursor: 'pointer', display: 'inline-flex' }}>
                         <Trash2 style={{ width: 16, height: 16 }} />
                       </button>
                     </div>
@@ -404,7 +420,7 @@ export default function ExpenseAllocationView({
           <div className="saas-modal-card">
             <div className="saas-modal-header">
               <div className="head-left">
-                <div className="head-icon-badge" style={{ background: '#FEF2F2', borderColor: '#FECACA', color: '#DC2626' }}>
+                <div className="head-icon-badge" style={{ background: 'var(--color-danger-light, #FEF2F2)', borderColor: 'var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)' }}>
                   <Trash2 style={{ width: 18, height: 18 }} />
                 </div>
                 <div className="head-titles">
@@ -412,28 +428,34 @@ export default function ExpenseAllocationView({
                   <p>This action cannot be undone</p>
                 </div>
               </div>
-              <button onClick={() => setDeleteTarget(null)} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>
+              <button onClick={() => setDeleteTarget(null)} className="close-btn" type="button" disabled={deleteLoading}><X style={{ width: 16, height: 16 }} /></button>
             </div>
             <div className="saas-modal-body">
               <p style={{ fontSize: '0.85rem', color: '#334155', margin: 0 }}>Are you sure you want to permanently delete <strong>{deleteTarget.name}</strong>?</p>
               {deleteError && <div className="form-alert form-alert--error"><AlertTriangle style={{ width: 14, height: 14 }} /><span>{deleteError}</span></div>}
             </div>
             <div className="saas-modal-footer">
-              <button type="button" onClick={() => setDeleteTarget(null)} className="btn-cancel">Cancel</button>
+              <button type="button" onClick={() => setDeleteTarget(null)} disabled={deleteLoading} className="btn-cancel">Cancel</button>
               <button
                 type="button"
-                onClick={() => {
+                disabled={deleteLoading}
+                onClick={async () => {
+                  if (deleteLoading) return;
+                  setDeleteLoading(true);
+                  setDeleteError('');
                   try {
-                    onDeleteExpenseCategory(deleteTarget.id);
+                    await onDeleteExpenseCategory(deleteTarget.id);
                     setDeleteTarget(null);
                   } catch (err) {
-                    setDeleteError(err.message || 'Unable to delete this account.');
+                    setDeleteError(err?.response?.data?.message || err.message || 'Unable to delete this account.');
+                  } finally {
+                    setDeleteLoading(false);
                   }
                 }}
                 className="btn-submit"
-                style={{ background: '#DC2626', boxShadow: '0 2px 6px rgba(220, 38, 38, 0.3)' }}
+                style={{ background: deleteLoading ? '#94A3B8' : 'var(--color-danger, #DC2626)', boxShadow: deleteLoading ? 'none' : '0 2px 6px rgba(var(--color-danger-rgb), 0.3)', cursor: deleteLoading ? 'not-allowed' : 'pointer' }}
               >
-                Delete Permanently
+                {deleteLoading ? 'Deleting...' : 'Delete Permanently'}
               </button>
             </div>
           </div>

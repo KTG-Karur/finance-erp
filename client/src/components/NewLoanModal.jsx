@@ -64,14 +64,16 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
     setForm(updatedForm);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
     setError('');
     setLoading(true);
     try {
-      onSubmit({
+      await onSubmit({
         ...form,
         principal_amount: parseFloat(form.principal_amount),
+        monthly_interest_rate: parseFloat(form.monthly_interest_rate),
         interest_rate: parseFloat(form.monthly_interest_rate),
         tenure_days: Math.round(parseFloat(form.tenure_months) * 30),
         mode
@@ -95,9 +97,9 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
         <div className="saas-modal-header">
           <div className="head-left">
             <div className="head-icon-badge" style={{
-              background: isAppMode ? '#FFFBEB' : '#ECFDF5',
-              borderColor: isAppMode ? '#FDE68A' : '#A7F3D0',
-              color: isAppMode ? '#D97706' : '#059669'
+              background: isAppMode ? 'var(--color-warning-light, #FFFBEB)' : 'var(--brand-primary-light, #F0FEF5)',
+              borderColor: isAppMode ? 'var(--color-warning-border, #FDE68A)' : 'var(--brand-primary-border, #A3F5C1)',
+              color: isAppMode ? 'var(--color-warning, #D97706)' : 'var(--brand-primary, #15803D)'
             }}>
               {isAppMode ? <Clock style={{ width: 18, height: 18 }} /> : <Banknote style={{ width: 18, height: 18 }} />}
             </div>
@@ -341,11 +343,11 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
               </div>
               <div>
                 <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', fontWeight: 500, textTransform: 'uppercase' }}>Daily Installment (EMI)</span>
-                <strong style={{ fontSize: '0.95rem', color: '#059669', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>₹{fmt(calcDetails.dailyEmi)} / day</strong>
+                <strong style={{ fontSize: '0.95rem', color: 'var(--brand-primary, #15803D)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>₹{fmt(calcDetails.dailyEmi)} / day</strong>
               </div>
               <div>
                 <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', fontWeight: 500, textTransform: 'uppercase' }}>Tenure Duration</span>
-                <strong style={{ fontSize: '0.95rem', color: '#2563EB', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{Math.round(form.tenure_months * 30)} Days</strong>
+                <strong style={{ fontSize: '0.95rem', color: 'var(--color-info, #2563EB)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{Math.round(form.tenure_months * 30)} Days</strong>
               </div>
             </div>
 
@@ -353,7 +355,7 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
 
           {/* Footer */}
           <div className="saas-modal-footer" style={{ padding: '16px 24px' }}>
-            <button type="button" onClick={onClose} className="btn-cancel" style={{ fontWeight: 500 }}>
+            <button type="button" onClick={onClose} disabled={loading} className="btn-cancel" style={{ fontWeight: 500 }}>
               Cancel
             </button>
             <button
@@ -361,7 +363,7 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
               disabled={loading}
               className="btn-submit"
               style={{
-                background: isAppMode ? '#D97706' : '#059669',
+                background: isAppMode ? 'var(--color-warning, #D97706)' : 'var(--brand-primary, #15803D)',
                 fontWeight: 500
               }}
             >

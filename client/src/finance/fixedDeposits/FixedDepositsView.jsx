@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Landmark, Plus, Eye, X, AlertTriangle, CheckCircle2, LogOut, ArrowLeft,
-  UserCheck, ChevronLeft, ChevronRight, Search, Printer, FileText
+  UserCheck, ChevronLeft, ChevronRight, Search, Printer, FileText, Wallet
 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import FixedDepositCertificateModal from '../../components/FixedDepositCertificateModal';
@@ -24,7 +24,7 @@ function computeMaturity(principal, tenureMonths, rate, scheme) {
 
 function ErrorBanner({ children }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 9, fontSize: '0.78rem', fontWeight: 600, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 9, fontSize: '0.78rem', fontWeight: 600, background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger-hover, #B91C1C)' }}>
       <AlertTriangle style={{ width: 14, height: 14, flexShrink: 0 }} />
       <span>{children}</span>
     </div>
@@ -37,7 +37,7 @@ function ErrorBanner({ children }) {
 function BookFdScreen({ borrowers, onCancel, onSubmit }) {
   const { t } = useLanguage();
   const [form, setForm] = useState({
-    borrower_id: borrowers[0]?.id || '',
+    borrower_id: '',
     principal_amount: '',
     tenure_months: 12,
     interest_rate: 8.5,
@@ -106,7 +106,7 @@ function BookFdScreen({ borrowers, onCancel, onSubmit }) {
       <form onSubmit={handleSubmit} className="cf-wizard-body">
         <div className="cf-step-pane" style={{ padding: '20px 22px', gap: 16 }}>
           <div className="cf-pane-title" style={{ paddingBottom: 12 }}>
-            <Landmark style={{ width: 16, height: 16, color: '#059669' }} />
+            <Landmark style={{ width: 16, height: 16, color: 'var(--brand-primary, #15803D)' }} />
             <div>
               <h3>{t('fd.section_details_title')}</h3>
               <p>{t('fd.section_details_subtitle')}</p>
@@ -134,7 +134,7 @@ function BookFdScreen({ borrowers, onCancel, onSubmit }) {
             </div>
             <div className="form-group">
               <label>{t('fd.modal.rate_label')}</label>
-              <input type="number" step="0.1" required value={form.interest_rate} onChange={e => setField('interest_rate', e.target.value)} className="input-control mono" placeholder="e.g. 8.5" />
+              <input type="number" min="0" max="100" step="0.1" required value={form.interest_rate} onChange={e => setField('interest_rate', e.target.value)} className="input-control mono" placeholder="e.g. 8.5" />
             </div>
           </div>
 
@@ -150,7 +150,9 @@ function BookFdScreen({ borrowers, onCancel, onSubmit }) {
               <label>{t('fd.payment_mode_label')}</label>
               <select value={form.payment_mode} onChange={e => setField('payment_mode', e.target.value)} className="input-control">
                 <option value="CASH">{t('fin.mode_cash')}</option>
-                <option value="BANK">{t('fin.mode_bank')}</option>
+                <option value="BANK_TRANSFER">{t('fin.mode_bank')}</option>
+                <option value="UPI">UPI</option>
+                <option value="CHEQUE">{t('fin.mode_cheque') || 'Cheque'}</option>
               </select>
             </div>
           </div>
@@ -158,18 +160,18 @@ function BookFdScreen({ borrowers, onCancel, onSubmit }) {
           <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '12px 16px', display: 'flex', justifyContent: 'space-between' }}>
             <div>
               <span style={{ fontSize: '0.65rem', color: '#64748B', display: 'block', textTransform: 'uppercase' }}>{t('col.maturity_date')}</span>
-              <strong style={{ fontSize: '0.88rem', color: '#2563EB' }}>{form.tenure_months ? `${form.tenure_months} ${t('fd.modal.months_from_booking')}` : '—'}</strong>
+              <strong style={{ fontSize: '0.88rem', color: 'var(--color-info, #2563EB)' }}>{form.tenure_months ? `${form.tenure_months} ${t('fd.modal.months_from_booking')}` : '—'}</strong>
             </div>
             <div style={{ textAlign: 'right' }}>
               <span style={{ fontSize: '0.65rem', color: '#64748B', display: 'block', textTransform: 'uppercase' }}>{t('col.maturity_value')}</span>
-              <strong style={{ fontSize: '0.95rem', color: '#059669' }}>₹{fmt(maturityValue)}</strong>
+              <strong style={{ fontSize: '0.95rem', color: 'var(--brand-primary, #15803D)' }}>₹{fmt(maturityValue)}</strong>
             </div>
           </div>
         </div>
 
         <div className="cf-step-pane" style={{ padding: '20px 22px', gap: 16 }}>
           <div className="cf-pane-title" style={{ paddingBottom: 12 }}>
-            <UserCheck style={{ width: 16, height: 16, color: '#059669' }} />
+            <UserCheck style={{ width: 16, height: 16, color: 'var(--brand-primary, #15803D)' }} />
             <div>
               <h3>{t('fd.section_notes_title')}</h3>
             </div>
@@ -204,8 +206,8 @@ function statusBadgeCls(status) {
 function ActionPill({ icon, label, onClick, tone = 'neutral' }) {
   const tones = {
     neutral: { bg: '#FFFFFF', border: '#E2E8F0', color: '#334155' },
-    good: { bg: '#ECFDF5', border: '#A7F3D0', color: '#059669' },
-    bad: { bg: '#FEF2F2', border: '#FECACA', color: '#DC2626' }
+    good: { bg: 'var(--brand-primary-light, #F0FEF5)', border: 'var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)' },
+    bad: { bg: 'var(--color-danger-light, #FEF2F2)', border: 'var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)' }
   };
   const c = tones[tone];
   return (
@@ -238,17 +240,17 @@ function StatusTabs({ tabs, active, onChange }) {
             onClick={() => onChange(tab.id)}
             style={{
               display: 'flex', alignItems: 'center', gap: 6, padding: '9px 4px', marginBottom: -1,
-              border: 'none', borderBottom: isActive ? '2px solid #059669' : '2px solid transparent',
+              border: 'none', borderBottom: isActive ? '2px solid var(--brand-primary, #15803D)' : '2px solid transparent',
               background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
               fontSize: '0.8rem', fontWeight: isActive ? 700 : 500,
-              color: isActive ? '#059669' : '#64748B', marginRight: 18
+              color: isActive ? 'var(--brand-primary, #15803D)' : '#64748B', marginRight: 18
             }}
           >
             <span>{tab.label}</span>
             <span style={{
               fontSize: '0.68rem', fontWeight: 700, borderRadius: 999, padding: '1px 7px',
-              background: isActive ? '#ECFDF5' : '#F1F5F9',
-              color: isActive ? '#059669' : '#94A3B8'
+              background: isActive ? 'var(--brand-primary-light, #F0FEF5)' : '#F1F5F9',
+              color: isActive ? 'var(--brand-primary, #15803D)' : '#94A3B8'
             }}>{tab.count}</span>
           </button>
         );
@@ -278,10 +280,15 @@ function Pagination({ page, setPage, totalPages, total, startIndex, pageSize }) 
   );
 }
 
-export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], tenant, branchesList = [], selectedBranch = 'ALL', onCreateFd, onMatureFd, onPrematureCloseFd }) {
+export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], tenant, branchesList = [], selectedBranch = 'ALL', onCreateFd, onMatureFd, onPrematureCloseFd, onPayFdMonthlyInterest }) {
   const { t, tStatus } = useLanguage();
   const [screen, setScreen] = useState('LIST'); // 'LIST' | 'BOOK'
   const [confirmAction, setConfirmAction] = useState(null); // { type: 'MATURE'|'PREMATURE', fd }
+  const [payInterestFd, setPayInterestFd] = useState(null);
+  const [payInterestMode, setPayInterestMode] = useState('CASH');
+  const [payInterestLoading, setPayInterestLoading] = useState(false);
+  const [payInterestError, setPayInterestError] = useState('');
+  const [payInterestResult, setPayInterestResult] = useState(null);
   const [statusTab, setStatusTab] = useState('ACTIVE');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -298,6 +305,8 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
   const pageSize = 8;
 
   const [customPayoutAmount, setCustomPayoutAmount] = useState('');
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [confirmError, setConfirmError] = useState('');
 
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
@@ -357,7 +366,7 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
       <div className="fin-header-card">
         <div className="fin-page-header">
           <div className="fin-page-header__left">
-            <div className="fin-page-header__icon" style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669' }}>
+            <div className="fin-page-header__icon" style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)' }}>
               <Landmark style={{ width: 18, height: 18 }} />
             </div>
             <div>
@@ -376,7 +385,7 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
                 fontWeight: 600, cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
               }}
             >
-              <Printer style={{ width: 14, height: 14, color: '#059669' }} />
+              <Printer style={{ width: 14, height: 14, color: 'var(--brand-primary, #15803D)' }} />
               <span>Print Register</span>
             </button>
             <button type="button" className="fin-btn-primary" onClick={() => setScreen('BOOK')} disabled={!borrowers.length}>
@@ -455,7 +464,7 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
             ) : pagedFds.map((fd, idx) => (
               <tr key={fd.id}>
                 <td style={{ textAlign: 'center', color: '#64748B' }}>{startIndex + idx + 1}</td>
-                <td className="code" style={{ color: '#059669', fontWeight: 600 }}>{fd.fd_account_no}</td>
+                <td className="code" style={{ color: 'var(--brand-primary, #15803D)', fontWeight: 600 }}>{fd.fd_account_no}</td>
                 <td>{fd.customer_name}</td>
                 <td style={{ fontSize: '0.78rem', color: '#64748B' }}>{fd.scheme === 'CUMULATIVE' ? t('fdc.cumulative') : t('fdc.monthly_payout')}</td>
                 <td className="num">₹{fmt(fd.principal_amount)}</td>
@@ -463,13 +472,16 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
                 <td className="num">{fd.interest_rate}%</td>
                 <td style={{ fontSize: '0.78rem', color: '#64748B' }}>{fd.booking_date}</td>
                 <td>{fd.maturity_date}</td>
-                <td className="num" style={{ color: fd.status === 'CLOSED_PREMATURE' ? '#DC2626' : '#059669' }}>₹{fmt(fd.status === 'CLOSED_PREMATURE' ? fd.payout_amount : fd.maturity_value)}</td>
+                <td className="num" style={{ color: fd.status === 'CLOSED_PREMATURE' ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)' }}>₹{fmt(fd.status === 'CLOSED_PREMATURE' ? fd.payout_amount : fd.maturity_value)}</td>
                 <td style={{ textAlign: 'center' }}><span className={statusBadgeCls(fd.status)}>{tStatus(fd.status)}</span></td>
                 <td style={{ textAlign: 'right' }}>
                   <div style={{ display: 'inline-flex', gap: 6 }}>
                     <ActionPill icon={<Printer style={{ width: 11, height: 11 }} />} label="Print" tone="neutral" onClick={() => setCertificateFd(fd)} />
                     {fd.status === 'ACTIVE' && (
                       <>
+                        {fd.scheme === 'MONTHLY_PAYOUT' && (
+                          <ActionPill icon={<Wallet style={{ width: 11, height: 11 }} />} label="Pay Interest" tone="neutral" onClick={() => { setPayInterestFd(fd); setPayInterestMode('CASH'); setPayInterestError(''); setPayInterestResult(null); }} />
+                        )}
                         <ActionPill icon={<CheckCircle2 style={{ width: 11, height: 11 }} />} label={t('fd.mark_matured')} tone="good" onClick={() => setConfirmAction({ type: 'MATURE', fd })} />
                         <ActionPill icon={<LogOut style={{ width: 11, height: 11 }} />} label={t('fd.premature_exit')} tone="bad" onClick={() => setConfirmAction({ type: 'PREMATURE', fd })} />
                       </>
@@ -485,11 +497,20 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
 
       {confirmAction && (() => {
         const isMature = confirmAction.type === 'MATURE';
-        const defaultPenaltyPayout = Math.round(confirmAction.fd.maturity_value * 0.98);
+        // Preview only — mirrors the server's default (server/src/finance/fixedDeposits/
+        // fixedDeposit.service.js#computeProRatedValue): interest prorated for days
+        // actually held at the FD's contracted rate, not a flat cut of the full
+        // maturity value regardless of tenure elapsed. The server recomputes this
+        // itself when no override is submitted, so this is just what staff see
+        // before confirming.
+        const daysHeld = Math.max(0, Math.round((new Date() - new Date(confirmAction.fd.booking_date)) / (1000 * 60 * 60 * 24)));
+        const principal = Number(confirmAction.fd.principal_amount) || 0;
+        const rate = Number(confirmAction.fd.interest_rate) || 0;
+        const defaultPenaltyPayout = Math.round(principal + principal * (rate / 100) * (daysHeld / 365));
         const payoutAmount = isMature
           ? confirmAction.fd.maturity_value
           : (customPayoutAmount !== '' ? (parseFloat(customPayoutAmount) || 0) : defaultPenaltyPayout);
-        const tone = isMature ? { bg: '#ECFDF5', border: '#A7F3D0', color: '#059669', icon: '#059669' } : { bg: '#FEF2F2', border: '#FECACA', color: '#DC2626', icon: '#DC2626' };
+        const tone = isMature ? { bg: 'var(--brand-primary-light, #F0FEF5)', border: 'var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', icon: 'var(--brand-primary, #15803D)' } : { bg: 'var(--color-danger-light, #FEF2F2)', border: 'var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)', icon: 'var(--color-danger, #DC2626)' };
         return (
           <div className="saas-modal-backdrop">
             <div className="saas-modal-card" style={{ maxWidth: 440 }}>
@@ -503,9 +524,12 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
                     <p>{confirmAction.fd.fd_account_no} — {confirmAction.fd.customer_name}</p>
                   </div>
                 </div>
-                <button onClick={() => { setConfirmAction(null); setCustomPayoutAmount(''); }} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>
+                <button onClick={() => { setConfirmAction(null); setCustomPayoutAmount(''); setConfirmError(''); }} className="close-btn" type="button" disabled={confirmLoading}><X style={{ width: 16, height: 16 }} /></button>
               </div>
               <div className="saas-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {confirmError && (
+                  <div className="form-alert form-alert--error"><span>{confirmError}</span></div>
+                )}
                 <div style={{ background: tone.bg, border: `1px solid ${tone.border}`, borderRadius: 12, padding: '16px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
@@ -547,23 +571,127 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
                 </p>
               </div>
               <div className="saas-modal-footer">
-                <button type="button" onClick={() => { setConfirmAction(null); setCustomPayoutAmount(''); }} className="btn-cancel">{t('btn.cancel')}</button>
+                <button type="button" onClick={() => { setConfirmAction(null); setCustomPayoutAmount(''); setConfirmError(''); }} disabled={confirmLoading} className="btn-cancel">{t('btn.cancel')}</button>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (isMature) {
-                      onMatureFd(confirmAction.fd.id);
-                    } else {
-                      onPrematureCloseFd(confirmAction.fd.id, customPayoutAmount);
+                  disabled={confirmLoading}
+                  onClick={async () => {
+                    if (confirmLoading) return;
+                    setConfirmLoading(true);
+                    setConfirmError('');
+                    try {
+                      if (isMature) {
+                        await onMatureFd(confirmAction.fd.id);
+                      } else {
+                        await onPrematureCloseFd(confirmAction.fd.id, customPayoutAmount);
+                      }
+                      setConfirmAction(null);
+                      setCustomPayoutAmount('');
+                    } catch (err) {
+                      setConfirmError(err?.response?.data?.message || 'Action failed. Please try again.');
+                    } finally {
+                      setConfirmLoading(false);
                     }
-                    setConfirmAction(null);
-                    setCustomPayoutAmount('');
                   }}
                   className="btn-submit"
-                  style={{ background: tone.color, boxShadow: `0 2px 6px ${tone.color}4D` }}
+                  style={{ background: confirmLoading ? '#94A3B8' : tone.color, boxShadow: confirmLoading ? 'none' : `0 2px 6px ${tone.color}4D`, cursor: confirmLoading ? 'not-allowed' : 'pointer' }}
                 >
-                  {t('fd.confirm_btn')}
+                  {confirmLoading ? 'Processing...' : t('fd.confirm_btn')}
                 </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {payInterestFd && (() => {
+        const principal = Number(payInterestFd.principal_amount) || 0;
+        const rate = Number(payInterestFd.interest_rate) || 0;
+        const monthlyAmount = Math.round(principal * (rate / 100) / 12);
+        return (
+          <div className="saas-modal-backdrop">
+            <div className="saas-modal-card" style={{ maxWidth: 400 }}>
+              <div className="saas-modal-header">
+                <div className="head-left">
+                  <div className="head-icon-badge" style={{ background: '#F1F5F9', color: '#334155' }}>
+                    <Wallet style={{ width: 18, height: 18 }} />
+                  </div>
+                  <div className="head-titles">
+                    <h3>Pay Monthly Interest</h3>
+                    <p>{payInterestFd.fd_account_no} — {payInterestFd.customer_name}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setPayInterestFd(null); setPayInterestError(''); setPayInterestResult(null); }}
+                  className="close-btn" type="button" disabled={payInterestLoading}
+                >
+                  <X style={{ width: 16, height: 16 }} />
+                </button>
+              </div>
+              <div className="saas-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {payInterestError && <div className="form-alert form-alert--error"><span>{payInterestError}</span></div>}
+
+                {payInterestResult ? (
+                  <div style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', borderRadius: 12, padding: '16px 18px', textAlign: 'center' }}>
+                    <CheckCircle2 style={{ width: 26, height: 26, color: 'var(--brand-primary, #15803D)', marginBottom: 6 }} />
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#0F172A', fontWeight: 600 }}>
+                      ₹{fmt(payInterestResult.amount)} paid — month {payInterestResult.month_number} of {payInterestResult.tenure_months}
+                    </p>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '0.72rem', color: '#64748B' }}>Voucher {payInterestResult.voucher_no}</p>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 16px' }}>
+                      <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>This Month's Interest</span>
+                      <strong style={{ fontSize: '1.2rem', color: '#0F172A' }}>₹{fmt(monthlyAmount)}</strong>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#334155' }}>Payment Mode</label>
+                      <select
+                        value={payInterestMode}
+                        onChange={(e) => setPayInterestMode(e.target.value)}
+                        className="input-control"
+                      >
+                        <option value="CASH">Cash</option>
+                        <option value="BANK_TRANSFER">Bank Transfer</option>
+                        <option value="UPI">UPI</option>
+                        <option value="CHEQUE">Cheque</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="saas-modal-footer">
+                <button
+                  type="button"
+                  onClick={() => { setPayInterestFd(null); setPayInterestError(''); setPayInterestResult(null); }}
+                  disabled={payInterestLoading}
+                  className="btn-cancel"
+                >
+                  {payInterestResult ? 'Close' : t('btn.cancel')}
+                </button>
+                {!payInterestResult && (
+                  <button
+                    type="button"
+                    disabled={payInterestLoading}
+                    onClick={async () => {
+                      if (payInterestLoading) return;
+                      setPayInterestLoading(true);
+                      setPayInterestError('');
+                      try {
+                        const result = await onPayFdMonthlyInterest(payInterestFd.id, payInterestMode);
+                        setPayInterestResult(result);
+                      } catch (err) {
+                        setPayInterestError(err?.response?.data?.message || 'Payout failed. Please try again.');
+                      } finally {
+                        setPayInterestLoading(false);
+                      }
+                    }}
+                    className="btn-submit"
+                  >
+                    {payInterestLoading ? 'Processing...' : 'Confirm Payout'}
+                  </button>
+                )}
               </div>
             </div>
           </div>

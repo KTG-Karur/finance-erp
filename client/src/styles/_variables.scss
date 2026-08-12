@@ -21,11 +21,81 @@ $text-2xl:    1.25rem;   // 20px
 $text-3xl:    1.375rem;  // 22px
 $text-4xl:    1.625rem;  // 26px
 
-// ── Brand Accent (Emerald Fintech Palette — Stripe/Ramp/Wise style) ──
-$brand-primary:        #059669;   // Emerald 600 (trustworthy, modern finance)
-$brand-primary-light:  #ECFDF5;   // Emerald 50 active background
-$brand-primary-hover:  #047857;   // Rich Hover Emerald 700
-$brand-primary-dark:   #064E3B;   // Deep Header Emerald 900
+// ── Root CSS Variables (Single Source of Truth) ────────────────
+// Two kinds of token live here: the BRAND family (--brand-primary-*) is the
+// only one end users can actually change, via ThemeCustomizerDrawer /
+// themeUtils.js's applyTheme() — every button/link/active-state color in the
+// app pulls from this. The semantic families (danger/warning/info) are fixed
+// UX conventions (red always means destructive, amber always means caution)
+// and are centralized here for maintainability, not for the color picker to
+// touch. The *-rgb variants exist so inline rgba(var(--x-rgb), 0.2) box-shadows
+// can still tint themselves without every component recomputing hex->rgb.
+:root {
+  // Default brand color is Forest Green (#15803D), not the old Emerald
+  // (#059669) — every new login/tenant with no theme_color saved yet starts
+  // here. All derived shades below are computed from #15803D with the same
+  // HSL formula themeUtils.js's generateThemePalette uses, so the picker's
+  // "unsaved" state and this hardcoded default always look identical.
+  --brand-primary:         #15803D;
+  --brand-primary-light:   #F0FEF5;
+  --brand-primary-hover:   #0E5327;
+  --brand-primary-dark:    #054C1F;
+  --brand-primary-border:  #A3F5C1;
+  --brand-primary-text:    #075F27;
+  --brand-primary-rgb:     21, 128, 61;
+
+  // "Deep surface" shades — same hue as --brand-primary, at very low
+  // lightness (6%/8%/10%/13%/18%). These are what the sidebar and the
+  // dashboard welcome banner are actually painted with; without them, those
+  // two of the most visually dominant surfaces in the app stayed a fixed
+  // dark green no matter what brand color was picked.
+  --brand-primary-deep-1:  #041A0C;
+  --brand-primary-deep-2:  #062310;
+  --brand-primary-deep-3:  #072C15;
+  --brand-primary-deep-3-rgb: 7, 44, 21;
+  --brand-primary-deep-4:  #09391B;
+  --brand-primary-deep-5:  #0D4F25;
+  --brand-primary-deep-5-rgb: 13, 79, 37;
+
+  --color-success:         #15803D;
+  --color-success-light:   #F0FEF5;
+  --color-success-border:  #A3F5C1;
+  --color-success-text:    #075F27;
+
+  --color-warning:         #D97706;
+  --color-warning-light:   #FFFBEB;
+  --color-warning-border:  #FDE68A;
+  --color-warning-text:    #92400E;
+  --color-warning-hover:   #B45309;
+  --color-warning-rgb:     217, 119, 6;
+
+  --color-danger:          #DC2626;
+  --color-danger-light:    #FEF2F2;
+  --color-danger-border:   #FECACA;
+  --color-danger-text:     #991B1B;
+  --color-danger-hover:    #B91C1C;
+  --color-danger-rgb:      220, 38, 38;
+
+  --color-info:            #2563EB;
+  --color-info-light:      #EFF6FF;
+  --color-info-border:     #BFDBFE;
+  --color-info-text:       #1E40AF;
+  --color-info-hover:      #1D4ED8;
+  --color-info-rgb:        37, 99, 235;
+
+  --bg-app:                #F8FAFC;
+  --bg-surface:            #FFFFFF;
+  --text-main:             #0F172A;
+  --text-muted:            #64748B;
+  --border-light:          #E2E8F0;
+  --border-base:           #CBD5E1;
+}
+
+// ── Brand Accent Variables mapped to CSS Root Variables ──
+$brand-primary:        var(--brand-primary, #15803D);
+$brand-primary-light:  var(--brand-primary-light, #F0FEF5);
+$brand-primary-hover:  var(--brand-primary-hover, #0E5327);
+$brand-primary-dark:   var(--brand-primary-dark, #054C1F);
 
 // ── Slate Palette (Crisp Light Theme Neutral) ─────────────────
 $neutral-50:           #F8FAFC;
@@ -40,25 +110,25 @@ $neutral-800:          #1E293B;
 $neutral-900:          #0F172A;
 
 // ── Semantic Status Colors ────────────────────────────────────
-$success-bg:           #F0FDF4;
+$success-bg:           var(--brand-primary-light, #F0FEF5);
 $success-text:         #166534;
 $success-border:       #BBF7D0;
 $success-icon:         #22C55E;
 
-$warning-bg:           #FFFBEB;
-$warning-text:         #92400E;
-$warning-border:       #FDE68A;
+$warning-bg:           var(--color-warning-light, #FFFBEB);
+$warning-text:         var(--color-warning-text, #92400E);
+$warning-border:       var(--color-warning-border, #FDE68A);
 $warning-icon:         #F59E0B;
 
-$danger-bg:            #FEF2F2;
-$danger-text:          #991B1B;
-$danger-border:        #FECACA;
+$danger-bg:            var(--color-danger-light, #FEF2F2);
+$danger-text:          var(--color-danger-text, #991B1B);
+$danger-border:        var(--color-danger-border, #FECACA);
 $danger-icon:          #EF4444;
 
-$info-bg:              #ECFDF5;
-$info-text:            #065F46;
-$info-border:          #A7F3D0;
-$info-icon:            #059669;
+$info-bg:              var(--brand-primary-light, #F0FEF5);
+$info-text:            var(--brand-primary-text, #075F27);
+$info-border:          var(--brand-primary-border, #A3F5C1);
+$info-icon:            var(--brand-primary, #15803D);
 
 // ── Surface & Layout ─────────────────────────────────────────
 $surface-app:          #F8FAFC;   // Clean slate app canvas
@@ -74,7 +144,7 @@ $sidebar-text:         #475569;
 $sidebar-text-hover:   #0F172A;
 $sidebar-text-active:  $brand-primary;
 $sidebar-hover-bg:     #F1F5F9;
-$sidebar-active-bg:    #EFF6FF;
+$sidebar-active-bg:    var(--color-info-light, #EFF6FF);
 $sidebar-group-label:  #94A3B8;
 
 // ── Text Hierarchy ────────────────────────────────────────────
@@ -135,7 +205,7 @@ $table-cell-py:          7px;    // Vertical padding
 $table-header-bg:        #F8FAFC;
 $table-header-text:      #475569;
 $table-row-hover:        #F1F5F9;
-$table-row-selected:     #EFF6FF;
+$table-row-selected:     var(--color-info-light, #EFF6FF);
 $table-border:           #E2E8F0;
 $table-stripe:           #FAFAFA;
 

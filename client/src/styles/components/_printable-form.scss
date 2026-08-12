@@ -41,10 +41,10 @@
   }
 
   .btn-print {
-    background: #059669;
+    background: var(--brand-primary, #15803D);
     color: #FFFFFF;
-    border: 1px solid #059669;
-    &:hover { background: #047857; }
+    border: 1px solid var(--brand-primary, #15803D);
+    &:hover { background: var(--brand-primary-hover, #0E5327); }
   }
 
   .btn-close {
@@ -475,8 +475,8 @@
       .mini-avatar-text {
         width: 100%;
         height: 100%;
-        background: #ECFDF5;
-        color: #059669;
+        background: var(--brand-primary-light, #F0FEF5);
+        color: var(--brand-primary, #15803D);
         font-size: 0.85rem;
         font-weight: 500;
         display: flex;
@@ -552,25 +552,25 @@
     }
 
     .btn-modern-danger {
-      background: #FEF2F2;
-      color: #DC2626;
-      border: 1px solid #FCA5A5;
-      &:hover { background: #FEE2E2; }
+      background: var(--color-danger-light, #FEF2F2);
+      color: var(--color-danger, #DC2626);
+      border: 1px solid var(--color-danger-border, #FCA5A5);
+      &:hover { background: var(--color-danger-light, #FEE2E2); }
     }
 
     .btn-modern-success {
-      background: #059669;
+      background: var(--brand-primary, #15803D);
       color: #FFFFFF;
       border: none;
-      box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);
-      &:hover { background: #047857; }
+      box-shadow: 0 2px 8px rgba(var(--brand-primary-rgb), 0.3);
+      &:hover { background: var(--brand-primary-hover, #0E5327); }
     }
 
     .btn-modern-primary {
-      background: #2563EB;
+      background: var(--color-info, #2563EB);
       color: #FFFFFF;
       border: none;
-      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+      box-shadow: 0 2px 8px rgba(var(--color-info-rgb), 0.3);
       &:hover { background: #1D4ED8; }
     }
   }
@@ -618,8 +618,8 @@
         .avatar-fallback {
           width: 100%;
           height: 100%;
-          background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
-          color: #059669;
+          background: linear-gradient(135deg, var(--brand-primary-light, #F0FEF5) 0%, #D1FAE5 100%);
+          color: var(--brand-primary, #15803D);
           font-weight: 800;
           font-size: 1.35rem;
           display: flex;
@@ -654,9 +654,9 @@
             font-weight: 700;
             padding: 3px 10px;
             border-radius: 20px;
-            background: #ECFDF5;
-            color: #059669;
-            border: 1px solid #A7F3D0;
+            background: var(--brand-primary-light, #F0FEF5);
+            color: var(--brand-primary, #15803D);
+            border: 1px solid var(--brand-primary-border, #A3F5C1);
           }
         }
 
@@ -702,7 +702,7 @@
           font-size: 1.1rem;
           font-weight: 700;
           color: #0F172A;
-          &.highlight { color: #059669; }
+          &.highlight { color: var(--brand-primary, #15803D); }
         }
 
         .kpi-sub {
@@ -764,8 +764,8 @@
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
 
       &.declaration-card-bg {
-        background: linear-gradient(135deg, #FFFFFF 0%, #ECFDF5 100%);
-        border-color: #A7F3D0;
+        background: linear-gradient(135deg, #FFFFFF 0%, var(--brand-primary-light, #F0FEF5) 100%);
+        border-color: var(--brand-primary-border, #A3F5C1);
       }
 
       .card-section-header {
@@ -782,10 +782,10 @@
           justify-content: center;
           flex-shrink: 0;
 
-          &.bg-blue { background: #EFF6FF; border: 1px solid #BFDBFE; }
-          &.bg-emerald { background: #ECFDF5; border: 1px solid #A7F3D0; }
+          &.bg-blue { background: var(--color-info-light, #EFF6FF); border: 1px solid var(--color-info-border, #BFDBFE); }
+          &.bg-emerald { background: var(--brand-primary-light, #F0FEF5); border: 1px solid var(--brand-primary-border, #A3F5C1); }
           &.bg-purple { background: #F5F3FF; border: 1px solid #DDD6FE; }
-          &.bg-amber { background: #FFFBEB; border: 1px solid #FDE68A; }
+          &.bg-amber { background: var(--color-warning-light, #FFFBEB); border: 1px solid var(--color-warning-border, #FDE68A); }
           &.bg-slate { background: #F8FAFC; border: 1px solid #E2E8F0; }
         }
 
@@ -836,9 +836,9 @@
 
             &.text-bold { font-weight: 700; }
             &.text-lg { font-size: 1.05rem; }
-            &.text-emerald { color: #059669; }
-            &.text-blue { color: #2563EB; }
-            &.text-amber { color: #D97706; }
+            &.text-emerald { color: var(--brand-primary, #15803D); }
+            &.text-blue { color: var(--color-info, #2563EB); }
+            &.text-amber { color: var(--color-warning, #D97706); }
             &.monospace { font-family: monospace; font-size: 0.88rem; letter-spacing: 0.04em; }
             &.uppercase { text-transform: uppercase; }
 
@@ -859,9 +859,9 @@
               width: fit-content;
               padding: 2px 10px;
               border-radius: 20px;
-              background: #EFF6FF;
-              color: #2563EB;
-              border: 1px solid #BFDBFE;
+              background: var(--color-info-light, #EFF6FF);
+              color: var(--color-info, #2563EB);
+              border: 1px solid var(--color-info-border, #BFDBFE);
               font-weight: 700;
               font-size: 0.72rem;
             }
@@ -929,12 +929,12 @@
             align-items: center;
             justify-content: center;
             gap: 6px;
-            background: #EFF6FF;
+            background: var(--color-info-light, #EFF6FF);
 
             .doc-type-label {
               font-size: 0.7rem;
               font-weight: 700;
-              color: #2563EB;
+              color: var(--color-info, #2563EB);
             }
           }
 
@@ -957,13 +957,13 @@
             }
 
             .btn-dl-file {
-              color: #2563EB;
+              color: var(--color-info, #2563EB);
               display: flex;
               align-items: center;
               justify-content: center;
               padding: 4px;
               border-radius: 4px;
-              &:hover { background: #EFF6FF; }
+              &:hover { background: var(--color-info-light, #EFF6FF); }
             }
           }
         }
@@ -1032,6 +1032,185 @@
       }
     }
   }
+}
+
+// Annexure Sheet — Attached KYC Document Scans (Sheet 2)
+.annexure-header-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 2px solid #000000;
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+
+  .annexure-title {
+    h2 {
+      margin: 0 0 4px 0;
+      font-size: 1.02rem;
+      font-weight: 800;
+      color: #000000;
+    }
+
+    p {
+      margin: 0;
+      font-size: 0.8rem;
+      color: #000000;
+    }
+  }
+
+  .annexure-count {
+    flex-shrink: 0;
+    span {
+      display: inline-block;
+      border: 1px solid #000000;
+      padding: 4px 10px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #000000;
+      white-space: nowrap;
+    }
+  }
+}
+
+.bank-doc-proofs-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.bank-doc-card {
+  border: 1px solid #000000;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  break-inside: avoid;
+
+  .doc-type-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #000000;
+    text-transform: capitalize;
+  }
+
+  .doc-image-preview {
+    width: 100%;
+    height: 160px;
+    object-fit: contain;
+    border: 1px dashed #000000;
+    background: #FAFAFA;
+  }
+
+  .doc-fallback {
+    width: 100%;
+    height: 160px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px dashed #000000;
+    background: #FAFAFA;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #000000;
+    text-align: center;
+    padding: 8px;
+    word-break: break-all;
+  }
+}
+
+.page-break {
+  page-break-before: always;
+  break-before: page;
+}
+
+// Customer Registration Confirmation Dialog + Success Tick
+.cf-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cf-confirm-card {
+  width: 100%;
+  max-width: 380px;
+  margin: 0 16px;
+  background: #FFFFFF;
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  animation: cfConfirmPop 0.18s ease-out;
+
+  .cf-confirm-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--color-warning-light, #FFFBEB);
+    color: var(--color-warning, #D97706);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 12px auto;
+  }
+
+  h3 {
+    margin: 0 0 8px 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #0F172A;
+  }
+
+  p {
+    margin: 0 0 18px 0;
+    font-size: 0.85rem;
+    color: #64748B;
+    line-height: 1.4;
+  }
+
+  .cf-confirm-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+  }
+}
+
+.cf-success-overlay {
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.cf-success-tick {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  color: var(--brand-primary, #15803D);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+  animation: cfTickPop 0.3s ease-out;
+}
+
+@keyframes cfConfirmPop {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes cfTickPop {
+  0% { opacity: 0; transform: scale(0.4); }
+  60% { opacity: 1; transform: scale(1.12); }
+  100% { opacity: 1; transform: scale(1); }
 }
 
 // Lightbox Modal Card

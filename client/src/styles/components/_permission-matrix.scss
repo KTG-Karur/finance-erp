@@ -93,7 +93,7 @@
         transition: border-color 0.15s ease;
 
         &:focus-within {
-          border-color: #2563EB;
+          border-color: var(--color-info, #2563EB);
         }
 
         input {
@@ -151,7 +151,7 @@
       }
 
       .save-toast {
-        color: #059669;
+        color: var(--brand-primary, #15803D);
         font-size: 0.75rem;
         font-weight: 600;
         display: flex;
@@ -160,7 +160,7 @@
       }
 
       .btn-save-matrix {
-        background: #059669;
+        background: var(--brand-primary, #15803D);
         color: #FFFFFF;
         border: none;
         border-radius: 7px;
@@ -174,7 +174,7 @@
         transition: background 0.15s ease;
 
         &:hover {
-          background: #047857;
+          background: var(--brand-primary-hover, #0E5327);
         }
       }
     }
@@ -329,7 +329,7 @@
 
             &--active {
               background: #FFFFFF;
-              border-color: var(--role-color, #2563EB);
+              border-color: var(--role-color, var(--color-info, #2563EB));
               box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
             }
 
@@ -363,7 +363,7 @@
               }
 
               &--active {
-                background: var(--role-color, #2563EB);
+                background: var(--role-color, var(--color-info, #2563EB));
 
                 &::after {
                   transform: translateX(14px);

@@ -1,189 +1,141 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Check, Save, ChevronDown, ChevronRight, User, Lock } from 'lucide-react';
+import { Shield, Check, Save, ChevronDown, ChevronRight } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 
+// This is the REAL, enforceable permission vocabulary — it mirrors exactly what
+// every route's moduleGuard(module, action) check on the server actually reads
+// (see each *.routes.js file). A permission toggled here that isn't in this list
+// would be pure UI theater with no backend effect, so this list must stay in
+// sync with the server's guards whenever a route's module/action changes.
+const MODULES = [
+  { id: 'DASHBOARD', labelKey: 'rbac.mod.dashboard', actions: ['VIEW'] },
+  { id: 'LOANS', labelKey: 'rbac.mod.loans', actions: ['VIEW', 'CREATE', 'APPROVE'] },
+  { id: 'BORROWERS', labelKey: 'rbac.mod.borrowers', actions: ['VIEW', 'CREATE', 'EDIT', 'DELETE'] },
+  { id: 'COLLECTIONS', labelKey: 'rbac.mod.collections', actions: ['VIEW', 'COLLECT', 'REVERT'] },
+  { id: 'SCHEMES', labelKey: 'rbac.mod.schemes', actions: ['VIEW', 'CREATE', 'EDIT', 'DELETE'] },
+  { id: 'NPA', labelKey: 'rbac.mod.npa', actions: ['VIEW'] },
+  { id: 'LEDGER', labelKey: 'rbac.mod.ledger', actions: ['VIEW', 'POST'] },
+  { id: 'INVESTORS', labelKey: 'rbac.mod.investors', actions: ['VIEW', 'CREATE', 'EDIT', 'DELETE'] },
+  { id: 'FIXED_DEPOSITS', labelKey: 'rbac.mod.fixed_deposits', actions: ['VIEW', 'CREATE', 'MATURE', 'CLOSE', 'PAY_INTEREST'] },
+  { id: 'RECURRING_DEPOSITS', labelKey: 'rbac.mod.recurring_deposits', actions: ['VIEW', 'CREATE', 'COLLECT', 'MATURE', 'CLOSE'] },
+  { id: 'EXPENSES', labelKey: 'rbac.mod.expenses', actions: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'FUND', 'VOUCHER'] },
+  { id: 'ORG', labelKey: 'rbac.mod.org', actions: ['VIEW', 'CREATE', 'EDIT', 'DELETE'] },
+  { id: 'EMPLOYEES', labelKey: 'rbac.mod.employees', actions: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'PERMISSIONS'] }
+];
+
+// Human labels for every action across every module above — this list is a
+// superset (one flat namespace), which is fine since actions are always
+// rendered scoped to their own module in the UI.
+const ACTION_LABELS = {
+  VIEW: 'View',
+  CREATE: 'Create',
+  EDIT: 'Edit',
+  DELETE: 'Delete',
+  APPROVE: 'Approve / Change Status',
+  COLLECT: 'Collect Payment',
+  REVERT: 'Revert / Correct Collection',
+  POST: 'Post Voucher',
+  MATURE: 'Mark Matured',
+  CLOSE: 'Premature Close',
+  PAY_INTEREST: 'Pay Monthly Interest',
+  FUND: 'Add Funds',
+  VOUCHER: 'Create Voucher',
+  PERMISSIONS: 'Manage Permissions'
+};
+
+// Must match the real `users.role` ENUM exactly (see the tenant migration) —
+// picking a value outside this list fails at the database with a raw
+// "Data truncated for column 'role'" error, since MySQL enforces the ENUM.
 function useRoles() {
   const { t } = useLanguage();
   return [
-    { id: 'SUPER_ADMIN', name: t('rbac.role.super_admin') },
+    { id: 'ADMIN', name: t('rbac.role.super_admin') },
     { id: 'MANAGER', name: t('rbac.role.manager') },
     { id: 'COLLECTOR', name: t('rbac.role.collector') },
-    { id: 'ACCOUNTANT', name: t('rbac.role.accountant') }
+    { id: 'STAFF', name: t('rbac.role.staff') }
   ];
 }
 
-function useModules() {
-  const { t } = useLanguage();
-  return [
-    {
-      id: 'WORKSPACE',
-      label: t('rbac.mod.workspace'),
-      actions: [
-        { id: 'VIEW_DASHBOARD', label: t('rbac.act.view_dashboard') },
-        { id: 'VIEW_OPERATIONS', label: t('rbac.act.view_operations') }
-      ]
-    },
-    {
-      id: 'LOANS',
-      label: t('rbac.mod.loans'),
-      actions: [
-        { id: 'LOANS_APPLICATIONS', label: t('rbac.act.loans_applications') },
-        { id: 'LOANS_APPROVE_REJECT', label: t('rbac.act.loans_approve_reject') },
-        { id: 'LOANS_SUBMIT_NEW', label: t('rbac.act.loans_submit_new') },
-        { id: 'LOANS_ACTIVE', label: t('rbac.act.loans_active') },
-        { id: 'LOANS_CLOSED', label: t('rbac.act.loans_closed') },
-        { id: 'LOANS_DISBURSE', label: t('rbac.act.loans_disburse') },
-        { id: 'LOANS_EDIT', label: t('rbac.act.loans_edit') }
-      ]
-    },
-    {
-      id: 'COLLECTIONS',
-      label: t('rbac.mod.collections'),
-      actions: [
-        { id: 'COLLECT_PAYMENT', label: t('rbac.act.collect_payment') },
-        { id: 'VIEW_COLLECTIONS_LOG', label: t('rbac.act.view_collections_log') },
-        { id: 'PRINT_RECEIPTS', label: t('rbac.act.print_receipts') },
-        { id: 'REVERT_COLLECTION', label: t('rbac.act.revert_collection') },
-        { id: 'EXPORT_COLLECTIONS', label: t('rbac.act.export_collections') }
-      ]
-    },
-    {
-      id: 'INVESTMENTS',
-      label: t('rbac.mod.investments'),
-      actions: [
-        { id: 'INVESTORS_VIEW', label: t('rbac.act.investors_view') },
-        { id: 'INVESTORS_TRANSACT', label: t('rbac.act.investors_transact') },
-        { id: 'FD_VIEW', label: t('rbac.act.fd_view') },
-        { id: 'FD_CREATE', label: t('rbac.act.fd_create') }
-      ]
-    },
-    {
-      id: 'FINANCE',
-      label: t('rbac.mod.finance'),
-      actions: [
-        { id: 'CASH_BOOK', label: t('rbac.act.cash_book') },
-        { id: 'GENERAL_LEDGER', label: t('rbac.act.general_ledger') },
-        { id: 'EXPENSE_VOUCHERS', label: t('rbac.act.expense_vouchers') },
-        { id: 'INCOME_STATEMENT', label: t('rbac.act.income_statement') }
-      ]
-    },
-    {
-      id: 'MASTERS',
-      label: t('rbac.mod.masters'),
-      actions: [
-        { id: 'ORG_HIERARCHY', label: t('rbac.act.org_hierarchy') },
-        { id: 'STAFF_DIRECTORY', label: t('rbac.act.staff_directory') },
-        { id: 'CUSTOMER_KYC', label: t('rbac.act.customer_kyc') },
-        { id: 'LOAN_SCHEMES', label: t('rbac.act.loan_schemes') },
-        { id: 'ACCOUNTING_MASTERS', label: t('rbac.act.accounting_masters') },
-        { id: 'RBAC_MANAGEMENT', label: t('rbac.act.rbac_management') }
-      ]
-    }
-  ];
+// Server-side default when no row exists for a (module, action) pair is ALLOW
+// (see moduleGuard.js) — so an unconfigured staff member starts fully checked
+// here too, matching what they can actually do today, rather than a fabricated
+// role-based guess.
+function allAllowed() {
+  const flags = {};
+  MODULES.forEach(mod => mod.actions.forEach(action => { flags[`${mod.id}_${action}`] = true; }));
+  return flags;
 }
 
-const DEFAULT_ROLE_PERMISSIONS = {
-  SUPER_ADMIN: {
-    WORKSPACE_VIEW_DASHBOARD: true, WORKSPACE_VIEW_OPERATIONS: true,
-    LOANS_LOANS_APPLICATIONS: true, LOANS_LOANS_APPROVE_REJECT: true, LOANS_LOANS_SUBMIT_NEW: true, LOANS_LOANS_ACTIVE: true, LOANS_LOANS_CLOSED: true, LOANS_LOANS_DISBURSE: true, LOANS_LOANS_EDIT: true,
-    COLLECTIONS_COLLECT_PAYMENT: true, COLLECTIONS_VIEW_COLLECTIONS_LOG: true, COLLECTIONS_PRINT_RECEIPTS: true, COLLECTIONS_REVERT_COLLECTION: true, COLLECTIONS_EXPORT_COLLECTIONS: true,
-    INVESTMENTS_INVESTORS_VIEW: true, INVESTMENTS_INVESTORS_TRANSACT: true, INVESTMENTS_FD_VIEW: true, INVESTMENTS_FD_CREATE: true,
-    FINANCE_CASH_BOOK: true, FINANCE_GENERAL_LEDGER: true, FINANCE_EXPENSE_VOUCHERS: true, FINANCE_INCOME_STATEMENT: true,
-    MASTERS_ORG_HIERARCHY: true, MASTERS_STAFF_DIRECTORY: true, MASTERS_CUSTOMER_KYC: true, MASTERS_LOAN_SCHEMES: true, MASTERS_ACCOUNTING_MASTERS: true, MASTERS_RBAC_MANAGEMENT: true
-  },
-  MANAGER: {
-    WORKSPACE_VIEW_DASHBOARD: true, WORKSPACE_VIEW_OPERATIONS: true,
-    LOANS_LOANS_APPLICATIONS: true, LOANS_LOANS_APPROVE_REJECT: true, LOANS_LOANS_SUBMIT_NEW: true, LOANS_LOANS_ACTIVE: true, LOANS_LOANS_CLOSED: true, LOANS_LOANS_DISBURSE: true, LOANS_LOANS_EDIT: true,
-    COLLECTIONS_COLLECT_PAYMENT: true, COLLECTIONS_VIEW_COLLECTIONS_LOG: true, COLLECTIONS_PRINT_RECEIPTS: true, COLLECTIONS_REVERT_COLLECTION: true, COLLECTIONS_EXPORT_COLLECTIONS: true,
-    INVESTMENTS_INVESTORS_VIEW: true, INVESTMENTS_INVESTORS_TRANSACT: true, INVESTMENTS_FD_VIEW: true, INVESTMENTS_FD_CREATE: true,
-    FINANCE_CASH_BOOK: true, FINANCE_GENERAL_LEDGER: true, FINANCE_EXPENSE_VOUCHERS: true, FINANCE_INCOME_STATEMENT: true,
-    MASTERS_ORG_HIERARCHY: false, MASTERS_STAFF_DIRECTORY: true, MASTERS_CUSTOMER_KYC: true, MASTERS_LOAN_SCHEMES: false, MASTERS_ACCOUNTING_MASTERS: true, MASTERS_RBAC_MANAGEMENT: false
-  },
-  COLLECTOR: {
-    WORKSPACE_VIEW_DASHBOARD: true, WORKSPACE_VIEW_OPERATIONS: true,
-    LOANS_LOANS_APPLICATIONS: false, LOANS_LOANS_APPROVE_REJECT: false, LOANS_LOANS_SUBMIT_NEW: true, LOANS_LOANS_ACTIVE: true, LOANS_LOANS_CLOSED: false, LOANS_LOANS_DISBURSE: false, LOANS_LOANS_EDIT: false,
-    COLLECTIONS_COLLECT_PAYMENT: true, COLLECTIONS_VIEW_COLLECTIONS_LOG: true, COLLECTIONS_PRINT_RECEIPTS: true, COLLECTIONS_REVERT_COLLECTION: false, COLLECTIONS_EXPORT_COLLECTIONS: false,
-    INVESTMENTS_INVESTORS_VIEW: false, INVESTMENTS_INVESTORS_TRANSACT: false, INVESTMENTS_FD_VIEW: false, INVESTMENTS_FD_CREATE: false,
-    FINANCE_CASH_BOOK: false, FINANCE_GENERAL_LEDGER: false, FINANCE_EXPENSE_VOUCHERS: false, FINANCE_INCOME_STATEMENT: false,
-    MASTERS_ORG_HIERARCHY: false, MASTERS_STAFF_DIRECTORY: false, MASTERS_CUSTOMER_KYC: true, MASTERS_LOAN_SCHEMES: false, MASTERS_ACCOUNTING_MASTERS: false, MASTERS_RBAC_MANAGEMENT: false
-  },
-  ACCOUNTANT: {
-    WORKSPACE_VIEW_DASHBOARD: true, WORKSPACE_VIEW_OPERATIONS: false,
-    LOANS_LOANS_APPLICATIONS: true, LOANS_LOANS_APPROVE_REJECT: false, LOANS_LOANS_SUBMIT_NEW: false, LOANS_LOANS_ACTIVE: true, LOANS_LOANS_CLOSED: true, LOANS_LOANS_DISBURSE: false, LOANS_LOANS_EDIT: false,
-    COLLECTIONS_COLLECT_PAYMENT: true, COLLECTIONS_VIEW_COLLECTIONS_LOG: true, COLLECTIONS_PRINT_RECEIPTS: true, COLLECTIONS_REVERT_COLLECTION: true, COLLECTIONS_EXPORT_COLLECTIONS: true,
-    INVESTMENTS_INVESTORS_VIEW: true, INVESTMENTS_INVESTORS_TRANSACT: true, INVESTMENTS_FD_VIEW: true, INVESTMENTS_FD_CREATE: false,
-    FINANCE_CASH_BOOK: true, FINANCE_GENERAL_LEDGER: true, FINANCE_EXPENSE_VOUCHERS: true, FINANCE_INCOME_STATEMENT: true,
-    MASTERS_ORG_HIERARCHY: false, MASTERS_STAFF_DIRECTORY: false, MASTERS_CUSTOMER_KYC: true, MASTERS_LOAN_SCHEMES: false, MASTERS_ACCOUNTING_MASTERS: true, MASTERS_RBAC_MANAGEMENT: false
-  }
-};
+// The server hands back permissions as rows: [{ module, action, allowed }, ...].
+// Only rows that were ever explicitly toggled exist — anything missing defaults
+// to allowed (see allAllowed() above), so we start from that and overlay rows.
+function rowsToFlags(rows) {
+  const flags = allAllowed();
+  (rows || []).forEach(r => { flags[`${r.module}_${r.action}`] = Boolean(r.allowed); });
+  return flags;
+}
 
-export default function PermissionMatrix({ initialRole = 'MANAGER', selectedStaffMember = null, onSaveStaffPermissions }) {
+function flagsToRows(flags) {
+  return Object.entries(flags).map(([key, allowed]) => {
+    const idx = key.lastIndexOf('_');
+    return { module: key.slice(0, idx), action: key.slice(idx + 1), allowed };
+  });
+}
+
+export default function PermissionMatrix({ initialRole = 'MANAGER', selectedStaffMember = null, employees = [], onSaveStaffPermissions }) {
   const { t } = useLanguage();
   const ROLES = useRoles();
-  const MODULES = useModules();
-  const normalizeRole = (r) => {
-    if (!r) return 'MANAGER';
-    if (r === 'ADMIN') return 'SUPER_ADMIN';
-    return r;
-  };
 
-  const currentRole = normalizeRole(selectedStaffMember?.role || initialRole);
+  const currentRole = selectedStaffMember?.role || initialRole;
   const [selectedRole, setSelectedRole] = useState(currentRole);
-  const [selectedScope, setSelectedScope] = useState(selectedStaffMember?.scope || (currentRole === 'SUPER_ADMIN' ? 'ALL_BRANCHES' : 'OWN_BRANCH'));
-  const [currentStaffPermissions, setCurrentStaffPermissions] = useState(() => {
-    if (selectedStaffMember?.permissions && Object.keys(selectedStaffMember.permissions).length > 0) {
-      return { ...selectedStaffMember.permissions };
-    }
-    return { ...(DEFAULT_ROLE_PERMISSIONS[currentRole] || {}) };
-  });
-
+  const [flags, setFlags] = useState(() => rowsToFlags(selectedStaffMember?.permissions));
+  const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [expandedModules, setExpandedModules] = useState({});
 
   useEffect(() => {
-    const roleKey = normalizeRole(selectedStaffMember?.role || initialRole);
-    setSelectedRole(roleKey);
-    setSelectedScope(selectedStaffMember?.scope || (roleKey === 'SUPER_ADMIN' ? 'ALL_BRANCHES' : 'OWN_BRANCH'));
-    if (selectedStaffMember?.permissions && Object.keys(selectedStaffMember.permissions).length > 0) {
-      setCurrentStaffPermissions({ ...selectedStaffMember.permissions });
-    } else {
-      setCurrentStaffPermissions({ ...(DEFAULT_ROLE_PERMISSIONS[roleKey] || {}) });
-    }
+    setSelectedRole(selectedStaffMember?.role || initialRole);
+    setFlags(rowsToFlags(selectedStaffMember?.permissions));
+    setSaveError('');
   }, [selectedStaffMember, initialRole]);
 
   const toggleAccordion = (modId) => {
-    setExpandedModules(prev => ({
-      ...prev,
-      [modId]: !prev[modId]
-    }));
+    setExpandedModules(prev => ({ ...prev, [modId]: !prev[modId] }));
   };
 
-  const togglePerm = (moduleId, actionId) => {
-    const key = `${moduleId}_${actionId}`;
-    setCurrentStaffPermissions(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
+  const toggleAction = (moduleId, action) => {
+    const key = `${moduleId}_${action}`;
+    setFlags(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   const toggleModuleAll = (moduleObj, check, e) => {
     e?.stopPropagation();
-    const updated = { ...currentStaffPermissions };
-    moduleObj.actions.forEach(act => {
-      updated[`${moduleObj.id}_${act.id}`] = check;
+    setFlags(prev => {
+      const updated = { ...prev };
+      moduleObj.actions.forEach(action => { updated[`${moduleObj.id}_${action}`] = check; });
+      return updated;
     });
-    setCurrentStaffPermissions(updated);
   };
 
-  const handleSave = () => {
-    if (onSaveStaffPermissions) {
-      onSaveStaffPermissions(selectedStaffMember?.id || null, selectedRole, currentStaffPermissions, selectedScope);
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    setSaveError('');
+    try {
+      await onSaveStaffPermissions?.(selectedStaffMember?.id || null, selectedRole, flagsToRows(flags));
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3000);
+    } catch (err) {
+      setSaveError(err?.response?.data?.message || 'Failed to save permissions.');
+    } finally {
+      setSaving(false);
     }
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
   };
 
   const getRoleName = (id) => ROLES.find(r => r.id === id)?.name || id;
+  const employeeRoleForCount = selectedRole === 'SUPER_ADMIN' ? 'ADMIN' : selectedRole;
+  const affectedCount = employees.filter(e => e.role === employeeRoleForCount).length;
 
   return (
     <div style={{
@@ -198,7 +150,6 @@ export default function PermissionMatrix({ initialRole = 'MANAGER', selectedStaf
       color: '#0F172A',
       boxSizing: 'border-box'
     }}>
-      {/* 1. Header Toolbar */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -214,208 +165,131 @@ export default function PermissionMatrix({ initialRole = 'MANAGER', selectedStaf
             {selectedStaffMember ? t('rbac.staff_role_label') : t('rbac.select_role_label')}
           </label>
 
-          {/* Locked Role Display for Specific Staff, or Select Dropdown for Global RBAC */}
           {selectedStaffMember ? (
             <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              background: '#F1F5F9',
-              border: '1px solid #CBD5E1',
-              padding: '6px 14px',
-              borderRadius: 8,
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              color: '#0F172A'
+              display: 'inline-flex', alignItems: 'center', gap: 8, background: '#F1F5F9',
+              border: '1px solid #CBD5E1', padding: '6px 14px', borderRadius: 8,
+              fontSize: '0.85rem', fontWeight: 600, color: '#0F172A'
             }}>
-              <Shield style={{ width: 16, height: 16, color: '#059669' }} />
-              <span>{getRoleName(selectedRole)}</span>
-            </div>
-          ) : (
-            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-              <Shield style={{ position: 'absolute', left: 12, width: 16, height: 16, color: '#059669' }} />
+              <Shield style={{ width: 16, height: 16, color: 'var(--brand-primary, #15803D)' }} />
               <select
                 value={selectedRole}
                 onChange={(e) => setSelectedRole(e.target.value)}
-                style={{
-                  height: 40,
-                  padding: '0 36px 0 36px',
-                  borderRadius: 8,
-                  border: '1px solid #CBD5E1',
-                  fontSize: '0.9rem',
-                  fontWeight: 600,
-                  color: '#0F172A',
-                  background: '#FFFFFF',
-                  cursor: 'pointer',
-                  outline: 'none'
-                }}
+                style={{ border: 'none', background: 'transparent', fontSize: '0.85rem', fontWeight: 600, color: '#0F172A', outline: 'none', cursor: 'pointer' }}
               >
-                {ROLES.map(r => (
-                  <option key={r.id} value={r.id}>
-                    {r.name} ({r.id})
-                  </option>
-                ))}
+                {ROLES.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+            </div>
+          ) : (
+            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+              <Shield style={{ position: 'absolute', left: 12, width: 16, height: 16, color: 'var(--brand-primary, #15803D)' }} />
+              <select
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value)}
+                style={{ height: 40, padding: '0 36px 0 36px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.9rem', fontWeight: 600, color: '#0F172A', background: '#FFFFFF', cursor: 'pointer', outline: 'none' }}
+              >
+                {ROLES.map(r => <option key={r.id} value={r.id}>{r.name} ({r.id})</option>)}
               </select>
             </div>
           )}
 
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 4 }}>
-            <label style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 500 }}>{t('rbac.scope_label')}</label>
-            <select
-              value={selectedScope}
-              onChange={(e) => setSelectedScope(e.target.value)}
-              title={t('rbac.scope_hint')}
-              style={{
-                height: 34, padding: '0 10px', borderRadius: 8, border: '1px solid #CBD5E1',
-                fontSize: '0.78rem', fontWeight: 600, color: '#0F172A', background: '#FFFFFF', cursor: 'pointer'
-              }}
-            >
-              <option value="OWN_BRANCH">{t('rbac.scope_own_branch')}</option>
-              <option value="OWN_REGION">{t('rbac.scope_own_region')}</option>
-              <option value="ALL_BRANCHES">{t('rbac.scope_all_branches')}</option>
-            </select>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {savedSuccess && (
-            <span style={{ color: '#059669', fontSize: '0.82rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Check style={{ width: 16, height: 16 }} /> {t('rbac.saved_permissions_for')} {selectedStaffMember?.name || t('rbac.role_word')}!
+          {!selectedStaffMember && affectedCount > 0 && (
+            <span style={{
+              fontSize: '0.7rem', fontWeight: 500, padding: '3px 8px', borderRadius: 20,
+              background: 'var(--brand-primary-light, #F0FEF5)',
+              color: 'var(--brand-primary-text, #075F27)',
+              border: '1px solid var(--brand-primary-border, #A3F5C1)'
+            }}>
+              Applies to {affectedCount} staff member{affectedCount === 1 ? '' : 's'} with this role
             </span>
           )}
+        </div>
 
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {saveError && <span style={{ color: 'var(--color-danger, #DC2626)', fontSize: '0.75rem', fontWeight: 500 }}>{saveError}</span>}
+          {savedSuccess && (
+            <span style={{ color: 'var(--brand-primary, #15803D)', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Check style={{ width: 14, height: 14 }} /> {t('rbac.saved_permissions_for')} {selectedStaffMember?.name || t('rbac.role_word')}!
+            </span>
+          )}
           <button
             type="button"
             onClick={handleSave}
+            disabled={saving}
             style={{
-              background: '#059669',
-              color: '#FFFFFF',
-              border: 'none',
-              borderRadius: 8,
-              padding: '9px 20px',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              boxShadow: '0 2px 8px rgba(5, 150, 105, 0.2)'
+              background: saving ? '#94A3B8' : 'var(--brand-primary, #15803D)', color: '#FFFFFF', border: 'none', borderRadius: 7,
+              padding: '7px 16px', fontSize: '0.78rem', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: saving ? 'none' : '0 2px 6px rgba(var(--brand-primary-rgb), 0.2)'
             }}
           >
-            <Save style={{ width: 15, height: 15 }} />
-            <span>{t('rbac.save_btn')}</span>
+            <Save style={{ width: 14, height: 14 }} />
+            <span>{saving ? 'Saving...' : t('rbac.save_btn')}</span>
           </button>
         </div>
       </div>
 
-      {/* 2. Collapsible Accordion Permissions List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {MODULES.map(mod => {
-          const keys = mod.actions.map(a => `${mod.id}_${a.id}`);
-          const allChecked = keys.every(k => currentStaffPermissions[k]);
-          const checkedCount = keys.filter(k => currentStaffPermissions[k]).length;
+          const keys = mod.actions.map(a => `${mod.id}_${a}`);
+          const allChecked = keys.every(k => flags[k]);
+          const checkedCount = keys.filter(k => flags[k]).length;
           const isExpanded = Boolean(expandedModules[mod.id]);
 
           return (
-            <div key={mod.id} style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
-              
-              {/* Accordion Header Bar */}
+            <div key={mod.id} style={{ border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'hidden' }}>
               <div
                 onClick={() => toggleAccordion(mod.id)}
                 style={{
-                  background: '#F8FAFC',
-                  padding: '12px 16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  cursor: 'pointer',
-                  userSelect: 'none',
+                  background: '#F8FAFC', padding: '10px 14px', display: 'flex', alignItems: 'center',
+                  justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none',
                   borderBottom: isExpanded ? '1px solid #E2E8F0' : 'none'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ color: '#64748B', display: 'flex', alignItems: 'center' }}>
-                    {isExpanded ? (
-                      <ChevronDown style={{ width: 18, height: 18 }} />
-                    ) : (
-                      <ChevronRight style={{ width: 18, height: 18 }} />
-                    )}
+                    {isExpanded ? <ChevronDown style={{ width: 16, height: 16 }} /> : <ChevronRight style={{ width: 16, height: 16 }} />}
                   </div>
-
-                  <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 600, color: '#0F172A' }}>
-                    {mod.label}
-                  </h4>
-
+                  <h4 style={{ margin: 0, fontSize: '0.84rem', fontWeight: 600, color: '#0F172A' }}>{t(mod.labelKey)}</h4>
                   <span style={{
-                    fontSize: '0.72rem',
-                    color: checkedCount > 0 ? '#059669' : '#64748B',
-                    background: checkedCount > 0 ? '#ECFDF5' : '#F1F5F9',
-                    border: `1px solid ${checkedCount > 0 ? '#A7F3D0' : '#E2E8F0'}`,
-                    padding: '2px 8px',
-                    borderRadius: 12,
-                    fontWeight: 500
+                    fontSize: '0.68rem', color: checkedCount > 0 ? 'var(--brand-primary, #15803D)' : '#64748B',
+                    background: checkedCount > 0 ? 'var(--brand-primary-light, #F0FEF5)' : '#F1F5F9', border: `1px solid ${checkedCount > 0 ? 'var(--brand-primary-border, #A3F5C1)' : '#E2E8F0'}`,
+                    padding: '1px 7px', borderRadius: 10, fontWeight: 500
                   }}>
                     {checkedCount} / {mod.actions.length} {t('rbac.granted_suffix')}
                   </span>
                 </div>
-
-                <label
-                  onClick={(e) => e.stopPropagation()}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#059669', cursor: 'pointer', fontWeight: 500 }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={allChecked}
-                    onChange={(e) => toggleModuleAll(mod, e.target.checked, e)}
-                    style={{ accentColor: '#059669', cursor: 'pointer' }}
-                  />
+                <label onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', color: 'var(--brand-primary, #15803D)', cursor: 'pointer', fontWeight: 500 }}>
+                  <input type="checkbox" checked={allChecked} onChange={(e) => toggleModuleAll(mod, e.target.checked, e)} style={{ accentColor: 'var(--brand-primary, #15803D)', cursor: 'pointer' }} />
                   <span>{t('rbac.select_all')}</span>
                 </label>
               </div>
 
-              {/* Collapsible Accordion Body (Checkbox Items) */}
               {isExpanded && (
-                <div style={{ padding: '14px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12, background: '#FFFFFF' }}>
-                  {mod.actions.map(act => {
-                    const key = `${mod.id}_${act.id}`;
-                    const isChecked = Boolean(currentStaffPermissions[key]);
-
+                <div style={{ padding: '10px 14px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8, background: '#FFFFFF' }}>
+                  {mod.actions.map(action => {
+                    const key = `${mod.id}_${action}`;
+                    const isChecked = Boolean(flags[key]);
                     return (
                       <label
-                        key={act.id}
+                        key={action}
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 10,
-                          fontSize: '0.84rem',
-                          color: isChecked ? '#0F172A' : '#475569',
-                          fontWeight: isChecked ? 500 : 400,
-                          cursor: 'pointer',
-                          userSelect: 'none',
-                          padding: '6px 8px',
-                          borderRadius: 6,
-                          background: isChecked ? '#F0FDF4' : 'transparent',
-                          transition: 'background 0.15s ease'
+                          display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.78rem',
+                          color: isChecked ? '#0F172A' : '#475569', fontWeight: isChecked ? 500 : 400,
+                          cursor: 'pointer', userSelect: 'none', padding: '5px 7px', borderRadius: 5,
+                          background: isChecked ? 'var(--brand-primary-light, #F0FDF4)' : 'transparent'
                         }}
                       >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => togglePerm(mod.id, act.id)}
-                          style={{ width: 16, height: 16, accentColor: '#059669', cursor: 'pointer' }}
-                        />
-                        <span>{act.label}</span>
+                        <input type="checkbox" checked={isChecked} onChange={() => toggleAction(mod.id, action)} style={{ width: 14, height: 14, accentColor: 'var(--brand-primary, #15803D)', cursor: 'pointer' }} />
+                        <span>{ACTION_LABELS[action] || action}</span>
                       </label>
                     );
                   })}
                 </div>
               )}
-
             </div>
           );
         })}
       </div>
-
     </div>
   );
 }

@@ -90,17 +90,17 @@ export default function FixedDepositReportView({ fixedDeposits = [], borrowers =
     <div className="fin-page">
 
       {/* MNC Header Card */}
-      <div className="fin-header-card" style={{ background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%)', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px 24px' }}>
+      <div className="fin-header-card" style={{ background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%)', border: '1px solid #E2E8F0', borderRadius: 12, padding: '18px 24px' }}>
         <div className="fin-page-header">
           <div className="fin-page-header__left" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div className="fin-page-header__icon" style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', width: 42, height: 42, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Banknote style={{ width: 22, height: 22 }} />
+            <div className="fin-page-header__icon" style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', width: 40, height: 40, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Banknote style={{ width: 20, height: 20 }} />
             </div>
             <div>
-              <h1 className="fin-page-header__title" style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
+              <h1 className="fin-page-header__title" style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: '#0F172A', letterSpacing: '-0.01em' }}>
                 Fixed Deposit Treasury Report
               </h1>
-              <p className="fin-page-header__subtitle" style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#64748B' }}>
+              <p className="fin-page-header__subtitle" style={{ margin: '3px 0 0 0', fontSize: '0.8rem', color: '#64748B' }}>
                 {t('fin.fd_report_subtitle')}
               </p>
             </div>
@@ -108,37 +108,17 @@ export default function FixedDepositReportView({ fixedDeposits = [], borrowers =
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button type="button" onClick={() => setShowPreview(true)} disabled={filtered.length === 0} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#334155', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-              <Printer style={{ width: 14, height: 14, color: '#059669' }} />
+              <Printer style={{ width: 14, height: 14, color: 'var(--brand-primary, #15803D)' }} />
               <span>Print Preview</span>
             </button>
             <button type="button" onClick={() => setShowPreview(true)} disabled={filtered.length === 0} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#334155', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-              <FileDown style={{ width: 14, height: 14, color: '#2563EB' }} />
+              <FileDown style={{ width: 14, height: 14, color: 'var(--color-info, #2563EB)' }} />
               <span>Export PDF</span>
             </button>
-            <button type="button" onClick={handleExport} disabled={filtered.length === 0} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 7, border: 'none', background: '#059669', color: '#FFFFFF', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(5,150,105,0.25)' }}>
+            <button type="button" onClick={handleExport} disabled={filtered.length === 0} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 7, border: 'none', background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb),0.25)' }}>
               <Download style={{ width: 14, height: 14 }} />
               <span>Export Excel</span>
             </button>
-          </div>
-        </div>
-
-        {/* Corporate Summary Stat Cards */}
-        <div className="fin-header-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginTop: 20 }}>
-          <div className="fin-header-stat" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '12px 16px', borderRadius: 10 }}>
-            <span className="fin-header-stat__label" style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Total Active Principal</span>
-            <span className="fin-header-stat__value" style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0F172A', display: 'block', marginTop: 2 }}>₹{fmt(stats.totalPrincipal)}</span>
-          </div>
-          <div className="fin-header-stat" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '12px 16px', borderRadius: 10 }}>
-            <span className="fin-header-stat__label" style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Maturity Liability</span>
-            <span className="fin-header-stat__value fin-header-stat__value--good" style={{ fontSize: '1.2rem', fontWeight: 800, color: '#059669', display: 'block', marginTop: 2 }}>₹{fmt(stats.totalMaturityValue)}</span>
-          </div>
-          <div className="fin-header-stat" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '12px 16px', borderRadius: 10 }}>
-            <span className="fin-header-stat__label" style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Active Accounts</span>
-            <span className="fin-header-stat__value" style={{ fontSize: '1.2rem', fontWeight: 800, color: '#2563EB', display: 'block', marginTop: 2 }}>{stats.activeCount}</span>
-          </div>
-          <div className="fin-header-stat" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '12px 16px', borderRadius: 10 }}>
-            <span className="fin-header-stat__label" style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Due in 30 Days</span>
-            <span className={stats.upcomingCount > 0 ? 'fin-header-stat__value' : 'fin-header-stat__value'} style={{ fontSize: '1.2rem', fontWeight: 800, color: stats.upcomingCount > 0 ? '#DC2626' : '#0F172A', display: 'block', marginTop: 2 }}>{stats.upcomingCount}</span>
           </div>
         </div>
       </div>
@@ -161,14 +141,38 @@ export default function FixedDepositReportView({ fixedDeposits = [], borrowers =
             type="button"
             onClick={() => { setUpcomingOnly(v => !v); setCurrentPage(1); }}
             style={{
-              height: 34, padding: '0 12px', borderRadius: 7,
-              border: upcomingOnly ? '1px solid #FDE68A' : '1px solid #CBD5E1',
-              background: upcomingOnly ? '#FFFBEB' : '#FFFFFF',
-              color: upcomingOnly ? '#B45309' : '#475569',
-              fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer'
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              height: 34,
+              padding: '0 12px',
+              borderRadius: 7,
+              border: upcomingOnly ? '1px solid var(--brand-primary-border, #A7F3D0)' : '1px solid #CBD5E1',
+              background: upcomingOnly ? 'var(--brand-primary-light, #ECFDF5)' : '#FFFFFF',
+              color: upcomingOnly ? 'var(--brand-primary, #059669)' : '#334155',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+              transition: 'all 0.15s ease',
+              whiteSpace: 'nowrap'
             }}
           >
-            Maturities Due in 30 Days {stats.upcomingCount > 0 && `(${stats.upcomingCount})`}
+            <span style={{ lineHeight: 1 }}>Maturities Due in 30 Days</span>
+            <span style={{
+              fontSize: '0.68rem',
+              fontWeight: 700,
+              borderRadius: 12,
+              padding: '2px 7px',
+              background: upcomingOnly ? 'var(--brand-primary, #059669)' : '#F1F5F9',
+              color: upcomingOnly ? '#FFFFFF' : '#64748B',
+              border: `1px solid ${upcomingOnly ? 'var(--brand-primary, #059669)' : '#CBD5E1'}`,
+              lineHeight: 1,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>{stats.upcomingCount}</span>
           </button>
         </div>
 
@@ -207,7 +211,7 @@ export default function FixedDepositReportView({ fixedDeposits = [], borrowers =
               <tr><td colSpan="11" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>No fixed deposit records found.</td></tr>
             ) : pagedRows.map(f => (
               <tr key={f.id}>
-                <td className="code" style={{ fontWeight: 700, color: '#059669' }}>{f.fd_account_no}</td>
+                <td className="code" style={{ fontWeight: 700, color: 'var(--brand-primary, #15803D)' }}>{f.fd_account_no}</td>
                 <td style={{ fontWeight: 600, color: '#0F172A' }}>{f.customer_name}</td>
                 <td style={{ color: '#64748B', fontSize: '0.75rem' }}>{borrowerMap[f.borrower_id]?.phone || '—'}</td>
                 <td style={{ color: '#475569', fontSize: '0.75rem' }}>{f.scheme === 'CUMULATIVE' ? 'Cumulative' : 'Monthly Payout'}</td>
@@ -216,7 +220,7 @@ export default function FixedDepositReportView({ fixedDeposits = [], borrowers =
                 <td style={{ color: '#64748B' }}>{f.tenure_months} mo</td>
                 <td style={{ color: '#64748B', fontSize: '0.75rem' }}>{f.booking_date}</td>
                 <td style={{ fontSize: '0.75rem' }}>{f.maturity_date}</td>
-                <td className="num" style={{ fontWeight: 700, color: '#059669' }}>₹{fmt(f.maturity_value)}</td>
+                <td className="num" style={{ fontWeight: 700, color: 'var(--brand-primary, #15803D)' }}>₹{fmt(f.maturity_value)}</td>
                 <td style={{ textAlign: 'center' }}>
                   <span className={`fin-badge ${f.status === 'ACTIVE' ? 'fin-badge--ok' : f.status === 'MATURED' ? 'fin-badge--info' : 'fin-badge--warn'}`}>
                     {tStatus(f.status)}

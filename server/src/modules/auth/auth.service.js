@@ -1,4 +1,7 @@
 import { getTenantDbPool } from '../../plugins/tenantDb.js';
+import { assertMaxFileSize } from '../../shared/validators/fileSize.js';
+
+const MAX_LOGO_BYTES = 5 * 1024 * 1024;
 
 export async function lookupCompanyByCode(masterDb, companyCode) {
   if (!companyCode) {
@@ -178,6 +181,48 @@ export async function updateCompanyAccess(masterDb, id, { name, phone, address, 
     err.statusCode = 404;
     throw err;
   }
+}
+
+export async function getOwnCompanyProfile(masterDb, companyId) {
+  const [rows] = await masterDb.query(
+    'SELECT id, name, company_code, gstin, pan, address, phone, logo, theme_color FROM companies WHERE id = ?',
+    [companyId]
+  );
+  if (!rows.length) {
+    const err = new Error('Company not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+  return rows[0];
+}
+
+// Self-service Company Profile edit (tenant's own Company Admin) — deliberately
+// separate from updateCompanyAccess above (SuperAdmin-only): a tenant can rename
+// itself / update its GSTIN / logo / theme color, but can never touch
+// max_branches or allowed_modules through this path — those stay exclusively
+// SuperAdmin-managed. theme_color is a DB column (not client localStorage) so
+// every user of this tenant — any device, any browser — sees the same brand
+// color, matching how gstin/logo/etc already work.
+export async function updateOwnCompanyProfile(masterDb, companyId, { name, gstin, pan, address, phone, logo, theme_color }) {
+  assertMaxFileSize(logo, MAX_LOGO_BYTES, 'Company logo');
+  const [result] = await masterDb.execute(
+    `UPDATE companies SET
+      name = COALESCE(?, name), gstin = COALESCE(?, gstin), pan = COALESCE(?, pan),
+      address = COALESCE(?, address), phone = COALESCE(?, phone), logo = COALESCE(?, logo),
+      theme_color = COALESCE(?, theme_color)
+     WHERE id = ?`,
+    [name ?? null, gstin ?? null, pan ?? null, address ?? null, phone ?? null, logo ?? null, theme_color ?? null, companyId]
+  );
+  if (!result.affectedRows) {
+    const err = new Error('Company not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+  const [rows] = await masterDb.query(
+    'SELECT id, name, company_code, gstin, pan, address, phone, logo, theme_color FROM companies WHERE id = ?',
+    [companyId]
+  );
+  return rows[0];
 }
 
 export async function resetTenantAdminPassword(masterDb, id, newPassword) {

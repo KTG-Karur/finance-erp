@@ -26,7 +26,7 @@ function Avatar({ name, photo, size = 30 }) {
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%', flexShrink: 0,
-      background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0',
+      background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #15803D)', border: '1px solid var(--brand-primary-border, #A3F5C1)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize: size * 0.38, fontWeight: 700
     }}>
@@ -58,8 +58,8 @@ function StatusTabs({ tabs, active, onChange }) {
             <span>{tab.label}</span>
             <span style={{
               fontSize: '0.66rem', fontWeight: 700, borderRadius: 999, padding: '1px 6px',
-              background: isActive ? (tab.id === 'PENDING' ? '#FEF3C7' : tab.id === 'APPROVED' ? '#ECFDF5' : '#FEF2F2') : '#E2E8F0',
-              color: isActive ? (tab.id === 'PENDING' ? '#D97706' : tab.id === 'APPROVED' ? '#059669' : '#DC2626') : '#64748B'
+              background: isActive ? (tab.id === 'PENDING' ? '#FEF3C7' : tab.id === 'APPROVED' ? 'var(--brand-primary-light, #F0FEF5)' : 'var(--color-danger-light, #FEF2F2)') : '#E2E8F0',
+              color: isActive ? (tab.id === 'PENDING' ? 'var(--color-warning, #D97706)' : tab.id === 'APPROVED' ? 'var(--brand-primary, #15803D)' : 'var(--color-danger, #DC2626)') : '#64748B'
             }}>{tab.count}</span>
           </button>
         );
@@ -68,22 +68,24 @@ function StatusTabs({ tabs, active, onChange }) {
   );
 }
 
-function ActionPill({ icon, label, onClick, tone = 'neutral' }) {
+function ActionPill({ icon, label, onClick, tone = 'neutral', disabled = false }) {
   const tones = {
     neutral: { bg: '#FFFFFF', border: '#E2E8F0', color: '#334155' },
-    good: { bg: '#ECFDF5', border: '#A7F3D0', color: '#059669' },
-    bad: { bg: '#FEF2F2', border: '#FECACA', color: '#DC2626' },
-    warn: { bg: '#FFFBEB', border: '#FDE68A', color: '#B45309' }
+    good: { bg: 'var(--brand-primary-light, #F0FEF5)', border: 'var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)' },
+    bad: { bg: 'var(--color-danger-light, #FEF2F2)', border: 'var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)' },
+    warn: { bg: 'var(--color-warning-light, #FFFBEB)', border: 'var(--color-warning-border, #FDE68A)', color: 'var(--color-warning-hover, #B45309)' }
   };
   const c = tones[tone];
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
         border: `1px solid ${c.border}`, background: c.bg, color: c.color,
-        borderRadius: 6, padding: '4px 9px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer'
+        borderRadius: 6, padding: '4px 9px', fontSize: '0.7rem', fontWeight: 600,
+        cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.55 : 1
       }}
     >
       {icon}
@@ -107,18 +109,22 @@ export default function LoanApplicationsView({
   borrowers = [],
   loanSchemes = [],
   branches = [],
+  tenant,
   externalSearchQuery = '',
   onCreateBorrower,
   onQuickAction,
   onApproveApplication,
   onRejectApplication,
-  onRevertApplication
+  onRevertApplication,
+  onDisburseApprovedLoan
 }) {
   const { t, tStatus } = useLanguage();
 
   const [searchQuery, setSearchQuery] = useState('');
   const activeSearch = externalSearchQuery || searchQuery;
   const [appStatusFilter, setAppStatusFilter] = useState('PENDING'); // PENDING, APPROVED, REJECTED
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionErrorMsg, setActionErrorMsg] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
@@ -129,7 +135,7 @@ export default function LoanApplicationsView({
   const [createAppPageOpen, setCreateAppPageOpen] = useState(false);
   const [selectedCustomerForProfile, setSelectedCustomerForProfile] = useState(null);
 
-  const schemeName = (schemeId) => loanSchemes.find(s => s.id === schemeId)?.name || 'Standard Scheme';
+  const schemeName = (schemeId) => loanSchemes.find(s => s.id === schemeId)?.name || '—';
   const linkedBorrower = (loan) => borrowers.find(b => b.id === loan.borrower_id || b.phone === loan.phone) || null;
 
   const allAppsList = loans.filter(l => l.status === 'PENDING' || l.status === 'APPROVED' || l.status === 'REJECTED');
@@ -150,13 +156,12 @@ export default function LoanApplicationsView({
   });
 
   const totalPages = Math.ceil(displayList.length / pageSize) || 1;
-  const startIndex = (currentPage - 1) * pageSize;
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
   const paginatedList = displayList.slice(startIndex, startIndex + pageSize);
 
   const totalPrincipal = displayList.reduce((acc, l) => acc + (parseFloat(l.principal_amount) || 0), 0);
   const avgRequestedAmount = displayList.length ? totalPrincipal / displayList.length : 0;
-  const kycVerifiedCount = displayList.filter(l => linkedBorrower(l)?.kyc_status === 'VERIFIED').length;
-  const kycVerifiedRate = displayList.length ? Math.round((kycVerifiedCount / displayList.length) * 100) : 0;
 
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
@@ -172,27 +177,70 @@ export default function LoanApplicationsView({
     setRejectReason('');
   };
 
-  const handleApproveConfirm = (app) => {
-    if (!app) return;
-    onApproveApplication?.(app.id);
-    handleCloseModal();
-    setActionSuccessMsg(`Loan Application ${app.loan_account_no} for ${app.borrower_name} has been approved successfully!`);
-    setTimeout(() => setActionSuccessMsg(''), 4000);
+  const handleApproveConfirm = async (app) => {
+    if (!app || actionLoading) return;
+    setActionLoading(true);
+    setActionErrorMsg('');
+    try {
+      await onApproveApplication?.(app.id);
+      handleCloseModal();
+      setActionSuccessMsg(`Loan Application ${app.loan_account_no} for ${app.borrower_name} has been approved successfully!`);
+      setTimeout(() => setActionSuccessMsg(''), 4000);
+    } catch (err) {
+      setActionErrorMsg(err?.response?.data?.message || 'Failed to approve this application.');
+      throw err;
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const handleRejectConfirm = (app) => {
-    if (!app || !rejectReason.trim()) return;
-    onRejectApplication?.(app.id, rejectReason.trim());
-    handleCloseModal();
-    setActionSuccessMsg(`Loan Application ${app.loan_account_no} for ${app.borrower_name} has been rejected.`);
-    setTimeout(() => setActionSuccessMsg(''), 4000);
+  const handleRejectConfirm = async (app, reasonOverride) => {
+    const reason = (reasonOverride ?? rejectReason).trim();
+    if (!app || !reason || actionLoading) return;
+    setActionLoading(true);
+    setActionErrorMsg('');
+    try {
+      await onRejectApplication?.(app.id, reason);
+      handleCloseModal();
+      setActionSuccessMsg(`Loan Application ${app.loan_account_no} for ${app.borrower_name} has been rejected.`);
+      setTimeout(() => setActionSuccessMsg(''), 4000);
+    } catch (err) {
+      setActionErrorMsg(err?.response?.data?.message || 'Failed to reject this application.');
+      throw err;
+    }
+    finally {
+      setActionLoading(false);
+    }
   };
 
-  const handleRevertConfirm = (app) => {
-    if (!app) return;
-    onRevertApplication?.(app.id);
-    setActionSuccessMsg(`Loan Application ${app.loan_account_no} for ${app.borrower_name} has been reverted back to Pending status.`);
-    setTimeout(() => setActionSuccessMsg(''), 4000);
+  const handleRevertConfirm = async (app) => {
+    if (!app || actionLoading) return;
+    setActionLoading(true);
+    setActionErrorMsg('');
+    try {
+      await onRevertApplication?.(app.id);
+      setActionSuccessMsg(`Loan Application ${app.loan_account_no} for ${app.borrower_name} has been reverted back to Pending status.`);
+      setTimeout(() => setActionSuccessMsg(''), 4000);
+    } catch (err) {
+      setActionErrorMsg(err?.response?.data?.message || 'Failed to revert this application.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDisburseConfirm = async (app) => {
+    if (!app || actionLoading) return;
+    setActionLoading(true);
+    setActionErrorMsg('');
+    try {
+      await onDisburseApprovedLoan?.(app.id);
+      setActionSuccessMsg(`Loan ${app.loan_account_no} for ${app.borrower_name} has been disbursed — cash posted.`);
+      setTimeout(() => setActionSuccessMsg(''), 4000);
+    } catch (err) {
+      setActionErrorMsg(err?.response?.data?.message || 'Failed to disburse this loan.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   if (createAppPageOpen) {
@@ -201,10 +249,11 @@ export default function LoanApplicationsView({
         borrowers={borrowers}
         loanSchemes={loanSchemes}
         branches={branches}
+        tenant={tenant}
         onCreateBorrower={onCreateBorrower}
         onCancel={() => setCreateAppPageOpen(false)}
-        onSubmit={(payload) => {
-          onQuickAction?.('SUBMIT_APPLICATION', payload);
+        onSubmit={async (payload) => {
+          await onQuickAction?.('SUBMIT_APPLICATION', payload);
           setCreateAppPageOpen(false);
           setActionSuccessMsg(`Loan Application submitted successfully for ${payload.borrower_name}!`);
           setTimeout(() => setActionSuccessMsg(''), 4000);
@@ -224,12 +273,23 @@ export default function LoanApplicationsView({
 
       {actionSuccessMsg && (
         <div style={{
-          background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#047857',
+          background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary-hover, #0E5327)',
           padding: '10px 16px', borderRadius: 10, fontWeight: 600, fontSize: '0.82rem',
           display: 'flex', alignItems: 'center', gap: 8
         }}>
           <CheckCircle2 style={{ width: 16, height: 16 }} />
           <span>{actionSuccessMsg}</span>
+        </div>
+      )}
+
+      {actionErrorMsg && (
+        <div style={{
+          background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger-text, #991B1B)',
+          padding: '10px 16px', borderRadius: 10, fontWeight: 600, fontSize: '0.82rem',
+          display: 'flex', alignItems: 'center', gap: 8
+        }}>
+          <XCircle style={{ width: 16, height: 16 }} />
+          <span>{actionErrorMsg}</span>
         </div>
       )}
 
@@ -279,14 +339,13 @@ export default function LoanApplicationsView({
                                 aadhaar_number: loan.aadhaar,
                                 pan_number: loan.pan,
                                 branch: loan.branch,
-                                borrower_code: loan.borrower_code || 'KTG-CUST',
-                                kyc_status: 'VERIFIED'
+                                borrower_code: loan.borrower_code || null
                               };
                               setSelectedCustomerForProfile(b);
                             }}
                             title="Click to view full customer details"
                             style={{ color: '#0F172A', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
-                            onMouseEnter={(e) => { e.currentTarget.style.color = '#059669'; e.currentTarget.style.textDecoration = 'underline'; }}
+                            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--brand-primary, #15803D)'; e.currentTarget.style.textDecoration = 'underline'; }}
                             onMouseLeave={(e) => { e.currentTarget.style.color = '#0F172A'; e.currentTarget.style.textDecoration = 'none'; }}
                           >
                             {loan.borrower_name}
@@ -300,16 +359,16 @@ export default function LoanApplicationsView({
                       <span
                         onClick={() => handleOpenModal(loan, 'VIEW')}
                         title="Click to view full Application Details"
-                        style={{ color: '#059669', cursor: 'pointer', fontWeight: 600 }}
+                        style={{ color: 'var(--brand-primary, #15803D)', cursor: 'pointer', fontWeight: 600 }}
                       >
                         {loan.loan_account_no}
                       </span>
                     </td>
 
-                    <td style={{ color: '#64748B', fontSize: '0.78rem' }}>{loan.branch || 'Main Branch'}</td>
+                    <td style={{ color: '#64748B', fontSize: '0.78rem' }}>{loan.branch || '—'}</td>
                     <td style={{ color: '#334155', fontSize: '0.78rem' }}>{schemeName(loan.scheme_id)}</td>
                     <td className="num" style={{ fontWeight: 600 }}>₹{fmt(loan.principal_amount)}</td>
-                    <td className="num" style={{ color: '#047857', fontWeight: 600 }}>₹{fmt(loan.installment_amount || 500)}</td>
+                    <td className="num" style={{ color: 'var(--brand-primary-hover, #0E5327)', fontWeight: 600 }}>{loan.installment_amount != null ? `₹${fmt(loan.installment_amount)}` : '—'}</td>
 
                     <td style={{ textAlign: 'center' }}>
                       <span className={appStatusBadgeCls(loan.status)}>
@@ -327,7 +386,10 @@ export default function LoanApplicationsView({
                           </>
                         )}
                         {loan.status === 'REJECTED' && (
-                          <ActionPill icon={<RotateCcw style={{ width: 11, height: 11 }} />} label="Revert" tone="warn" onClick={() => handleRevertConfirm(loan)} />
+                          <ActionPill icon={<RotateCcw style={{ width: 11, height: 11 }} />} label="Revert" tone="warn" disabled={actionLoading} onClick={() => handleRevertConfirm(loan)} />
+                        )}
+                        {loan.status === 'APPROVED' && (
+                          <ActionPill icon={<CheckCircle2 style={{ width: 11, height: 11 }} />} label={actionLoading ? 'Disbursing…' : 'Disburse'} tone="good" disabled={actionLoading} onClick={() => handleDisburseConfirm(loan)} />
                         )}
                       </div>
                     </td>
@@ -343,12 +405,12 @@ export default function LoanApplicationsView({
             Showing <strong>{displayList.length === 0 ? 0 : startIndex + 1}</strong> to <strong>{Math.min(startIndex + pageSize, displayList.length)}</strong> of <strong>{displayList.length}</strong> entries
           </div>
           <div className="table-pagination__controls">
-            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
+            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>
               <ChevronLeft style={{ width: 14, height: 14 }} />
               <span>Previous</span>
             </button>
-            <span className="page-indicator">Page {currentPage} of {totalPages}</span>
-            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+            <span className="page-indicator">Page {safePage} of {totalPages}</span>
+            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>
               <span>Next</span>
               <ChevronRight style={{ width: 14, height: 14 }} />
             </button>
@@ -364,16 +426,13 @@ export default function LoanApplicationsView({
             phone: selectedApplication.phone,
             aadhaar_number: selectedApplication.aadhaar,
             pan_number: selectedApplication.pan,
-            branch: selectedApplication.branch,
-            kyc_status: linkedBorrower(selectedApplication)?.kyc_status || 'VERIFIED'
+            branch: selectedApplication.branch
           }}
           initialMode={modalAction}
+          tenant={tenant}
           onClose={handleCloseModal}
           onApprove={modalAction === 'APPROVE' ? (app) => handleApproveConfirm(app) : null}
-          onReject={modalAction === 'REJECT' ? (app, reason) => {
-            setRejectReason(reason);
-            handleRejectConfirm(app);
-          } : null}
+          onReject={modalAction === 'REJECT' ? (app, reason) => handleRejectConfirm(app, reason) : null}
         />
       )}
 

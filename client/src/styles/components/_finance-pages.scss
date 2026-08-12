@@ -98,8 +98,8 @@
   font-variant-numeric: tabular-nums;
 }
 
-.fin-header-stat__value--good { color: #059669; }
-.fin-header-stat__value--bad { color: #DC2626; }
+.fin-header-stat__value--good { color: var(--brand-primary, #15803D); }
+.fin-header-stat__value--bad { color: var(--color-danger, #DC2626); }
 
 // ── Primary action button (Record Entry / New Voucher, etc.) ─────
 
@@ -108,7 +108,7 @@
   padding: 0 16px;
   border-radius: 6px;
   border: none;
-  background: #059669;
+  background: var(--brand-primary, #15803D);
   color: #FFFFFF;
   font-size: 0.8rem;
   font-weight: 500;
@@ -121,15 +121,15 @@
 }
 
 .fin-btn-primary:hover {
-  background: #047857;
+  background: var(--brand-primary-hover, #0E5327);
 }
 
 .fin-btn-primary--red {
-  background: #DC2626;
+  background: var(--color-danger, #DC2626);
 }
 
 .fin-btn-primary--red:hover {
-  background: #B91C1C;
+  background: var(--color-danger-hover, #B91C1C);
 }
 
 // ── Filter bar — light box, explicit Search, quick presets ───────
@@ -185,8 +185,8 @@
 
 .fin-input:focus,
 .fin-select:focus {
-  border-color: #059669;
-  box-shadow: 0 0 0 1px #059669;
+  border-color: var(--brand-primary, #15803D);
+  box-shadow: 0 0 0 1px var(--brand-primary, #15803D);
 }
 
 .fin-select {
@@ -204,7 +204,7 @@
   padding: 0 18px;
   border-radius: 6px;
   border: none;
-  background: #059669;
+  background: var(--brand-primary, #15803D);
   color: #FFFFFF;
   font-size: 0.8rem;
   font-weight: 500;
@@ -213,7 +213,7 @@
 }
 
 .fin-search-btn:hover {
-  background: #047857;
+  background: var(--brand-primary-hover, #0E5327);
 }
 
 .fin-search-btn:disabled {
@@ -254,8 +254,8 @@
 }
 
 .fin-quick-pill--active {
-  background: #059669;
-  border-color: #059669;
+  background: var(--brand-primary, #15803D);
+  border-color: var(--brand-primary, #15803D);
   color: #FFFFFF;
 }
 
@@ -288,15 +288,15 @@
 }
 
 .fin-badge--ok {
-  background: #ECFDF5;
-  color: #047857;
-  border: 1px solid #A7F3D0;
+  background: var(--brand-primary-light, #F0FEF5);
+  color: var(--brand-primary-hover, #0E5327);
+  border: 1px solid var(--brand-primary-border, #A3F5C1);
 }
 
 .fin-badge--warn {
-  background: #FEF2F2;
-  color: #DC2626;
-  border: 1px solid #FECACA;
+  background: var(--color-danger-light, #FEF2F2);
+  color: var(--color-danger, #DC2626);
+  border: 1px solid var(--color-danger-border, #FECACA);
 }
 
 .fin-meta-row {
@@ -329,7 +329,7 @@
 }
 
 .fin-instant-search input:focus {
-  border-color: #059669;
+  border-color: var(--brand-primary, #15803D);
 }
 
 // ── Table — square box, fully ruled, neutral professional tone ───
@@ -399,8 +399,8 @@
   border-top: 2px solid #CBD5E1;
 }
 
-.fin-grid-table td.amount-in { color: #059669; }
-.fin-grid-table td.amount-out { color: #DC2626; }
+.fin-grid-table td.amount-in { color: var(--brand-primary, #15803D); }
+.fin-grid-table td.amount-out { color: var(--color-danger, #DC2626); }
 .fin-grid-table td.amount-muted { color: #CBD5E1; }
 
 .fin-tag {
@@ -439,13 +439,13 @@
 }
 
 .fin-net-bar--profit {
-  background: #ECFDF5;
-  border-color: #A7F3D0;
+  background: var(--brand-primary-light, #F0FEF5);
+  border-color: var(--brand-primary-border, #A3F5C1);
 }
 
 .fin-net-bar--loss {
-  background: #FEF2F2;
-  border-color: #FECACA;
+  background: var(--color-danger-light, #FEF2F2);
+  border-color: var(--color-danger-border, #FECACA);
 }
 
 .fin-net-bar__label {
@@ -460,5 +460,5 @@
   font-variant-numeric: tabular-nums;
 }
 
-.fin-net-bar__value--profit { color: #047857; }
-.fin-net-bar__value--loss { color: #DC2626; }
+.fin-net-bar__value--profit { color: var(--brand-primary-hover, #0E5327); }
+.fin-net-bar__value--loss { color: var(--color-danger, #DC2626); }

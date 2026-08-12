@@ -95,9 +95,9 @@ export default function FormulaBuilder({ value, onChange, availableVariables }) 
         <>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {variables.map(v => (
-              <Chip key={v.token} label={v.label} onClick={() => push(v.token)} accent={{ bg: '#EFF6FF', fg: '#1D4ED8', border: '#BFDBFE' }} />
+              <Chip key={v.token} label={v.label} onClick={() => push(v.token)} accent={{ bg: 'var(--color-info-light, #EFF6FF)', fg: '#1D4ED8', border: 'var(--color-info-border, #BFDBFE)' }} />
             ))}
-            <Chip label="A Number" onClick={openNumpad} accent={{ bg: '#EFF6FF', fg: '#1D4ED8', border: '#BFDBFE' }} />
+            <Chip label="A Number" onClick={openNumpad} accent={{ bg: 'var(--color-info-light, #EFF6FF)', fg: '#1D4ED8', border: 'var(--color-info-border, #BFDBFE)' }} />
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -142,7 +142,7 @@ export default function FormulaBuilder({ value, onChange, availableVariables }) 
       {preview && (
         <div style={{
           display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: '0.76rem', fontWeight: 500,
-          color: preview.error ? '#DC2626' : '#059669'
+          color: preview.error ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)'
         }}>
           {preview.error
             ? <AlertTriangle style={{ width: 13, height: 13, marginTop: 1, flexShrink: 0 }} />

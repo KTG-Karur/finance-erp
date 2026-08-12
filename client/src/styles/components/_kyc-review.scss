@@ -140,7 +140,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
         }
 
         &.doc-tab--active {
-          background: #F0FDF4;
+          background: var(--brand-primary-light, #F0FDF4);
           border-color: #BBF7D0;
           color: #166534;
           font-weight: 600;
@@ -205,7 +205,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
           border-radius: 4px;
 
           &:hover {
-            color: #10B981;
+            color: var(--brand-primary, #10B981);
           }
         }
 
@@ -246,7 +246,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
           height: 46px;
           border-radius: 50%;
           overflow: hidden;
-          background: #F0FDF4;
+          background: var(--brand-primary-light, #F0FDF4);
           border: 1.5px solid #BBF7D0;
           display: flex;
           align-items: center;
@@ -339,21 +339,21 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
 
       &--verified {
         border-color: #BBF7D0;
-        background: #F0FDF4;
+        background: var(--brand-primary-light, #F0FDF4);
         .banner-icon {
           background: #FFFFFF;
-          border: 1px solid #A7F3D0;
-          color: #15803D;
+          border: 1px solid var(--brand-primary-border, #A3F5C1);
+          color: var(--brand-primary-hover, #15803D);
         }
       }
 
       &--rejected {
-        border-color: #FEE2E2;
-        background: #FEF2F2;
+        border-color: var(--color-danger-light, #FEE2E2);
+        background: var(--color-danger-light, #FEF2F2);
         .banner-icon {
           background: #FFFFFF;
-          border: 1px solid #FECACA;
-          color: #DC2626;
+          border: 1px solid var(--color-danger-border, #FECACA);
+          color: var(--color-danger, #DC2626);
         }
       }
 
@@ -435,8 +435,8 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
 
             &:hover {
               background: #FFFFFF;
-              border-color: #059669;
-              color: #047857;
+              border-color: var(--brand-primary, #15803D);
+              color: var(--brand-primary-hover, #0E5327);
               box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
             }
           }
@@ -481,23 +481,23 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
         }
 
         .btn-verify {
-          background: #059669;
+          background: var(--brand-primary, #15803D);
           color: #FFFFFF;
-          box-shadow: 0 1px 4px rgba(5, 150, 105, 0.2);
-          &:hover { background: #047857; }
+          box-shadow: 0 1px 4px rgba(var(--brand-primary-rgb), 0.2);
+          &:hover { background: var(--brand-primary-hover, #0E5327); }
         }
 
         .btn-reject {
           background: #FFFFFF;
-          border: 1px solid #FEE2E2;
-          color: #DC2626;
-          &:hover { background: #FEF2F2; }
+          border: 1px solid var(--color-danger-light, #FEE2E2);
+          color: var(--color-danger, #DC2626);
+          &:hover { background: var(--color-danger-light, #FEF2F2); }
         }
       }
 
       // Confirm Approve Card
       .confirm-approve-box {
-        background: #F0FDF4;
+        background: var(--brand-primary-light, #F0FDF4);
         border: 1px solid #BBF7D0;
         border-radius: 10px;
         padding: 12px 14px;
@@ -538,17 +538,17 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
           }
 
           .btn-confirm {
-            background: #059669;
+            background: var(--brand-primary, #15803D);
             color: #FFFFFF;
-            &:hover { background: #047857; }
+            &:hover { background: var(--brand-primary-hover, #0E5327); }
           }
         }
       }
 
       // Rejection Box
       .confirm-reject-box {
-        background: #FEF2F2;
-        border: 1px solid #FEE2E2;
+        background: var(--color-danger-light, #FEF2F2);
+        border: 1px solid var(--color-danger-light, #FEE2E2);
         border-radius: 10px;
         padding: 12px 14px;
         display: flex;
@@ -558,14 +558,14 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
         label {
           font-size: 0.68rem;
           font-weight: 600;
-          color: #991B1B;
+          color: var(--color-danger-text, #991B1B);
           text-transform: uppercase;
         }
 
         select.input-select {
           width: 100%;
           height: 34px;
-          border: 1px solid #FECACA;
+          border: 1px solid var(--color-danger-border, #FECACA);
           border-radius: 6px;
           background: #FFFFFF;
           padding: 0 10px;
@@ -577,7 +577,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
 
         textarea.input-remark {
           width: 100%;
-          border: 1px solid #FECACA;
+          border: 1px solid var(--color-danger-border, #FECACA);
           border-radius: 6px;
           background: #FFFFFF;
           padding: 8px 10px;
@@ -614,9 +614,9 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
           }
 
           .btn-reject-confirm {
-            background: #DC2626;
+            background: var(--color-danger, #DC2626);
             color: #FFFFFF;
-            &:hover { background: #B91C1C; }
+            &:hover { background: var(--color-danger-hover, #B91C1C); }
           }
         }
       }

@@ -33,12 +33,13 @@ import {
   Repeat,
 } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
+import ThemeCustomizerDrawer from '../components/ThemeCustomizerDrawer';
 
 function getInitials(name = '') {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 }
 
-export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSignOut, children, branchesList = [], selectedBranch = 'ALL', onChangeBranch }) {
+export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSignOut, children, branchesList = [], selectedBranch = 'ALL', onChangeBranch, onSaveTheme }) {
   const { language, setLanguage, t } = useLanguage();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarSearch, setSidebarSearch] = useState('');
@@ -631,13 +632,6 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                             <Banknote className="sidebar__item-icon" />
                           </button>
                           <button
-                            className={itemCls(isReport('borrower-kyc'))}
-                            onClick={() => setActiveTab('reports/borrower-kyc')}
-                            title={t('nav.borrower_kyc_report')}
-                          >
-                            <Users className="sidebar__item-icon" />
-                          </button>
-                          <button
                             className={itemCls(isReport('investor-capital'))}
                             onClick={() => setActiveTab('reports/investor-capital')}
                             title={t('nav.investor_capital_report')}
@@ -700,7 +694,7 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
 
                           {settingsExpanded && (
                             <div className="sidebar__children">
-                              {match('Organization & Company') && (
+                              {match('Organization & Company') && allowed('org') && (
                                 <button id="nav-org-hierarchy"
                                   className={subCls(isSet('org-hierarchy') || isSet('company-info'))}
                                   onClick={() => setActiveTab('master-settings/org-hierarchy')}
@@ -709,7 +703,7 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                                   <span>{t('nav.org_company')}</span>
                                 </button>
                               )}
-                              {match('Staff Directory') && (
+                              {match('Staff Directory') && allowed('employees') && (
                                 <button id="nav-staff"
                                   className={subCls(isSet('staff-directory') || activeTab === 'employees')}
                                   onClick={() => setActiveTab('master-settings/staff-directory')}
@@ -718,7 +712,7 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                                   <span>{t('nav.staff_directory')}</span>
                                 </button>
                               )}
-                              {match('RBAC Matrix') && (
+                              {match('RBAC Matrix') && allowed('rbac') && (
                                 <button id="nav-rbac"
                                   className={subCls(isSet('rbac-matrix'))}
                                   onClick={() => setActiveTab('master-settings/rbac-matrix')}
@@ -727,7 +721,7 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                                   <span>{t('nav.rbac_matrix')}</span>
                                 </button>
                               )}
-                              {match('Loan Scheme Master') && (
+                              {match('Loan Scheme Master') && allowed('loan_schemes') && (
                                 <button id="nav-interest-details"
                                   className={subCls(isSet('interest-details') || isSet('interest-master'))}
                                   onClick={() => setActiveTab('master-settings/interest-details')}
@@ -736,7 +730,7 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                                   <span>{t('nav.loan_scheme_master')}</span>
                                 </button>
                               )}
-                              {match('Expense Allocation') && (
+                              {match('Expense Allocation') && allowed('expense_allocation') && (
                                 <button id="nav-accounting-masters"
                                   className={subCls(isSet('accounting-masters'))}
                                   onClick={() => setActiveTab('master-settings/accounting-masters')}
@@ -751,41 +745,51 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                       ) : (
                         /* Collapsed Icon Bar for Master Settings */
                         <>
-                          <button
-                            className={itemCls(isSet('org-hierarchy') || isSet('company-info'))}
-                            onClick={() => setActiveTab('master-settings/org-hierarchy')}
-                            title={t('nav.org_company')}
-                          >
-                            <Building2 className="sidebar__item-icon" />
-                          </button>
-                          <button
-                            className={itemCls(isSet('staff-directory') || activeTab === 'employees')}
-                            onClick={() => setActiveTab('master-settings/staff-directory')}
-                            title={t('nav.staff_directory')}
-                          >
-                            <UserCog className="sidebar__item-icon" />
-                          </button>
-                          <button
-                            className={itemCls(isSet('rbac-matrix'))}
-                            onClick={() => setActiveTab('master-settings/rbac-matrix')}
-                            title={t('nav.rbac_matrix')}
-                          >
-                            <Shield className="sidebar__item-icon" />
-                          </button>
-                          <button
-                            className={itemCls(isSet('interest-master'))}
-                            onClick={() => setActiveTab('master-settings/interest-master')}
-                            title={t('nav.loan_scheme_master')}
-                          >
-                            <Percent className="sidebar__item-icon" />
-                          </button>
-                          <button
-                            className={itemCls(isSet('accounting-masters'))}
-                            onClick={() => setActiveTab('master-settings/accounting-masters')}
-                            title={t('nav.expense_allocation')}
-                          >
-                            <Wallet className="sidebar__item-icon" />
-                          </button>
+                          {allowed('org') && (
+                            <button
+                              className={itemCls(isSet('org-hierarchy') || isSet('company-info'))}
+                              onClick={() => setActiveTab('master-settings/org-hierarchy')}
+                              title={t('nav.org_company')}
+                            >
+                              <Building2 className="sidebar__item-icon" />
+                            </button>
+                          )}
+                          {allowed('employees') && (
+                            <button
+                              className={itemCls(isSet('staff-directory') || activeTab === 'employees')}
+                              onClick={() => setActiveTab('master-settings/staff-directory')}
+                              title={t('nav.staff_directory')}
+                            >
+                              <UserCog className="sidebar__item-icon" />
+                            </button>
+                          )}
+                          {allowed('rbac') && (
+                            <button
+                              className={itemCls(isSet('rbac-matrix'))}
+                              onClick={() => setActiveTab('master-settings/rbac-matrix')}
+                              title={t('nav.rbac_matrix')}
+                            >
+                              <Shield className="sidebar__item-icon" />
+                            </button>
+                          )}
+                          {allowed('loan_schemes') && (
+                            <button
+                              className={itemCls(isSet('interest-master'))}
+                              onClick={() => setActiveTab('master-settings/interest-master')}
+                              title={t('nav.loan_scheme_master')}
+                            >
+                              <Percent className="sidebar__item-icon" />
+                            </button>
+                          )}
+                          {allowed('expense_allocation') && (
+                            <button
+                              className={itemCls(isSet('accounting-masters'))}
+                              onClick={() => setActiveTab('master-settings/accounting-masters')}
+                              title={t('nav.expense_allocation')}
+                            >
+                              <Wallet className="sidebar__item-icon" />
+                            </button>
+                          )}
                         </>
                       )}
                     </nav>
@@ -818,17 +822,20 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
             <div className="app-header__left">
               {/* Plain Text Company Name on Far Left Edge of Topbar */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', color: '#FFFFFF', fontSize: '0.65rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(5, 150, 105, 0.2)' }}>
-                  {getInitials(tenant?.name || 'Alpha Financial Services Ltd')}
-                </div>
-                <span style={{ fontSize: '0.85rem', fontWeight: 500, color: '#1E293B', letterSpacing: '-0.01em' }}>
-                  {tenant?.name || 'Alpha Financial Services Ltd'}
-                </span>
-                {user?.branchName && (
-                  <span style={{ fontSize: '0.72rem', color: '#64748B', background: '#F1F5F9', padding: '2px 8px', borderRadius: 12, fontWeight: 400 }}>
-                    {user.branchName}
-                  </span>
+                {tenant?.logo ? (
+                  <img
+                    src={tenant.logo}
+                    alt=""
+                    style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', boxShadow: '0 2px 4px rgba(15, 23, 42, 0.15)' }}
+                  />
+                ) : (
+                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'linear-gradient(135deg, var(--brand-primary, #15803D) 0%, var(--brand-primary-hover, #0E5327) 100%)', color: '#FFFFFF', fontSize: '0.65rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(var(--brand-primary-rgb), 0.2)' }}>
+                    {getInitials(tenant?.name || 'Company')}
+                  </div>
                 )}
+                <span style={{ fontSize: '0.85rem', fontWeight: 500, color: '#1E293B', letterSpacing: '-0.01em' }}>
+                  {tenant?.name || 'Company'}
+                </span>
               </div>
             </div>
 
@@ -865,7 +872,6 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                 <div className="app-header__user-avatar">{getInitials(user?.name || 'Admin')}</div>
                 <div className="app-header__user-info">
                   <span className="app-header__user-name">{user?.name || 'John Admin'}</span>
-                  <span className="app-header__user-role">{user?.role || 'ADMIN'}</span>
                 </div>
                 <ChevronDown className="app-header__user-chevron" />
               </button>
@@ -963,7 +969,7 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
           <div className="saas-modal-card" style={{ maxWidth: 400 }}>
             <div className="saas-modal-header">
               <div className="head-left">
-                <div className="head-icon-badge" style={{ background: '#FEF2F2', borderColor: '#FECACA', color: '#DC2626' }}>
+                <div className="head-icon-badge" style={{ background: 'var(--color-danger-light, #FEF2F2)', borderColor: 'var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)' }}>
                   <LogOut style={{ width: 16, height: 16 }} />
                 </div>
                 <div className="head-titles">
@@ -990,7 +996,7 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                 type="button"
                 onClick={() => { setIsConfirmLogoutOpen(false); onSignOut(); }}
                 className="btn-submit"
-                style={{ background: '#DC2626', boxShadow: '0 2px 6px rgba(220, 38, 38, 0.3)' }}
+                style={{ background: 'var(--color-danger, #DC2626)', boxShadow: '0 2px 6px rgba(var(--color-danger-rgb), 0.3)' }}
               >
                 {t('btn.yes_sign_out')}
               </button>
@@ -1008,7 +1014,7 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
           <div className="saas-modal-card" style={{ maxWidth: 420 }}>
             <div className="saas-modal-header">
               <div className="head-left">
-                <div className="head-icon-badge" style={{ background: '#ECFDF5', borderColor: '#A7F3D0', color: '#059669' }}>
+                <div className="head-icon-badge" style={{ background: 'var(--brand-primary-light, #F0FEF5)', borderColor: 'var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)' }}>
                   <MapPin style={{ width: 16, height: 16 }} />
                 </div>
                 <div className="head-titles">
@@ -1042,6 +1048,9 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
           </div>
         </div>
       )}
+
+      {/* ── Dynamic Floating Theme Customizer Drawer ─────────────────── */}
+      <ThemeCustomizerDrawer tenant={tenant} user={user} onSaveTheme={onSaveTheme} />
     </div>
   );
 }

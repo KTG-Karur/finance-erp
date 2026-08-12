@@ -35,7 +35,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
       width: 38px;
       height: 38px;
       border-radius: 10px;
-      background: #F0FDF4;
+      background: var(--brand-primary-light, #F0FDF4);
       border: 1px solid #BBF7D0;
       color: #166534;
       display: flex;
@@ -62,7 +62,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
 
   .btn-add-customer {
     border: none;
-    background: #059669;
+    background: var(--brand-primary, #15803D);
     color: #FFFFFF;
     font-size: 0.78rem;
     font-weight: 600;
@@ -72,11 +72,11 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    box-shadow: 0 1px 4px rgba(5, 150, 105, 0.2);
+    box-shadow: 0 1px 4px rgba(var(--brand-primary-rgb), 0.2);
     transition: all 0.15s ease;
 
     &:hover {
-      background: #047857;
+      background: var(--brand-primary-hover, #0E5327);
     }
   }
 }
@@ -111,8 +111,8 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
     justify-content: center;
     flex-shrink: 0;
 
-    &--green { background: #F0FDF4; border: 1px solid #BBF7D0; color: #166534; }
-    &--blue  { background: #EFF6FF; border: 1px solid #BFDBFE; color: #1D4ED8; }
+    &--green { background: var(--brand-primary-light, #F0FDF4); border: 1px solid #BBF7D0; color: #166534; }
+    &--blue  { background: var(--color-info-light, #EFF6FF); border: 1px solid var(--color-info-border, #BFDBFE); color: #1D4ED8; }
     &--purple{ background: #F3E8FF; border: 1px solid #E9D5FF; color: #6B21A8; }
     &--orange{ background: #FFF7ED; border: 1px solid #FFEDD5; color: #C2410C; }
   }
@@ -176,8 +176,8 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
       &:focus {
         outline: none;
         background: #FFFFFF;
-        border-color: #059669;
-        box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.12);
+        border-color: var(--brand-primary, #15803D);
+        box-shadow: 0 0 0 2px rgba(var(--brand-primary-rgb), 0.12);
       }
     }
 
@@ -201,8 +201,8 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
     transition: all 0.15s ease;
 
     &:focus-within {
-      border-color: #059669;
-      box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.12);
+      border-color: var(--brand-primary, #15803D);
+      box-shadow: 0 0 0 2px rgba(var(--brand-primary-rgb), 0.12);
     }
 
     select {
@@ -320,7 +320,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
 
     &.active {
       background: #FFFFFF;
-      color: #059669;
+      color: var(--brand-primary, #15803D);
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
     }
   }
@@ -359,9 +359,9 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
     }
 
     &--danger:hover {
-      background: #FEF2F2;
-      color: #DC2626;
-      border-color: #FECACA;
+      background: var(--color-danger-light, #FEF2F2);
+      color: var(--color-danger, #DC2626);
+      border-color: var(--color-danger-border, #FECACA);
     }
   }
 }
@@ -384,24 +384,24 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
   }
 
   &--verified {
-    background: #F0FDF4;
+    background: var(--brand-primary-light, #F0FDF4);
     color: #166534;
     border: 1px solid #DCFCE7;
     .dot { background: #16A34A; }
   }
 
   &--pending {
-    background: #FFFBEB;
-    color: #B45309;
+    background: var(--color-warning-light, #FFFBEB);
+    color: var(--color-warning-hover, #B45309);
     border: 1px solid #FEF3C7;
-    .dot { background: #D97706; }
+    .dot { background: var(--color-warning, #D97706); }
   }
 
   &--rejected {
-    background: #FEF2F2;
-    color: #991B1B;
-    border: 1px solid #FEE2E2;
-    .dot { background: #DC2626; }
+    background: var(--color-danger-light, #FEF2F2);
+    color: var(--color-danger-text, #991B1B);
+    border: 1px solid var(--color-danger-light, #FEE2E2);
+    .dot { background: var(--color-danger, #DC2626); }
   }
 }
 
@@ -571,7 +571,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
       color: #0F172A;
 
       &.has-balance {
-        color: #DC2626;
+        color: var(--color-danger, #DC2626);
       }
     }
 

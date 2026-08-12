@@ -55,7 +55,7 @@ export default function VoucherReceiptModal({ company = {}, voucher, accountName
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          background: #047857;
+          background: var(--brand-primary-hover, #0E5327);
           color: #FFFFFF;
           border: none;
           padding: 7px 16px;
@@ -67,7 +67,7 @@ export default function VoucherReceiptModal({ company = {}, voucher, accountName
           box-shadow: 0 2px 6px rgba(4, 120, 87, 0.25);
         }
         .printable-btn-primary:hover {
-          background: #065F46;
+          background: var(--brand-primary-text, #075F27);
           box-shadow: 0 4px 10px rgba(4, 120, 87, 0.35);
         }
         .printable-btn-secondary {

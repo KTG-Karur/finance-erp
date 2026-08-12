@@ -33,7 +33,13 @@ export async function up(queryInterface, Sequelize) {
     pan: { type: DataTypes.STRING(20), allowNull: true },
     address: { type: DataTypes.TEXT, allowNull: true },
     phone: { type: DataTypes.STRING(20), allowNull: true },
-    logo: { type: DataTypes.TEXT, allowNull: true },
+    // MEDIUMTEXT (16MB), not TEXT (~64KB) — a base64-encoded logo upload
+    // routinely exceeds TEXT's limit and would get rejected by MySQL.
+    logo: { type: DataTypes.MEDIUMTEXT, allowNull: true },
+    // Company Profile / Theme Customizer screen — a hex color, shared across
+    // every user of this tenant (not per-browser localStorage), so switching
+    // devices or staff members always see the same brand color.
+    theme_color: { type: DataTypes.STRING(9), allowNull: true },
     max_branches: { type: DataTypes.INTEGER, allowNull: true },
     allowed_modules: { type: DataTypes.JSON, allowNull: true },
     is_active: { type: DataTypes.BOOLEAN, defaultValue: true },

@@ -4,12 +4,12 @@
 // ============================================================
 
 $font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
-$green: #059669;
-$greenDark: #047857;
-$greenLight: #ECFDF5;
+$green: var(--brand-primary, #15803D);
+$greenDark: var(--brand-primary-hover, #0E5327);
+$greenLight: var(--brand-primary-light, #F0FEF5);
 $orange: #F97316;
 $red: #EF4444;
-$blue: #3B82F6;
+$blue: var(--color-info, #3B82F6);
 $purple: #8B5CF6;
 $text1: #0F172A;
 $text2: #475569;
@@ -35,14 +35,14 @@ $white: #FFFFFF;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  background: #04564b;
+  background: var(--brand-primary-deep-5, #0D4F25);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
   padding: 12px 20px;
   flex-wrap: nowrap;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 4px 18px rgba(6, 44, 39, 0.25);
+  box-shadow: 0 4px 18px rgba(var(--brand-primary-deep-3-rgb, 7, 44, 21), 0.25);
 
   &::before {
     content: '';
@@ -52,7 +52,7 @@ $white: #FFFFFF;
     width: 220px;
     height: 220px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(52, 211, 153, 0.15) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(var(--brand-primary-rgb, 21, 128, 61), 0.2) 0%, transparent 70%);
     pointer-events: none;
   }
 }
@@ -105,7 +105,7 @@ $white: #FFFFFF;
 
   &--green {
     background: rgba(255, 255, 255, 0.16);
-    color: #A7F3D0;
+    color: var(--brand-primary-border, #A3F5C1);
   }
 
   &--orange {
@@ -148,7 +148,7 @@ $white: #FFFFFF;
 
   &--primary {
     background: #FFFFFF;
-    color: #065F46;
+    color: var(--brand-primary-text, #075F27);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
 
     &:hover {
@@ -297,13 +297,13 @@ $white: #FFFFFF;
   font-weight: 500;
 
   &--up {
-    background: #ECFDF5;
-    color: #047857;
+    background: var(--brand-primary-light, #F0FEF5);
+    color: var(--brand-primary-hover, #0E5327);
   }
 
   &--down {
-    background: #FEF2F2;
-    color: #991B1B;
+    background: var(--color-danger-light, #FEF2F2);
+    color: var(--color-danger-text, #991B1B);
   }
 
   &--neutral {
@@ -486,7 +486,7 @@ $white: #FFFFFF;
 
   &:hover,
   &--selected {
-    background: rgba(5, 150, 105, 0.07);
+    background: rgba(var(--brand-primary-rgb), 0.07);
   }
 
   &--selected .db-pillar-label {
@@ -518,7 +518,7 @@ $white: #FFFFFF;
   transition: height 0.35s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s ease;
 
   &--green {
-    background: linear-gradient(180deg, #10B981 0%, #059669 100%);
+    background: linear-gradient(180deg, var(--brand-primary, #10B981) 0%, var(--brand-primary, #15803D) 100%);
     box-shadow: 0 1px 3px rgba(16, 185, 129, 0.2);
   }
 
@@ -570,7 +570,7 @@ $white: #FFFFFF;
   gap: 4px;
   font-size: 0.68rem;
   font-weight: 600;
-  color: #047857;
+  color: var(--brand-primary-hover, #0E5327);
 }
 
 .db-mi-stats {
@@ -652,7 +652,7 @@ $white: #FFFFFF;
 
 .db-vel-fill {
   height: 100%;
-  background: linear-gradient(90deg, #10B981 0%, #059669 100%);
+  background: linear-gradient(90deg, var(--brand-primary, #10B981) 0%, var(--brand-primary, #15803D) 100%);
   border-radius: 10px;
   transition: width 0.4s ease;
 }
@@ -871,7 +871,7 @@ $white: #FFFFFF;
     width: 26px;
     height: 26px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #059669 0%, #0D9488 100%);
+    background: linear-gradient(135deg, var(--brand-primary, #15803D) 0%, var(--brand-primary-hover, #0E5327) 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -920,13 +920,13 @@ $white: #FFFFFF;
   font-weight: 600;
 
   &--active {
-    background: #ECFDF5;
-    color: #065F46;
+    background: var(--brand-primary-light, #F0FEF5);
+    color: var(--brand-primary-text, #075F27);
   }
 
   &--overdue {
     background: #FEF3C7;
-    color: #92400E;
+    color: var(--color-warning-text, #92400E);
   }
 
   &--closed {
@@ -941,14 +941,14 @@ $white: #FFFFFF;
   font-weight: 600;
   padding: 4px 10px;
   border-radius: 6px;
-  background: #059669;
+  background: var(--brand-primary, #15803D);
   color: #FFFFFF;
   border: none;
   cursor: pointer;
   transition: all 0.12s ease;
 
   &:hover {
-    background: #047857;
+    background: var(--brand-primary-hover, #0E5327);
     transform: translateY(-1px);
   }
 }
