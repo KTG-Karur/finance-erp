@@ -2,6 +2,7 @@ import * as authService from './auth.service.js';
 import { provisionNewTenantCompany } from '../../core/tenantProvisioner.js';
 import { getTenantDbPool } from '../../plugins/tenantDb.js';
 import { assertValidEmail } from '../../shared/validators/contact.js';
+import { assertValidGstin, assertValidPan } from '../../shared/validators/identity.js';
 
 const GLOBAL_SCOPE_ROLES = ['ADMIN', 'COMPANY_ADMIN', 'SUPER_ADMIN'];
 
@@ -320,8 +321,13 @@ export async function getOwnCompanyProfileHandler(request, reply) {
 export async function updateOwnCompanyProfileHandler(request, reply) {
   try {
     const { name, gstin, pan, address, phone, logo, theme_color } = request.body || {};
+    assertValidGstin(gstin);
+    assertValidPan(pan);
     const data = await authService.updateOwnCompanyProfile(request.server.masterDb, request.companyId, {
-      name, gstin, pan, address, phone, logo, theme_color
+      name,
+      gstin: gstin ? String(gstin).trim().toUpperCase() : gstin,
+      pan: pan ? String(pan).trim().toUpperCase() : pan,
+      address, phone, logo, theme_color
     });
     return reply.send({ success: true, data });
   } catch (err) {

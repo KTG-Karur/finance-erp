@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Landmark, Plus, X, AlertTriangle, CheckCircle2, LogOut, ArrowLeft,
-  UserCheck, ChevronLeft, ChevronRight, Search, CalendarClock
+  UserCheck, ChevronLeft, ChevronRight, Search, CalendarClock, Wallet
 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 
@@ -271,6 +271,15 @@ export default function RecurringDepositsView({ recurringDeposits = [], borrower
   const [screen, setScreen] = useState('LIST'); // 'LIST' | 'BOOK'
   const [confirmAction, setConfirmAction] = useState(null); // { type: 'MATURE'|'PREMATURE', rd }
   const [scheduleRd, setScheduleRd] = useState(null);
+  // Quick single-tap collection — enter the next due installment straight from
+  // the table row, the same "pick account, hit collect" shape as Daily
+  // Collections, instead of requiring staff to open the full month-by-month
+  // schedule modal just to pay the one installment that's actually due next.
+  const [collectRd, setCollectRd] = useState(null);
+  const [collectMode, setCollectMode] = useState('CASH');
+  const [collectLoading, setCollectLoading] = useState(false);
+  const [collectError, setCollectError] = useState('');
+  const [collectResult, setCollectResult] = useState(null);
   const [statusTab, setStatusTab] = useState('ACTIVE');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -423,6 +432,9 @@ export default function RecurringDepositsView({ recurringDeposits = [], borrower
                     <ActionPill icon={<CalendarClock style={{ width: 11, height: 11 }} />} label={t('rd.schedule_btn')} tone="neutral" onClick={() => setScheduleRd(rd)} />
                     {rd.status === 'ACTIVE' && (
                       <>
+                        {(rd.installments || []).some(i => i.status === 'PENDING') && (
+                          <ActionPill icon={<Wallet style={{ width: 11, height: 11 }} />} label={t('rd.collect_btn')} tone="good" onClick={() => { setCollectRd(rd); setCollectMode('CASH'); setCollectError(''); setCollectResult(null); }} />
+                        )}
                         <ActionPill icon={<CheckCircle2 style={{ width: 11, height: 11 }} />} label={t('rd.mark_matured')} tone="good" onClick={() => setConfirmAction({ type: 'MATURE', rd })} />
                         <ActionPill icon={<LogOut style={{ width: 11, height: 11 }} />} label={t('rd.premature_exit')} tone="bad" onClick={() => setConfirmAction({ type: 'PREMATURE', rd })} />
                       </>
@@ -543,6 +555,98 @@ export default function RecurringDepositsView({ recurringDeposits = [], borrower
           onClose={() => setScheduleRd(null)}
         />
       )}
+
+      {collectRd && (() => {
+        const nextDue = (collectRd.installments || []).find(i => i.status === 'PENDING');
+        if (!nextDue) return null;
+        return (
+          <div className="saas-modal-backdrop">
+            <div className="saas-modal-card" style={{ maxWidth: 400 }}>
+              <div className="saas-modal-header">
+                <div className="head-left">
+                  <div className="head-icon-badge" style={{ background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #15803D)' }}>
+                    <Wallet style={{ width: 18, height: 18 }} />
+                  </div>
+                  <div className="head-titles">
+                    <h3>{t('rd.collect_btn')}</h3>
+                    <p>{collectRd.rd_account_no} — {collectRd.customer_name}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setCollectRd(null); setCollectError(''); setCollectResult(null); }}
+                  className="close-btn" type="button" disabled={collectLoading}
+                >
+                  <X style={{ width: 16, height: 16 }} />
+                </button>
+              </div>
+              <div className="saas-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {collectError && <div className="form-alert form-alert--error"><span>{collectError}</span></div>}
+
+                {collectResult ? (
+                  <div style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', borderRadius: 12, padding: '16px 18px', textAlign: 'center' }}>
+                    <CheckCircle2 style={{ width: 26, height: 26, color: 'var(--brand-primary, #15803D)', marginBottom: 6 }} />
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#0F172A', fontWeight: 600 }}>
+                      ₹{fmt(nextDue.amount)} collected — month {nextDue.month_no} of {collectRd.tenure_months}
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                          Month {nextDue.month_no} of {collectRd.tenure_months} — Due {nextDue.due_date}
+                        </span>
+                        <strong style={{ fontSize: '1.2rem', color: '#0F172A' }}>₹{fmt(nextDue.amount)}</strong>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#334155' }}>Payment Mode</label>
+                      <select value={collectMode} onChange={(e) => setCollectMode(e.target.value)} className="input-control">
+                        <option value="CASH">{t('fin.mode_cash')}</option>
+                        <option value="BANK_TRANSFER">Bank Transfer</option>
+                        <option value="UPI">UPI</option>
+                        <option value="CHEQUE">Cheque</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="saas-modal-footer">
+                <button
+                  type="button"
+                  onClick={() => { setCollectRd(null); setCollectError(''); setCollectResult(null); }}
+                  disabled={collectLoading}
+                  className="btn-cancel"
+                >
+                  {collectResult ? t('rd.close_btn') : t('btn.cancel')}
+                </button>
+                {!collectResult && (
+                  <button
+                    type="button"
+                    disabled={collectLoading}
+                    onClick={async () => {
+                      if (collectLoading) return;
+                      setCollectLoading(true);
+                      setCollectError('');
+                      try {
+                        await onCollectInstallment?.(collectRd.id, nextDue.month_no, collectMode);
+                        setCollectResult(true);
+                      } catch (err) {
+                        setCollectError(err?.response?.data?.message || 'Collection failed. Please try again.');
+                      } finally {
+                        setCollectLoading(false);
+                      }
+                    }}
+                    className="btn-submit"
+                  >
+                    {collectLoading ? '...' : t('rd.confirm_btn')}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

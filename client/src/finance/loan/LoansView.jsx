@@ -208,8 +208,14 @@ export default function LoansView({
 
   const isClosedTab = viewMode === 'CLOSED';
 
-  // Counts for top view tabs
-  const activeLoansCount = scopedLoans.filter(l => l.status === 'ACTIVE' || l.status === 'OVERDUE' || l.status === 'APPROVED').length;
+  // Counts for top view tabs. APPROVED means "reviewed, not yet disbursed" —
+  // see loan.service.js's APPROVED->ACTIVE transition, which is the actual
+  // disbursal step (real cash out, real GL voucher). It used to count as
+  // "Active" here, which double-counted an application that hasn't actually
+  // become a loan yet — it already has its own APPROVED sub-tab under
+  // Applications (with the Disburse action) and doesn't need to also inflate
+  // the Active Loans register/exposure numbers.
+  const activeLoansCount = scopedLoans.filter(l => l.status === 'ACTIVE' || l.status === 'OVERDUE').length;
   const applicationsCount = scopedLoans.filter(l => l.status === 'PENDING' || l.status === 'APPROVED' || l.status === 'REJECTED').length;
   const closedLoansCount = scopedLoans.filter(l => l.status === 'CLOSED').length;
 
@@ -217,7 +223,7 @@ export default function LoansView({
   const displayList = scopedLoans.filter(l => {
     const matchesTab = isClosedTab
       ? l.status === 'CLOSED'
-      : (l.status === 'ACTIVE' || l.status === 'OVERDUE' || l.status === 'APPROVED');
+      : (l.status === 'ACTIVE' || l.status === 'OVERDUE');
 
     const q = searchQuery.toLowerCase().trim();
     const matchesSearch = !q || (

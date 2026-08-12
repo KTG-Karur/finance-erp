@@ -414,6 +414,15 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
   font-size: 0.75rem;
   color: #64748B;
   font-family: $font-macos !important;
+  // .fin-tablewrap (and similar table wrappers) scroll horizontally when the
+  // table is wider than the viewport — without this, the pagination bar
+  // (a sibling inside that same scroll container) scrolled off to the right
+  // along with the table instead of staying put at the visible left edge.
+  position: sticky;
+  left: 0;
+  width: max-content;
+  min-width: 100%;
+  box-sizing: border-box;
 
   &__info {
     font-weight: 500 !important;

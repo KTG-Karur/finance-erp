@@ -11,7 +11,7 @@ export async function getCollectionsHandler(request, reply) {
 
 export async function recordCollectionHandler(request, reply) {
   try {
-    const collection = await CollectionService.recordCollection(request.tenantDb, request.body);
+    const collection = await CollectionService.recordCollection(request.tenantDb, request.body, request.user?.name);
     return reply.code(201).send({ success: true, message: 'Collection receipt recorded successfully', data: collection });
   } catch (err) {
     return reply.code(err.statusCode || 400).send({ success: false, message: err.message });

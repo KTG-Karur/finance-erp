@@ -144,6 +144,22 @@ export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }
 
   if (!loan) return null;
 
+  // The installment label/suffix and tenure unit used to be hardcoded to
+  // "Daily"/"days" regardless of the loan's actual repayment_frequency — a
+  // monthly-EMI loan would show "₹2,000 /day" and "180 Days" instead of
+  // "₹2,000 /month" and "6 Months", which is exactly backwards from what the
+  // loan was actually set up as.
+  const freq = loan.repayment_frequency || 'DAILY';
+  const installmentLabel = freq === 'MONTHLY' ? t('nla.freq_monthly_emi') : freq === 'WEEKLY' ? t('nla.freq_weekly_installment') : t('nla.freq_daily_emi');
+  const installmentSuffix = freq === 'MONTHLY' ? t('nla.per_month') : freq === 'WEEKLY' ? `/${t('nla.freq_weekly_short')}` : t('cp.per_day');
+  const tenureDisplay = loan.tenure_days
+    ? (freq === 'MONTHLY' && loan.tenure_days % 30 === 0
+      ? `${loan.tenure_days / 30} ${t('nla.months_suffix')}`
+      : freq === 'WEEKLY' && loan.tenure_days % 7 === 0
+        ? `${loan.tenure_days / 7} ${t('nla.freq_weekly_short')}`
+        : `${loan.tenure_days} ${t('ld.days_suffix')}`)
+    : '—';
+
   const rawReceipts = receipts
     .filter(r => r.loan_id === loan.id || r.loan_account_no === loan.loan_account_no)
     .sort((a, b) => new Date(b.collection_date || b.date) - new Date(a.collection_date || a.date));
@@ -352,8 +368,8 @@ export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }
                 <span className="val">{loan.monthly_interest_rate ? `${loan.monthly_interest_rate}% ${t('ld.month_suffix')}` : '—'}</span>
               </div>
               <div className="meta-row">
-                <span className="lbl">{t('ld.daily_installment')}</span>
-                <span className="val text-emerald">₹{fmt(loan.installment_amount)} {t('cp.per_day')}</span>
+                <span className="lbl">{installmentLabel}</span>
+                <span className="val text-emerald">₹{fmt(loan.installment_amount)} {installmentSuffix}</span>
               </div>
               <div className="meta-row">
                 <span className="lbl">{t('ld.disbursement_date')}</span>
@@ -361,7 +377,7 @@ export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }
               </div>
               <div className="meta-row">
                 <span className="lbl">{t('ld.tenure_period')}</span>
-                <span className="val">{loan.tenure_days ? `${loan.tenure_days} ${t('ld.days_suffix')}` : '—'}</span>
+                <span className="val">{tenureDisplay}</span>
               </div>
               <div className="meta-row">
                 <span className="lbl">{t('ld.next_installment_due')}</span>

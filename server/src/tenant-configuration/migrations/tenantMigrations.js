@@ -85,7 +85,7 @@ export async function up(queryInterface, Sequelize) {
     borrower_code: { type: DataTypes.STRING(50), allowNull: false, unique: true },
     full_name: { type: DataTypes.STRING(255), allowNull: false },
     father_spouse_name: { type: DataTypes.STRING(255), allowNull: true },
-    phone: { type: DataTypes.STRING(20), allowNull: false },
+    phone: { type: DataTypes.STRING(20), allowNull: false, unique: true },
     alt_phone: { type: DataTypes.STRING(20), allowNull: true },
     email: { type: DataTypes.STRING(255), allowNull: true },
     dob: { type: DataTypes.DATEONLY, allowNull: true },

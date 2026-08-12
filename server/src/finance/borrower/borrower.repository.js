@@ -88,6 +88,17 @@ export class BorrowerRepository {
         );
         return this.findById(db, res.insertId);
       } catch (err) {
+        // `phone` is unique too now (closes the race where two near-simultaneous
+        // submits both pass createBorrower's check-then-insert phone check) —
+        // that collision isn't self-resolving like a borrower_code clash is, so
+        // retrying would just fail identically. Surface the same friendly
+        // message createBorrower's normal (non-race) duplicate check already
+        // gives, instead of a raw MySQL "Duplicate entry" error.
+        if (err.code === 'ER_DUP_ENTRY' && /phone/.test(err.sqlMessage || '')) {
+          const dupErr = new Error('A customer with this phone number already exists.');
+          dupErr.statusCode = 409;
+          throw dupErr;
+        }
         if (err.code === 'ER_DUP_ENTRY' && attempt === 0) continue;
         throw err;
       }
@@ -97,10 +108,19 @@ export class BorrowerRepository {
   static async update(db, id, data) {
     const sets = COLUMNS.map(col => `${col} = ?`);
     const values = toRowValues(data);
-    await db.query(
-      `UPDATE borrowers SET ${sets.join(', ')} WHERE id = ?`,
-      [...values, id]
-    );
+    try {
+      await db.query(
+        `UPDATE borrowers SET ${sets.join(', ')} WHERE id = ?`,
+        [...values, id]
+      );
+    } catch (err) {
+      if (err.code === 'ER_DUP_ENTRY' && /phone/.test(err.sqlMessage || '')) {
+        const dupErr = new Error('Another customer already uses this phone number.');
+        dupErr.statusCode = 409;
+        throw dupErr;
+      }
+      throw err;
+    }
     return this.findById(db, id);
   }
 

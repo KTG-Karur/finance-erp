@@ -892,6 +892,21 @@ export default function App() {
       const schemeId = payload.scheme_id ? Number(payload.scheme_id) : 1;
       const matchedScheme = loanSchemes.find(s => s.id === schemeId);
       const isCustom = matchedScheme?.formula_type === 'CUSTOM';
+      // Was hardcoded to the literal string 'Main Branch' unconditionally —
+      // every application submitted through this Quick Action shortcut got
+      // silently mistagged regardless of the customer's real branch or which
+      // branch the sidebar was scoped to, so it would vanish from any
+      // branch-filtered table/count the moment staff filtered to their real
+      // branch. Resolve it the same way handleDisburseLoan does: the matched
+      // borrower's own branch first, then whatever branch is currently active
+      // in the sidebar scope, then the tenant's first real branch — never a
+      // fabricated name that may not even exist as a branch record.
+      const matchedBorrower = borrowers.find(b => b.id === (payload.borrower_id ? Number(payload.borrower_id) : null))
+        || borrowers.find(b => b.phone === payload.phone);
+      const resolvedBranch = matchedBorrower?.branch
+        || (selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : null)
+        || branchesList[0]?.name
+        || 'Main Branch';
       const repaymentMethod = resolveSchemeRepaymentMethod(matchedScheme);
       const interestCalculation = resolveSchemeInterestCalculation(matchedScheme);
       const loanDate = new Date().toISOString().slice(0, 10);
@@ -907,7 +922,7 @@ export default function App() {
           scheme_id: schemeId,
           borrower_name: payload.borrower_name,
           phone: payload.phone,
-          branch: 'Main Branch',
+          branch: resolvedBranch,
           collector: user?.name || 'Admin',
           loan_date: loanDate,
           principal_amount: payload.principal_amount,
@@ -949,7 +964,7 @@ export default function App() {
         scheme_id: schemeId,
         borrower_name: payload.borrower_name,
         phone: payload.phone,
-        branch: 'Main Branch',
+        branch: resolvedBranch,
         collector: user?.name || 'Admin',
         loan_date: loanDate,
         principal_amount: payload.principal_amount,
@@ -1081,6 +1096,15 @@ export default function App() {
         interest_paid: serverData.interest_portion,
         penalty: serverData.penalty_portion,
         new_principal_balance: serverData.new_pending_balance,
+        // A few older views (LoanLedgerView, CollectionsReportView,
+        // DashboardOverviewView) only ever check the camelCase names, with no
+        // DB-column fallback — setting both here, rather than auditing and
+        // fixing every consumer individually, is what actually makes a
+        // freshly-recorded collection render identically everywhere a
+        // page-refreshed one does.
+        principalPaid: serverData.principal_portion,
+        interestPaid: serverData.interest_portion,
+        newPrincipalBalance: serverData.new_pending_balance,
         loan_account_no: payload.loan_account_no || '',
         bank_name: payload.bank_name || '',
         received_at: payload.received_at || 'BRANCH_COUNTER',
@@ -1161,20 +1185,14 @@ export default function App() {
     setCollections(prev => [newReceipt, ...prev]);
     logAudit('COLLECTION', newReceipt.id, 'PAYMENT_RECORDED', `₹${totalAmt.toLocaleString('en-IN')} for loan #${payload.loan_id} (${newReceipt.payment_mode})`);
 
-    // Cash in from the borrower splits straight back out to what it settles: the
-    // loan principal outstanding, interest earned, and any penalty — interest and
-    // penalty are earned revenue the moment they're collected, principal just
-    // reduces the asset already on the books from disbursal.
-    const glLines = [journalLine('1001', totalAmt + penaltyAmt, 0)];
-    if (principalPaid > 0) glLines.push(journalLine('1200', 0, principalPaid));
-    if (interestPaid > 0) glLines.push(journalLine('4001', 0, interestPaid));
-    if (penaltyAmt > 0) glLines.push(journalLine('4002', 0, penaltyAmt));
-    postJournal(
-      `Collection received — ${newReceipt.loan_account_no || 'Loan #' + payload.loan_id} (${newReceipt.borrower_name})`,
-      glLines, 'COLLECTION', newReceipt.id, collectionDate,
-      payload.branch || loans.find(l => l.id === payload.loan_id)?.branch,
-      undefined, undefined, voucherNo
-    );
+    // The ledger voucher itself already exists — collection.service.js posts it
+    // server-side, atomically with the collection row and the loan balance
+    // update (see createCollectionVoucher in shared/voucher-engine). Nothing
+    // to post from here anymore for a real (synced) collection. Custom-formula
+    // collections have no real voucher either way, since they never reach the
+    // server at all — a locally-fabricated ledger entry for a payment that was
+    // never actually saved would be more misleading than showing nothing.
+    if (synced) fetchLedgerEntries();
 
     return { data: newReceipt };
   };
@@ -1197,6 +1215,7 @@ export default function App() {
       ...c, reverted: true, revert_reason: reason, reverted_by: user?.name || 'Admin', reverted_at: new Date().toISOString()
     } : c)));
     logAudit('COLLECTION', collectionId, 'REVERTED', `${collection.loan_account_no || 'Loan #' + collection.loan_id} — ${reason}`);
+    fetchLedgerEntries();
   };
 
   // Metadata-only correction — payment mode, reference no, collector, date,
@@ -1251,6 +1270,7 @@ export default function App() {
       ...c, clearance_status: 'BOUNCED', bounce_reason: reason, bounced_by: user?.name || 'Admin', bounced_at: new Date().toISOString()
     } : c)));
     logAudit('COLLECTION', collectionId, 'CHEQUE_BOUNCED', `${collection.loan_account_no || 'Loan #' + collection.loan_id} — ${reason}`);
+    fetchLedgerEntries();
   };
 
   const handleDisburseLoan = async (form) => {
@@ -1265,10 +1285,25 @@ export default function App() {
     const repaymentMethod = resolveSchemeRepaymentMethod(matchedScheme);
     const interestCalculation = resolveSchemeInterestCalculation(matchedScheme);
     const loanDate = new Date().toISOString().slice(0, 10);
-    const repaymentFrequency = matchedScheme?.repayment_frequency || 'DAILY';
+    // Was reading ONLY the scheme's own repayment_frequency, completely
+    // ignoring what staff explicitly picked on the application form itself
+    // (form.repayment_frequency, a required field — see NewLoanApplicationPage.jsx)
+    // — so a staff member who deliberately chose "Monthly" would still get a
+    // DAILY-frequency loan (and a "₹X/day" label) the moment the linked
+    // scheme didn't happen to carry a matching value, or had none at all.
+    const repaymentFrequency = form.repayment_frequency || matchedScheme?.repayment_frequency || 'DAILY';
+    // Same fallback chain as handleQuickAction's SUBMIT_APPLICATION path — a
+    // borrower with no branch on file used to fall straight to the literal
+    // string 'Main Branch' regardless of which branch was actually active,
+    // silently mistagging the loan and hiding it from that branch's own
+    // filtered views/counts.
+    const resolvedBranch = matchedBorrower?.branch
+      || (selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : null)
+      || branchesList[0]?.name
+      || 'Main Branch';
 
     if (!isApplication) {
-      assertEodNotLocked(matchedBorrower?.branch || 'Main Branch', loanDate);
+      assertEodNotLocked(resolvedBranch, loanDate);
     }
 
     // Custom-formula loans use a token-based interest engine the server has no
@@ -1287,7 +1322,7 @@ export default function App() {
         scheme_id: form.scheme_id ? Number(form.scheme_id) : loanSchemes[0]?.id || null,
         borrower_name: form.borrower_name,
         phone: form.phone,
-        branch: matchedBorrower?.branch || 'Main Branch',
+        branch: resolvedBranch,
         collector: user?.name || 'Admin',
         loan_date: loanDate,
         next_due: new Date().toISOString().slice(0, 10),
@@ -1339,7 +1374,7 @@ export default function App() {
       scheme_id: form.scheme_id ? Number(form.scheme_id) : (loanSchemes[0]?.id || null),
       borrower_name: form.borrower_name,
       phone: form.phone,
-      branch: matchedBorrower?.branch || 'Main Branch',
+      branch: resolvedBranch,
       collector: user?.name || 'Admin',
       loan_date: loanDate,
       principal_amount: parseFloat(form.principal_amount),
@@ -1361,11 +1396,15 @@ export default function App() {
         borrower_id: matchedBorrower?.id || null,
         borrower_name: form.borrower_name,
         phone: form.phone,
-        branch: matchedBorrower?.branch || 'Main Branch',
+        branch: resolvedBranch,
         repayment_schedule: created.schedule || []
       };
       setLoans(prev => [newLoan, ...prev]);
       logAudit('LOAN', created.id, isApplication ? 'APPLICATION_SUBMITTED' : 'DISBURSED', created.loan_account_no);
+      // An APPLICATION has no cash movement yet (server posts no voucher for
+      // it either — see loan.service.js), so nothing new to reflect in the
+      // ledger until it's later approved/disbursed.
+      if (!isApplication) fetchLedgerEntries();
     }
     return created;
   };
@@ -1427,6 +1466,7 @@ export default function App() {
     const loan = loans.find(l => l.id === loanId);
     await updateLoanStatusReal(loanId, 'ACTIVE');
     logAudit('LOAN', loanId, 'DISBURSED', loan?.loan_account_no);
+    fetchLedgerEntries();
   };
 
   // A loan that's been fully paid off doesn't close itself — it goes to Admin as a
@@ -1687,7 +1727,7 @@ export default function App() {
         <TrialBalanceView chartOfAccounts={ledgerAccounts} journalEntries={ledgerEntries} branchesList={branchesList} selectedBranch={selectedBranch} />
       )}
       {(activeTab.includes('auto-vouchers')) && (
-        <AutoVouchersView journalEntries={journalEntries} branchesList={branchesList} chartOfAccounts={chartOfAccounts} tenant={tenant} selectedBranch={selectedBranch} />
+        <AutoVouchersView journalEntries={ledgerEntries} branchesList={branchesList} chartOfAccounts={ledgerAccounts} tenant={tenant} selectedBranch={selectedBranch} />
       )}
       {(activeTab.includes('manual-vouchers')) && (
         <ManualVouchersView

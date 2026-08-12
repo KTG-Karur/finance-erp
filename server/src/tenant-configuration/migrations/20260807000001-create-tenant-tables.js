@@ -101,7 +101,12 @@ export async function up(queryInterface, Sequelize) {
     borrower_code: { type: DataTypes.STRING(50), allowNull: false, unique: true },
     full_name: { type: DataTypes.STRING(255), allowNull: false },
     father_spouse_name: { type: DataTypes.STRING(255), allowNull: true },
-    phone: { type: DataTypes.STRING(20), allowNull: false },
+    // unique — borrower.service.js's createBorrower/updateBorrower already
+    // check-then-insert against a duplicate phone, but that's not atomic
+    // against two near-simultaneous requests (a double-click before the form's
+    // disabled state re-renders, or two staff members racing on two tabs);
+    // this is the real backstop that makes a duplicate DB-level impossible.
+    phone: { type: DataTypes.STRING(20), allowNull: false, unique: true },
     alt_phone: { type: DataTypes.STRING(20), allowNull: true },
     email: { type: DataTypes.STRING(255), allowNull: true },
     dob: { type: DataTypes.DATEONLY, allowNull: true },
