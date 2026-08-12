@@ -218,17 +218,21 @@ export default function CustomerProfileModal({ borrower, onClose, onEdit }) {
                 <div className="cpx-empty">{t('cp.no_loans')}</div>
               ) : (
                 <div className="cpx-loans">
-                  {borrower.loansList.map(loan => (
-                    <div className="cpx-loan-row" key={loan.id}>
-                      <div>
-                        <strong>{loan.loan_account_no}</strong>
-                        <span>{t('cp.disbursed')} ₹{fmt(loan.principal_amount)} • EMI ₹{loan.installment_amount}{t('cp.per_day')}</span>
+                  {borrower.loansList.map(loan => {
+                    const freq = loan.repayment_frequency || 'DAILY';
+                    const emiSuffix = freq === 'MONTHLY' ? '/month' : freq === 'WEEKLY' ? '/week' : t('cp.per_day');
+                    return (
+                      <div className="cpx-loan-row" key={loan.id}>
+                        <div>
+                          <strong>{loan.loan_account_no}</strong>
+                          <span>{t('cp.disbursed')} ₹{fmt(loan.principal_amount)} • EMI ₹{loan.installment_amount}{emiSuffix}</span>
+                        </div>
+                        <div className={`cpx-loan-pending ${loan.pending_amount > 0 ? 'danger' : 'success'}`}>
+                          ₹{fmt(loan.pending_amount)}
+                        </div>
                       </div>
-                      <div className={`cpx-loan-pending ${loan.pending_amount > 0 ? 'danger' : 'success'}`}>
-                        ₹{fmt(loan.pending_amount)}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

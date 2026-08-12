@@ -254,11 +254,29 @@ export default function OrganizationHierarchyView({
               </div>
               <div>
                 <label style={labelStyle}>GSTIN Registration No</label>
-                <input type="text" value={companyForm.gstin} onChange={(e) => setCompanyForm({ ...companyForm, gstin: e.target.value })} style={inputStyle} />
+                <input
+                  type="text"
+                  value={companyForm.gstin}
+                  onChange={(e) => setCompanyForm({ ...companyForm, gstin: e.target.value.toUpperCase() })}
+                  maxLength={15}
+                  pattern="[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}"
+                  title="15-character GSTIN, e.g. 22AAAAA0000A1Z5"
+                  placeholder="22AAAAA0000A1Z5"
+                  style={inputStyle}
+                />
               </div>
               <div>
                 <label style={labelStyle}>PAN Number</label>
-                <input type="text" value={companyForm.pan} onChange={(e) => setCompanyForm({ ...companyForm, pan: e.target.value })} style={inputStyle} />
+                <input
+                  type="text"
+                  value={companyForm.pan}
+                  onChange={(e) => setCompanyForm({ ...companyForm, pan: e.target.value.toUpperCase() })}
+                  maxLength={10}
+                  pattern="[A-Z]{5}[0-9]{4}[A-Z]{1}"
+                  title="10-character PAN, e.g. ABCDE1234F"
+                  placeholder="ABCDE1234F"
+                  style={inputStyle}
+                />
               </div>
               <div>
                 <label style={labelStyle}>Corporate Phone</label>

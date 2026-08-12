@@ -54,6 +54,14 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
   const [showDirectoryReport, setShowDirectoryReport] = useState(false);
 
+  // Excel auto-detects long digit-only cells as numbers and reformats them
+  // into scientific notation (e.g. a 12-digit Aadhaar number becomes
+  // "9.87654E+11") the moment the CSV is opened — standard CSV quoting
+  // doesn't stop this, since it's Excel's own numeric-sniffing, not a CSV
+  // escaping problem. Wrapping the value as an `="..."` formula is the
+  // standard workaround: Excel evaluates it as a literal text string instead.
+  const forceTextCell = (val) => (val ? `="${String(val).replace(/"/g, '""')}"` : '');
+
   const handleExportCsv = () => {
     const headers = [
       'Customer Code', 'Full Name', 'Father/Spouse Name', 'DOB', 'Gender', 'Phone', 'Alt Phone',
@@ -66,14 +74,14 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
       b.father_spouse_name || '',
       b.dob || '',
       b.gender || '',
-      b.phone || '',
-      b.alt_phone || '',
+      forceTextCell(b.phone),
+      forceTextCell(b.alt_phone),
       b.email || '',
       b.address_line1 || '',
       b.city || '',
       b.state || '',
       b.pincode || '',
-      b.aadhaar_number || '',
+      forceTextCell(b.aadhaar_number),
       b.pan_number || '',
       b.loansCount || 0,
       b.activeLoansCount || 0,
@@ -100,21 +108,40 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
 
   const enrichedBorrowers = useMemo(() => {
     return borrowers.map(b => {
-      const relatedLoans = loans.filter(l => normalizePhone(l.phone) === normalizePhone(b.phone) && normalizePhone(b.phone));
-      const totalOutstanding = relatedLoans.reduce((acc, l) => acc + (parseFloat(l.pending_amount) || 0), 0);
-      const disbursedAmount = relatedLoans.reduce((acc, l) => acc + (parseFloat(l.principal_amount) || 0), 0);
-      // Same status grouping as the Loans Register page (LoansView.jsx) so the
-      // counts shown here always agree with what that page calls Active/Closed.
-      const activeLoansCount = relatedLoans.filter(l => l.status === 'ACTIVE' || l.status === 'OVERDUE' || l.status === 'APPROVED').length;
+      // Prefer the real borrower_id link; phone is only a fallback for legacy
+      // rows created before that link existed (matching by phone alone breaks
+      // the moment a customer's phone number is ever corrected/updated).
+      const relatedLoans = loans.filter(l => (
+        (l.borrower_id != null && l.borrower_id === b.id)
+        || (!l.borrower_id && normalizePhone(l.phone) === normalizePhone(b.phone) && normalizePhone(b.phone))
+      ));
+      // PENDING/APPROVED/REJECTED loans are applications — no cash has left the
+      // vault yet (APPROVED means "reviewed", not "disbursed"; see loan.service.js's
+      // APPROVED->ACTIVE transition, which is the actual disbursal step). Counting
+      // any of them as real exposure/outstanding balance showed a customer as
+      // carrying debt for loans that don't exist yet, or never will if rejected.
+      const disbursedStatuses = ['ACTIVE', 'OVERDUE', 'PENDING_CLOSURE', 'CLOSED'];
+      const disbursedLoans = relatedLoans.filter(l => disbursedStatuses.includes(l.status));
+      const totalOutstanding = relatedLoans
+        .filter(l => l.status === 'ACTIVE' || l.status === 'OVERDUE' || l.status === 'PENDING_CLOSURE')
+        .reduce((acc, l) => acc + (parseFloat(l.pending_amount) || 0), 0);
+      const disbursedAmount = disbursedLoans.reduce((acc, l) => acc + (parseFloat(l.principal_amount) || 0), 0);
+      const activeLoansCount = relatedLoans.filter(l => l.status === 'ACTIVE' || l.status === 'OVERDUE' || l.status === 'PENDING_CLOSURE').length;
       const completedLoansCount = relatedLoans.filter(l => l.status === 'CLOSED').length;
       return {
         ...b,
-        loansCount: relatedLoans.length,
+        loansCount: disbursedLoans.length,
         activeLoansCount,
         completedLoansCount,
         totalOutstanding,
         disbursedAmount,
-        loansList: relatedLoans
+        // CustomerProfileModal's "Associated Loan Accounts" section literally
+        // labels each row "Disbursed ₹X" — showing a PENDING/APPROVED/REJECTED
+        // application there claimed money had gone out the door for a loan
+        // that doesn't exist yet (or never will, if rejected). Only genuinely
+        // disbursed accounts belong under that heading; applications have
+        // their own dedicated page (Loan Applications).
+        loansList: disbursedLoans
       };
     });
   }, [borrowers, loans]);

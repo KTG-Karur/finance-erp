@@ -62,10 +62,13 @@ function NewVoucherModal({ isOpen, onClose, onSubmit, chartOfAccounts, branchesL
   const isContra = form.voucher_type === 'CONTRA';
   const isReceipt = form.voucher_type === 'CASH_RECEIPT' || form.voucher_type === 'BANK_RECEIPT';
   const isPayment = form.voucher_type === 'CASH_PAYMENT' || form.voucher_type === 'BANK_PAYMENT';
-  // '5002' is the real chart-of-accounts code for Branch Operating Expenses
-  // (server/src/tenant-configuration/seeders/tenantSeeders.js) — not '5001',
-  // which is Bad Debt Provision Expense, an unrelated account.
-  const isOfficeExpense = isPayment && form.other_account_code === '5002';
+  // Previously gated on the target account being exactly account code '5002'
+  // (Branch Operating Expenses) — a magic-string match that silently broke
+  // the moment staff picked any other expense-flavored account, or if the
+  // chart of accounts is ever renumbered. Any payment voucher can usefully be
+  // tagged with a category, so just show it for every payment instead of
+  // guessing which specific account "counts".
+  const isOfficeExpense = isPayment;
   const selectedCategory = expenseCategories.find(c => c.id === Number(form.expense_category_id)) || null;
   const isMiscCategory = Boolean(selectedCategory && selectedCategory.name.toLowerCase().includes('miscellaneous'));
   const isOthers = form.other_account_code === 'OTHERS';
@@ -101,8 +104,10 @@ function NewVoucherModal({ isOpen, onClose, onSubmit, chartOfAccounts, branchesL
       if (!(Number(form.amount) > 0)) { setError(t('fin.amount_label') + ' *'); return; }
     } else {
       if (!(Number(form.amount) > 0) || !form.other_account_code) { setError(t('fin.amount_label') + ' / ' + t('fin.select_account_label')); return; }
-      if (isOfficeExpense && !form.expense_category_id) { setError(t('fin.expense_category_label') + ' *'); return; }
-      if (isOfficeExpense && isMiscCategory && !form.purpose.trim()) { setError(t('fin.purpose_label') + ' *'); return; }
+      // Category is optional here — not every payment voucher is an expense
+      // draw against a funded category — but if staff did pick one, "Miscellaneous"
+      // still requires a stated purpose so it's not a total black hole.
+      if (isOfficeExpense && form.expense_category_id && isMiscCategory && !form.purpose.trim()) { setError(t('fin.purpose_label') + ' *'); return; }
       if (isOthers && !form.other_reason.trim()) { setError(t('fin.other_reason_label') + ' *'); return; }
     }
 

@@ -199,7 +199,15 @@ export default function PrintableLoanApplicationSheet({
               </tr>
               <tr>
                 <td className="field-lbl">Tenure Period</td>
-                <td className="field-val">{applicationData?.tenure_days ? `${applicationData.tenure_days} Days` : (applicationData?.tenure_months ? `${applicationData.tenure_months} Months` : '—')}</td>
+                <td className="field-val">
+                  {applicationData?.tenure_days
+                    ? (applicationData?.repayment_frequency === 'MONTHLY' && applicationData.tenure_days % 30 === 0
+                      ? `${applicationData.tenure_days / 30} Months`
+                      : applicationData?.repayment_frequency === 'WEEKLY' && applicationData.tenure_days % 7 === 0
+                        ? `${applicationData.tenure_days / 7} Weeks`
+                        : `${applicationData.tenure_days} Days`)
+                    : (applicationData?.tenure_months ? `${applicationData.tenure_months} Months` : '—')}
+                </td>
                 <td className="field-lbl">Installment Frequency</td>
                 <td className="field-val" style={{ fontWeight: 600 }}>{applicationData?.repayment_frequency || 'DAILY'} EMI</td>
               </tr>
@@ -391,7 +399,12 @@ export default function PrintableLoanApplicationSheet({
                 <br /><br />
                 Requested Principal: <strong>₹{fmt(applicationData.principal_amount)}</strong>
                 <br />
-                Daily EMI: <strong>{applicationData.installment_amount != null ? `₹${fmt(applicationData.installment_amount)}/day` : '—'}</strong>
+                {applicationData?.repayment_frequency === 'MONTHLY' ? 'Monthly EMI' : applicationData?.repayment_frequency === 'WEEKLY' ? 'Weekly Installment' : 'Daily EMI'}:{' '}
+                <strong>
+                  {applicationData.installment_amount != null
+                    ? `₹${fmt(applicationData.installment_amount)}${applicationData?.repayment_frequency === 'MONTHLY' ? '/month' : applicationData?.repayment_frequency === 'WEEKLY' ? '/week' : '/day'}`
+                    : '—'}
+                </strong>
               </p>
             </div>
             {actionError && (

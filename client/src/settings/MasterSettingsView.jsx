@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import PermissionMatrix from '../components/PermissionMatrix';
 import BorrowersView from '../finance/borrowers/BorrowersView';
 import OrganizationHierarchyView from './OrganizationHierarchyView';
@@ -111,7 +111,15 @@ export default function MasterSettingsView({
   // `tenant` starts out with only what the login response carries (id/name) —
   // gstin/pan/address/phone/logo arrive later via App.jsx's fetchCompanyProfile
   // API call, which can resolve after this component has already mounted.
+  // `hasEditedCompanyFormRef` (set true the moment the staff member types
+  // anything, via trackedSetCompanyForm below) guards against that late
+  // arrival — or any other later tenant refresh — silently overwriting
+  // in-progress unsaved edits. It resets after a successful save, since at
+  // that point there's nothing unsaved left to protect and the tenant's
+  // refreshed values are exactly what was just submitted.
+  const hasEditedCompanyFormRef = useRef(false);
   useEffect(() => {
+    if (hasEditedCompanyFormRef.current) return;
     setCompanyForm({
       name: tenant?.name || '',
       gstin: tenant?.gstin || '',
@@ -121,6 +129,11 @@ export default function MasterSettingsView({
       logo: tenant?.logo || null
     });
   }, [tenant?.name, tenant?.gstin, tenant?.pan, tenant?.address, tenant?.phone, tenant?.logo]);
+
+  const trackedSetCompanyForm = (updater) => {
+    hasEditedCompanyFormRef.current = true;
+    setCompanyForm(updater);
+  };
 
   const handleOpenStaffRbacModal = (emp) => {
     setSelectedStaffForRbac(emp);
@@ -249,6 +262,7 @@ export default function MasterSettingsView({
     setCompanySaveError('');
     try {
       await onSaveCompanyProfile?.(companyForm);
+      hasEditedCompanyFormRef.current = false;
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
     } catch (err) {
@@ -331,7 +345,7 @@ export default function MasterSettingsView({
         onUpdateBranch={onUpdateBranch}
         onDeleteBranch={onDeleteBranch}
         companyForm={companyForm}
-        setCompanyForm={setCompanyForm}
+        setCompanyForm={trackedSetCompanyForm}
         onSaveCompany={handleCompanySave}
         savedSuccess={savedSuccess}
         companySaveError={companySaveError}

@@ -32,12 +32,27 @@ export class LoanService {
     return LoanRepository.findById(db, id);
   }
 
-  static async createLoan(db, loanData) {
+  static async createLoan(db, loanData, createdBy) {
     validateLoanCreationPayload(loanData);
 
     const conn = await db.getConnection();
     try {
       await conn.beginTransaction();
+
+      // scheme_id is a real foreign key to loan_schemes — inserting one that
+      // doesn't exist (the client used to silently fall back to a hardcoded
+      // `1` when no scheme was actually selected) fails with a raw MySQL
+      // foreign-key error that gives staff no idea what actually went wrong.
+      // Whenever a tenant has no schemes configured yet, this is exactly what
+      // happened on every single application attempt.
+      if (loanData.scheme_id) {
+        const [schemeRows] = await conn.query('SELECT id FROM loan_schemes WHERE id = ? AND is_active = 1', [loanData.scheme_id]);
+        if (!schemeRows.length) {
+          const err = new Error('Selected loan scheme was not found or is inactive. Create/activate a Loan Scheme under Settings before creating loans.');
+          err.statusCode = 400;
+          throw err;
+        }
+      }
 
       // An APPLICATION is submitted for review — no cash moves and no voucher
       // posts until it's later approved and disbursed (see updateStatus's
@@ -170,7 +185,9 @@ export class LoanService {
           loanAccountNo,
           borrowerName: loanData.borrower_name,
           amount: principal,
-          entryDate: loanData.loan_date
+          entryDate: loanData.loan_date,
+          branch: loanData.branch,
+          createdBy
         });
       }
 
@@ -184,7 +201,7 @@ export class LoanService {
     }
   }
 
-  static async updateStatus(db, id, status, reason) {
+  static async updateStatus(db, id, status, reason, createdBy) {
     if (!VALID_TRANSITIONS[status]) {
       const err = new Error(`'${status}' is not a valid loan status.`);
       err.statusCode = 400;
@@ -242,7 +259,9 @@ export class LoanService {
           loanAccountNo: loan.loan_account_no,
           borrowerName: loan.borrower_name,
           amount: loan.principal_amount,
-          entryDate: new Date().toISOString().slice(0, 10)
+          entryDate: new Date().toISOString().slice(0, 10),
+          branch: loan.branch,
+          createdBy
         });
       } else if (status === 'ACTIVE' && loan.status === 'PENDING_CLOSURE') {
         // Rejecting a closure request — a mis-recorded "fully paid" needs a

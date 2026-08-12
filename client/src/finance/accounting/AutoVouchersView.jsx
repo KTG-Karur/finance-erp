@@ -6,9 +6,17 @@ import VoucherReceiptModal from '../../components/VoucherReceiptModal';
 
 const REF_TYPE_KEY = {
   COLLECTION: 'fin.ref_collection',
+  COLLECTION_REVERSAL: 'fin.ref_collection_reversal',
   DISBURSAL: 'fin.ref_disbursal',
   EXPENSE: 'fin.ref_expense',
-  CAPITAL: 'fin.ref_capital'
+  CAPITAL: 'fin.ref_capital',
+  FD_BOOKING: 'fin.ref_fd_booking',
+  FD_MATURITY: 'fin.ref_fd_maturity',
+  FD_PREMATURE_CLOSE: 'fin.ref_fd_premature_close',
+  FD_INTEREST_PAYOUT: 'fin.ref_fd_interest_payout',
+  RD_INSTALLMENT: 'fin.ref_rd_installment',
+  RD_MATURITY: 'fin.ref_rd_maturity',
+  RD_PREMATURE_CLOSE: 'fin.ref_rd_premature_close'
 };
 
 function todayStr() {

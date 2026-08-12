@@ -116,6 +116,30 @@ export async function deleteBranch(db, companyId, id) {
     err.statusCode = 409;
     throw err;
   }
+
+  // loans/borrowers store `branch` as a plain name string, not a real FK to
+  // this table (same denormalized pattern used throughout this schema) — so
+  // deleting the branch row wouldn't throw a DB-level foreign key error, it
+  // would just silently orphan those records: they'd keep a `branch` value
+  // that no longer corresponds to any real branch, quietly disappearing from
+  // every branch-scoped filter/view (their name still shows on the record,
+  // but nothing in the branch dropdown would ever match it again).
+  const [[branchRow]] = await db.query('SELECT name FROM branches WHERE id = ? AND company_id = ?', [id, companyId]);
+  if (branchRow) {
+    const [[loanCount]] = await db.query('SELECT COUNT(*) as c FROM loans WHERE branch = ?', [branchRow.name]);
+    if (Number(loanCount.c) > 0) {
+      const err = new Error(`Cannot delete: ${loanCount.c} loan account(s) are recorded under this branch.`);
+      err.statusCode = 409;
+      throw err;
+    }
+    const [[borrowerCount]] = await db.query('SELECT COUNT(*) as c FROM borrowers WHERE branch = ?', [branchRow.name]);
+    if (Number(borrowerCount.c) > 0) {
+      const err = new Error(`Cannot delete: ${borrowerCount.c} customer(s) are recorded under this branch.`);
+      err.statusCode = 409;
+      throw err;
+    }
+  }
+
   const [result] = await db.execute('DELETE FROM branches WHERE id = ? AND company_id = ?', [id, companyId]);
   if (!result.affectedRows) {
     const err = new Error('Branch not found.');

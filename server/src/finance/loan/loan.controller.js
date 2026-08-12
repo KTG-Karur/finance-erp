@@ -23,7 +23,7 @@ export async function getLoanByIdHandler(request, reply) {
 
 export async function createLoanHandler(request, reply) {
   try {
-    const loan = await LoanService.createLoan(request.tenantDb, request.body);
+    const loan = await LoanService.createLoan(request.tenantDb, request.body, request.user?.name);
     return reply.code(201).send({ success: true, message: 'Loan disbursed successfully', data: loan });
   } catch (err) {
     return reply.code(err.statusCode || 400).send({ success: false, message: err.message });
@@ -36,7 +36,7 @@ export async function updateLoanStatusHandler(request, reply) {
     if (!status) {
       return reply.code(400).send({ success: false, message: 'status is required.' });
     }
-    const success = await LoanService.updateStatus(request.tenantDb, request.params.id, status, reason);
+    const success = await LoanService.updateStatus(request.tenantDb, request.params.id, status, reason, request.user?.name);
     if (!success) {
       return reply.code(404).send({ success: false, message: 'Loan account not found' });
     }

@@ -10,7 +10,7 @@ export class CollectionService {
     return CollectionRepository.findAll(db, filters);
   }
 
-  static async recordCollection(db, payload) {
+  static async recordCollection(db, payload, createdBy) {
     const conn = await db.getConnection();
     try {
       await conn.beginTransaction();
@@ -173,7 +173,9 @@ export class CollectionService {
         principalPaid,
         interestPaid,
         penaltyPaid,
-        entryDate: collectionDate
+        entryDate: collectionDate,
+        branch: branch || loan.branch,
+        createdBy
       });
       await conn.query(`UPDATE collections SET voucher_no = ?, new_principal_balance = ? WHERE id = ?`, [voucherNo, newPending, collectionId]);
 
@@ -239,7 +241,7 @@ export class CollectionService {
   // this collection paid into (LIFO — mirrors recordCollection's FIFO apply),
   // and posts a mirror-image reversal voucher. Caller decides what final flag
   // to set on the collections row (reverted vs bounced).
-  static async #reverseCollectionEffects(conn, collection, loan) {
+  static async #reverseCollectionEffects(conn, collection, loan, actor) {
     const principalPaid = parseFloat(collection.principal_paid) || 0;
     const interestPaid = parseFloat(collection.interest_paid) || 0;
     const penaltyPaid = parseFloat(collection.penalty) || 0;
@@ -318,7 +320,9 @@ export class CollectionService {
         principalPaid,
         interestPaid,
         penaltyPaid,
-        entryDate: new Date().toISOString().slice(0, 10)
+        entryDate: new Date().toISOString().slice(0, 10),
+        branch: collection.branch || loan.branch,
+        createdBy: actor
       });
     }
   }
@@ -355,7 +359,7 @@ export class CollectionService {
         err.statusCode = 409;
         throw err;
       }
-      await CollectionService.#reverseCollectionEffects(conn, collection, loan);
+      await CollectionService.#reverseCollectionEffects(conn, collection, loan, revertedBy);
       await conn.query(
         `UPDATE collections SET reverted = 1, revert_reason = ?, reverted_by = ?, reverted_at = NOW() WHERE id = ?`,
         [reason || 'Not specified', revertedBy || 'Staff', id]
@@ -386,7 +390,7 @@ export class CollectionService {
         err.statusCode = 409;
         throw err;
       }
-      await CollectionService.#reverseCollectionEffects(conn, collection, loan);
+      await CollectionService.#reverseCollectionEffects(conn, collection, loan, bouncedBy);
       await conn.query(
         `UPDATE collections SET clearance_status = 'BOUNCED', bounce_reason = ?, bounced_by = ?, bounced_at = NOW() WHERE id = ?`,
         [reason || 'Not specified', bouncedBy || 'Staff', id]
