@@ -475,9 +475,25 @@ export async function up(queryInterface, Sequelize) {
     value: { type: DataTypes.INTEGER, allowNull: false, unique: true },
     enabled: { type: DataTypes.BOOLEAN, defaultValue: true }
   });
+
+  // 17. Bank Accounts Table — Company bank accounts directory per branch
+  await queryInterface.createTable('bank_accounts', {
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+    bank_name: { type: DataTypes.STRING(150), allowNull: false },
+    account_name: { type: DataTypes.STRING(150), allowNull: false },
+    account_number: { type: DataTypes.STRING(50), allowNull: false, unique: true },
+    ifsc_code: { type: DataTypes.STRING(20), allowNull: false },
+    branch: { type: DataTypes.STRING(100), allowNull: true },
+    account_type: { type: DataTypes.STRING(50), defaultValue: 'CURRENT' },
+    ledger_account_code: { type: DataTypes.STRING(20), defaultValue: '1002' },
+    balance: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0.00 },
+    is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
+    created_at: { type: DataTypes.DATE, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') }
+  });
 }
 
 export async function down(queryInterface) {
+  await queryInterface.dropTable('bank_accounts');
   await queryInterface.dropTable('eod_denomination_settings');
   await queryInterface.dropTable('eod_reopen_requests');
   await queryInterface.dropTable('eod_records');

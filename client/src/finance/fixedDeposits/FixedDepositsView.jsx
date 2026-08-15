@@ -6,6 +6,7 @@ import {
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import FixedDepositCertificateModal from '../../components/FixedDepositCertificateModal';
 import PrintableFixedDepositRegister from './PrintableFixedDepositRegister';
+import SharedDropdown from '../../components/common/SharedDropdown';
 
 const FORM_MAX_WIDTH = 780;
 
@@ -116,10 +117,17 @@ function BookFdScreen({ borrowers, onCancel, onSubmit }) {
           <div className="form-row">
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <label>{t('fd.modal.customer_label')}</label>
-              <select required value={form.borrower_id} onChange={e => setField('borrower_id', e.target.value)} className="input-control">
-                <option value="">{t('fd.modal.select_customer')}</option>
-                {borrowers.map(b => <option key={b.id} value={b.id}>{b.full_name} ({b.borrower_code}) — {b.branch}</option>)}
-              </select>
+              <SharedDropdown
+                required
+                value={form.borrower_id}
+                onChange={e => setField('borrower_id', e.target.value)}
+                placeholder={t('fd.modal.select_customer') || '— Select Customer —'}
+                searchable
+                options={borrowers.map(b => ({
+                  value: b.id,
+                  label: `${b.full_name} (${b.borrower_code}) — ${b.branch}`
+                }))}
+              />
             </div>
           </div>
 
@@ -141,19 +149,27 @@ function BookFdScreen({ borrowers, onCancel, onSubmit }) {
           <div className="form-row">
             <div className="form-group">
               <label>{t('fd.modal.scheme_label')}</label>
-              <select value={form.scheme} onChange={e => setField('scheme', e.target.value)} className="input-control">
-                <option value="CUMULATIVE">{t('fd.modal.scheme_cumulative')}</option>
-                <option value="MONTHLY_PAYOUT">{t('fd.modal.scheme_monthly')}</option>
-              </select>
+              <SharedDropdown
+                value={form.scheme}
+                onChange={e => setField('scheme', e.target.value)}
+                options={[
+                  { value: 'CUMULATIVE', label: t('fd.modal.scheme_cumulative') },
+                  { value: 'MONTHLY_PAYOUT', label: t('fd.modal.scheme_monthly') }
+                ]}
+              />
             </div>
             <div className="form-group">
               <label>{t('fd.payment_mode_label')}</label>
-              <select value={form.payment_mode} onChange={e => setField('payment_mode', e.target.value)} className="input-control">
-                <option value="CASH">{t('fin.mode_cash')}</option>
-                <option value="BANK_TRANSFER">{t('fin.mode_bank')}</option>
-                <option value="UPI">UPI</option>
-                <option value="CHEQUE">{t('fin.mode_cheque') || 'Cheque'}</option>
-              </select>
+              <SharedDropdown
+                value={form.payment_mode}
+                onChange={e => setField('payment_mode', e.target.value)}
+                options={[
+                  { value: 'CASH', label: t('fin.mode_cash') },
+                  { value: 'BANK_TRANSFER', label: t('fin.mode_bank') },
+                  { value: 'UPI', label: 'UPI' },
+                  { value: 'CHEQUE', label: t('fin.mode_cheque') || 'Cheque' }
+                ]}
+              />
             </div>
           </div>
 
@@ -423,16 +439,17 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
         />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <select
-            className="fin-select"
-            style={{ height: 34 }}
+          <SharedDropdown
             value={branchFilter}
             onChange={(e) => { setBranchFilter(e.target.value); setPage(1); }}
             disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
-          >
-            <option value="ALL">{t('fin.all_branches')}</option>
-            {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-          </select>
+            size="sm"
+            buttonStyle={{ height: 34, minWidth: 140 }}
+            options={[
+              { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
+              ...branchesList.map(b => ({ value: b.name, label: b.name }))
+            ]}
+          />
           <div style={{ position: 'relative', width: 280, maxWidth: '100%' }}>
             <Search style={{ position: 'absolute', left: 10, top: 9, width: 14, height: 14, color: '#94A3B8' }} />
             <input style={{ paddingLeft: 30, width: '100%', height: 34, borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: '0.78rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} type="text" placeholder={t('fd.search_placeholder')} value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }} />
@@ -647,16 +664,16 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#334155' }}>Payment Mode</label>
-                      <select
+                      <SharedDropdown
                         value={payInterestMode}
                         onChange={(e) => setPayInterestMode(e.target.value)}
-                        className="input-control"
-                      >
-                        <option value="CASH">Cash</option>
-                        <option value="BANK_TRANSFER">Bank Transfer</option>
-                        <option value="UPI">UPI</option>
-                        <option value="CHEQUE">Cheque</option>
-                      </select>
+                        options={[
+                          { value: 'CASH', label: 'Cash' },
+                          { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
+                          { value: 'UPI', label: 'UPI' },
+                          { value: 'CHEQUE', label: 'Cheque' }
+                        ]}
+                      />
                     </div>
                   </>
                 )}

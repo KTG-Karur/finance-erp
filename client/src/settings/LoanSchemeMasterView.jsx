@@ -5,6 +5,7 @@ import { theme } from '../styles/theme.js';
 import { generateEmiSchedule, calculatePaymentAllocation, resolveSchemeRepaymentMethod, resolveSchemeInterestCalculation } from '../utils/loanCalculations';
 import FormulaDurationPreview from '../components/FormulaDurationPreview';
 import CustomFormulaModal from '../components/CustomFormulaModal';
+import SharedDropdown from '../components/common/SharedDropdown';
 
 const inputStyle = { width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', color: '#0F172A', fontWeight: 500 };
 const labelStyle = { fontSize: '0.72rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 4 };
@@ -190,19 +191,28 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [formulaModalOpen, setFormulaModalOpen] = useState(false);
-  // `loading` state only disables the button after React re-renders — a fast double
-  // click/Enter can fire handleSubmit twice before that paint happens. This ref is
-  // set synchronously on the very first call, so the second call bails out
-  // immediately regardless of render timing.
+  const [schemeInterestMode, setSchemeInterestMode] = useState('RULE_BASED');
+  const [ruleBaseAmt, setRuleBaseAmt] = useState(100);
+  const [ruleBaseDays, setRuleBaseDays] = useState(100);
+  const [ruleBaseInterest, setRuleBaseInterest] = useState(20);
+
   const submittingRef = React.useRef(false);
+
+  const updateRateFromRule = (amt, days, interest) => {
+    if (amt > 0 && days > 0 && interest >= 0) {
+      const monthlyRate = Number(((interest / (amt * days)) * 30 * 100).toFixed(2));
+      setForm(prev => ({ ...prev, rate_per_unit: monthlyRate, unit_base: amt }));
+    }
+  };
 
   React.useEffect(() => {
     if (isOpen) {
       if (initialData) {
+        const rate = initialData.rate_per_unit != null ? Number(initialData.rate_per_unit) : '';
         setForm({
           name: initialData.name,
           unit_base: initialData.unit_base || 100,
-          rate_per_unit: initialData.rate_per_unit != null ? Number(initialData.rate_per_unit) : '',
+          rate_per_unit: rate,
           formula_type: initialData.formula_type || 'STANDARD',
           repayment_method: resolveSchemeRepaymentMethod(initialData),
           interest_calculation: resolveSchemeInterestCalculation(initialData),
@@ -218,8 +228,16 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
           max_tenure_months: initialData.max_tenure_months ?? '',
           is_active: initialData.is_active !== false
         });
+        setRuleBaseAmt(100);
+        setRuleBaseDays(30);
+        setRuleBaseInterest(Number(rate) || 2);
+        setSchemeInterestMode('PERCENTAGE');
       } else {
-        setForm(EMPTY_FORM);
+        setForm({ ...EMPTY_FORM, rate_per_unit: 2.0 });
+        setRuleBaseAmt(100);
+        setRuleBaseDays(100);
+        setRuleBaseInterest(20);
+        setSchemeInterestMode('RULE_BASED');
       }
       setError('');
     }
@@ -332,15 +350,19 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <div>
                   <label style={{ ...labelStyle, marginBottom: 6 }}>{t('scheme.modal.repayment_method')}</label>
-                  <select value={form.repayment_method} onChange={e => setForm({ ...form, repayment_method: e.target.value })} style={inputStyle}>
-                    {REPAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                  </select>
+                  <SharedDropdown
+                    value={form.repayment_method}
+                    onChange={e => setForm({ ...form, repayment_method: e.target.value })}
+                    options={REPAYMENT_METHODS.map(m => ({ value: m.value, label: m.label }))}
+                  />
                 </div>
                 <div>
                   <label style={{ ...labelStyle, marginBottom: 6 }}>{t('scheme.modal.interest_calculation')}</label>
-                  <select value={form.interest_calculation} onChange={e => setForm({ ...form, interest_calculation: e.target.value })} style={inputStyle}>
-                    {INTEREST_CALCULATION_STRATEGIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-                  </select>
+                  <SharedDropdown
+                    value={form.interest_calculation}
+                    onChange={e => setForm({ ...form, interest_calculation: e.target.value })}
+                    options={INTEREST_CALCULATION_STRATEGIES.map(c => ({ value: c.value, label: c.label }))}
+                  />
                 </div>
               </div>
             ) : (
@@ -395,22 +417,131 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
               </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
-              <div>
-                <label style={{ ...labelStyle, marginBottom: 6 }}>{t('scheme.modal.interest_rate')}</label>
-                <input type="number" step="0.01" required value={form.rate_per_unit} onChange={e => setForm({ ...form, rate_per_unit: e.target.value })} placeholder="2.0" style={inputStyle} />
+            {/* Interest Specification Rule (Amount / Days / Interest Amount) */}
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '12px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <span style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <Percent style={{ width: 13, height: 13, color: 'var(--brand-primary, #15803D)' }} />
+                  Interest Rate Definition
+                </span>
+                <div style={{ display: 'inline-flex', background: '#E2E8F0', padding: 2, borderRadius: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSchemeInterestMode('RULE_BASED');
+                      updateRateFromRule(ruleBaseAmt, ruleBaseDays, ruleBaseInterest);
+                    }}
+                    style={{
+                      border: 'none', padding: '4px 9px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', borderRadius: 4,
+                      background: schemeInterestMode === 'RULE_BASED' ? 'var(--brand-primary, #15803D)' : 'transparent',
+                      color: schemeInterestMode === 'RULE_BASED' ? '#FFFFFF' : '#475569'
+                    }}
+                  >
+                    Amount / Days Rule
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSchemeInterestMode('PERCENTAGE')}
+                    style={{
+                      border: 'none', padding: '4px 9px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', borderRadius: 4,
+                      background: schemeInterestMode === 'PERCENTAGE' ? 'var(--brand-primary, #15803D)' : 'transparent',
+                      color: schemeInterestMode === 'PERCENTAGE' ? '#FFFFFF' : '#475569'
+                    }}
+                  >
+                    Direct % Rate
+                  </button>
+                </div>
               </div>
+
+              {schemeInterestMode === 'RULE_BASED' ? (
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                    <div>
+                      <label style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 2 }}>Base Amount (₹)</label>
+                      <input
+                        type="number"
+                        value={ruleBaseAmt}
+                        onChange={e => {
+                          const val = Math.max(1, Number(e.target.value));
+                          setRuleBaseAmt(val);
+                          updateRateFromRule(val, ruleBaseDays, ruleBaseInterest);
+                        }}
+                        style={{ ...inputStyle, height: 34, fontSize: '0.78rem' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 2 }}>Days Period</label>
+                      <input
+                        type="number"
+                        value={ruleBaseDays}
+                        onChange={e => {
+                          const val = Math.max(1, Number(e.target.value));
+                          setRuleBaseDays(val);
+                          updateRateFromRule(ruleBaseAmt, val, ruleBaseInterest);
+                        }}
+                        style={{ ...inputStyle, height: 34, fontSize: '0.78rem' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 2 }}>Interest (₹)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={ruleBaseInterest}
+                        onChange={e => {
+                          const val = Math.max(0, Number(e.target.value));
+                          setRuleBaseInterest(val);
+                          updateRateFromRule(ruleBaseAmt, ruleBaseDays, val);
+                        }}
+                        style={{ ...inputStyle, height: 34, fontSize: '0.78rem', color: 'var(--brand-primary, #15803D)', fontWeight: 700 }}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 8, background: '#F0FEF5', border: '1px solid #A3F5C1', padding: '6px 10px', borderRadius: 6 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.71rem', color: '#075F27', fontWeight: 600 }}>
+                      <span>Single Day Interest (Base ₹{Number(ruleBaseAmt).toLocaleString('en-IN')}):</span>
+                      <strong>₹{(ruleBaseDays > 0 ? (ruleBaseInterest / ruleBaseDays) : 0).toFixed(2)} / day</strong>
+                    </div>
+                    <div style={{ marginTop: 3, paddingTop: 3, borderTop: '1px dashed #A3F5C1', display: 'flex', justifyContent: 'space-between', fontSize: '0.69rem', color: '#0F172A' }}>
+                      <span>Daily: <strong>{((ruleBaseAmt > 0 && ruleBaseDays > 0) ? ((ruleBaseInterest / (ruleBaseAmt * ruleBaseDays)) * 100) : 0).toFixed(3)}% / day</strong></span>
+                      <span>Monthly (30d): <strong>{form.rate_per_unit}% / month</strong></span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 2 }}>Monthly Interest Rate (%)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      value={form.rate_per_unit}
+                      onChange={e => setForm({ ...form, rate_per_unit: e.target.value })}
+                      placeholder="2.0"
+                      style={{ ...inputStyle, height: 34 }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div>
                 <label style={{ ...labelStyle, marginBottom: 6 }}>{t('scheme.modal.interest_basis')}</label>
-                <select value={form.interest_basis} onChange={e => setForm({ ...form, interest_basis: e.target.value })} style={inputStyle}>
-                  {INTEREST_BASIS_OPTIONS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
-                </select>
+                <SharedDropdown
+                  value={form.interest_basis}
+                  onChange={e => setForm({ ...form, interest_basis: e.target.value })}
+                  options={INTEREST_BASIS_OPTIONS.map(b => ({ value: b.value, label: b.label }))}
+                />
               </div>
               <div>
                 <label style={{ ...labelStyle, marginBottom: 6 }}>{t('scheme.modal.collection_frequency')}</label>
-                <select value={form.repayment_frequency} onChange={e => setForm({ ...form, repayment_frequency: e.target.value })} style={inputStyle}>
-                  {REPAYMENT_FREQUENCIES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                </select>
+                <SharedDropdown
+                  value={form.repayment_frequency}
+                  onChange={e => setForm({ ...form, repayment_frequency: e.target.value })}
+                  options={REPAYMENT_FREQUENCIES.map(f => ({ value: f.value, label: f.label }))}
+                />
               </div>
             </div>
 

@@ -23,7 +23,8 @@ export async function getBorrowerByIdHandler(request, reply) {
 
 export async function createBorrowerHandler(request, reply) {
   try {
-    const borrower = await BorrowerService.createBorrower(request.tenantDb, request.body);
+    const companyCode = request.tenantCode || request.user?.companyCode || 'default';
+    const borrower = await BorrowerService.createBorrower(request.tenantDb, request.body, companyCode);
     return reply.code(201).send({ success: true, message: 'Borrower registered successfully', data: borrower });
   } catch (err) {
     return reply.code(err.statusCode || 400).send({ success: false, message: err.message });
@@ -32,7 +33,8 @@ export async function createBorrowerHandler(request, reply) {
 
 export async function updateBorrowerHandler(request, reply) {
   try {
-    const borrower = await BorrowerService.updateBorrower(request.tenantDb, request.params.id, request.body);
+    const companyCode = request.tenantCode || request.user?.companyCode || 'default';
+    const borrower = await BorrowerService.updateBorrower(request.tenantDb, request.params.id, request.body, companyCode);
     return reply.send({ success: true, message: 'Borrower updated successfully', data: borrower });
   } catch (err) {
     return reply.code(err.statusCode || 400).send({ success: false, message: err.message });

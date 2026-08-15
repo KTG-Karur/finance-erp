@@ -3,21 +3,63 @@ import { CreditCard, Search, ChevronLeft, ChevronRight, Printer } from 'lucide-r
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import { filterEntriesInRange, filterEntriesByBranch, isAutoVoucher } from '../../utils/accounting';
 import VoucherReceiptModal from '../../components/VoucherReceiptModal';
+import DropdownSelect from '../../components/DropdownSelect';
+import SharedDatePicker from '../../components/common/SharedDatePicker';
 
-const REF_TYPE_KEY = {
-  COLLECTION: 'fin.ref_collection',
-  COLLECTION_REVERSAL: 'fin.ref_collection_reversal',
-  DISBURSAL: 'fin.ref_disbursal',
-  EXPENSE: 'fin.ref_expense',
-  CAPITAL: 'fin.ref_capital',
-  FD_BOOKING: 'fin.ref_fd_booking',
-  FD_MATURITY: 'fin.ref_fd_maturity',
-  FD_PREMATURE_CLOSE: 'fin.ref_fd_premature_close',
-  FD_INTEREST_PAYOUT: 'fin.ref_fd_interest_payout',
-  RD_INSTALLMENT: 'fin.ref_rd_installment',
-  RD_MATURITY: 'fin.ref_rd_maturity',
-  RD_PREMATURE_CLOSE: 'fin.ref_rd_premature_close'
+const REF_TYPE_MAP = {
+  COLLECTION: 'Collection Receipt',
+  COLLECTION_REVERSAL: 'Collection Reversal',
+  DISBURSAL: 'Loan Disbursal',
+  EXPENSE: 'Expense Payment',
+  CAPITAL: 'Investor Capital',
+  FD_BOOKING: 'FD Booking',
+  FD_MATURITY: 'FD Maturity',
+  FD_PREMATURE_CLOSE: 'FD Premature Close',
+  FD_INTEREST_PAYOUT: 'FD Interest Payout',
+  RD_INSTALLMENT: 'RD Installment',
+  RD_MATURITY: 'RD Maturity',
+  RD_PREMATURE_CLOSE: 'RD Premature Close',
+  CONTRA: 'Contra Transfer',
+  CONTRA_TRANSFER: 'Contra Transfer',
+  LOAN_PRECLOSURE: 'Loan Preclosure',
+  LOAN_EMERGENCY_CLOSE: 'Emergency Close'
 };
+
+function getVoucherTypeLabel(je, t) {
+  if (!je) return 'Journal Voucher';
+  if (je.ref_type && REF_TYPE_MAP[je.ref_type]) {
+    return REF_TYPE_MAP[je.ref_type];
+  }
+  if (je.voucher_type === 'CONTRA' || (je.narration && je.narration.toLowerCase().includes('contra'))) {
+    return 'Contra Transfer';
+  }
+  if (je.voucher_type === 'PAYMENT' || (je.narration && je.narration.toLowerCase().includes('disbursal'))) {
+    return 'Loan Disbursal';
+  }
+  if (je.voucher_type === 'RECEIPT' || (je.narration && je.narration.toLowerCase().includes('collection'))) {
+    return 'Collection Receipt';
+  }
+  if (je.voucher_type === 'CASH_PAYMENT' || je.voucher_type === 'BANK_PAYMENT') {
+    return 'Payment Voucher';
+  }
+  if (je.voucher_type === 'CASH_RECEIPT' || je.voucher_type === 'BANK_RECEIPT') {
+    return 'Receipt Voucher';
+  }
+  if (je.ref_type && typeof je.ref_type === 'string') {
+    return je.ref_type.replace(/_/g, ' ');
+  }
+  if (je.voucher_type && typeof je.voucher_type === 'string') {
+    return je.voucher_type.replace(/_/g, ' ');
+  }
+  return 'Journal Voucher';
+}
+
+function getVoucherBranch(je, defaultBranch = 'Main Branch') {
+  if (je?.branch && String(je.branch).trim() !== '' && je.branch !== '—' && je.branch !== '-') {
+    return je.branch;
+  }
+  return defaultBranch;
+}
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -33,9 +75,9 @@ export default function AutoVouchersView({ journalEntries = [], branchesList = [
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [applied, setApplied] = useState({ from: '', to: '' });
-  const [branch, setBranch] = useState('');
+  const [branch, setBranch] = useState(() => (selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL'));
   useEffect(() => {
-    if (selectedBranch && selectedBranch !== 'ALL') setBranch(selectedBranch);
+    setBranch(selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL');
   }, [selectedBranch]);
   const hasBranchSelected = branch !== '';
   const [searchQuery, setSearchQuery] = useState('');
@@ -101,20 +143,36 @@ export default function AutoVouchersView({ journalEntries = [], branchesList = [
       <form className="fin-filterbar" onSubmit={handleSearch}>
         <div className="fin-field">
           <label>{t('fin.branch_label')}</label>
-          <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
-            <option value="">{t('fin.select_branch_placeholder')}</option>
-            <option value="ALL">{t('fin.all_branches')}</option>
-            {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-          </select>
+          <DropdownSelect
+            value={branch}
+            onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }}
+            disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
+            buttonStyle={{ height: 36, minWidth: 160 }}
+            options={[
+              { value: '', label: t('fin.select_branch_placeholder') || '— Select Branch —' },
+              { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
+              ...branchesList.map(b => ({ value: b.name, label: b.name }))
+            ]}
+          />
         </div>
 
         <div className="fin-field">
           <label>{t('fin.from_label')}</label>
-          <input type="date" className="fin-input" value={fromDate} max={toDate || todayStr()} onChange={(e) => setFromDate(e.target.value)} />
+          <SharedDatePicker
+            value={fromDate}
+            max={toDate || todayStr()}
+            onChange={(e) => setFromDate(e.target.value)}
+            buttonStyle={{ height: 36, minWidth: 140 }}
+          />
         </div>
         <div className="fin-field">
           <label>{t('fin.to_label')}</label>
-          <input type="date" className="fin-input" value={toDate} max={todayStr()} onChange={(e) => setToDate(e.target.value)} />
+          <SharedDatePicker
+            value={toDate}
+            max={todayStr()}
+            onChange={(e) => setToDate(e.target.value)}
+            buttonStyle={{ height: 36, minWidth: 140 }}
+          />
         </div>
         <div className="fin-field" style={{ minWidth: 160 }}>
           <label>{t('fin.find_transactions_placeholder')}</label>
@@ -142,26 +200,39 @@ export default function AutoVouchersView({ journalEntries = [], branchesList = [
           <tbody>
             {pagedEntries.length === 0 ? (
               <tr><td colSpan="7" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>{hasBranchSelected ? t('fin.no_results_hint') : t('fin.select_branch_hint')}</td></tr>
-            ) : pagedEntries.map(je => (
-              <tr key={je.id}>
-                <td className="code">{je.id}</td>
-                <td>{je.date}<br /><span style={{ color: '#94A3B8', fontSize: '0.68rem' }}>{fmtTime(je.created_at)}</span></td>
-                <td><span className="fin-tag">{REF_TYPE_KEY[je.ref_type] ? t(REF_TYPE_KEY[je.ref_type]) : je.ref_type}</span></td>
-                <td>{je.narration}</td>
-                <td>{je.branch || '—'}</td>
-                <td className="num" style={{ fontWeight: 600, color: '#0F172A' }}>₹{fmt(lineTotal(je, 'debit'))}</td>
-                <td style={{ textAlign: 'right' }}>
-                  <button
-                    type="button"
-                    onClick={() => setReceiptVoucher(je)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: '1px solid #E2E8F0', background: '#FFFFFF', color: '#334155', borderRadius: 6, padding: '4px 9px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    <Printer style={{ width: 11, height: 11 }} />
-                    <span>{t('fin.print_voucher_btn')}</span>
-                  </button>
-                </td>
-              </tr>
-            ))}
+            ) : pagedEntries.map(je => {
+              const typeLabel = getVoucherTypeLabel(je, t);
+              const branchLabel = getVoucherBranch(je, branchesList[0]?.name || 'Main Branch');
+              const isContra = typeLabel.toLowerCase().includes('contra');
+
+              return (
+                <tr key={je.id}>
+                  <td className="code">{je.id}</td>
+                  <td>{je.date}<br /><span style={{ color: '#94A3B8', fontSize: '0.68rem' }}>{fmtTime(je.created_at)}</span></td>
+                  <td>
+                    <span
+                      className="fin-tag"
+                      style={isContra ? { background: '#EEF2FF', color: '#4338CA', borderColor: '#C7D2FE', fontWeight: 700 } : undefined}
+                    >
+                      {typeLabel}
+                    </span>
+                  </td>
+                  <td>{je.narration}</td>
+                  <td>{branchLabel}</td>
+                  <td className="num" style={{ fontWeight: 600, color: '#0F172A' }}>₹{fmt(lineTotal(je, 'debit'))}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button
+                      type="button"
+                      onClick={() => setReceiptVoucher(je)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: '1px solid #E2E8F0', background: '#FFFFFF', color: '#334155', borderRadius: 6, padding: '4px 9px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      <Printer style={{ width: 11, height: 11 }} />
+                      <span>{t('fin.print_voucher_btn')}</span>
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         <div className="table-pagination">
@@ -187,7 +258,7 @@ export default function AutoVouchersView({ journalEntries = [], branchesList = [
           company={tenant}
           voucher={receiptVoucher}
           accountName={accountName}
-          typeLabel={REF_TYPE_KEY[receiptVoucher.ref_type] ? t(REF_TYPE_KEY[receiptVoucher.ref_type]) : receiptVoucher.ref_type}
+          typeLabel={getVoucherTypeLabel(receiptVoucher, t)}
           onClose={() => setReceiptVoucher(null)}
         />
       )}

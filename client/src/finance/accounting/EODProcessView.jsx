@@ -1,12 +1,28 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Calculator, Settings2, Pencil, ShieldCheck, Lock, Unlock, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calculator, Settings2, Pencil, ShieldCheck, Lock, Unlock, X, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
-import { computeAccountBalances, filterEntriesByBranch, filterEntriesUpTo } from '../../utils/accounting';
+import { ACCOUNT_TYPES, computeAccountBalances, filterEntriesByBranch, filterEntriesUpTo } from '../../utils/accounting';
+import SharedDropdown from '../../components/common/SharedDropdown';
+import SharedDatePicker from '../../components/common/SharedDatePicker';
 
 const DEFAULT_DENOMINATIONS = [500, 200, 100, 50, 20, 10, 5, 2, 1];
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = String(today.getMonth() + 1).padStart(2, '0');
+  const d = String(today.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function formatDateDDMMYYYY(dateStr) {
+  if (!dateStr) return '—';
+  const cleanStr = String(dateStr).slice(0, 10);
+  const parts = cleanStr.split('-');
+  if (parts.length === 3 && parts[0].length === 4) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateStr;
 }
 
 function diffBadge(diff, t) {
@@ -402,9 +418,11 @@ function ReopenRequestModal({ isOpen, onClose, onSubmit, t }) {
           )}
           <div className="fin-field">
             <label>{t('fin.reopen_duration_label')}</label>
-            <select className="fin-select" style={{ width: '100%' }} value={hours} onChange={(e) => setHours(e.target.value)}>
-              {[1, 2, 4, 8, 24].map(h => <option key={h} value={h}>{h}{t('fin.hours_suffix')}</option>)}
-            </select>
+            <SharedDropdown
+              value={hours}
+              onChange={(e) => setHours(e.target.value)}
+              options={[1, 2, 4, 8, 24].map(h => ({ value: h, label: `${h}${t('fin.hours_suffix')}` }))}
+            />
           </div>
           <div className="fin-field">
             <label>{t('fin.reopen_request_reason_label')}</label>
@@ -437,6 +455,7 @@ export default function EODProcessView({
   eodRecords = [],
   eodDenominationSettings = [],
   user,
+  onCreateOpeningBalance,
   onCloseEodDay,
   onUpdateEodRecord,
   onResolveEodVariance,
@@ -451,14 +470,19 @@ export default function EODProcessView({
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
 
   const [activeMainTab, setActiveMainTab] = useState('DAY_CLOSING'); // 'DAY_CLOSING' | 'PAST_CLOSURES'
-  const [branch, setBranch] = useState('');
+  const [branch, setBranch] = useState(() => (selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : (user?.branch || user?.branch_name || user?.branchName || branchesList[0]?.name || '')));
   useEffect(() => {
-    if (selectedBranch && selectedBranch !== 'ALL') setBranch(selectedBranch);
-  }, [selectedBranch]);
+    if (selectedBranch && selectedBranch !== 'ALL') {
+      setBranch(selectedBranch);
+    } else if (!branch && branchesList.length > 0) {
+      setBranch(user?.branch || user?.branch_name || user?.branchName || branchesList[0]?.name || '');
+    }
+  }, [selectedBranch, branchesList, user, branch]);
   const hasBranchSelected = branch !== '';
   const [date, setDate] = useState(todayStr());
   const [showDenomSettings, setShowDenomSettings] = useState(false);
   const [modalState, setModalState] = useState(null); // { mode: 'CLOSE'|'EDIT'|'REVIEW', record }
+  const [showOpeningModal, setShowOpeningModal] = useState(false);
   const [reopenHours, setReopenHours] = useState(1);
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [approveHours, setApproveHours] = useState(1);
@@ -481,24 +505,88 @@ export default function EODProcessView({
     : DEFAULT_DENOMINATIONS.map(v => ({ value: v, enabled: true }));
   const activeDenominations = denomSettings.filter(d => d.enabled).map(d => d.value).sort((a, b) => b - a);
 
-  const expectedCash = useMemo(() => {
+  const branchEntries = useMemo(() => {
+    return filterEntriesByBranch(journalEntries, branch);
+  }, [journalEntries, branch]);
+
+  // Local-date safe previous date string
+  const prevDateStr = useMemo(() => {
+    if (!date) return '';
+    const parts = date.split('-');
+    if (parts.length === 3) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      const prev = new Date(y, m, d - 1);
+      const py = prev.getFullYear();
+      const pm = String(prev.getMonth() + 1).padStart(2, '0');
+      const pd = String(prev.getDate()).padStart(2, '0');
+      return `${py}-${pm}-${pd}`;
+    }
+    return date;
+  }, [date]);
+
+  // Look up prior closed EOD record for this branch (e.g. yesterday's closure)
+  const priorEodRecord = useMemo(() => {
+    if (!hasBranchSelected) return null;
+    const priorRecords = (eodRecords || [])
+      .filter(r => r.branch === branch && r.date <= prevDateStr && r.status === 'CLOSED')
+      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    return priorRecords[0] || null;
+  }, [eodRecords, branch, prevDateStr, hasBranchSelected]);
+
+  // 1. Opening Cash in Hand (prior to today):
+  // When yesterday (or a prior day) was closed in EOD, today's starting opening cash
+  // is automatically yesterday's EOD closing cash!
+  const openingCashInHand = useMemo(() => {
     if (!hasBranchSelected) return 0;
-    const scoped = filterEntriesUpTo(filterEntriesByBranch(journalEntries, branch), date);
+    if (priorEodRecord) {
+      const baseEodCash = Number(priorEodRecord.counted_cash ?? priorEodRecord.expected_cash) || 0;
+      let interimDelta = 0;
+      branchEntries.forEach(je => {
+        const vDate = je.date || je.created_at?.slice(0, 10) || '';
+        if (vDate > priorEodRecord.date && vDate <= prevDateStr) {
+          (je.lines || []).forEach(l => {
+            if (l.account_code === '1001') {
+              interimDelta += (Number(l.debit) || 0) - (Number(l.credit) || 0);
+            }
+          });
+        }
+      });
+      return baseEodCash + interimDelta;
+    }
+    const scoped = filterEntriesUpTo(branchEntries, prevDateStr);
     const balances = computeAccountBalances(chartOfAccounts, scoped);
     return balances.find(a => a.code === '1001')?.balance || 0;
-  }, [journalEntries, chartOfAccounts, branch, date, hasBranchSelected]);
+  }, [branchEntries, chartOfAccounts, prevDateStr, priorEodRecord, hasBranchSelected]);
 
-  const openingBalance = useMemo(() => {
-    if (!hasBranchSelected) return 0;
-    const d = new Date(date);
-    d.setDate(d.getDate() - 1);
-    const prevDateStr = d.toISOString().slice(0, 10);
-    const scoped = filterEntriesUpTo(filterEntriesByBranch(journalEntries, branch), prevDateStr);
-    const balances = computeAccountBalances(chartOfAccounts, scoped);
-    return balances.find(a => a.code === '1001')?.balance || 0;
-  }, [journalEntries, chartOfAccounts, branch, date, hasBranchSelected]);
+  // 2. Today's Cash Inflows & Outflows specifically on `date`
+  const { todayCashInflow, todayCashOutflow } = useMemo(() => {
+    if (!hasBranchSelected) return { todayCashInflow: 0, todayCashOutflow: 0 };
+    let inflow = 0;
+    let outflow = 0;
+    branchEntries.forEach(je => {
+      const vDate = je.date || je.created_at?.slice(0, 10) || '';
+      if (vDate === date) {
+        (je.lines || []).forEach(l => {
+          if (l.account_code === '1001') {
+            inflow += Number(l.debit) || 0;
+            outflow += Number(l.credit) || 0;
+          }
+        });
+      }
+    });
+    return { todayCashInflow: inflow, todayCashOutflow: outflow };
+  }, [branchEntries, date, hasBranchSelected]);
 
-  const closingBalance = expectedCash;
+  // 3. Expected Closing Cash in Hand
+  const expectedClosingCashInHand = useMemo(() => {
+    return openingCashInHand + todayCashInflow - todayCashOutflow;
+  }, [openingCashInHand, todayCashInflow, todayCashOutflow]);
+
+  const expectedCash = expectedClosingCashInHand;
+  const openingBalance = openingCashInHand;
+  const closingBalance = expectedClosingCashInHand;
 
   const existingRecord = eodRecords.find(r => r.branch === branch && r.date === date) || null;
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
@@ -625,36 +713,69 @@ export default function EODProcessView({
           <div className="fin-filterbar">
             <div className="fin-field">
               <label>{t('fin.branch_label')}</label>
-              <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
-                <option value="">{t('fin.select_branch_placeholder')}</option>
-                {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-              </select>
+              <SharedDropdown
+                value={branch}
+                onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }}
+                disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
+                buttonStyle={{ height: 36, minWidth: 160 }}
+                options={[
+                  { value: '', label: t('fin.select_branch_placeholder') || '— Select Branch —' },
+                  ...branchesList.map(b => ({ value: b.name, label: b.name }))
+                ]}
+              />
             </div>
             <div className="fin-field">
               <label>{t('col.date')}</label>
-              <input type="date" className="fin-input" value={date} max={todayStr()} onChange={(e) => setDate(e.target.value)} />
+              <SharedDatePicker
+                value={date}
+                max={todayStr()}
+                onChange={(e) => setDate(e.target.value)}
+                buttonStyle={{ height: 36, minWidth: 140 }}
+              />
             </div>
           </div>
 
-          {/* 2. Executive Opening & Closing Balance KPI Metric Cards (Positioned below Branch & Date Filter) */}
+          {/* 2. Executive Cash in Hand Reconciliation Metric Cards */}
           {hasBranchSelected && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, margin: '14px 0' }}>
-              {/* Opening Balance Card */}
-              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 4, boxShadow: '0 2px 6px rgba(15,23,42,0.03)' }}>
-                <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Opening Cash Balance</span>
-                <strong style={{ fontSize: '1.35rem', fontWeight: 600, color: '#0F172A', fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>
-                  ₹{fmt(openingBalance)}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, margin: '14px 0' }}>
+              {/* 1. Opening Cash in Hand Card */}
+              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 4, boxShadow: '0 2px 6px rgba(15,23,42,0.03)' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Opening Cash in Hand</span>
+                <strong style={{ fontSize: '1.25rem', fontWeight: 700, color: openingCashInHand < 0 ? 'var(--color-danger, #DC2626)' : '#0F172A', fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>
+                  {openingCashInHand < 0 ? `₹${fmt(Math.abs(openingCashInHand))} (Overdrawn)` : `₹${fmt(openingCashInHand)}`}
                 </strong>
-                <span style={{ fontSize: '0.68rem', color: '#94A3B8' }}>Vault Cash at start of day</span>
+                <span style={{ fontSize: '0.68rem', color: openingCashInHand < 0 ? 'var(--color-danger, #DC2626)' : '#64748B' }}>
+                  {priorEodRecord ? `Auto-carried from ${priorEodRecord.date} EOD closing cash` : 'Vault cash at start of day'}
+                </span>
               </div>
 
-              {/* Expected Closing Balance Card */}
-              <div style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', borderRadius: 12, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 4, boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb),0.06)' }}>
-                <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--brand-primary-hover, #0E5327)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Expected Closing Balance</span>
-                <strong style={{ fontSize: '1.35rem', fontWeight: 600, color: 'var(--brand-primary-hover, #0E5327)', fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>
-                  ₹{fmt(closingBalance)}
+              {/* 2. Today's Cash Inflow Card */}
+              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 4, boxShadow: '0 2px 6px rgba(15,23,42,0.03)' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--brand-primary, #15803D)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Today's Cash Inflow</span>
+                <strong style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--brand-primary, #15803D)', fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>
+                  +₹{fmt(todayCashInflow)}
                 </strong>
-                <span style={{ fontSize: '0.68rem', color: 'var(--brand-primary, #15803D)' }}>Ledger balance required at day-end</span>
+                <span style={{ fontSize: '0.68rem', color: '#64748B' }}>Cash collections & receipts today</span>
+              </div>
+
+              {/* 3. Today's Cash Outflow Card */}
+              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 4, boxShadow: '0 2px 6px rgba(15,23,42,0.03)' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--color-danger, #DC2626)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Today's Cash Outflow</span>
+                <strong style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-danger, #DC2626)', fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>
+                  -₹{fmt(todayCashOutflow)}
+                </strong>
+                <span style={{ fontSize: '0.68rem', color: '#64748B' }}>Cash disbursals & expenses today</span>
+              </div>
+
+              {/* 4. Expected Closing Cash in Hand Card */}
+              <div style={{ background: expectedClosingCashInHand < 0 ? '#FEF2F2' : 'var(--brand-primary-light, #F0FEF5)', border: `1px solid ${expectedClosingCashInHand < 0 ? '#FECACA' : 'var(--brand-primary-border, #A3F5C1)'}`, borderRadius: 12, padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 4, boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb),0.06)' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: expectedClosingCashInHand < 0 ? '#991B1B' : 'var(--brand-primary-hover, #0E5327)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Expected Closing Cash</span>
+                <strong style={{ fontSize: '1.25rem', fontWeight: 700, color: expectedClosingCashInHand < 0 ? '#DC2626' : 'var(--brand-primary-hover, #0E5327)', fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>
+                  {expectedClosingCashInHand < 0 ? `₹${fmt(Math.abs(expectedClosingCashInHand))} (Overdrawn)` : `₹${fmt(expectedClosingCashInHand)}`}
+                </strong>
+                <span style={{ fontSize: '0.68rem', color: expectedClosingCashInHand < 0 ? '#B91C1C' : 'var(--brand-primary, #15803D)' }}>
+                  {expectedClosingCashInHand < 0 ? 'Cash drawer in deficit' : 'Target vault cash count'}
+                </span>
               </div>
 
               {/* Day Closure Status Card & Close Day Action */}
@@ -731,9 +852,13 @@ export default function EODProcessView({
                 {!activeReopen && !pendingRequest && (
                   isAdmin ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <select className="fin-select" value={reopenHours} onChange={(e) => setReopenHours(e.target.value)}>
-                        {[1, 2, 4, 8, 24].map(h => <option key={h} value={h}>{h}{t('fin.hours_suffix')}</option>)}
-                      </select>
+                      <SharedDropdown
+                        value={reopenHours}
+                        onChange={(e) => setReopenHours(e.target.value)}
+                        size="sm"
+                        buttonStyle={{ height: 32, minWidth: 80 }}
+                        options={[1, 2, 4, 8, 24].map(h => ({ value: h, label: `${h}${t('fin.hours_suffix')}` }))}
+                      />
                       <button type="button" className="fin-btn-primary" style={{ background: 'var(--color-warning-hover, #B45309)' }} onClick={handleGrantReopen}>
                         <Unlock style={{ width: 13, height: 13 }} />
                         <span>{t('fin.grant_reopen_btn')}</span>
@@ -766,9 +891,13 @@ export default function EODProcessView({
                     </span>
                     {!showRejectBox ? (
                       <>
-                        <select className="fin-select" value={approveHours} onChange={(e) => setApproveHours(e.target.value)}>
-                          {[1, 2, 4, 8, 24].map(h => <option key={h} value={h}>{h}{t('fin.hours_suffix')}</option>)}
-                        </select>
+                        <SharedDropdown
+                          value={approveHours}
+                          onChange={(e) => setApproveHours(e.target.value)}
+                          size="sm"
+                          buttonStyle={{ height: 32, minWidth: 80 }}
+                          options={[1, 2, 4, 8, 24].map(h => ({ value: h, label: `${h}${t('fin.hours_suffix')}` }))}
+                        />
                         <button
                           type="button"
                           className="fin-btn-primary"
@@ -882,10 +1011,16 @@ export default function EODProcessView({
           <div className="fin-filterbar">
             <div className="fin-field">
               <label>{t('fin.branch_label')}</label>
-              <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
-                <option value="">{t('fin.all_branches_eod') || 'All Branches'}</option>
-                {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-              </select>
+              <SharedDropdown
+                value={branch}
+                onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }}
+                disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
+                buttonStyle={{ height: 36, minWidth: 160 }}
+                options={[
+                  { value: '', label: t('fin.all_branches_eod') || 'All Branches' },
+                  ...branchesList.map(b => ({ value: b.name, label: b.name }))
+                ]}
+              />
             </div>
           </div>
 

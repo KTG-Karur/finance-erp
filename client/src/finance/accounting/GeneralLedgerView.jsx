@@ -1,65 +1,185 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Layers, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Layers, Search, ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
-import { computeAccountBalances, computeLedgerFolio, filterEntriesInRange, filterEntriesByBranch } from '../../utils/accounting';
+import { ACCOUNT_TYPES, computeLedgerFolio, filterEntriesByBranch } from '../../utils/accounting';
+import api from '../../api/client';
+import DropdownSelect from '../../components/DropdownSelect';
+import SharedDatePicker from '../../components/common/SharedDatePicker';
+
+function formatDateDDMMYYYY(dateStr) {
+  if (!dateStr) return '—';
+  const cleanStr = String(dateStr).slice(0, 10);
+  const parts = cleanStr.split('-');
+  if (parts.length === 3 && parts[0].length === 4) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateStr;
+}
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = String(today.getMonth() + 1).padStart(2, '0');
+  const d = String(today.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 function monthStartStr() {
   const today = new Date();
-  return new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+  const y = today.getFullYear();
+  const m = String(today.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}-01`;
 }
 
-// One account at a time: pick it, narrow the date range if needed, Search — see
-// every transaction on that account in order, with a running balance.
-export default function GeneralLedgerView({ chartOfAccounts = [], journalEntries = [], branchesList = [], selectedBranch = 'ALL' }) {
+export default function GeneralLedgerView({
+  chartOfAccounts = [],
+  journalEntries = [],
+  branchesList = [],
+  selectedBranch = 'ALL',
+  onCreateOpeningBalance,
+  tenant
+}) {
   const { t } = useLanguage();
-  const balancesAll = useMemo(() => computeAccountBalances(chartOfAccounts, journalEntries), [chartOfAccounts, journalEntries]);
   const accountName = (acc) => (acc?.name_key ? t(acc.name_key) : acc?.name);
 
-  const [accountCode, setAccountCode] = useState(chartOfAccounts[0]?.code || '');
+  const [accountCode, setAccountCode] = useState(() => chartOfAccounts[0]?.code || '1001');
   const [fromDate, setFromDate] = useState(monthStartStr());
   const [toDate, setToDate] = useState(todayStr());
-  const [applied, setApplied] = useState({ account: chartOfAccounts[0]?.code || '', from: monthStartStr(), to: todayStr() });
-  const [branch, setBranch] = useState('');
-  // A global branch lock forces (and disables) this page's own filter — see the
-  // sidebar "Change Branch" control, the only place it can be changed back.
+  const [applied, setApplied] = useState({
+    account: chartOfAccounts[0]?.code || '1001',
+    from: monthStartStr(),
+    to: todayStr()
+  });
+  const [datePreset, setDatePreset] = useState('MONTH');
+  const [branch, setBranch] = useState(() => (selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL'));
+
   useEffect(() => {
-    if (selectedBranch && selectedBranch !== 'ALL') setBranch(selectedBranch);
+    setBranch(selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL');
   }, [selectedBranch]);
-  // chartOfAccounts now arrives from an async API fetch, so it's empty on the
-  // very first render — the useState initializer above only runs once and
-  // would otherwise leave accountCode stuck at '' forever once accounts load.
+
   useEffect(() => {
-    if (!accountCode && chartOfAccounts[0]?.code) {
-      setAccountCode(chartOfAccounts[0].code);
-      setApplied(prev => ({ ...prev, account: chartOfAccounts[0].code }));
+    if (chartOfAccounts.length > 0) {
+      if (!accountCode || !chartOfAccounts.some(a => a.code === accountCode)) {
+        const firstCode = chartOfAccounts[0].code;
+        setAccountCode(firstCode);
+        setApplied(prev => ({ ...prev, account: firstCode }));
+      }
     }
   }, [chartOfAccounts, accountCode]);
+
   const [instantSearch, setInstantSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    setApplied({ account: accountCode, from: fromDate, to: toDate });
+  const handleDatePresetChange = (preset) => {
+    setDatePreset(preset);
+    setCurrentPage(1);
+    const today = todayStr();
+    if (preset === 'TODAY') {
+      setFromDate(today);
+      setToDate(today);
+      setApplied(prev => ({ ...prev, from: today, to: today }));
+    } else if (preset === 'MONTH') {
+      const start = monthStartStr();
+      setFromDate(start);
+      setToDate(today);
+      setApplied(prev => ({ ...prev, from: start, to: today }));
+    } else if (preset === 'ALL') {
+      setFromDate('');
+      setToDate('');
+      setApplied(prev => ({ ...prev, from: '', to: '' }));
+    }
   };
 
-  const hasBranchSelected = branch !== '';
-  const selectedAccount = balancesAll.find(a => a.code === applied.account) || null;
-  const byBranch = useMemo(() => filterEntriesByBranch(journalEntries, branch), [journalEntries, branch]);
-  const scopedEntries = useMemo(() => filterEntriesInRange(byBranch, applied.from || null, applied.to || null), [byBranch, applied.from, applied.to]);
-  const folio = useMemo(
-    () => (selectedAccount ? computeLedgerFolio(selectedAccount, scopedEntries) : []),
-    [selectedAccount, scopedEntries]
-  );
+  const handleSearch = (e) => {
+    if (e) e.preventDefault();
+    setApplied({ account: accountCode, from: fromDate, to: toDate });
+    setCurrentPage(1);
+  };
 
-  const visibleFolio = folio.filter(row => {
+  const selectedAccount = useMemo(() => {
+    return chartOfAccounts.find(a => a.code === accountCode) || chartOfAccounts[0] || null;
+  }, [chartOfAccounts, accountCode]);
+
+  // Branch-scoped journal entries
+  const byBranch = useMemo(() => {
+    return filterEntriesByBranch(journalEntries, branch);
+  }, [journalEntries, branch]);
+
+  // Calculate opening balance before `applied.from` and filter scoped period entries
+  const { openingBalance, periodEntries } = useMemo(() => {
+    if (!selectedAccount) return { openingBalance: 0, periodEntries: [] };
+    const normalSide = ACCOUNT_TYPES[selectedAccount.type] || 'DEBIT';
+
+    let ob = 0;
+    const scoped = [];
+
+    byBranch.forEach(je => {
+      const vDate = je.date || je.created_at?.slice(0, 10) || '';
+      const isBefore = applied.from && vDate < applied.from;
+      const isAfter = applied.to && vDate > applied.to;
+
+      if (isBefore) {
+        (je.lines || []).forEach(l => {
+          if (l.account_code === selectedAccount.code) {
+            const dr = Number(l.debit) || 0;
+            const cr = Number(l.credit) || 0;
+            const signed = normalSide === 'DEBIT' ? (dr - cr) : (cr - dr);
+            ob += signed;
+          }
+        });
+      } else if (!isAfter) {
+        scoped.push(je);
+      }
+    });
+
+    return { openingBalance: ob, periodEntries: scoped };
+  }, [byBranch, selectedAccount, applied.from, applied.to]);
+
+  // Compute ledger folio with running balance
+  const { fullFolioWithOB, periodFolioRows, totalDebit, totalCredit, closingBalance } = useMemo(() => {
+    if (!selectedAccount) return { fullFolioWithOB: [], periodFolioRows: [], totalDebit: 0, totalCredit: 0, closingBalance: 0 };
+    const res = computeLedgerFolio(selectedAccount, periodEntries, openingBalance);
+
+    const rows = res.rows;
+    const totDr = rows.reduce((s, r) => s + (r.debit || 0), 0);
+    const totCr = rows.reduce((s, r) => s + (r.credit || 0), 0);
+
+    const obRow = applied.from ? [{
+      id: `OB-${selectedAccount.code}`,
+      date: applied.from,
+      narration: 'Opening Balance b/f',
+      ref_type: 'OPENING',
+      branch: branch === 'ALL' ? 'All Branches' : branch,
+      voucher_type: null,
+      debit: null,
+      credit: null,
+      balance: openingBalance,
+      isOpeningBalance: true
+    }] : [];
+
+    return {
+      fullFolioWithOB: [...obRow, ...rows],
+      periodFolioRows: rows,
+      totalDebit: totDr,
+      totalCredit: totCr,
+      closingBalance: res.closingBalance
+    };
+  }, [selectedAccount, periodEntries, openingBalance, applied.from, branch]);
+
+  // Instant text filter (preserves opening balance row if present)
+  const visibleFolio = useMemo(() => {
     const q = instantSearch.toLowerCase().trim();
-    return !q || row.narration.toLowerCase().includes(q);
-  }).slice().reverse();
+    if (!q) return fullFolioWithOB;
+    return fullFolioWithOB.filter(row => {
+      if (row.isOpeningBalance) return true;
+      return (
+        (row.narration && row.narration.toLowerCase().includes(q)) ||
+        (row.ref_type && row.ref_type.toLowerCase().includes(q)) ||
+        (row.branch && row.branch.toLowerCase().includes(q))
+      );
+    });
+  }, [fullFolioWithOB, instantSearch]);
 
   const totalPages = Math.ceil(visibleFolio.length / pageSize) || 1;
   const safePage = Math.min(currentPage, totalPages);
@@ -67,12 +187,15 @@ export default function GeneralLedgerView({ chartOfAccounts = [], journalEntries
   const pagedFolio = visibleFolio.slice(startIndex, startIndex + pageSize);
 
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
-  const fmtSigned = n => (n < 0 ? `-₹${fmt(Math.abs(n))}` : `₹${fmt(n)}`);
-  const totalDebit = folio.reduce((s, r) => s + (r.debit || 0), 0);
-  const totalCredit = folio.reduce((s, r) => s + (r.credit || 0), 0);
+  const normalSide = selectedAccount ? (ACCOUNT_TYPES[selectedAccount.type] || 'DEBIT') : 'DEBIT';
+  const fmtSigned = (n) => {
+    const num = Number(n || 0);
+    return `₹${fmt(Math.abs(num))}`;
+  };
 
   return (
     <div className="fin-page">
+      {/* ── Standard ERP Header Card ──────────────────────────────── */}
       <div className="fin-header-card">
         <div className="fin-page-header">
           <div className="fin-page-header__left">
@@ -86,63 +209,104 @@ export default function GeneralLedgerView({ chartOfAccounts = [], journalEntries
           </div>
         </div>
 
+        {/* ── Header Stat Badges ───────────────────────────────────── */}
         <div className="fin-header-stats">
           <div className="fin-header-stat">
-            <span className="fin-header-stat__label">{t('fin.account_label')}</span>
-            <span className="fin-header-stat__value">{selectedAccount ? accountName(selectedAccount) : '—'}</span>
+            <span className="fin-header-stat__label">{t('fin.account_label')}:</span>
+            <span className="fin-header-stat__value" style={{ fontWeight: 600 }}>
+              {selectedAccount ? `${accountName(selectedAccount)} (${selectedAccount.code})` : '—'}
+            </span>
           </div>
+          {applied.from && (
+            <div className="fin-header-stat">
+              <span className="fin-header-stat__label">Opening Balance:</span>
+              <span className="fin-header-stat__value" style={{ fontWeight: 600, color: openingBalance < 0 ? 'var(--color-danger, #DC2626)' : '#0F172A' }}>
+                {fmtSigned(openingBalance)}
+              </span>
+            </div>
+          )}
           <div className="fin-header-stat">
-            <span className="fin-header-stat__label">{t('fin.col_debit')}</span>
+            <span className="fin-header-stat__label">{t('fin.col_debit')}:</span>
             <span className="fin-header-stat__value fin-header-stat__value--good">₹{fmt(totalDebit)}</span>
           </div>
           <div className="fin-header-stat">
-            <span className="fin-header-stat__label">{t('fin.col_credit')}</span>
+            <span className="fin-header-stat__label">{t('fin.col_credit')}:</span>
             <span className="fin-header-stat__value fin-header-stat__value--bad">₹{fmt(totalCredit)}</span>
           </div>
           <div className="fin-header-stat">
-            <span className="fin-header-stat__label">{t('fin.closing_balance')}</span>
-            <span className="fin-header-stat__value">{hasBranchSelected && selectedAccount ? fmtSigned(selectedAccount.balance) : '—'}</span>
+            <span className="fin-header-stat__label">{t('fin.closing_balance')}:</span>
+            <span className="fin-header-stat__value" style={{ fontWeight: 700, color: closingBalance < 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)' }}>
+              {fmtSigned(closingBalance)}
+            </span>
           </div>
           <div className="fin-header-stat">
-            <span className="fin-header-stat__label">{t('fin.results_count')}</span>
-            <span className="fin-header-stat__value">{folio.length}</span>
+            <span className="fin-header-stat__label">{t('fin.results_count')}:</span>
+            <span className="fin-header-stat__value">{periodFolioRows.length} entries</span>
           </div>
         </div>
       </div>
 
+      {/* ── Standard ERP Filter Bar ───────────────────────────────── */}
       <form className="fin-filterbar" onSubmit={handleSearch}>
-        <div className="fin-field" style={{ minWidth: 220 }}>
+        <div className="fin-field" style={{ minWidth: 240 }}>
           <label>{t('fin.account_label')}</label>
-          <select className="fin-select" value={accountCode} onChange={(e) => { setAccountCode(e.target.value); setCurrentPage(1); }}>
-            {chartOfAccounts.map(acc => (
-              <option key={acc.code} value={acc.code}>{accountName(acc)}</option>
-            ))}
-          </select>
+          <DropdownSelect
+            value={accountCode}
+            onChange={(e) => {
+              const newCode = e.target.value;
+              setAccountCode(newCode);
+              setApplied(prev => ({ ...prev, account: newCode }));
+              setCurrentPage(1);
+            }}
+            buttonStyle={{ height: 36, minWidth: 240 }}
+            options={chartOfAccounts.map(acc => ({
+              value: acc.code,
+              label: `${accountName(acc)} (${acc.code})`
+            }))}
+          />
         </div>
 
         <div className="fin-field">
           <label>{t('fin.branch_label')}</label>
-          <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
-            <option value="">{t('fin.select_branch_placeholder')}</option>
-            <option value="ALL">{t('fin.all_branches')}</option>
-            {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-          </select>
+          <DropdownSelect
+            value={branch}
+            onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }}
+            disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
+            buttonStyle={{ height: 36, minWidth: 160 }}
+            options={[
+              { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
+              ...branchesList.map(b => ({ value: b.name, label: b.name }))
+            ]}
+          />
         </div>
+
         <div className="fin-field">
           <label>{t('fin.from_label')}</label>
-          <input type="date" className="fin-input" value={fromDate} max={toDate || todayStr()} onChange={(e) => setFromDate(e.target.value)} />
+          <SharedDatePicker
+            value={fromDate}
+            max={toDate || todayStr()}
+            onChange={(e) => { setFromDate(e.target.value); setDatePreset('CUSTOM'); }}
+            buttonStyle={{ height: 36, minWidth: 140 }}
+          />
         </div>
+
         <div className="fin-field">
           <label>{t('fin.to_label')}</label>
-          <input type="date" className="fin-input" value={toDate} max={todayStr()} onChange={(e) => setToDate(e.target.value)} />
+          <SharedDatePicker
+            value={toDate}
+            max={todayStr()}
+            onChange={(e) => { setToDate(e.target.value); setDatePreset('CUSTOM'); }}
+            buttonStyle={{ height: 36, minWidth: 140 }}
+          />
         </div>
+
         <div className="fin-field" style={{ flex: '1 1 200px', minWidth: 180 }}>
           <label>{t('fin.find_transactions_placeholder')}</label>
           <div style={{ position: 'relative' }}>
-            <Search style={{ position: 'absolute', left: 9, top: 9, width: 13, height: 13, color: '#94A3B8' }} />
+            <Search style={{ position: 'absolute', left: 9, top: 11, width: 14, height: 14, color: '#94A3B8', pointerEvents: 'none' }} />
             <input
               className="fin-input"
-              style={{ paddingLeft: 28, width: '100%', boxSizing: 'border-box' }}
+              style={{ width: '100%', paddingLeft: 30 }}
               type="text"
               placeholder={t('fin.find_transactions_placeholder')}
               value={instantSearch}
@@ -150,49 +314,137 @@ export default function GeneralLedgerView({ chartOfAccounts = [], journalEntries
             />
           </div>
         </div>
+
         <button type="submit" className="fin-search-btn">{t('fin.search_btn')}</button>
+
+        {/* Quick Date Presets */}
+        <div className="fin-quickrow">
+          <span className="fin-quickrow__label">{t('fin.quick_label') || 'Quick:'}</span>
+          <button
+            type="button"
+            className={`fin-quick-pill ${datePreset === 'ALL' ? 'fin-quick-pill--active' : ''}`}
+            onClick={() => handleDatePresetChange('ALL')}
+          >
+            All Time
+          </button>
+          <button
+            type="button"
+            className={`fin-quick-pill ${datePreset === 'TODAY' ? 'fin-quick-pill--active' : ''}`}
+            onClick={() => handleDatePresetChange('TODAY')}
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            className={`fin-quick-pill ${datePreset === 'MONTH' ? 'fin-quick-pill--active' : ''}`}
+            onClick={() => handleDatePresetChange('MONTH')}
+          >
+            This Month
+          </button>
+        </div>
       </form>
 
-      <div className="fin-tablewrap">
-        <table className="fin-grid-table">
+      {/* ── Table Container ───────────────────────────────────────── */}
+      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'hidden' }}>
+        <table className="fin-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
           <thead>
-            <tr>
-              <th>{t('col.date')}</th>
-              <th>{t('col.transaction_description')}</th>
-              <th>{t('fin.voucher_type_col')}</th>
-              <th>{t('fin.branch_label')}</th>
-              <th className="num">{t('fin.col_debit')}</th>
-              <th className="num">{t('fin.col_credit')}</th>
-              <th className="num">{t('col.balance')}</th>
+            <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569' }}>
+              <th style={{ textAlign: 'left', width: 110, padding: '10px 12px' }}>{t('col.date')}</th>
+              <th style={{ textAlign: 'left', padding: '10px 12px' }}>{t('col.transaction_description')}</th>
+              <th style={{ textAlign: 'center', width: 130, padding: '10px 12px' }}>{t('fin.voucher_type_col')}</th>
+              <th style={{ textAlign: 'left', width: 130, padding: '10px 12px' }}>{t('fin.branch_label')}</th>
+              <th style={{ textAlign: 'right', width: 120, padding: '10px 12px' }}>{t('fin.col_debit')}</th>
+              <th style={{ textAlign: 'right', width: 120, padding: '10px 12px' }}>{t('fin.col_credit')}</th>
+              <th style={{ textAlign: 'right', width: 140, padding: '10px 14px' }}>{t('col.balance')}</th>
             </tr>
           </thead>
           <tbody>
             {pagedFolio.length === 0 ? (
-              <tr><td colSpan="7" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>{hasBranchSelected ? t('fin.no_results_hint') : t('fin.select_branch_hint')}</td></tr>
+              <tr>
+                <td colSpan="7" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>
+                  {t('fin.no_results_hint')}
+                </td>
+              </tr>
             ) : pagedFolio.map(row => (
-              <tr key={row.id}>
-                <td>{row.date}</td>
-                <td>{row.narration}</td>
-                <td><span className="fin-tag">{row.ref_type || '—'}</span></td>
-                <td style={{ color: '#64748B', fontSize: '0.78rem' }}>{row.branch || '—'}</td>
-                <td className="num">{row.debit ? `₹${fmt(row.debit)}` : '—'}</td>
-                <td className="num">{row.credit ? `₹${fmt(row.credit)}` : '—'}</td>
-                <td className="num" style={{ fontWeight: 600, color: '#0F172A' }}>{fmtSigned(row.balance)}</td>
+              <tr
+                key={row.id}
+                style={{
+                  borderBottom: '1px solid #F1F5F9',
+                  background: row.isOpeningBalance ? '#F8FAFC' : '#FFFFFF',
+                  fontStyle: row.isOpeningBalance ? 'italic' : 'normal'
+                }}
+              >
+                <td style={{ color: '#0F172A', padding: '10px 12px' }}>{formatDateDDMMYYYY(row.date)}</td>
+                <td style={{ color: row.isOpeningBalance ? '#64748B' : '#0F172A', fontWeight: row.isOpeningBalance ? 600 : 400, padding: '10px 12px' }}>
+                  {row.narration}
+                </td>
+                <td style={{ textAlign: 'center', padding: '10px 12px' }}>
+                  <span style={{
+                    background: row.isOpeningBalance ? '#E2E8F0' : '#F1F5F9',
+                    color: '#334155',
+                    padding: '2px 8px',
+                    borderRadius: 4,
+                    fontSize: '0.7rem',
+                    fontWeight: 600
+                  }}>
+                    {row.ref_type || '—'}
+                  </span>
+                </td>
+                <td style={{ color: '#64748B', fontSize: '0.78rem', padding: '10px 12px' }}>{row.branch || '—'}</td>
+                <td style={{ textAlign: 'right', color: 'var(--brand-primary, #15803D)', fontWeight: 600, padding: '10px 12px' }}>
+                  {row.debit ? `₹${fmt(row.debit)}` : '—'}
+                </td>
+                <td style={{ textAlign: 'right', color: 'var(--color-danger, #DC2626)', fontWeight: 600, padding: '10px 12px' }}>
+                  {row.credit ? `₹${fmt(row.credit)}` : '—'}
+                </td>
+                <td style={{ textAlign: 'right', fontWeight: 700, color: row.balance < 0 ? 'var(--color-danger, #DC2626)' : '#0F172A', fontSize: '0.84rem', padding: '10px 14px' }}>
+                  {fmtSigned(row.balance)}
+                </td>
               </tr>
             ))}
           </tbody>
+          {periodFolioRows.length > 0 && (
+            <tfoot>
+              <tr style={{ background: '#F8FAFC', borderTop: '2px solid #E2E8F0', fontWeight: 700 }}>
+                <td colSpan="4" style={{ textAlign: 'right', padding: '12px 14px', color: '#0F172A', fontSize: '0.82rem' }}>
+                  Period Totals / Closing Balance:
+                </td>
+                <td style={{ textAlign: 'right', padding: '12px 12px', color: 'var(--brand-primary, #15803D)', fontSize: '0.86rem' }}>
+                  ₹{fmt(totalDebit)}
+                </td>
+                <td style={{ textAlign: 'right', padding: '12px 12px', color: 'var(--color-danger, #DC2626)', fontSize: '0.86rem' }}>
+                  ₹{fmt(totalCredit)}
+                </td>
+                <td style={{ textAlign: 'right', padding: '12px 14px', color: closingBalance < 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)', fontSize: '0.94rem' }}>
+                  {fmtSigned(closingBalance)}
+                </td>
+              </tr>
+            </tfoot>
+          )}
         </table>
-        <div className="table-pagination">
-          <div className="table-pagination__info">
+
+        {/* ── Table Pagination ──────────────────────────────────────── */}
+        <div style={{ borderTop: '1px solid #E2E8F0', background: '#F8FAFC', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
             Showing <strong>{visibleFolio.length === 0 ? 0 : startIndex + 1}</strong> to <strong>{Math.min(startIndex + pageSize, visibleFolio.length)}</strong> of <strong>{visibleFolio.length}</strong> entries
           </div>
-          <div className="table-pagination__controls">
-            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={safePage === 1}
+              style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 6, padding: '4px 10px', fontSize: '0.74rem', cursor: safePage === 1 ? 'not-allowed' : 'pointer', opacity: safePage === 1 ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 4 }}
+            >
               <ChevronLeft style={{ width: 14, height: 14 }} />
-              <span>Previous</span>
+              <span>Prev</span>
             </button>
-            <span className="page-indicator">Page {safePage} of {totalPages}</span>
-            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>
+            <span style={{ fontSize: '0.74rem', color: '#475569', padding: '0 6px' }}>
+              Page {safePage} of {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={safePage === totalPages}
+              style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 6, padding: '4px 10px', fontSize: '0.74rem', cursor: safePage === totalPages ? 'not-allowed' : 'pointer', opacity: safePage === totalPages ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 4 }}
+            >
               <span>Next</span>
               <ChevronRight style={{ width: 14, height: 14 }} />
             </button>

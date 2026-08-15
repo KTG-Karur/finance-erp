@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Banknote, Clock, ArrowRight, User, Phone, DollarSign, Percent, Calendar, FileText } from 'lucide-react';
+import SharedDropdown from './common/SharedDropdown';
 
 export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBURSE', loanSchemes = [] }) {
   if (!isOpen) return null;
@@ -242,30 +243,16 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
               <label style={{ fontSize: '0.7rem', fontWeight: 500, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                 Loan Scheme
               </label>
-              <select
+              <SharedDropdown
                 name="scheme_id"
                 value={form.scheme_id}
                 onChange={handleChange}
-                style={{
-                  width: '100%',
-                  height: 38,
-                  padding: '0 12px',
-                  background: '#F8FAFC',
-                  border: '1px solid #CBD5E1',
-                  borderRadius: 9,
-                  fontSize: '0.8125rem',
-                  color: '#0F172A',
-                  fontFamily: 'inherit',
-                  fontWeight: 500
-                }}
-              >
-                {activeSchemes.length === 0 && (
-                  <option value="">No active loan schemes available</option>
-                )}
-                {activeSchemes.map(s => (
-                  <option key={s.id} value={s.id}>{s.name} ({s.rate_per_unit}% p.m.)</option>
-                ))}
-              </select>
+                placeholder={activeSchemes.length === 0 ? 'No active loan schemes available' : 'Select scheme'}
+                options={activeSchemes.map(s => ({
+                  value: s.id,
+                  label: `${s.scheme_name} (${s.rate_per_unit || 0}% / mo — ${s.tenure_value || 0} ${s.tenure_unit || 'Days'})`
+                }))}
+              />
             </div>
 
             {/* Tenure & Purpose */}

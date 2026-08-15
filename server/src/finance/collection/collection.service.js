@@ -2,6 +2,7 @@ import { CollectionRepository } from './collection.repository.js';
 import { calculatePaymentAllocation, calculateInterestOnlyAllocation } from '../../shared/interest-engine/interestEngine.js';
 import { createCollectionVoucher, createCollectionReversalVoucher } from '../../shared/voucher-engine/voucherEngine.js';
 import { assertMaxFileSize } from '../../shared/validators/fileSize.js';
+import { saveBase64File } from '../../shared/utils/fileStorage.js';
 
 const MAX_PROOF_IMAGE_BYTES = 5 * 1024 * 1024;
 
@@ -10,7 +11,7 @@ export class CollectionService {
     return CollectionRepository.findAll(db, filters);
   }
 
-  static async recordCollection(db, payload, createdBy) {
+  static async recordCollection(db, payload, createdBy, companyCode = 'default') {
     const conn = await db.getConnection();
     try {
       await conn.beginTransaction();
@@ -18,6 +19,11 @@ export class CollectionService {
       const { loan_id, amount, payment_mode, notes, collector_name, payment_date, reference_no, branch, proof_image, latitude, longitude } = payload;
       const totalAmount = parseFloat(amount) || 0;
       assertMaxFileSize(proof_image, MAX_PROOF_IMAGE_BYTES, 'Proof of payment photo');
+
+      let diskProofImage = proof_image || null;
+      if (proof_image && typeof proof_image === 'string' && proof_image.startsWith('data:')) {
+        diskProofImage = await saveBase64File(proof_image, companyCode, 'collections', 'receipt_proof');
+      }
 
       const [loanRows] = await conn.query(`SELECT * FROM loans WHERE id = ? FOR UPDATE`, [loan_id]);
       if (!loanRows.length) {
@@ -80,7 +86,7 @@ export class CollectionService {
           reference_no || null,
           branch || loan.branch || null,
           notes || null,
-          proof_image || null,
+          diskProofImage || null,
           latitude ?? null,
           longitude ?? null,
           collectionDate

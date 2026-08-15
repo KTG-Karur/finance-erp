@@ -12,6 +12,31 @@ export const ACCOUNT_TYPES = {
   REVENUE: 'CREDIT'
 };
 
+export const INITIAL_CHART_OF_ACCOUNTS = [
+  { code: '1001', name: 'Cash on Hand', name_key: 'coa.cash_on_hand', type: 'ASSET' },
+  { code: '1002', name: 'Bank Account (Primary)', name_key: 'coa.bank_primary', type: 'ASSET' },
+  { code: '1003', name: 'Loans Outstanding (Principal Receivable)', name_key: 'coa.loans_outstanding', type: 'ASSET' },
+  { code: '1004', name: 'Interest Receivable', name_key: 'coa.interest_receivable', type: 'ASSET' },
+  { code: '1005', name: 'Prepaid Expenses', name_key: 'coa.prepaid_expenses', type: 'ASSET' },
+  { code: '2001', name: "Promoter's Capital", name_key: 'coa.promoter_capital', type: 'EQUITY' },
+  { code: '2002', name: 'Investor Borrowings (Debt)', name_key: 'coa.investor_borrowings', type: 'LIABILITY' },
+  { code: '2003', name: 'Customer Security Deposits', name_key: 'coa.customer_deposits', type: 'LIABILITY' },
+  { code: '2004', name: 'Accounts Payable', name_key: 'coa.accounts_payable', type: 'LIABILITY' },
+  { code: '3001', name: 'Retained Earnings', name_key: 'coa.retained_earnings', type: 'EQUITY' },
+  { code: '4001', name: 'Interest Income', name_key: 'coa.interest_income', type: 'REVENUE' },
+  { code: '4002', name: 'Late Fee / Penalty Income', name_key: 'coa.penalty_income', type: 'REVENUE' },
+  { code: '4003', name: 'Loan Processing Fee Income', name_key: 'coa.processing_fee_income', type: 'REVENUE' },
+  { code: '4099', name: 'Miscellaneous Income', name_key: 'coa.misc_income', type: 'REVENUE' },
+  { code: '5001', name: 'Rent Expense', name_key: 'coa.rent_expense', type: 'EXPENSE' },
+  { code: '5002', name: 'Staff Salaries', name_key: 'coa.salary_expense', type: 'EXPENSE' },
+  { code: '5003', name: 'Electricity & Utilities', name_key: 'coa.utility_expense', type: 'EXPENSE' },
+  { code: '5004', name: 'Office Supplies & Stationery', name_key: 'coa.office_expense', type: 'EXPENSE' },
+  { code: '5005', name: 'Legal & Professional Charges', name_key: 'coa.legal_expense', type: 'EXPENSE' },
+  { code: '5006', name: 'Bank Charges & Processing Fees', name_key: 'coa.bank_charges', type: 'EXPENSE' },
+  { code: '5007', name: 'Loan Loss Provision / Bad Debt', name_key: 'coa.bad_debt_expense', type: 'EXPENSE' },
+  { code: '5099', name: 'Miscellaneous Expenses', name_key: 'coa.misc_expense', type: 'EXPENSE' }
+];
+
 export function journalLine(account_code, debit = 0, credit = 0) {
   return { account_code, debit: Number(debit) || 0, credit: Number(credit) || 0 };
 }
@@ -76,10 +101,10 @@ export function computeAccountBalances(chartOfAccounts, journalEntries) {
   const totals = {};
   chartOfAccounts.forEach(a => { totals[a.code] = { debit: 0, credit: 0 }; });
   journalEntries.forEach(je => {
-    je.lines.forEach(l => {
+    (je.lines || []).forEach(l => {
       if (!totals[l.account_code]) totals[l.account_code] = { debit: 0, credit: 0 };
-      totals[l.account_code].debit += l.debit || 0;
-      totals[l.account_code].credit += l.credit || 0;
+      totals[l.account_code].debit += Number(l.debit) || 0;
+      totals[l.account_code].credit += Number(l.credit) || 0;
     });
   });
   return chartOfAccounts.map(a => {
@@ -122,21 +147,23 @@ export function computeCashBookEntries(journalEntries, cashAccountCodes) {
 // A single account's ledger folio — the classic "T-account" transaction list with a
 // running balance, used by the General Ledger page to show one account at a time
 // instead of just its final balance.
-export function computeLedgerFolio(account, journalEntries) {
+export function computeLedgerFolio(account, journalEntries, openingBalance = 0) {
   const rows = [];
-  // Same-day entries tie-break on created_at (a real, always-present ISO
-  // timestamp on both the mock and real-backend entry shapes) rather than
-  // `id` — `id` is a voucher_no string on real entries (e.g. "VOU-..."),
-  // so `a.id - b.id` silently evaluated to NaN and left same-day rows in
-  // whatever order the DB happened to return them in, not chronological order.
-  const sorted = [...journalEntries].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0)));
+  const sorted = [...journalEntries].sort((a, b) => (
+    a.date < b.date ? -1 : a.date > b.date ? 1 : (
+      (a.created_at || '') < (b.created_at || '') ? -1 : (a.created_at || '') > (b.created_at || '') ? 1 : 0
+    )
+  ));
   const normalSide = ACCOUNT_TYPES[account.type] || 'DEBIT';
-  let running = 0;
+  let running = Number(openingBalance) || 0;
+
   sorted.forEach(je => {
-    je.lines.forEach(l => {
+    (je.lines || []).forEach(l => {
       if (l.account_code !== account.code) return;
-      if (!l.debit && !l.credit) return;
-      const signed = normalSide === 'DEBIT' ? (l.debit - l.credit) : (l.credit - l.debit);
+      const dr = Number(l.debit) || 0;
+      const cr = Number(l.credit) || 0;
+      if (!dr && !cr) return;
+      const signed = normalSide === 'DEBIT' ? (dr - cr) : (cr - dr);
       running += signed;
       rows.push({
         id: `${je.id}-${l.account_code}`,
@@ -146,24 +173,30 @@ export function computeLedgerFolio(account, journalEntries) {
         ref_id: je.ref_id,
         branch: je.branch,
         voucher_type: je.voucher_type,
-        debit: l.debit,
-        credit: l.credit,
+        debit: dr,
+        credit: cr,
         balance: running
       });
     });
   });
-  return rows;
+  return { rows, openingBalance: Number(openingBalance) || 0, closingBalance: running };
 }
 
 export function computeTrialBalance(balances) {
-  return balances.map(a => ({
-    code: a.code,
-    name: a.name,
-    name_key: a.name_key,
-    type: a.type,
-    debit: a.normal_side === 'DEBIT' ? Math.max(a.balance, 0) : Math.max(-a.balance, 0),
-    credit: a.normal_side === 'CREDIT' ? Math.max(a.balance, 0) : Math.max(-a.balance, 0)
-  }));
+  return balances.map(a => {
+    // Standard Trial Balance listing:
+    // ASSET & EXPENSE accounts have DEBIT normal balance (debit - credit)
+    // LIABILITY, EQUITY, & REVENUE accounts have CREDIT normal balance (credit - debit)
+    const net = a.normal_side === 'DEBIT' ? (a.debit_total - a.credit_total) : (a.credit_total - a.debit_total);
+    return {
+      code: a.code,
+      name: a.name,
+      name_key: a.name_key,
+      type: a.type,
+      debit: a.normal_side === 'DEBIT' ? Math.max(net, 0) : (net < 0 ? Math.abs(net) : 0),
+      credit: a.normal_side === 'CREDIT' ? Math.max(net, 0) : (net < 0 ? Math.abs(net) : 0)
+    };
+  });
 }
 
 export function computeProfitAndLoss(balances) {
@@ -234,7 +267,11 @@ export function filterEntriesUpTo(journalEntries, asOfDate) {
 export function filterEntriesByBranch(journalEntries, branch) {
   if (branch === 'ALL') return journalEntries;
   if (!branch) return [];
-  return journalEntries.filter(je => je.branch === branch);
+  const target = String(branch).toLowerCase().trim();
+  return journalEntries.filter(je => {
+    if (!je.branch) return true; // Central/unassigned branch vouchers affect overall balance
+    return String(je.branch).toLowerCase().trim() === target;
+  });
 }
 
 // Maps "REF_TYPE:ref_id" -> the journal entry's created_at timestamp, so report

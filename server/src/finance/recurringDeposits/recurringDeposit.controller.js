@@ -26,7 +26,14 @@ export async function createRecurringDepositHandler(request, reply) {
 export async function collectRdInstallmentHandler(request, reply) {
   try {
     const { monthNo } = request.params;
-    const data = await rdService.collectRdInstallment(request.tenantDb, request.params.id, Number(monthNo), request.body?.payment_mode, request.user?.name);
+    const data = await rdService.collectRdInstallment(
+      request.tenantDb,
+      request.params.id,
+      Number(monthNo),
+      request.body?.payment_mode,
+      request.user?.name,
+      request.body
+    );
     return reply.send({ success: true, data });
   } catch (err) { return fail(reply, err); }
 }

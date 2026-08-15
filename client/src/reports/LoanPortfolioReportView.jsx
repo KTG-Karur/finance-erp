@@ -4,6 +4,7 @@ import { useLanguage } from '../i18n/LanguageContext.jsx';
 import { exportToCsv } from '../utils/csvExport';
 import ReportPreviewModal from '../components/ReportPreviewModal';
 import { refTimeMap } from '../utils/accounting';
+import DropdownSelect from '../components/DropdownSelect';
 
 const STATUS_KEY = {
   ACTIVE: 'fin.status_active',
@@ -19,9 +20,9 @@ function fmtTime(iso) {
 
 export default function LoanPortfolioReportView({ loans = [], branchesList = [], journalEntries = [], tenant, user, selectedBranch = 'ALL' }) {
   const { t } = useLanguage();
-  const [branch, setBranch] = useState('');
+  const [branch, setBranch] = useState(() => (selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL'));
   useEffect(() => {
-    if (selectedBranch && selectedBranch !== 'ALL') setBranch(selectedBranch);
+    setBranch(selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL');
   }, [selectedBranch]);
   const hasBranchSelected = branch !== '';
   const [status, setStatus] = useState('ALL');
@@ -152,21 +153,32 @@ export default function LoanPortfolioReportView({ loans = [], branchesList = [],
       <div className="fin-filterbar">
         <div className="fin-field">
           <label>{t('fin.branch_label')}</label>
-          <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
-            <option value="">{t('fin.select_branch_placeholder')}</option>
-            <option value="ALL">{t('fin.all_branches')}</option>
-            {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-          </select>
+          <DropdownSelect
+            value={branch}
+            onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }}
+            disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
+            buttonStyle={{ height: 36, minWidth: 160 }}
+            options={[
+              { value: '', label: t('fin.select_branch_placeholder') || '— Select Branch —' },
+              { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
+              ...branchesList.map(b => ({ value: b.name, label: b.name }))
+            ]}
+          />
         </div>
         <div className="fin-field">
           <label>{t('col.status')}</label>
-          <select className="fin-select" value={status} onChange={(e) => { setStatus(e.target.value); setCurrentPage(1); }}>
-            <option value="ALL">{t('fin.all_statuses')}</option>
-            <option value="ACTIVE">{t('fin.status_active')}</option>
-            <option value="OVERDUE">{t('fin.status_overdue')}</option>
-            <option value="CLOSED">{t('fin.status_closed')}</option>
-            <option value="PENDING">{t('fin.status_pending')}</option>
-          </select>
+          <DropdownSelect
+            value={status}
+            onChange={(e) => { setStatus(e.target.value); setCurrentPage(1); }}
+            buttonStyle={{ height: 36, minWidth: 140 }}
+            options={[
+              { value: 'ALL', label: t('fin.all_statuses') || 'All Statuses' },
+              { value: 'ACTIVE', label: t('fin.status_active') || 'Active' },
+              { value: 'OVERDUE', label: t('fin.status_overdue') || 'Overdue' },
+              { value: 'CLOSED', label: t('fin.status_closed') || 'Closed' },
+              { value: 'PENDING', label: t('fin.status_pending') || 'Pending' }
+            ]}
+          />
         </div>
         <div className="fin-field" style={{ minWidth: 160 }}>
           <label>{t('fin.find_transactions_placeholder')}</label>

@@ -4,6 +4,8 @@ import { X, Receipt, CheckCircle2, FileText } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
 import { calculatePaymentAllocation } from '../utils/loanCalculations';
 import ThermalVoucherModal from './ThermalVoucherModal';
+import SharedDropdown from './common/SharedDropdown';
+import SharedDatePicker from './common/SharedDatePicker';
 
 export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = [], tenant, onSubmit }) {
   const { t } = useLanguage();
@@ -483,27 +485,17 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                 <label style={{ fontSize: '0.75rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>
                   {t('cd.payment_method')}
                 </label>
-                <select
+                <SharedDropdown
                   value={paymentMode}
                   onChange={(e) => setPaymentMode(e.target.value)}
-                  style={{
-                    width: '100%',
-                    height: 44,
-                    padding: '0 14px',
-                    borderRadius: 9,
-                    border: '1px solid #CBD5E1',
-                    fontSize: '0.88rem',
-                    fontWeight: 400,
-                    color: '#0F172A',
-                    background: '#FFFFFF',
-                    boxSizing: 'border-box'
-                  }}
-                >
-                  <option value="CASH">{t('cd.mode_cash')}</option>
-                  <option value="UPI">{t('cd.mode_upi')}</option>
-                  <option value="BANK_TRANSFER">{t('cd.mode_bank_transfer')}</option>
-                  <option value="CHEQUE">{t('cd.mode_cheque')}</option>
-                </select>
+                  buttonStyle={{ height: 44, fontSize: '0.88rem' }}
+                  options={[
+                    { value: 'CASH', label: t('cd.mode_cash') },
+                    { value: 'UPI', label: t('cd.mode_upi') },
+                    { value: 'BANK_TRANSFER', label: t('cd.mode_bank_transfer') },
+                    { value: 'CHEQUE', label: t('cd.mode_cheque') }
+                  ]}
+                />
               </div>
 
               {/* Dynamic Payment Fields */}
@@ -613,22 +605,10 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                   <label style={{ fontSize: '0.75rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>
                     {t('cd.collection_date')}
                   </label>
-                  <input
-                    type="date"
+                  <SharedDatePicker
                     value={paymentDate}
                     onChange={(e) => setPaymentDate(e.target.value)}
-                    style={{
-                      width: '100%',
-                      height: 44,
-                      padding: '0 14px',
-                      borderRadius: 9,
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.88rem',
-                      fontWeight: 400,
-                      color: '#0F172A',
-                      background: '#FFFFFF',
-                      boxSizing: 'border-box'
-                    }}
+                    buttonStyle={{ height: 44 }}
                   />
                 </div>
 

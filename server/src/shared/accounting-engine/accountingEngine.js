@@ -1,6 +1,8 @@
 export function validateDoubleEntry(lines) {
   if (!lines || !lines.length) {
-    throw new Error('Journal voucher must contain at least 2 journal lines.');
+    const err = new Error('Journal voucher must contain at least 2 journal lines.');
+    err.statusCode = 400;
+    throw err;
   }
 
   let totalDebit = 0;
@@ -12,7 +14,9 @@ export function validateDoubleEntry(lines) {
   }
 
   if (Math.abs(totalDebit - totalCredit) > 0.01) {
-    throw new Error(`Double-entry accounting violation: Total Debit (${totalDebit.toFixed(2)}) does not equal Total Credit (${totalCredit.toFixed(2)}).`);
+    const err = new Error(`Double-entry accounting violation: Total Debit (${totalDebit.toFixed(2)}) does not equal Total Credit (${totalCredit.toFixed(2)}).`);
+    err.statusCode = 400;
+    throw err;
   }
 
   return { totalDebit, totalCredit, isBalanced: true };

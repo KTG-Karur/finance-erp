@@ -16,6 +16,10 @@ export default defineConfig({
       '/api': {
         target: `http://localhost:${process.env.VITE_SERVER_PORT || 5031}`,
         changeOrigin: true
+      },
+      '/uploads': {
+        target: `http://localhost:${process.env.VITE_SERVER_PORT || 5031}`,
+        changeOrigin: true
       }
     }
   }

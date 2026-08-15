@@ -58,6 +58,32 @@ async function tenantGuardPlugin(fastify, options) {
           dbName = company.db_name;
           maxBranches = company.max_branches;
           allowedModules = parseAllowedModules(company.allowed_modules);
+
+          // Subscription expiry enforcement — checked on every request so that
+          // revoked/expired subscriptions take effect immediately without waiting
+          // for token expiry. Query only ACTIVE/TRIAL subscriptions; EXPIRED/SUSPENDED
+          // ones must not grant access.
+          try {
+            const [subRows] = await fastify.masterDb.query(
+              'SELECT end_date FROM subscriptions WHERE company_id = ? AND status IN ("ACTIVE","TRIAL") ORDER BY end_date DESC LIMIT 1',
+              [company.id]
+            );
+            if (subRows && subRows.length > 0 && subRows[0].end_date) {
+              const midnight = new Date(subRows[0].end_date);
+              midnight.setHours(23, 59, 59, 999);
+              if (new Date() > midnight) {
+                return reply.code(403).send({
+                  success: false,
+                  message: 'Your company subscription has expired. Please renew to continue using the system.',
+                  code: 'SUBSCRIPTION_EXPIRED'
+                });
+              }
+            }
+          } catch (subErr) {
+            // Non-fatal — if the subscription check fails (master DB blip), fail
+            // open rather than locking out the tenant unexpectedly.
+            console.warn('[WARN] Subscription check warning in tenantGuard:', subErr.message);
+          }
         }
       } catch (err) {
         // Master DB unreachable — fail open using whatever the JWT already

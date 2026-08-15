@@ -1,6 +1,7 @@
 import { BorrowerRepository } from './borrower.repository.js';
 import { assertValidPhone, assertValidEmail } from '../../shared/validators/contact.js';
 import { assertMaxFileSize } from '../../shared/validators/fileSize.js';
+import { saveBase64File, processDocumentsArray } from '../../shared/utils/fileStorage.js';
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
@@ -15,7 +16,7 @@ function validateContactFields(data) {
 function validateUploadSizes(data) {
   assertMaxFileSize(data.profile_image, MAX_PHOTO_BYTES, 'Profile photo');
   for (const doc of data.documents || []) {
-    assertMaxFileSize(doc?.url, MAX_DOCUMENT_BYTES, `Document "${doc?.name || doc?.category || 'upload'}"`);
+    assertMaxFileSize(doc?.url || doc?.file, MAX_DOCUMENT_BYTES, `Document "${doc?.name || doc?.category || 'upload'}"`);
   }
 }
 
@@ -28,7 +29,7 @@ export class BorrowerService {
     return BorrowerRepository.findById(db, id);
   }
 
-  static async createBorrower(db, data) {
+  static async createBorrower(db, data, companyCode = 'default') {
     if (!data.full_name || !data.phone) {
       const err = new Error('Full Name and Phone Number are required.');
       err.statusCode = 400;
@@ -44,10 +45,18 @@ export class BorrowerService {
       throw err;
     }
 
-    return BorrowerRepository.create(db, data);
+    const payload = { ...data };
+    if (payload.profile_image) {
+      payload.profile_image = await saveBase64File(payload.profile_image, companyCode, 'customer', 'cust_profile');
+    }
+    if (payload.documents) {
+      payload.documents = await processDocumentsArray(payload.documents, companyCode);
+    }
+
+    return BorrowerRepository.create(db, payload);
   }
 
-  static async updateBorrower(db, id, data) {
+  static async updateBorrower(db, id, data, companyCode = 'default') {
     const existing = await BorrowerRepository.findById(db, id);
     if (!existing) {
       const err = new Error('Customer record not found.');
@@ -69,7 +78,15 @@ export class BorrowerService {
       throw err;
     }
 
-    return BorrowerRepository.update(db, id, data);
+    const payload = { ...data };
+    if (payload.profile_image) {
+      payload.profile_image = await saveBase64File(payload.profile_image, companyCode, 'customer', 'cust_profile');
+    }
+    if (payload.documents) {
+      payload.documents = await processDocumentsArray(payload.documents, companyCode);
+    }
+
+    return BorrowerRepository.update(db, id, payload);
   }
 
   static async deleteBorrower(db, id) {

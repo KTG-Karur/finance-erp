@@ -1,24 +1,71 @@
 import { insertVoucherOnConnection } from '../../finance/ledger/ledger.service.js';
 
-export async function createDisbursalVoucher(conn, { loanId, loanAccountNo, borrowerName, amount, entryDate, branch, createdBy }) {
-  const totalAmount = parseFloat(amount);
+export async function createDisbursalVoucher(conn, { 
+  loanId, 
+  loanAccountNo, 
+  borrowerName, 
+  amount, 
+  entryDate, 
+  branch, 
+  createdBy,
+  paymentMode = 'CASH',
+  sourceAccountCode,
+  sourceAccountName,
+  transactionRef,
+  processingFee = 0,
+  advanceEmi = 0,
+  otherDeductions = 0
+}) {
+  const grossPrincipal = parseFloat(amount) || 0;
+  const procFee = parseFloat(processingFee) || 0;
+  const advEmi = parseFloat(advanceEmi) || 0;
+  const otherDed = parseFloat(otherDeductions) || 0;
+
+  const totalDeductions = Math.round((procFee + advEmi + otherDed) * 100) / 100;
+  const netDisbursed = Math.round((grossPrincipal - totalDeductions) * 100) / 100;
+
+  if (netDisbursed < 0) {
+    const err = new Error(`Net disbursal cannot be negative (Gross: ₹${grossPrincipal}, Deductions: ₹${totalDeductions}).`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const isBank = (paymentMode || '').toUpperCase().includes('BANK') || (paymentMode || '').toUpperCase().includes('ONLINE') || (paymentMode || '').toUpperCase().includes('CHEQUE');
+  
+  const creditCode = sourceAccountCode || (isBank ? '1002' : '1001');
+  const creditName = sourceAccountName || (isBank ? 'Bank Account' : 'Cash in Hand');
+  const refText = transactionRef ? ` [Ref/UTR: ${transactionRef}]` : '';
+  const modeText = isBank ? (paymentMode === 'CHEQUE' ? 'Cheque' : 'Bank Transfer') : 'Cash';
+  const dedText = totalDeductions > 0 ? ` (Gross: ₹${grossPrincipal.toLocaleString('en-IN')}, Net Disbursed: ₹${netDisbursed.toLocaleString('en-IN')})` : '';
+
+  const lines = [
+    { account_code: '1100', account_name: 'Loan Receivables Portfolio', debit: grossPrincipal, credit: 0, description: 'Loan Principal Receivable' },
+    { account_code: creditCode, account_name: creditName, debit: 0, credit: netDisbursed, description: `${modeText} Net Disbursal${refText}` }
+  ];
+
+  if (procFee > 0) {
+    lines.push({ account_code: '4002', account_name: 'Loan Penalty / Overdue Fee Income', debit: 0, credit: procFee, description: 'Processing Fee Deducted at Source' });
+  }
+  if (advEmi > 0) {
+    lines.push({ account_code: '2001', account_name: 'Advance EMI / Member Deposits', debit: 0, credit: advEmi, description: 'Advance EMI Deducted at Source' });
+  }
+  if (otherDed > 0) {
+    lines.push({ account_code: '4099', account_name: 'Miscellaneous Income', debit: 0, credit: otherDed, description: 'Other Charges Deducted at Source' });
+  }
 
   const result = await insertVoucherOnConnection(conn, {
     entry_date: entryDate,
-    description: `Loan Disbursal to ${borrowerName} (${loanAccountNo})`,
+    description: `Loan Disbursal to ${borrowerName} (${loanAccountNo}) via ${modeText}${refText}${dedText}`,
     voucher_type: 'PAYMENT',
     is_auto: true,
     ref_type: 'DISBURSAL',
     ref_id: loanId,
     branch: branch || null,
     created_by: createdBy || null,
-    lines: [
-      { account_code: '1100', account_name: 'Loan Receivables Portfolio', debit: totalAmount, credit: 0, description: 'Loan Principal Receivable' },
-      { account_code: '1001', account_name: 'Cash in Hand', debit: 0, credit: totalAmount, description: 'Cash Disbursal' }
-    ]
+    lines
   });
 
-  return { entryId: result.id, voucherNo: result.voucher_no, totalAmount };
+  return { entryId: result.id, voucherNo: result.voucher_no, totalAmount: grossPrincipal, netDisbursed };
 }
 
 export async function createCollectionVoucher(conn, { collectionId, receiptNo, borrowerName, amount, principalPaid, interestPaid, penaltyPaid, entryDate, branch, createdBy }) {
@@ -100,3 +147,118 @@ export async function createCollectionReversalVoucher(conn, { collectionId, rece
 
   return { entryId: result.id, voucherNo: result.voucher_no, totalAmount };
 }
+
+export async function createPreclosureVoucher(conn, {
+  loanId,
+  loanAccountNo,
+  receiptNo,
+  borrowerName,
+  totalAmount,
+  principalPaid,
+  interestPaid,
+  penaltyPaid = 0,
+  foreclosureFee = 0,
+  entryDate,
+  branch,
+  createdBy,
+  paymentMode = 'CASH',
+  transactionRef = ''
+}) {
+  const tot = parseFloat(totalAmount) || 0;
+  const pPaid = parseFloat(principalPaid) || 0;
+  const iPaid = parseFloat(interestPaid) || 0;
+  const penPaid = parseFloat(penaltyPaid) || 0;
+  const fcFee = parseFloat(foreclosureFee) || 0;
+
+  const isBank = (paymentMode || '').toUpperCase().includes('BANK') ||
+                 (paymentMode || '').toUpperCase().includes('ONLINE') ||
+                 (paymentMode || '').toUpperCase().includes('UPI') ||
+                 (paymentMode || '').toUpperCase().includes('CHEQUE');
+  const debitCode = isBank ? '1002' : '1001';
+  const debitName = isBank ? 'Bank Account' : 'Cash in Hand';
+  const refText = transactionRef ? ` [Ref: ${transactionRef}]` : '';
+
+  const lines = [
+    { account_code: debitCode, account_name: debitName, debit: tot, credit: 0, description: `Preclosure Settlement Receipt (${paymentMode})${refText}` }
+  ];
+
+  if (pPaid > 0) {
+    lines.push({ account_code: '1100', account_name: 'Loan Receivables Portfolio', debit: 0, credit: pPaid, description: 'Loan Principal Cleared' });
+  }
+  if (iPaid > 0) {
+    lines.push({ account_code: '4001', account_name: 'Loan Interest Income', debit: 0, credit: iPaid, description: 'Interest Realized on Settlement' });
+  }
+  if (penPaid > 0) {
+    lines.push({ account_code: '4002', account_name: 'Loan Penalty / Overdue Fee Income', debit: 0, credit: penPaid, description: 'Overdue Penalty Realized' });
+  }
+  if (fcFee > 0) {
+    lines.push({ account_code: '4002', account_name: 'Loan Penalty / Overdue Fee Income', debit: 0, credit: fcFee, description: 'Foreclosure / Preclosure Charges' });
+  }
+
+  const result = await insertVoucherOnConnection(conn, {
+    entry_date: entryDate,
+    description: `Loan Preclosure Settlement: ${borrowerName} (${loanAccountNo}) via ${paymentMode}${refText}`,
+    voucher_type: 'RECEIPT',
+    is_auto: true,
+    ref_type: 'LOAN_PRECLOSURE',
+    ref_id: loanId,
+    branch: branch || null,
+    created_by: createdBy || null,
+    lines
+  });
+
+  return { entryId: result.id, voucherNo: result.voucher_no, totalAmount: tot };
+}
+
+export async function createEmergencyCloseVoucher(conn, {
+  loanId,
+  loanAccountNo,
+  receiptNo,
+  borrowerName,
+  recoveryAmount = 0,
+  writtenOffAmount = 0,
+  reasonCategory,
+  reasonDetails,
+  entryDate,
+  branch,
+  createdBy,
+  paymentMode = 'CASH',
+  transactionRef = ''
+}) {
+  const rec = parseFloat(recoveryAmount) || 0;
+  const woff = parseFloat(writtenOffAmount) || 0;
+  const totalCleared = Math.round((rec + woff) * 100) / 100;
+
+  const isBank = (paymentMode || '').toUpperCase().includes('BANK') ||
+                 (paymentMode || '').toUpperCase().includes('ONLINE') ||
+                 (paymentMode || '').toUpperCase().includes('UPI') ||
+                 (paymentMode || '').toUpperCase().includes('CHEQUE');
+  const debitCode = isBank ? '1002' : '1001';
+  const debitName = isBank ? 'Bank Account' : 'Cash in Hand';
+  const refText = transactionRef ? ` [Ref: ${transactionRef}]` : '';
+
+  const lines = [];
+  if (rec > 0) {
+    lines.push({ account_code: debitCode, account_name: debitName, debit: rec, credit: 0, description: `Compromise Settlement Recovery (${paymentMode})${refText}` });
+  }
+  if (woff > 0) {
+    lines.push({ account_code: '5001', account_name: 'Bad Debt Provision Expense', debit: woff, credit: 0, description: `Loan Loss Write-off: ${reasonCategory || 'Compromise'}` });
+  }
+
+  lines.push({ account_code: '1100', account_name: 'Loan Receivables Portfolio', debit: 0, credit: totalCleared, description: 'Loan Account Fully Terminated' });
+
+  const result = await insertVoucherOnConnection(conn, {
+    entry_date: entryDate,
+    description: `Emergency / Compromise Loan Closure: ${borrowerName} (${loanAccountNo}) - Reason: ${reasonCategory || 'Emergency'}`,
+    voucher_type: 'JOURNAL',
+    is_auto: true,
+    ref_type: 'LOAN_EMERGENCY_CLOSE',
+    ref_id: loanId,
+    branch: branch || null,
+    created_by: createdBy || null,
+    lines
+  });
+
+  return { entryId: result.id, voucherNo: result.voucher_no, totalCleared, recoveryAmount: rec, writtenOffAmount: woff };
+}
+

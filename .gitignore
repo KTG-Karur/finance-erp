@@ -6,3 +6,7 @@ npm-debug.log*
 .env.test
 .env.production
 !.env.example
+*.md
+finance-regression/
+ui-audit/
+md files/

@@ -138,7 +138,15 @@ function PaymentActivityBars({ loanReceipts }) {
   );
 }
 
-export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }) {
+export default function LoanDetailPage({
+  loan,
+  borrower,
+  receipts = [],
+  onBack,
+  onPreclose,
+  onEmergencyClose,
+  onViewNoc
+}) {
   const { t, tStatus } = useLanguage();
   const [activeTab, setActiveTab] = useState('OVERVIEW'); // 'OVERVIEW' | 'BORROWER' | 'HISTORY'
 
@@ -219,6 +227,51 @@ export default function LoanDetailPage({ loan, borrower, receipts = [], onBack }
           </button>
 
           <div className="header-action-btns">
+            {loan.status === 'CLOSED' ? (
+              <button
+                type="button"
+                onClick={() => onViewNoc?.(loan)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: '#F0FDF4',
+                  color: '#15803D',
+                  border: '1px solid #BBF7D0',
+                  padding: '6px 14px',
+                  borderRadius: 6,
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                <FileCheck style={{ width: 14, height: 14 }} />
+                <span>Print NOC Certificate</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onPreclose?.(loan)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: 'var(--brand-primary, #15803D)',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  padding: '6px 14px',
+                  borderRadius: 6,
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                }}
+              >
+                <CheckCircle2 style={{ width: 14, height: 14 }} />
+                <span>Preclose Loan</span>
+              </button>
+            )}
+
             <button type="button" onClick={() => window.print()} className="btn-header-secondary">
               <Download style={{ width: 14, height: 14 }} />
               <span>{t('ld.export_pdf')}</span>

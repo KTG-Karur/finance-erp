@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import NewLoanApplicationPage from './NewLoanApplicationPage';
 import PrintableLoanApplicationSheet from './PrintableLoanApplicationSheet';
 import CustomerProfileModal from '../borrowers/CustomerProfileModal';
+import DisburseLoanModal from './DisburseLoanModal';
 import {
   Clock,
   Search,
@@ -110,6 +111,8 @@ export default function LoanApplicationsView({
   loanSchemes = [],
   branches = [],
   tenant,
+  chartOfAccounts = [],
+  bankAccounts = [],
   externalSearchQuery = '',
   onCreateBorrower,
   onQuickAction,
@@ -129,6 +132,7 @@ export default function LoanApplicationsView({
   const pageSize = 10;
 
   const [selectedApplication, setSelectedApplication] = useState(null);
+  const [loanToDisburse, setLoanToDisburse] = useState(null);
   const [modalAction, setModalAction] = useState('VIEW'); // 'VIEW' | 'APPROVE' | 'REJECT'
   const [rejectReason, setRejectReason] = useState('');
   const [actionSuccessMsg, setActionSuccessMsg] = useState('');
@@ -228,16 +232,23 @@ export default function LoanApplicationsView({
     }
   };
 
-  const handleDisburseConfirm = async (app) => {
+  const handleDisburseConfirm = (app) => {
     if (!app || actionLoading) return;
+    setLoanToDisburse(app);
+  };
+
+  const handleDisburseSubmit = async (disbursalData) => {
+    if (!loanToDisburse) return;
     setActionLoading(true);
     setActionErrorMsg('');
     try {
-      await onDisburseApprovedLoan?.(app.id);
-      setActionSuccessMsg(`Loan ${app.loan_account_no} for ${app.borrower_name} has been disbursed — cash posted.`);
+      await onDisburseApprovedLoan?.(loanToDisburse.id, disbursalData);
+      setActionSuccessMsg(`Loan ${loanToDisburse.loan_account_no} for ${loanToDisburse.borrower_name} has been disbursed from ${disbursalData.branch} via ${disbursalData.payment_mode}. Voucher posted.`);
+      setLoanToDisburse(null);
       setTimeout(() => setActionSuccessMsg(''), 4000);
     } catch (err) {
-      setActionErrorMsg(err?.response?.data?.message || 'Failed to disburse this loan.');
+      setActionErrorMsg(err?.response?.data?.message || err?.message || 'Failed to disburse this loan.');
+      throw err;
     } finally {
       setActionLoading(false);
     }
@@ -441,6 +452,17 @@ export default function LoanApplicationsView({
           borrower={selectedCustomerForProfile}
           onClose={() => setSelectedCustomerForProfile(null)}
           onEdit={() => setSelectedCustomerForProfile(null)}
+        />
+      )}
+
+      {loanToDisburse && (
+        <DisburseLoanModal
+          loan={loanToDisburse}
+          branchesList={branches}
+          chartOfAccounts={chartOfAccounts}
+          bankAccounts={bankAccounts}
+          onConfirm={handleDisburseSubmit}
+          onClose={() => setLoanToDisburse(null)}
         />
       )}
     </div>

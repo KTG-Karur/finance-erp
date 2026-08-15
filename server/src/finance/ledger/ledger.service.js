@@ -1,5 +1,6 @@
 import { LedgerRepository } from './ledger.repository.js';
 import { validateDoubleEntry } from '../../shared/accounting-engine/accountingEngine.js';
+import { EodService } from '../eod/eod.service.js';
 
 const VALID_VOUCHER_TYPES = ['RECEIPT', 'PAYMENT', 'JOURNAL', 'CONTRA', 'CASH_RECEIPT', 'CASH_PAYMENT', 'BANK_RECEIPT', 'BANK_PAYMENT'];
 
@@ -67,6 +68,7 @@ async function assertValidVoucherInput(conn, { description, entry_date, voucher_
 export async function insertVoucherOnConnection(conn, voucherData) {
   const { entry_date, description, voucher_type, lines, ref_type, ref_id, branch, created_by, is_auto } = voucherData;
   await assertValidVoucherInput(conn, { description, entry_date, voucher_type, lines });
+  await EodService.assertEodNotLocked(conn, branch, entry_date);
   const { totalDebit } = validateDoubleEntry(lines);
   if (totalDebit <= 0) {
     const err = new Error('Voucher total amount must be greater than zero.');
@@ -74,7 +76,10 @@ export async function insertVoucherOnConnection(conn, voucherData) {
     throw err;
   }
 
-  const voucherNo = `VOU-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  const finalRefType = ref_type || (voucher_type === 'CONTRA' ? 'CONTRA' : null);
+  const finalBranch = branch || null;
+
+  const voucherNo = voucherData.voucher_no || `VOU-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
   const [vRes] = await conn.query(
     `INSERT INTO journal_entries (voucher_no, entry_date, description, voucher_type, is_auto, total_amount, ref_type, ref_id, branch, created_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -85,9 +90,9 @@ export async function insertVoucherOnConnection(conn, voucherData) {
       voucher_type || 'JOURNAL',
       is_auto ? 1 : 0,
       totalDebit,
-      ref_type || null,
+      finalRefType,
       ref_id || null,
-      branch || null,
+      finalBranch,
       created_by || null
     ]
   );
@@ -129,6 +134,18 @@ export class LedgerService {
     return LedgerRepository.findAccounts(db);
   }
 
+  static async createAccount(db, data) {
+    return LedgerRepository.createAccount(db, data);
+  }
+
+  static async updateAccount(db, account_code, data) {
+    return LedgerRepository.updateAccount(db, account_code, data);
+  }
+
+  static async deleteAccount(db, account_code) {
+    return LedgerRepository.deleteAccount(db, account_code);
+  }
+
   static async getJournalEntries(db, filters) {
     return LedgerRepository.findEntries(db, filters);
   }
@@ -138,6 +155,29 @@ export class LedgerService {
     try {
       await conn.beginTransaction();
       const result = await insertVoucherOnConnection(conn, voucherData);
+
+      if (voucherData.expense_category_id && voucherData.lines) {
+        const expenseLine = voucherData.lines.find(l => Number(l.debit) > 0);
+        if (expenseLine) {
+          const amount = Number(expenseLine.debit);
+          const [catRows] = await conn.query(
+            `SELECT balance, name FROM expense_categories WHERE id = ? FOR UPDATE`,
+            [voucherData.expense_category_id]
+          );
+
+          if (!catRows.length || Number(catRows[0].balance) < amount) {
+            const err = new Error('there is no enough money for this expense category please topup');
+            err.statusCode = 400;
+            throw err;
+          }
+
+          await conn.query(
+            `UPDATE expense_categories SET balance = balance - ? WHERE id = ?`,
+            [amount, voucherData.expense_category_id]
+          );
+        }
+      }
+
       await conn.commit();
       return result;
     } catch (err) {

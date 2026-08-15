@@ -161,7 +161,7 @@ async function getRdOr404(db, id) {
   return rows[0];
 }
 
-export async function collectRdInstallment(db, id, monthNo, paymentMode = 'CASH', createdBy) {
+export async function collectRdInstallment(db, id, monthNo, paymentMode = 'CASH', createdBy, extra = {}) {
   const rd = await getRdOr404(db, id);
   if (rd.status !== 'ACTIVE') {
     const err = new Error(`This recurring deposit is already ${rd.status}.`);
@@ -195,9 +195,15 @@ export async function collectRdInstallment(db, id, monthNo, paymentMode = 'CASH'
     const paidDate = new Date().toISOString().slice(0, 10);
     const amount = Number(installment.amount);
 
+    let description = `Recurring deposit installment collected — ${rd.rd_account_no} (${rd.customer_name}) — month ${monthNo}`;
+    if (extra.bank_name) {
+      const bankTag = `[Bank: ${extra.bank_name}${extra.bank_account_number ? ' A/C ...' + String(extra.bank_account_number).slice(-4) : ''}${extra.ifsc_code ? ' IFSC: ' + extra.ifsc_code : ''}]`;
+      description += ` ${bankTag}`;
+    }
+
     const voucher = await insertVoucherOnConnection(conn, {
       entry_date: paidDate,
-      description: `Recurring deposit installment collected — ${rd.rd_account_no} (${rd.customer_name}) — month ${monthNo}`,
+      description,
       voucher_type: 'RECEIPT',
       is_auto: true,
       ref_type: 'RD_INSTALLMENT',

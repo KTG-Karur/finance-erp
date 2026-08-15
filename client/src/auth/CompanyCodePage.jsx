@@ -12,7 +12,7 @@ const ECOSYSTEM_MODULES = [
 export default function CompanyCodePage({ onVerified }) {
   const [companyCode, setCompanyCode] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.get('company_code') || 'ALPHA';
+    return params.get('company_code') || '';
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);

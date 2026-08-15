@@ -3,6 +3,7 @@ import { Banknote, Search, ChevronLeft, ChevronRight, Download, Printer, FileDow
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import { exportToCsv } from '../utils/csvExport';
 import ReportPreviewModal from '../components/ReportPreviewModal';
+import DropdownSelect from '../components/DropdownSelect';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -120,16 +121,17 @@ export default function RecurringDepositReportView({ recurringDeposits = [], bor
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, margin: '18px 0 12px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <select
+          <DropdownSelect
             value={status}
             onChange={(e) => { setStatus(e.target.value); setCurrentPage(1); }}
-            style={{ height: 34, padding: '0 10px', borderRadius: 7, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: '0.78rem', fontWeight: 600, color: '#0F172A', outline: 'none' }}
-          >
-            <option value="ALL">All Statuses ({recurringDeposits.length})</option>
-            <option value="ACTIVE">Active Accounts</option>
-            <option value="MATURED">Matured Accounts</option>
-            <option value="CLOSED_PREMATURE">Premature Exits</option>
-          </select>
+            buttonStyle={{ height: 34, minWidth: 170 }}
+            options={[
+              { value: 'ALL', label: `All Statuses (${recurringDeposits.length})` },
+              { value: 'ACTIVE', label: 'Active Accounts' },
+              { value: 'MATURED', label: 'Matured Accounts' },
+              { value: 'CLOSED_PREMATURE', label: 'Premature Exits' }
+            ]}
+          />
 
           <button
             type="button"

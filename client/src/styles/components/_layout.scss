@@ -311,8 +311,9 @@
   text-align: left;
 
   &:hover {
-    background: #F8FAFC;
-    color: #0F172A;
+    background: var(--brand-primary-light, #F0FEF5);
+    color: var(--brand-primary-hover, #0E5327);
+    font-weight: 600;
   }
 
   &--danger {

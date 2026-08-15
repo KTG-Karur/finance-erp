@@ -4,6 +4,10 @@ import BorrowersView from '../finance/borrowers/BorrowersView';
 import OrganizationHierarchyView from './OrganizationHierarchyView';
 import LoanSchemeMasterView from './LoanSchemeMasterView';
 import ExpenseAllocationView from './ExpenseAllocationView';
+import ChartOfAccountsMasterView from './ChartOfAccountsMasterView';
+import BankAccountMasterView from './BankAccountMasterView';
+import InvestorCapitalView from '../finance/investors/InvestorCapitalView';
+import SharedDropdown from '../components/common/SharedDropdown';
 import {
   Settings,
   Users,
@@ -68,7 +72,19 @@ export default function MasterSettingsView({
   onUpdateExpenseCategory,
   onDeleteExpenseCategory,
   expenseAllocationRequests,
-  onAddExpenseFunds
+  onAddExpenseFunds,
+  chartOfAccounts = [],
+  onCreateAccount,
+  onUpdateAccount,
+  onDeleteAccount,
+  bankAccounts = [],
+  onCreateBankAccount,
+  onUpdateBankAccount,
+  onDeleteBankAccount,
+  investors = [],
+  onCreateInvestor,
+  onUpdateInvestor,
+  onDeleteInvestor
 }) {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -321,11 +337,47 @@ export default function MasterSettingsView({
     );
   }
 
+  if (activeTab === 'chart-of-accounts') {
+    return (
+      <ChartOfAccountsMasterView
+        chartOfAccounts={chartOfAccounts}
+        onCreateAccount={onCreateAccount}
+        onUpdateAccount={onUpdateAccount}
+        onDeleteAccount={onDeleteAccount}
+      />
+    );
+  }
+
+  if (activeTab === 'bank-accounts' || activeTab === 'banking-master') {
+    return (
+      <BankAccountMasterView
+        bankAccounts={bankAccounts}
+        branchesList={branchesList}
+        chartOfAccounts={chartOfAccounts}
+        onCreateBankAccount={onCreateBankAccount}
+        onUpdateBankAccount={onUpdateBankAccount}
+        onDeleteBankAccount={onDeleteBankAccount}
+      />
+    );
+  }
+
+  if (activeTab === 'investor-master' || activeTab === 'investors' || activeTab === 'investor-capital') {
+    return (
+      <InvestorCapitalView
+        investors={investors}
+        onCreateInvestor={onCreateInvestor}
+        onUpdateInvestor={onUpdateInvestor}
+        onDeleteInvestor={onDeleteInvestor}
+      />
+    );
+  }
+
   if (activeTab === 'accounting-masters') {
     return (
       <ExpenseAllocationView
         user={user}
         expenseCategories={expenseCategories}
+        branchesList={branchesList}
         onCreateExpenseCategory={onCreateExpenseCategory}
         onUpdateExpenseCategory={onUpdateExpenseCategory}
         onDeleteExpenseCategory={onDeleteExpenseCategory}
@@ -338,6 +390,7 @@ export default function MasterSettingsView({
   if (activeTab === 'org-hierarchy' || activeTab === 'company-info') {
     return (
       <OrganizationHierarchyView
+        tenant={tenant}
         branches={branchesList}
         loading={orgLoading}
         error={orgError}
@@ -504,11 +557,43 @@ export default function MasterSettingsView({
                         </td>
 
                         <td>
-                          {emp.branchScope === 'GLOBAL' || !emp.branch_ids || emp.branch_ids.length === 0 ? (
-                            <span style={{ fontSize: '0.78rem', color: '#0F172A', fontWeight: 500 }}>All Branches</span>
+                          {emp.role === 'COMPANY_ADMIN' || emp.role === 'SUPER_ADMIN' ? (
+                            <span style={{ fontSize: '0.78rem', color: '#0F172A', fontWeight: 600 }}>All Branches (Company Admin)</span>
+                          ) : (emp.branches && emp.branches.length > 0) ? (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                              {emp.branches.map((b, i) => (
+                                <span key={i} style={{
+                                  fontSize: '0.74rem',
+                                  fontWeight: 600,
+                                  padding: '2px 8px',
+                                  borderRadius: 6,
+                                  backgroundColor: '#EFF6FF',
+                                  color: '#1D4ED8',
+                                  border: '1px solid #BFDBFE'
+                                }}>
+                                  {typeof b === 'object' ? b.name : (branchesList.find(br => br.id === b)?.name || `Branch #${b}`)}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (emp.branch_ids && emp.branch_ids.length > 0) ? (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                              {emp.branch_ids.map((bId, i) => (
+                                <span key={i} style={{
+                                  fontSize: '0.74rem',
+                                  fontWeight: 600,
+                                  padding: '2px 8px',
+                                  borderRadius: 6,
+                                  backgroundColor: '#EFF6FF',
+                                  color: '#1D4ED8',
+                                  border: '1px solid #BFDBFE'
+                                }}>
+                                  {branchesList.find(br => br.id === bId)?.name || `Branch #${bId}`}
+                                </span>
+                              ))}
+                            </div>
                           ) : (
-                            <span style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 500 }}>
-                              {branchesList.filter(b => emp.branch_ids.includes(b.id)).map(b => b.name).join(', ') || `${emp.branch_ids.length} Branches`}
+                            <span style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 500 }}>
+                              All Branches
                             </span>
                           )}
                         </td>
@@ -929,16 +1014,15 @@ export default function MasterSettingsView({
 
                   <div>
                     <label style={{ fontSize: '0.75rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                      {t('staff.modal.email_address')}
+                      {t('staff.modal.user_id') || 'Staff ID / Employee Code'}
                     </label>
                     <div style={{ position: 'relative' }}>
-                      <Mail style={{ position: 'absolute', left: 12, top: 11, width: 15, height: 15, color: '#94A3B8' }} />
+                      <UserCheck style={{ position: 'absolute', left: 12, top: 11, width: 15, height: 15, color: '#94A3B8' }} />
                       <input
-                        type="email"
-                        required
-                        value={staffForm.email}
-                        onChange={e => setStaffForm({ ...staffForm, email: e.target.value })}
-                        placeholder="david@company.com"
+                        type="text"
+                        value={staffForm.userId}
+                        onChange={e => setStaffForm({ ...staffForm, userId: e.target.value })}
+                        placeholder="e.g. USR-4912"
                         style={{
                           width: '100%',
                           height: 40,
@@ -957,27 +1041,17 @@ export default function MasterSettingsView({
                     <label style={{ fontSize: '0.75rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>
                       {t('staff.modal.system_role')}
                     </label>
-                    <select
+                    <SharedDropdown
                       value={staffForm.role}
                       onChange={e => setStaffForm({ ...staffForm, role: e.target.value })}
-                      style={{
-                        width: '100%',
-                        height: 42,
-                        padding: '0 14px',
-                        borderRadius: 8,
-                        border: '1px solid #CBD5E1',
-                        fontSize: '0.85rem',
-                        fontWeight: 600,
-                        color: '#0F172A',
-                        background: '#FFFFFF',
-                        boxSizing: 'border-box'
-                      }}
-                    >
-                      <option value="COLLECTOR">{t('staff.modal.role_collector')}</option>
-                      <option value="MANAGER">{t('staff.modal.role_manager')}</option>
-                      <option value="STAFF">{t('staff.modal.role_staff')}</option>
-                      <option value="ADMIN">{t('staff.modal.role_admin')}</option>
-                    </select>
+                      buttonStyle={{ height: 42, fontSize: '0.85rem', fontWeight: 600 }}
+                      options={[
+                        { value: 'COLLECTOR', label: t('staff.modal.role_collector') },
+                        { value: 'MANAGER', label: t('staff.modal.role_manager') },
+                        { value: 'STAFF', label: t('staff.modal.role_staff') },
+                        { value: 'ADMIN', label: t('staff.modal.role_admin') }
+                      ]}
+                    />
                   </div>
                 </div>
 
@@ -996,7 +1070,7 @@ export default function MasterSettingsView({
                     </span>
                   </div>
 
-                  {/* Authentication Toggle & 2 Fields (User ID + Password) */}
+                  {/* Authentication Toggle & 2 Fields (Login Email + Password) */}
                   <div style={{
                     background: '#FFFFFF',
                     border: '1px solid #E2E8F0',
@@ -1018,19 +1092,19 @@ export default function MasterSettingsView({
 
                     {staffForm.enable_auth && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
-                        {/* 1. User ID / Login Username Field */}
+                        {/* 1. Login Email Address / Username Field */}
                         <div>
                           <label style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 4, textTransform: 'uppercase' }}>
-                            {t('staff.modal.user_id')}
+                            {t('staff.modal.email_address') || 'Login Email (Username)'}
                           </label>
                           <div style={{ position: 'relative' }}>
-                            <UserCheck style={{ position: 'absolute', left: 12, top: 10, width: 15, height: 15, color: '#94A3B8' }} />
+                            <Mail style={{ position: 'absolute', left: 12, top: 10, width: 15, height: 15, color: '#94A3B8' }} />
                             <input
-                              type="text"
+                              type="email"
                               required={staffForm.enable_auth}
-                              value={staffForm.userId}
-                              onChange={e => setStaffForm({ ...staffForm, userId: e.target.value })}
-                              placeholder="e.g. USR-4912 or david.mgr"
+                              value={staffForm.email}
+                              onChange={e => setStaffForm({ ...staffForm, email: e.target.value })}
+                              placeholder="e.g. david@company.com"
                               style={{
                                 width: '100%',
                                 height: 38,

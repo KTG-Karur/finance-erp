@@ -296,7 +296,25 @@
   max-height: 260px;
   overflow-y: auto;
   padding: 4px;
-  @include thin-scrollbar;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 999px;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.35);
+    }
+  }
 }
 
 .sidebar__branch-option {
@@ -334,7 +352,35 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding: 10px 0 16px;
-  @include thin-scrollbar;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.38);
+    }
+  }
+
+  &:hover {
+    scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.28);
+    }
+  }
 }
 
 // ── Section Group Label ─────────────────────────────────────────

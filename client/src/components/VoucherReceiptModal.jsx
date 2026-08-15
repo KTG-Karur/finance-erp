@@ -25,10 +25,11 @@ export default function VoucherReceiptModal({ company = {}, voucher, accountName
 
   if (!voucher) return null;
 
+  const isContra = (voucher?.voucher_type === 'CONTRA') || (voucher?.ref_type === 'CONTRA') || (voucher?.narration && voucher.narration.toLowerCase().includes('contra'));
   const hasDebitCash = (voucher.lines || []).some(l => (l.account_code === '1001' || l.account_code === '1002') && l.debit > 0);
-  const derivedDirection = voucher.direction || (hasDebitCash ? 'Money In' : 'Money Out');
-  const derivedMode = voucher.mode || (voucher.payment_mode ? voucher.payment_mode : 'Cash');
-  const derivedSource = voucher.source || voucher.ref_type || 'General Entry';
+  const derivedDirection = voucher.direction || (isContra ? 'Contra Transfer' : (hasDebitCash ? 'Money In' : 'Money Out'));
+  const derivedMode = voucher.mode || (voucher.payment_mode ? voucher.payment_mode : (isContra ? 'Internal Transfer (Cash ⇄ Bank)' : 'Cash'));
+  const derivedSource = voucher.source || voucher.ref_type || (isContra ? 'Contra Transfer' : 'General Entry');
 
   const content = (
     <div className="printable-form-overlay" style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15, 23, 42, 0.55)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px 16px', overflowY: 'auto' }}>

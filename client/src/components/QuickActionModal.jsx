@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Plus, UserPlus, CreditCard, BookOpen, ArrowRight } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
+import SharedDropdown from './common/SharedDropdown';
 
 function tp(t, key, vars) {
   let str = t(key);
@@ -168,15 +169,14 @@ export default function QuickActionModal({ type, isOpen, onClose, onSubmit, expe
                       {t('qa.no_active_expense_accounts')}
                     </div>
                   ) : (
-                    <select
+                    <SharedDropdown
                       value={form.category_id}
                       onChange={(e) => setForm({ ...form, category_id: e.target.value })}
-                      className="input-control"
-                    >
-                      {activeCategories.map(cat => (
-                        <option key={cat.id} value={cat.id}>{cat.name} — ₹{cat.balance.toLocaleString('en-IN')} {t('qa.available_suffix')}</option>
-                      ))}
-                    </select>
+                      options={activeCategories.map(cat => ({
+                        value: cat.id,
+                        label: `${cat.name} — ₹${cat.balance.toLocaleString('en-IN')} ${t('qa.available_suffix')}`
+                      }))}
+                    />
                   )}
                 </div>
 

@@ -1,5 +1,7 @@
+import bcrypt from 'bcryptjs';
 import { assertValidPhone, assertValidEmail } from '../../shared/validators/contact.js';
 import { assertMaxFileSize } from '../../shared/validators/fileSize.js';
+import { saveBase64File } from '../../shared/utils/fileStorage.js';
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 const GLOBAL_SCOPE_ROLES = ['ADMIN', 'COMPANY_ADMIN', 'SUPER_ADMIN'];
@@ -18,7 +20,7 @@ function assertValidRole(role) {
 
 export async function getAllEmployees(db, companyId) {
   const [users] = await db.query(
-    'SELECT id, company_id, name, email, role, status FROM users WHERE company_id = ?',
+    'SELECT id, company_id, name, email, phone, photo, role, status FROM users WHERE company_id = ?',
     [companyId]
   );
 
@@ -36,17 +38,20 @@ export async function getAllEmployees(db, companyId) {
       .filter(a => a.user_id == user.id)
       .map(a => allBranches.find(b => b.id == a.branch_id))
       .filter(Boolean)
-      .map(b => ({ id: b.id, name: b.name, code: b.code }));
+    const branchIds = assignments
+      .filter(a => Number(a.user_id) === Number(user.id))
+      .map(a => Number(a.branch_id));
     return {
       ...user,
       permissions: userPerms,
       branches,
+      branch_ids: branchIds,
       branchScope: GLOBAL_SCOPE_ROLES.includes(user.role) ? 'GLOBAL' : (branches.length ? 'RESTRICTED' : 'UNASSIGNED')
     };
   });
 }
 
-export async function createEmployee(db, companyId, employeeData) {
+export async function createEmployee(db, companyId, employeeData, companyCode = 'default') {
   const { name, email, phone, photo, role = 'COLLECTOR', branch_ids = [], enable_auth, password } = employeeData;
 
   if (!name || !email) {
@@ -66,15 +71,17 @@ export async function createEmployee(db, companyId, employeeData) {
     throw err;
   }
 
-  // `password` is NOT NULL with no default — every user row needs one even when
-  // sign-in is disabled (enable_auth: false), since nothing else guards login.
-  // A random placeholder locks the account out (it can never be guessed/typed)
-  // rather than leaving the column empty.
-  const finalPassword = (enable_auth !== false && password) ? password : `disabled-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  let diskPhoto = photo || null;
+  if (photo) {
+    diskPhoto = await saveBase64File(photo, companyCode, 'staff', 'staff_photo');
+  }
+
+  const rawPassword = (enable_auth !== false && password) ? password : `disabled-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const finalPassword = rawPassword.startsWith('$2') ? rawPassword : await bcrypt.hash(rawPassword, 10);
 
   const [result] = await db.execute(
     'INSERT INTO users (company_id, name, email, phone, photo, password, role, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [companyId, name, email, phone || null, photo || null, finalPassword, role, 'ACTIVE']
+    [companyId, name, email, phone || null, diskPhoto, finalPassword, role, 'ACTIVE']
   );
 
   const userId = result.insertId;
@@ -85,10 +92,10 @@ export async function createEmployee(db, companyId, employeeData) {
     );
   }
 
-  return { id: userId, company_id: companyId, name, email, phone: phone || null, photo: photo || null, role, status: 'ACTIVE', branch_ids };
+  return { id: userId, company_id: companyId, name, email, phone: phone || null, photo: diskPhoto, role, status: 'ACTIVE', branch_ids };
 }
 
-export async function updateEmployee(db, companyId, userId, payload) {
+export async function updateEmployee(db, companyId, userId, payload, companyCode = 'default') {
   const { name, email, phone, photo, role, status, enable_auth, password, branch_ids } = payload;
 
   const [existing] = await db.execute('SELECT id FROM users WHERE id = ? AND company_id = ?', [userId, companyId]);
@@ -102,15 +109,21 @@ export async function updateEmployee(db, companyId, userId, payload) {
   if (phone !== undefined) assertValidPhone(phone, { fieldLabel: 'Phone number', required: false });
   if (photo !== undefined) assertMaxFileSize(photo, MAX_PHOTO_BYTES, 'Staff photo');
 
+  let diskPhoto = photo;
+  if (photo && typeof photo === 'string' && photo.startsWith('data:')) {
+    diskPhoto = await saveBase64File(photo, companyCode, 'staff', 'staff_photo');
+  }
+
   const sets = ['name = COALESCE(?, name)', 'email = COALESCE(?, email)', 'phone = COALESCE(?, phone)', 'photo = COALESCE(?, photo)', 'role = COALESCE(?, role)', 'status = COALESCE(?, status)'];
-  const params = [name ?? null, email ?? null, phone ?? null, photo ?? null, role ?? null, status ?? null];
+  const params = [name ?? null, email ?? null, phone ?? null, diskPhoto ?? null, role ?? null, status ?? null];
 
   if (enable_auth === false) {
     sets.push('password = ?');
     params.push(`disabled-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   } else if (password) {
+    const hashed = password.startsWith('$2') ? password : await bcrypt.hash(password, 10);
     sets.push('password = ?');
-    params.push(password);
+    params.push(hashed);
   }
 
   params.push(userId, companyId);
@@ -121,7 +134,11 @@ export async function updateEmployee(db, companyId, userId, payload) {
   }
 
   const [rows] = await db.query('SELECT id, company_id, name, email, phone, photo, role, status FROM users WHERE id = ?', [userId]);
-  return rows[0];
+  const [assignedRows] = await db.query('SELECT branch_id FROM user_branches WHERE user_id = ? AND company_id = ?', [userId, companyId]);
+  return {
+    ...rows[0],
+    branch_ids: assignedRows.map(r => r.branch_id)
+  };
 }
 
 export async function deleteEmployee(db, companyId, userId) {

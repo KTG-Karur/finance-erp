@@ -1,8 +1,41 @@
 import axios from 'axios';
 import { emitApiError } from './errorBus';
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+
+// Backend origin stripped from VITE_API_BASE_URL. When the API lives on its own
+// host (https://ktgfinanceapi.nidhimfi.com/api), uploaded-file paths stored by
+// the backend (/uploads/<COMPANY>/.../file.png) must be re-hosted back onto that
+// same API host — otherwise the browser resolves them against the SPA host and
+// the image 404s. In dev the base is relative (/api) and Vite proxies both /api
+// and /uploads to the backend, so origins resolve to the SPA itself.
+const API_ORIGIN = /^https?:\/\//.test(API_BASE) ? new URL(API_BASE).origin : '';
+
+function resolveAssetUrl(value) {
+  if (typeof value === 'string' && value.startsWith('/uploads/')) {
+    return API_ORIGIN ? `${API_ORIGIN}${value}` : value;
+  }
+  return value;
+}
+
+// Deep-walks an API response and rewrites every relative /uploads/... path into
+// a full backend URL, so <img src=...> and window.open() get the real file.
+function absolutizeUploads(value) {
+  if (Array.isArray(value)) {
+    return value.map(absolutizeUploads);
+  }
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const key of Object.keys(value)) {
+      out[key] = absolutizeUploads(value[key]);
+    }
+    return out;
+  }
+  return resolveAssetUrl(value);
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  baseURL: API_BASE,
   headers: {
     'Content-Type': 'application/json'
   }
@@ -30,9 +63,45 @@ api.interceptors.request.use((config) => {
 // reached a server (network drop, backend not running). Those get funneled to the
 // global banner here instead of leaving the screen looking like it just did nothing.
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (response && response.data !== undefined && response.data !== null) {
+      response.data = absolutizeUploads(response.data);
+    }
+    return response;
+  },
   (error) => {
     const status = error.response?.status;
+    const responseData = error.response?.data;
+
+    // Subscription expired — the server sets a specific `code` field so we
+    // can show a targeted message rather than a generic auth error.
+    if (status === 403 && responseData?.code === 'SUBSCRIPTION_EXPIRED') {
+      localStorage.removeItem('financial_erp_token');
+      localStorage.removeItem('financial_erp_user');
+      localStorage.removeItem('financial_erp_tenant_id');
+      // Give the browser a moment to flush storage, then force re-login.
+      setTimeout(() => {
+        window.location.href = '/';
+        window.sessionStorage.setItem(
+          'erp_session_msg',
+          responseData.message || 'Your company subscription has expired. Please renew to continue.'
+        );
+      }, 100);
+      return Promise.reject(error);
+    }
+
+    // JWT expired or invalid — clean session and redirect to login.
+    if (status === 401) {
+      const msg = responseData?.message || '';
+      if (msg.toLowerCase().includes('expired') || msg.toLowerCase().includes('invalid')) {
+        localStorage.removeItem('financial_erp_token');
+        localStorage.removeItem('financial_erp_user');
+        localStorage.removeItem('financial_erp_tenant_id');
+        setTimeout(() => { window.location.href = '/'; }, 100);
+        return Promise.reject(error);
+      }
+    }
+
     const isBackendFailure = !error.response || status >= 500;
     if (isBackendFailure) {
       emitApiError({

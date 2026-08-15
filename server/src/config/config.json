@@ -7,10 +7,10 @@
     "database": "finance_master_db"
   },
   "production": {
-    "host": "localhost",
+    "host": "194.195.115.123",
     "port": 3306,
-    "user": "root",
-    "password": "",
+    "user": "finance_erp",
+    "password": "rb)0M/7Fa_2Jn7ns",
     "database": "finance_master_db"
   }
 }

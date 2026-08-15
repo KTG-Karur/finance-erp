@@ -209,11 +209,15 @@ export default function PrintableLoanApplicationSheet({
                     : (applicationData?.tenure_months ? `${applicationData.tenure_months} Months` : '—')}
                 </td>
                 <td className="field-lbl">Installment Frequency</td>
-                <td className="field-val" style={{ fontWeight: 600 }}>{applicationData?.repayment_frequency || 'DAILY'} EMI</td>
+                <td className="field-val" style={{ fontWeight: 600 }}>{applicationData?.repayment_frequency || 'DAILY'} {applicationData?.repayment_method === 'INTEREST_ONLY' ? 'Interest' : 'EMI'}</td>
               </tr>
               <tr>
                 <td className="field-lbl">Calculated Installment</td>
-                <td className="field-val" style={{ fontWeight: 700 }}>{applicationData?.installment_amount != null ? `₹${fmt(applicationData.installment_amount)} / day` : '—'}</td>
+                <td className="field-val" style={{ fontWeight: 700 }}>
+                  {applicationData?.installment_amount != null
+                    ? `₹${fmt(applicationData.installment_amount)} / ${applicationData?.repayment_frequency === 'MONTHLY' ? 'month' : applicationData?.repayment_frequency === 'WEEKLY' ? 'week' : 'day'}`
+                    : '—'}
+                </td>
                 <td className="field-lbl">Loan Purpose</td>
                 <td className="field-val">{applicationData?.purpose || '—'}</td>
               </tr>

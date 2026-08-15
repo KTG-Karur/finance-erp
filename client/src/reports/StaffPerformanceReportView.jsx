@@ -4,21 +4,28 @@ import { useLanguage } from '../i18n/LanguageContext.jsx';
 import { exportToCsv } from '../utils/csvExport';
 import ReportPreviewModal from '../components/ReportPreviewModal';
 import { refTimeMap } from '../utils/accounting';
+import DropdownSelect from '../components/DropdownSelect';
+import SharedDatePicker from '../components/common/SharedDatePicker';
+
+function formatDateDDMMYYYY(dateStr) {
+  if (!dateStr) return '—';
+  const cleanStr = String(dateStr).slice(0, 10);
+  const parts = cleanStr.split('-');
+  if (parts.length === 3 && parts[0].length === 4) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateStr;
+}
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function fmtTime(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
-}
-
 export default function StaffPerformanceReportView({ employees = [], loans = [], collections = [], branchesList = [], journalEntries = [], tenant, user, selectedBranch = 'ALL' }) {
   const { t } = useLanguage();
-  const [branch, setBranch] = useState('');
+  const [branch, setBranch] = useState(() => (selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL'));
   useEffect(() => {
-    if (selectedBranch && selectedBranch !== 'ALL') setBranch(selectedBranch);
+    setBranch(selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL');
   }, [selectedBranch]);
   const hasBranchSelected = branch !== '';
   const [fromDate, setFromDate] = useState('');
@@ -78,7 +85,7 @@ export default function StaffPerformanceReportView({ employees = [], loans = [],
   ];
 
   const DETAIL_COLUMNS = [
-    { label: t('fin.employee_name_label') }, { label: t('col.type') }, { label: t('col.date') }, { label: t('col.date_time') },
+    { label: t('fin.employee_name_label') }, { label: t('col.type') }, { label: t('col.date') },
     { label: t('fin.reference_no_label') }, { label: t('col.customer_name') }, { label: t('col.amount_rs'), align: 'right' }
   ];
 
@@ -87,14 +94,18 @@ export default function StaffPerformanceReportView({ employees = [], loans = [],
   const buildDetailRows = () => {
     const out = [];
     filtered.forEach(r => {
-      r.empCollections.forEach(c => out.push([
-        r.name, t('fin.collections_count_label'), c.collection_date, fmtTime(timeMap[`COLLECTION:${c.id}`]), c.voucher_no, c.borrower_name, fmt(c.amount)
-      ]));
-      r.empLoans.forEach(l => out.push([
-        r.name, t('fin.loans_disbursed_count_label'), l.loan_date, fmtTime(timeMap[`DISBURSAL:${l.id}`]), l.loan_account_no, l.borrower_name, fmt(l.principal_amount)
-      ]));
+      r.empCollections.forEach(c => {
+        out.push([
+          r.name, t('fin.collections_count_label'), formatDateDDMMYYYY(c.collection_date), c.voucher_no, c.borrower_name, fmt(c.amount), c.collection_date
+        ]);
+      });
+      r.empLoans.forEach(l => {
+        out.push([
+          r.name, t('fin.loans_disbursed_count_label'), formatDateDDMMYYYY(l.loan_date), l.loan_account_no, l.borrower_name, fmt(l.principal_amount), l.loan_date
+        ]);
+      });
     });
-    return out.sort((a, b) => (a[2] < b[2] ? 1 : a[2] > b[2] ? -1 : 0));
+    return out.sort((a, b) => (a[6] < b[6] ? 1 : a[6] > b[6] ? -1 : 0));
   };
 
   const handleExport = () => {
@@ -180,19 +191,35 @@ export default function StaffPerformanceReportView({ employees = [], loans = [],
       <form className="fin-filterbar" onSubmit={handleSearch}>
         <div className="fin-field">
           <label>{t('fin.branch_label')}</label>
-          <select className="fin-select" value={branch} onChange={(e) => setBranch(e.target.value)} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
-            <option value="">{t('fin.select_branch_placeholder')}</option>
-            <option value="ALL">{t('fin.all_branches')}</option>
-            {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-          </select>
+          <DropdownSelect
+            value={branch}
+            onChange={(e) => setBranch(e.target.value)}
+            disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
+            buttonStyle={{ height: 36, minWidth: 160 }}
+            options={[
+              { value: '', label: t('fin.select_branch_placeholder') || '— Select Branch —' },
+              { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
+              ...branchesList.map(b => ({ value: b.name, label: b.name }))
+            ]}
+          />
         </div>
         <div className="fin-field">
           <label>{t('fin.from_label')}</label>
-          <input type="date" className="fin-input" value={fromDate} max={toDate || todayStr()} onChange={(e) => setFromDate(e.target.value)} />
+          <SharedDatePicker
+            value={fromDate}
+            max={toDate || todayStr()}
+            onChange={(e) => setFromDate(e.target.value)}
+            buttonStyle={{ height: 36, minWidth: 140 }}
+          />
         </div>
         <div className="fin-field">
           <label>{t('fin.to_label')}</label>
-          <input type="date" className="fin-input" value={toDate} max={todayStr()} onChange={(e) => setToDate(e.target.value)} />
+          <SharedDatePicker
+            value={toDate}
+            max={todayStr()}
+            onChange={(e) => setToDate(e.target.value)}
+            buttonStyle={{ height: 36, minWidth: 140 }}
+          />
         </div>
         <div className="fin-field" style={{ minWidth: 160 }}>
           <label>{t('fin.find_transactions_placeholder')}</label>
@@ -252,7 +279,6 @@ export default function StaffPerformanceReportView({ employees = [], loans = [],
                   <th>{t('fin.employee_name_label')}</th>
                   <th>{t('col.type')}</th>
                   <th>{t('col.date')}</th>
-                  <th>{t('col.date_time')}</th>
                   <th>{t('fin.reference_no_label')}</th>
                   <th>{t('col.customer_name')}</th>
                   <th className="num">{t('col.amount_rs')}</th>
@@ -260,16 +286,15 @@ export default function StaffPerformanceReportView({ employees = [], loans = [],
               </thead>
               <tbody>
                 {buildDetailRows().length === 0 ? (
-                  <tr><td colSpan="7" style={{ textAlign: 'center', padding: '30px 0', color: '#94A3B8' }}>{t('fin.no_results_hint')}</td></tr>
+                  <tr><td colSpan="6" style={{ textAlign: 'center', padding: '30px 0', color: '#94A3B8' }}>{t('fin.no_results_hint')}</td></tr>
                 ) : buildDetailRows().map((row, idx) => (
                   <tr key={idx}>
                     <td>{row[0]}</td>
                     <td><span className="fin-tag">{row[1]}</span></td>
                     <td>{row[2]}</td>
-                    <td>{row[3]}</td>
-                    <td className="code">{row[4]}</td>
-                    <td>{row[5]}</td>
-                    <td className="num">₹{row[6]}</td>
+                    <td className="code">{row[3]}</td>
+                    <td>{row[4]}</td>
+                    <td className="num">₹{row[5]}</td>
                   </tr>
                 ))}
               </tbody>

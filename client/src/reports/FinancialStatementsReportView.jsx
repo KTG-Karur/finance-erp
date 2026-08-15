@@ -4,6 +4,8 @@ import { useLanguage } from '../i18n/LanguageContext.jsx';
 import { computeAccountBalances, computeProfitAndLoss, filterEntriesInRange, filterEntriesByBranch } from '../utils/accounting';
 import { exportToCsv } from '../utils/csvExport';
 import ReportPreviewModal from '../components/ReportPreviewModal';
+import DropdownSelect from '../components/DropdownSelect';
+import SharedDatePicker from '../components/common/SharedDatePicker';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -16,9 +18,9 @@ function fmtTime(iso) {
 
 export default function FinancialStatementsReportView({ chartOfAccounts = [], journalEntries = [], branchesList = [], tenant, user, selectedBranch = 'ALL' }) {
   const { t } = useLanguage();
-  const [branch, setBranch] = useState('');
+  const [branch, setBranch] = useState(() => (selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL'));
   useEffect(() => {
-    if (selectedBranch && selectedBranch !== 'ALL') setBranch(selectedBranch);
+    setBranch(selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL');
   }, [selectedBranch]);
   const hasBranchSelected = branch !== '';
   const [fromDate, setFromDate] = useState('');
@@ -154,19 +156,35 @@ export default function FinancialStatementsReportView({ chartOfAccounts = [], jo
       <form className="fin-filterbar" onSubmit={handleSearch}>
         <div className="fin-field">
           <label>{t('fin.branch_label')}</label>
-          <select className="fin-select" value={branch} onChange={(e) => setBranch(e.target.value)} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
-            <option value="">{t('fin.select_branch_placeholder')}</option>
-            <option value="ALL">{t('fin.all_branches')}</option>
-            {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-          </select>
+          <DropdownSelect
+            value={branch}
+            onChange={(e) => setBranch(e.target.value)}
+            disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
+            buttonStyle={{ height: 36, minWidth: 160 }}
+            options={[
+              { value: '', label: t('fin.select_branch_placeholder') || '— Select Branch —' },
+              { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
+              ...branchesList.map(b => ({ value: b.name, label: b.name }))
+            ]}
+          />
         </div>
         <div className="fin-field">
           <label>{t('fin.from_label')}</label>
-          <input type="date" className="fin-input" value={fromDate} max={toDate || todayStr()} onChange={(e) => setFromDate(e.target.value)} />
+          <SharedDatePicker
+            value={fromDate}
+            max={toDate || todayStr()}
+            onChange={(e) => setFromDate(e.target.value)}
+            buttonStyle={{ height: 36, minWidth: 140 }}
+          />
         </div>
         <div className="fin-field">
           <label>{t('fin.to_label')}</label>
-          <input type="date" className="fin-input" value={toDate} max={todayStr()} onChange={(e) => setToDate(e.target.value)} />
+          <SharedDatePicker
+            value={toDate}
+            max={todayStr()}
+            onChange={(e) => setToDate(e.target.value)}
+            buttonStyle={{ height: 36, minWidth: 140 }}
+          />
         </div>
         <button type="submit" className="fin-search-btn">{t('fin.search_btn')}</button>
       </form>

@@ -1,0 +1,360 @@
+@use '../variables' as *;
+
+.estimation-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px;
+  background-color: var(--bg-app, #F8FAFC);
+  min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  font-family: $font-sans;
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    background: #ffffff;
+    padding: 20px 24px;
+    border-radius: 12px;
+    border: 1px solid var(--border-light, #E2E8F0);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    box-sizing: border-box;
+    width: 100%;
+
+    &-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    &-icon-badge {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: var(--brand-primary-light, #F0FEF5);
+      border: 1px solid var(--brand-primary-border, #A3F5C1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--brand-primary, #15803D);
+    }
+
+    &-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-main, #0F172A);
+      margin: 0;
+      line-height: 1.2;
+    }
+
+    &-subtitle {
+      font-size: 0.8125rem;
+      color: var(--text-muted, #64748B);
+      margin-top: 4px;
+    }
+
+    &-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+  }
+
+  &__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+
+    &--secondary {
+      background: #ffffff;
+      border-color: var(--border-base, #CBD5E1);
+      color: var(--text-main, #0F172A);
+
+      &:hover {
+        background: #F1F5F9;
+        border-color: #94A3B8;
+      }
+    }
+
+    &--primary {
+      background: var(--brand-primary, #15803D);
+      color: #ffffff;
+
+      &:hover {
+        background: var(--brand-primary-hover, #0E5327);
+        box-shadow: 0 4px 12px rgba(var(--brand-primary-rgb, 21, 128, 61), 0.25);
+      }
+    }
+  }
+
+  // ── Grid Layout ──
+  &__grid {
+    display: grid;
+    grid-template-columns: 410px minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+
+    @media (max-width: 1280px) {
+      grid-template-columns: 380px minmax(0, 1fr);
+    }
+
+    @media (max-width: 1024px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  // ── Calculator Inputs Panel ──
+  &__panel {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid var(--border-light, #E2E8F0);
+    padding: 22px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+
+    &-title {
+      font-size: 0.9375rem;
+      font-weight: 700;
+      color: var(--text-main, #0F172A);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-light, #E2E8F0);
+      margin: 0;
+    }
+  }
+
+  &__form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    input, select {
+      height: 38px;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border-base, #CBD5E1);
+      background: #ffffff;
+      font-size: 0.8125rem;
+      color: var(--text-main, #0F172A);
+      font-weight: 500;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+      &:focus {
+        outline: none;
+        border-color: var(--brand-primary, #15803D);
+        box-shadow: 0 0 0 3px rgba(var(--brand-primary-rgb, 21, 128, 61), 0.12);
+      }
+    }
+
+    .estimation-page__input-prefix {
+      position: relative;
+      display: flex;
+      align-items: center;
+
+      span {
+        position: absolute;
+        left: 12px;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: #64748B;
+        pointer-events: none;
+      }
+
+      input {
+        padding-left: 28px;
+        width: 100%;
+      }
+    }
+  }
+
+  &__form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  // ── KPI Summary Cards ──
+  &__kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+
+    @media (max-width: 900px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  &__kpi-card {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid var(--border-light, #E2E8F0);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    position: relative;
+    overflow: hidden;
+    min-width: 0;
+    box-sizing: border-box;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+      background: #CBD5E1;
+    }
+
+    &--primary::before { background: var(--brand-primary, #15803D); }
+    &--success::before { background: var(--color-success, #15803D); }
+    &--warning::before { background: var(--color-warning, #D97706); }
+    &--info::before { background: var(--color-info, #2563EB); }
+
+    &-label {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      color: var(--text-muted, #64748B);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    &-value {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-main, #0F172A);
+      font-feature-settings: "tnum";
+    }
+
+    &-subtext {
+      font-size: 0.75rem;
+      color: #64748B;
+    }
+  }
+
+  // ── Charts Area ──
+  &__charts-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+    gap: 16px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+
+    @media (max-width: 1000px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  &__chart-card {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid var(--border-light, #E2E8F0);
+    padding: 18px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+
+    &-title {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: var(--text-main, #0F172A);
+      margin: 0;
+    }
+  }
+
+  // ── Amortization Table ──
+  &__table-card {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid var(--border-light, #E2E8F0);
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  &__table-wrapper {
+    overflow-x: auto;
+    border-radius: 8px;
+    border: 1px solid var(--border-light, #E2E8F0);
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  &__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+
+    th {
+      background: #F8FAFC;
+      padding: 10px 14px;
+      font-weight: 700;
+      color: #475569;
+      text-align: left;
+      border-bottom: 1px solid var(--border-light, #E2E8F0);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 10px 14px;
+      color: var(--text-main, #0F172A);
+      border-bottom: 1px solid #F1F5F9;
+      font-feature-settings: "tnum";
+      white-space: nowrap;
+    }
+
+    tr:hover td {
+      background: #F8FAFC;
+    }
+  }
+}

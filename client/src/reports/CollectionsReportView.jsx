@@ -4,21 +4,28 @@ import { useLanguage } from '../i18n/LanguageContext.jsx';
 import { exportToCsv } from '../utils/csvExport';
 import ReportPreviewModal from '../components/ReportPreviewModal';
 import { refTimeMap } from '../utils/accounting';
+import DropdownSelect from '../components/DropdownSelect';
+import SharedDatePicker from '../components/common/SharedDatePicker';
+
+function formatDateDDMMYYYY(dateStr) {
+  if (!dateStr) return '—';
+  const cleanStr = String(dateStr).slice(0, 10);
+  const parts = cleanStr.split('-');
+  if (parts.length === 3 && parts[0].length === 4) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateStr;
+}
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function fmtTime(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
-}
-
 export default function CollectionsReportView({ collections = [], loans = [], branchesList = [], journalEntries = [], tenant, user, selectedBranch = 'ALL' }) {
   const { t } = useLanguage();
-  const [branch, setBranch] = useState('');
+  const [branch, setBranch] = useState(() => (selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL'));
   useEffect(() => {
-    if (selectedBranch && selectedBranch !== 'ALL') setBranch(selectedBranch);
+    setBranch(selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL');
   }, [selectedBranch]);
   const hasBranchSelected = branch !== '';
   const [paymentMode, setPaymentMode] = useState('ALL');
@@ -74,15 +81,15 @@ export default function CollectionsReportView({ collections = [], loans = [], br
   const totalCollected = filtered.reduce((s, c) => s + (c.amount || 0), 0);
 
   const PDF_COLUMNS = [
-    { label: t('col.voucher_no') }, { label: t('col.date') }, { label: t('col.date_time') },
+    { label: t('col.voucher_no') }, { label: t('col.date') },
     { label: t('col.loan_account') }, { label: t('col.customer_name') }, { label: t('fin.branch_label') },
     { label: t('col.collector') }, { label: t('col.principal'), align: 'right' }, { label: t('col.interest'), align: 'right' },
     { label: t('fin.penalty_label'), align: 'right' }, { label: t('col.amount_rs'), align: 'right' }, { label: t('col.payment_mode') }
   ];
 
   const buildRows = () => filtered.map(c => [
-    c.voucher_no, c.collection_date, collectedAt(c), loanAccMap[c.loan_id] || '—', c.borrower_name,
-    loanBranchMap[c.loan_id] || '—', c.collector_name, fmt(c.principalPaid), fmt(c.interestPaid),
+    c.voucher_no, formatDateDDMMYYYY(c.collection_date), loanAccMap[c.loan_id] || '—', c.borrower_name,
+    loanBranchMap[c.loan_id] || '—', c.collector_name, fmt(c.principal_paid ?? c.principal_portion ?? c.principalPaid), fmt(c.interest_paid ?? c.interest_portion ?? c.interestPaid),
     fmt(c.penalty), fmt(c.amount), c.payment_mode
   ]);
 
@@ -103,7 +110,7 @@ export default function CollectionsReportView({ collections = [], loans = [], br
     },
     columns: PDF_COLUMNS,
     rows: buildRows(),
-    totalsRow: [t('fin.total_row'), '', '', '', '', '', '', '', '', '', fmt(totalCollected), ''],
+    totalsRow: [t('fin.total_row'), '', '', '', '', '', '', '', '', fmt(totalCollected), ''],
     generatedBy: user?.name
   };
 
@@ -151,28 +158,49 @@ export default function CollectionsReportView({ collections = [], loans = [], br
       <form className="fin-filterbar" onSubmit={handleSearch}>
         <div className="fin-field">
           <label>{t('fin.branch_label')}</label>
-          <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
-            <option value="">{t('fin.select_branch_placeholder')}</option>
-            <option value="ALL">{t('fin.all_branches')}</option>
-            {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-          </select>
+          <DropdownSelect
+            value={branch}
+            onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }}
+            disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
+            buttonStyle={{ height: 36, minWidth: 160 }}
+            options={[
+              { value: '', label: t('fin.select_branch_placeholder') || '— Select Branch —' },
+              { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
+              ...branchesList.map(b => ({ value: b.name, label: b.name }))
+            ]}
+          />
         </div>
         <div className="fin-field">
           <label>{t('col.payment_mode')}</label>
-          <select className="fin-select" value={paymentMode} onChange={(e) => { setPaymentMode(e.target.value); setCurrentPage(1); }}>
-            <option value="ALL">{t('fin.all_modes')}</option>
-            <option value="CASH">{t('fin.mode_cash')}</option>
-            <option value="UPI">{t('fin.mode_upi')}</option>
-            <option value="BANK_TRANSFER">{t('fin.mode_bank_transfer')}</option>
-          </select>
+          <DropdownSelect
+            value={paymentMode}
+            onChange={(e) => { setPaymentMode(e.target.value); setCurrentPage(1); }}
+            buttonStyle={{ height: 36, minWidth: 150 }}
+            options={[
+              { value: 'ALL', label: t('fin.all_modes') || 'All Modes' },
+              { value: 'CASH', label: t('fin.mode_cash') || 'Cash' },
+              { value: 'UPI', label: t('fin.mode_upi') || 'UPI / QR' },
+              { value: 'BANK_TRANSFER', label: t('fin.mode_bank_transfer') || 'Bank Transfer' }
+            ]}
+          />
         </div>
         <div className="fin-field">
           <label>{t('fin.from_label')}</label>
-          <input type="date" className="fin-input" value={fromDate} max={toDate || todayStr()} onChange={(e) => setFromDate(e.target.value)} />
+          <SharedDatePicker
+            value={fromDate}
+            max={toDate || todayStr()}
+            onChange={(e) => setFromDate(e.target.value)}
+            buttonStyle={{ height: 36, minWidth: 140 }}
+          />
         </div>
         <div className="fin-field">
           <label>{t('fin.to_label')}</label>
-          <input type="date" className="fin-input" value={toDate} max={todayStr()} onChange={(e) => setToDate(e.target.value)} />
+          <SharedDatePicker
+            value={toDate}
+            max={todayStr()}
+            onChange={(e) => setToDate(e.target.value)}
+            buttonStyle={{ height: 36, minWidth: 140 }}
+          />
         </div>
         <div className="fin-field" style={{ minWidth: 160 }}>
           <label>{t('fin.find_transactions_placeholder')}</label>
@@ -190,7 +218,6 @@ export default function CollectionsReportView({ collections = [], loans = [], br
             <tr>
               <th>{t('col.voucher_no')}</th>
               <th>{t('col.date')}</th>
-              <th>{t('col.date_time')}</th>
               <th>{t('col.loan_account')}</th>
               <th>{t('col.customer_name')}</th>
               <th>{t('fin.branch_label')}</th>
@@ -204,18 +231,17 @@ export default function CollectionsReportView({ collections = [], loans = [], br
           </thead>
           <tbody>
             {pagedRows.length === 0 ? (
-              <tr><td colSpan="12" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>{hasBranchSelected ? t('fin.no_results_hint') : t('fin.select_branch_hint')}</td></tr>
+              <tr><td colSpan="11" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>{hasBranchSelected ? t('fin.no_results_hint') : t('fin.select_branch_hint')}</td></tr>
             ) : pagedRows.map(c => (
               <tr key={c.id}>
                 <td className="code">{c.voucher_no}</td>
-                <td>{c.collection_date}</td>
-                <td>{collectedAt(c)}</td>
+                <td>{formatDateDDMMYYYY(c.collection_date)}</td>
                 <td className="code">{loanAccMap[c.loan_id] || '—'}</td>
                 <td>{c.borrower_name}</td>
                 <td>{loanBranchMap[c.loan_id] || '—'}</td>
                 <td>{c.collector_name}</td>
-                <td className="num">₹{fmt(c.principalPaid)}</td>
-                <td className="num">₹{fmt(c.interestPaid)}</td>
+                <td className="num">₹{fmt(c.principal_paid ?? c.principal_portion ?? c.principalPaid)}</td>
+                <td className="num">₹{fmt(c.interest_paid ?? c.interest_portion ?? c.interestPaid)}</td>
                 <td className="num">₹{fmt(c.penalty)}</td>
                 <td className="num" style={{ fontWeight: 600, color: '#0F172A' }}>₹{fmt(c.amount)}</td>
                 <td><span className="fin-tag">{c.payment_mode}</span></td>

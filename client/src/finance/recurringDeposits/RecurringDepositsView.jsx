@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
   Landmark, Plus, X, AlertTriangle, CheckCircle2, LogOut, ArrowLeft,
-  UserCheck, ChevronLeft, ChevronRight, Search, CalendarClock, Wallet
+  UserCheck, ChevronLeft, ChevronRight, Search, CalendarClock, Wallet,
+  CheckSquare, Square, Receipt, Check
 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
+import SharedDropdown from '../../components/common/SharedDropdown';
 
 const FORM_MAX_WIDTH = 780;
 
@@ -112,10 +114,17 @@ function BookRdScreen({ borrowers, onCancel, onSubmit }) {
           <div className="form-row">
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <label>{t('rd.modal.customer_label')}</label>
-              <select required value={form.borrower_id} onChange={e => setField('borrower_id', e.target.value)} className="input-control">
-                <option value="">{t('rd.modal.select_customer')}</option>
-                {borrowers.map(b => <option key={b.id} value={b.id}>{b.full_name} ({b.borrower_code}) — {b.branch}</option>)}
-              </select>
+              <SharedDropdown
+                required
+                value={form.borrower_id}
+                onChange={e => setField('borrower_id', e.target.value)}
+                placeholder={t('rd.modal.select_customer') || '— Select Customer —'}
+                searchable
+                options={borrowers.map(b => ({
+                  value: b.id,
+                  label: `${b.full_name} (${b.borrower_code}) — ${b.branch}`
+                }))}
+              />
             </div>
           </div>
 
@@ -137,12 +146,16 @@ function BookRdScreen({ borrowers, onCancel, onSubmit }) {
           <div className="form-row">
             <div className="form-group">
               <label>{t('rd.payment_mode_label')}</label>
-              <select value={form.payment_mode} onChange={e => setField('payment_mode', e.target.value)} className="input-control">
-                <option value="CASH">{t('fin.mode_cash')}</option>
-                <option value="BANK_TRANSFER">Bank Transfer</option>
-                <option value="UPI">UPI</option>
-                <option value="CHEQUE">Cheque</option>
-              </select>
+              <SharedDropdown
+                value={form.payment_mode}
+                onChange={e => setField('payment_mode', e.target.value)}
+                options={[
+                  { value: 'CASH', label: t('fin.mode_cash') },
+                  { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
+                  { value: 'UPI', label: 'UPI' },
+                  { value: 'CHEQUE', label: 'Cheque' }
+                ]}
+              />
             </div>
           </div>
 
@@ -266,7 +279,17 @@ function Pagination({ page, setPage, totalPages, total, startIndex, pageSize }) 
   );
 }
 
-export default function RecurringDepositsView({ recurringDeposits = [], borrowers = [], branchesList = [], selectedBranch = 'ALL', onCreateRd, onCollectInstallment, onMatureRd, onPrematureCloseRd }) {
+export default function RecurringDepositsView({
+  recurringDeposits = [],
+  borrowers = [],
+  branchesList = [],
+  selectedBranch = 'ALL',
+  bankAccounts = [],
+  onCreateRd,
+  onCollectInstallment,
+  onMatureRd,
+  onPrematureCloseRd
+}) {
   const { t, tStatus } = useLanguage();
   const [screen, setScreen] = useState('LIST'); // 'LIST' | 'BOOK'
   const [confirmAction, setConfirmAction] = useState(null); // { type: 'MATURE'|'PREMATURE', rd }
@@ -276,10 +299,6 @@ export default function RecurringDepositsView({ recurringDeposits = [], borrower
   // Collections, instead of requiring staff to open the full month-by-month
   // schedule modal just to pay the one installment that's actually due next.
   const [collectRd, setCollectRd] = useState(null);
-  const [collectMode, setCollectMode] = useState('CASH');
-  const [collectLoading, setCollectLoading] = useState(false);
-  const [collectError, setCollectError] = useState('');
-  const [collectResult, setCollectResult] = useState(null);
   const [statusTab, setStatusTab] = useState('ACTIVE');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -374,16 +393,17 @@ export default function RecurringDepositsView({ recurringDeposits = [], borrower
         />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <select
-            className="fin-select"
-            style={{ height: 34 }}
+          <SharedDropdown
             value={branchFilter}
             onChange={(e) => { setBranchFilter(e.target.value); setPage(1); }}
             disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
-          >
-            <option value="ALL">{t('fin.all_branches')}</option>
-            {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-          </select>
+            size="sm"
+            buttonStyle={{ height: 34, minWidth: 140 }}
+            options={[
+              { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
+              ...branchesList.map(b => ({ value: b.name, label: b.name }))
+            ]}
+          />
           <div style={{ position: 'relative', width: 280, maxWidth: '100%' }}>
             <Search style={{ position: 'absolute', left: 10, top: 9, width: 14, height: 14, color: '#94A3B8' }} />
             <input style={{ paddingLeft: 30, width: '100%', height: 34, borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: '0.78rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} type="text" placeholder={t('rd.search_placeholder')} value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }} />
@@ -429,15 +449,19 @@ export default function RecurringDepositsView({ recurringDeposits = [], borrower
                 <td style={{ textAlign: 'center' }}><span className={statusBadgeCls(rd.status)}>{tStatus(rd.status)}</span></td>
                 <td style={{ textAlign: 'right' }}>
                   <div style={{ display: 'inline-flex', gap: 6 }}>
-                    <ActionPill icon={<CalendarClock style={{ width: 11, height: 11 }} />} label={t('rd.schedule_btn')} tone="neutral" onClick={() => setScheduleRd(rd)} />
-                    {rd.status === 'ACTIVE' && (
+                    {rd.status === 'ACTIVE' ? (
                       <>
-                        {(rd.installments || []).some(i => i.status === 'PENDING') && (
-                          <ActionPill icon={<Wallet style={{ width: 11, height: 11 }} />} label={t('rd.collect_btn')} tone="good" onClick={() => { setCollectRd(rd); setCollectMode('CASH'); setCollectError(''); setCollectResult(null); }} />
-                        )}
+                        <ActionPill
+                          icon={<Wallet style={{ width: 11, height: 11 }} />}
+                          label={(rd.installments || []).some(i => i.status === 'PENDING') ? 'Collect / Schedule' : 'View Schedule'}
+                          tone={(rd.installments || []).some(i => i.status === 'PENDING') ? 'good' : 'neutral'}
+                          onClick={() => setCollectRd(rd)}
+                        />
                         <ActionPill icon={<CheckCircle2 style={{ width: 11, height: 11 }} />} label={t('rd.mark_matured')} tone="good" onClick={() => setConfirmAction({ type: 'MATURE', rd })} />
                         <ActionPill icon={<LogOut style={{ width: 11, height: 11 }} />} label={t('rd.premature_exit')} tone="bad" onClick={() => setConfirmAction({ type: 'PREMATURE', rd })} />
                       </>
+                    ) : (
+                      <ActionPill icon={<CalendarClock style={{ width: 11, height: 11 }} />} label="View Schedule & Receipts" tone="neutral" onClick={() => setScheduleRd(rd)} />
                     )}
                   </div>
                 </td>
@@ -548,167 +572,384 @@ export default function RecurringDepositsView({ recurringDeposits = [], borrower
         );
       })()}
 
-      {scheduleRd && (
-        <RdScheduleModal
-          rd={scheduleRd}
-          onCollect={(monthNo, mode) => onCollectInstallment?.(scheduleRd.id, monthNo, mode)}
-          onClose={() => setScheduleRd(null)}
-        />
-      )}
-
-      {collectRd && (() => {
-        const nextDue = (collectRd.installments || []).find(i => i.status === 'PENDING');
-        if (!nextDue) return null;
+      {/* Unified RD Installment Schedule & Multi-Select EMI Collection Modal */}
+      {(collectRd || scheduleRd) && (() => {
+        const activeRd = collectRd || scheduleRd;
+        const currentRd = recurringDeposits.find(r => r.id === activeRd.id) || activeRd;
         return (
-          <div className="saas-modal-backdrop">
-            <div className="saas-modal-card" style={{ maxWidth: 400 }}>
-              <div className="saas-modal-header">
-                <div className="head-left">
-                  <div className="head-icon-badge" style={{ background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #15803D)' }}>
-                    <Wallet style={{ width: 18, height: 18 }} />
-                  </div>
-                  <div className="head-titles">
-                    <h3>{t('rd.collect_btn')}</h3>
-                    <p>{collectRd.rd_account_no} — {collectRd.customer_name}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => { setCollectRd(null); setCollectError(''); setCollectResult(null); }}
-                  className="close-btn" type="button" disabled={collectLoading}
-                >
-                  <X style={{ width: 16, height: 16 }} />
-                </button>
-              </div>
-              <div className="saas-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {collectError && <div className="form-alert form-alert--error"><span>{collectError}</span></div>}
-
-                {collectResult ? (
-                  <div style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', borderRadius: 12, padding: '16px 18px', textAlign: 'center' }}>
-                    <CheckCircle2 style={{ width: 26, height: 26, color: 'var(--brand-primary, #15803D)', marginBottom: 6 }} />
-                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#0F172A', fontWeight: 600 }}>
-                      ₹{fmt(nextDue.amount)} collected — month {nextDue.month_no} of {collectRd.tenure_months}
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                          Month {nextDue.month_no} of {collectRd.tenure_months} — Due {nextDue.due_date}
-                        </span>
-                        <strong style={{ fontSize: '1.2rem', color: '#0F172A' }}>₹{fmt(nextDue.amount)}</strong>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#334155' }}>Payment Mode</label>
-                      <select value={collectMode} onChange={(e) => setCollectMode(e.target.value)} className="input-control">
-                        <option value="CASH">{t('fin.mode_cash')}</option>
-                        <option value="BANK_TRANSFER">Bank Transfer</option>
-                        <option value="UPI">UPI</option>
-                        <option value="CHEQUE">Cheque</option>
-                      </select>
-                    </div>
-                  </>
-                )}
-              </div>
-              <div className="saas-modal-footer">
-                <button
-                  type="button"
-                  onClick={() => { setCollectRd(null); setCollectError(''); setCollectResult(null); }}
-                  disabled={collectLoading}
-                  className="btn-cancel"
-                >
-                  {collectResult ? t('rd.close_btn') : t('btn.cancel')}
-                </button>
-                {!collectResult && (
-                  <button
-                    type="button"
-                    disabled={collectLoading}
-                    onClick={async () => {
-                      if (collectLoading) return;
-                      setCollectLoading(true);
-                      setCollectError('');
-                      try {
-                        await onCollectInstallment?.(collectRd.id, nextDue.month_no, collectMode);
-                        setCollectResult(true);
-                      } catch (err) {
-                        setCollectError(err?.response?.data?.message || 'Collection failed. Please try again.');
-                      } finally {
-                        setCollectLoading(false);
-                      }
-                    }}
-                    className="btn-submit"
-                  >
-                    {collectLoading ? '...' : t('rd.confirm_btn')}
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
+          <RdCollectScheduleModal
+            rd={currentRd}
+            bankAccounts={bankAccounts}
+            borrowers={borrowers}
+            initialSelectedMonth={collectRd ? (currentRd.installments || []).find(i => i.status === 'PENDING')?.month_no : null}
+            onCollect={async (monthNo, mode, extra) => {
+              const updated = await onCollectInstallment?.(currentRd.id, monthNo, mode, extra);
+              return updated;
+            }}
+            onClose={() => {
+              setCollectRd(null);
+              setScheduleRd(null);
+            }}
+          />
         );
       })()}
     </div>
   );
 }
 
-// ── Installment Schedule Modal — lists every month, lets staff collect any
-// still-pending one (not restricted to "next due only", since customers
-// realistically catch up on missed months out of order).
-function RdScheduleModal({ rd, onCollect, onClose }) {
+// ── Unified RD Installment Schedule & Multi-Select EMI Collection Modal ──
+function RdCollectScheduleModal({ rd, borrowers = [], bankAccounts = [], initialSelectedMonth = null, onCollect, onClose }) {
   const { t } = useLanguage();
-  const [modeByMonth, setModeByMonth] = useState({});
-  const [collectingMonth, setCollectingMonth] = useState(null);
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
   const todayStr = new Date().toISOString().slice(0, 10);
 
-  const handleCollect = async (monthNo, mode) => {
-    if (collectingMonth) return;
-    setCollectingMonth(monthNo);
+  const installments = rd.installments || [];
+  const pendingInstallments = installments.filter(i => i.status !== 'PAID');
+  const paidInstallments = installments.filter(i => i.status === 'PAID');
+  const overdueInstallments = pendingInstallments.filter(i => i.due_date < todayStr);
+
+  const rdBranch = rd.branch || (borrowers || []).find(b => b.id === rd.borrower_id)?.branch || 'Main Branch';
+
+  const activeBankAccounts = (bankAccounts || []).filter(b => b.is_active !== false);
+  const branchBankAccounts = activeBankAccounts.filter(b => (b.company_branch === rdBranch || b.branch === rdBranch || b.branch_name === rdBranch));
+  const otherBankAccounts = activeBankAccounts.filter(b => !(b.company_branch === rdBranch || b.branch === rdBranch || b.branch_name === rdBranch));
+
+  const [selectedMonths, setSelectedMonths] = useState(() => {
+    if (initialSelectedMonth && pendingInstallments.some(i => i.month_no === initialSelectedMonth)) {
+      return [initialSelectedMonth];
+    }
+    if (pendingInstallments.length > 0) {
+      return [pendingInstallments[0].month_no];
+    }
+    return [];
+  });
+
+  const [paymentMode, setPaymentMode] = useState('CASH');
+  const [bankAccountId, setBankAccountId] = useState(() => branchBankAccounts[0]?.id || activeBankAccounts[0]?.id || '');
+  const [collecting, setCollecting] = useState(false);
+  const [collectingStep, setCollectingStep] = useState('');
+  const [error, setError] = useState('');
+  const [successInfo, setSuccessInfo] = useState(null);
+
+  useEffect(() => {
+    if (!bankAccountId && (branchBankAccounts.length > 0 || activeBankAccounts.length > 0)) {
+      setBankAccountId(branchBankAccounts[0]?.id || activeBankAccounts[0]?.id || '');
+    }
+  }, [branchBankAccounts, activeBankAccounts, bankAccountId]);
+
+  const toggleMonth = (monthNo) => {
+    if (collecting) return;
+    setSelectedMonths(prev =>
+      prev.includes(monthNo) ? prev.filter(m => m !== monthNo) : [...prev, monthNo].sort((a, b) => a - b)
+    );
+  };
+
+  const selectAllPending = () => {
+    if (collecting) return;
+    setSelectedMonths(pendingInstallments.map(i => i.month_no));
+  };
+
+  const selectOverdue = () => {
+    if (collecting) return;
+    setSelectedMonths(overdueInstallments.map(i => i.month_no));
+  };
+
+  const deselectAll = () => {
+    if (collecting) return;
+    setSelectedMonths([]);
+  };
+
+  const selectedTotalAmount = selectedMonths.reduce((sum, mNo) => {
+    const inst = installments.find(i => i.month_no === mNo);
+    return sum + Number(inst?.amount || rd.monthly_installment || 0);
+  }, 0);
+
+  const handleBulkCollect = async () => {
+    if (selectedMonths.length === 0 || collecting) return;
+    setCollecting(true);
+    setError('');
+    setSuccessInfo(null);
+
+    const results = [];
+    const monthsToProcess = [...selectedMonths].sort((a, b) => a - b);
+
+    const selectedBank = activeBankAccounts.find(b => String(b.id) === String(bankAccountId));
+    const bankPayload = (paymentMode !== 'CASH' && selectedBank) ? {
+      bank_account_id: selectedBank.id,
+      bank_name: selectedBank.bank_name,
+      bank_account_number: selectedBank.account_number,
+      ifsc_code: selectedBank.ifsc_code,
+      bank_branch: selectedBank.branch_name || selectedBank.branch || selectedBank.company_branch
+    } : {};
+
     try {
-      await onCollect(monthNo, mode);
+      for (let i = 0; i < monthsToProcess.length; i++) {
+        const monthNo = monthsToProcess[i];
+        setCollectingStep(`Collecting Month ${monthNo} (${i + 1}/${monthsToProcess.length})...`);
+        const updated = await onCollect(monthNo, paymentMode, bankPayload);
+        const paidInst = (updated?.installments || []).find(inst => inst.month_no === monthNo);
+        results.push({
+          month_no: monthNo,
+          voucher_no: paidInst?.voucher_no || null
+        });
+      }
+      setSuccessInfo({
+        count: monthsToProcess.length,
+        totalAmount: selectedTotalAmount,
+        results
+      });
+      setSelectedMonths([]);
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || 'Collection failed. Please try again.');
     } finally {
-      setCollectingMonth(null);
+      setCollecting(false);
+      setCollectingStep('');
     }
   };
 
+  const isAllPendingSelected = pendingInstallments.length > 0 && pendingInstallments.every(i => selectedMonths.includes(i.month_no));
+
   return (
-    <div className="saas-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="saas-modal-card" style={{ maxWidth: 560 }}>
-        <div className="saas-modal-header">
+    <div className="saas-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget && !collecting) onClose(); }}>
+      <div className="saas-modal-card" style={{ maxWidth: 680, width: '95%' }}>
+        {/* Modal Header */}
+        <div className="saas-modal-header" style={{ padding: '16px 20px', borderBottom: '1px solid #E2E8F0' }}>
           <div className="head-left">
             <div className="head-icon-badge" style={{ background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #15803D)' }}>
-              <CalendarClock style={{ width: 18, height: 18 }} />
+              <Wallet style={{ width: 20, height: 20 }} />
             </div>
             <div className="head-titles">
-              <h3>{t('rd.schedule_title')}</h3>
-              <p>{rd.rd_account_no} — {rd.customer_name}</p>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: '#0F172A', margin: 0 }}>
+                {rd.status === 'ACTIVE' ? 'Collect RD Installments & Schedule' : 'RD Installment Schedule & Receipts'}
+              </h3>
+              <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '2px 0 0 0' }}>
+                <strong style={{ color: 'var(--brand-primary, #15803D)', fontFamily: 'monospace' }}>{rd.rd_account_no}</strong> — {rd.customer_name}
+              </p>
             </div>
           </div>
-          <button onClick={onClose} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>
+          <button onClick={onClose} className="close-btn" type="button" disabled={collecting}>
+            <X style={{ width: 18, height: 18 }} />
+          </button>
         </div>
-        <div className="saas-modal-body" style={{ padding: 0 }}>
-          <div style={{ maxHeight: 420, overflowY: 'auto' }}>
-            <table className="fin-grid-table">
+
+        {/* Modal Body */}
+        <div className="saas-modal-body" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14, maxHeight: '72vh', overflowY: 'auto' }}>
+          
+          {/* Top Summary Metrics Strip */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 12px' }}>
+              <span style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>Monthly EMI</span>
+              <strong style={{ fontSize: '1rem', color: '#0F172A', display: 'block', marginTop: 2 }}>₹{fmt(rd.monthly_installment)}</strong>
+            </div>
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 12px' }}>
+              <span style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>Progress</span>
+              <strong style={{ fontSize: '1rem', color: 'var(--brand-primary, #15803D)', display: 'block', marginTop: 2 }}>
+                {paidInstallments.length} / {rd.tenure_months} <span style={{ fontSize: '0.74rem', fontWeight: 500, color: '#64748B' }}>Months</span>
+              </strong>
+            </div>
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 12px' }}>
+              <span style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>Collected</span>
+              <strong style={{ fontSize: '1rem', color: '#0F172A', display: 'block', marginTop: 2 }}>₹{fmt(rd.collected_amount)}</strong>
+            </div>
+            <div style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', borderRadius: 8, padding: '10px 12px' }}>
+              <span style={{ fontSize: '0.68rem', color: 'var(--brand-primary-hover, #0E5327)', fontWeight: 600, textTransform: 'uppercase' }}>Maturity Value</span>
+              <strong style={{ fontSize: '1rem', color: 'var(--brand-primary, #15803D)', display: 'block', marginTop: 2 }}>₹{fmt(rd.maturity_value)}</strong>
+            </div>
+          </div>
+
+          {/* Success Banner */}
+          {successInfo && (
+            <div style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', borderRadius: 10, padding: '12px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <CheckCircle2 style={{ width: 18, height: 18, color: 'var(--brand-primary, #15803D)', flexShrink: 0 }} />
+                <div>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--brand-primary-hover, #0E5327)' }}>
+                    Successfully collected ₹{fmt(successInfo.totalAmount)} for {successInfo.count} installment(s)!
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                    {successInfo.results.map(r => r.voucher_no && (
+                      <span key={r.month_no} style={{ fontSize: '0.7rem', background: '#FFFFFF', padding: '2px 8px', borderRadius: 4, border: '1px solid #A3F5C1', fontFamily: 'monospace', fontWeight: 600, color: '#15803D' }}>
+                        Month {r.month_no}: {r.voucher_no}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Error Alert */}
+          {error && (
+            <div className="form-alert form-alert--error" style={{ margin: 0 }}>
+              <AlertTriangle style={{ width: 15, height: 15, flexShrink: 0 }} />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Active Collection Controls (Payment Mode & Multi-Select Action Bar) */}
+          {rd.status === 'ACTIVE' && pendingInstallments.length > 0 && (
+            <div style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 240px' }}>
+                  <label style={{ fontSize: '0.76rem', fontWeight: 600, color: '#334155', whiteSpace: 'nowrap' }}>Payment Mode:</label>
+                  <div style={{ minWidth: 160, flex: 1 }}>
+                    <SharedDropdown
+                      value={paymentMode}
+                      onChange={(e) => setPaymentMode(e.target.value)}
+                      size="sm"
+                      buttonStyle={{ height: 32, fontSize: '0.78rem' }}
+                      options={[
+                        { value: 'CASH', label: t('fin.mode_cash') },
+                        { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
+                        { value: 'UPI', label: 'UPI' },
+                        { value: 'CHEQUE', label: 'Cheque' }
+                      ]}
+                    />
+                  </div>
+                </div>
+
+                {/* Quick Select Buttons */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={isAllPendingSelected ? deselectAll : selectAllPending}
+                    disabled={collecting}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px',
+                      borderRadius: 6, border: '1px solid #CBD5E1', background: '#F8FAFC',
+                      fontSize: '0.72rem', fontWeight: 600, color: '#334155', cursor: 'pointer'
+                    }}
+                  >
+                    {isAllPendingSelected ? <CheckSquare style={{ width: 13, height: 13, color: 'var(--brand-primary, #15803D)' }} /> : <Square style={{ width: 13, height: 13 }} />}
+                    <span>{isAllPendingSelected ? 'Deselect All' : `Select All Pending (${pendingInstallments.length})`}</span>
+                  </button>
+
+                  {overdueInstallments.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={selectOverdue}
+                      disabled={collecting}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px',
+                        borderRadius: 6, border: '1px solid #FECACA', background: '#FEF2F2',
+                        fontSize: '0.72rem', fontWeight: 600, color: '#DC2626', cursor: 'pointer'
+                      }}
+                    >
+                      <span>Select Overdue ({overdueInstallments.length})</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Branch Bank Account Selector for Bank Transfer / UPI / Cheque */}
+              {paymentMode !== 'CASH' && (
+                <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', fontWeight: 700, color: '#0369A1' }}>
+                      <Landmark style={{ width: 14, height: 14, color: '#0284C7' }} />
+                      <span>Company Bank Account ({rdBranch})</span>
+                    </label>
+                    <span style={{ fontSize: '0.68rem', color: '#0369A1', background: '#E0F2FE', padding: '2px 8px', borderRadius: 10, fontWeight: 600 }}>
+                      Branch: {rdBranch}
+                    </span>
+                  </div>
+                  {activeBankAccounts.length > 0 ? (
+                    <SharedDropdown
+                      value={bankAccountId}
+                      onChange={(e) => setBankAccountId(e.target.value)}
+                      placeholder="— Select Bank Account —"
+                      size="sm"
+                      buttonStyle={{ height: 34, fontSize: '0.78rem', background: '#FFFFFF' }}
+                      options={[
+                        ...(branchBankAccounts.length > 0 ? branchBankAccounts.map(b => ({
+                          value: b.id,
+                          label: `${b.bank_name} — A/C ${b.account_number ? '...' + String(b.account_number).slice(-4) : 'N/A'} (${b.company_branch || b.branch_name || rdBranch})`
+                        })) : []),
+                        ...(otherBankAccounts.length > 0 ? otherBankAccounts.map(b => ({
+                          value: b.id,
+                          label: `${b.bank_name} — A/C ${b.account_number ? '...' + String(b.account_number).slice(-4) : 'N/A'} (${b.company_branch || b.branch_name || 'General'})`
+                        })) : [])
+                      ]}
+                    />
+                  ) : (
+                    <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                      No company bank accounts configured. Set them up in Master Settings &gt; Bank Accounts.
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Installment Schedule & Selection Table */}
+          <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+            <table className="fin-grid-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr>
-                  <th style={{ textAlign: 'center' }}>{t('rd.installment_col_month')}</th>
-                  <th>{t('rd.installment_col_due')}</th>
-                  <th className="num">{t('rd.installment_col_amount')}</th>
-                  <th style={{ textAlign: 'center' }}>{t('rd.installment_col_status')}</th>
-                  <th style={{ textAlign: 'right' }}>{t('rd.installment_col_action')}</th>
+                <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                  {rd.status === 'ACTIVE' && pendingInstallments.length > 0 && (
+                    <th style={{ width: 44, textAlign: 'center', padding: '8px 10px' }}>
+                      <input
+                        type="checkbox"
+                        checked={isAllPendingSelected}
+                        onChange={isAllPendingSelected ? deselectAll : selectAllPending}
+                        disabled={collecting || pendingInstallments.length === 0}
+                        style={{ cursor: 'pointer', accentColor: 'var(--brand-primary, #15803D)' }}
+                      />
+                    </th>
+                  )}
+                  <th style={{ textAlign: 'center', width: 65, padding: '8px 10px' }}>Month</th>
+                  <th style={{ padding: '8px 10px' }}>Due Date</th>
+                  <th className="num" style={{ padding: '8px 10px' }}>Installment (₹)</th>
+                  <th style={{ textAlign: 'center', padding: '8px 10px' }}>Status</th>
+                  <th style={{ textAlign: 'right', padding: '8px 10px' }}>Receipt / Mode</th>
                 </tr>
               </thead>
               <tbody>
-                {(rd.installments || []).map(inst => {
+                {installments.map(inst => {
                   const isPaid = inst.status === 'PAID';
                   const isOverdue = !isPaid && inst.due_date < todayStr;
-                  const mode = modeByMonth[inst.month_no] || 'CASH';
+                  const isSelected = selectedMonths.includes(inst.month_no);
+
                   return (
-                    <tr key={inst.month_no}>
-                      <td style={{ textAlign: 'center' }}>{inst.month_no}</td>
-                      <td style={{ fontSize: '0.78rem', color: '#64748B' }}>{inst.due_date}</td>
-                      <td className="num">₹{fmt(inst.amount)}</td>
-                      <td style={{ textAlign: 'center' }}>
+                    <tr
+                      key={inst.month_no}
+                      onClick={() => {
+                        if (!isPaid && rd.status === 'ACTIVE') {
+                          toggleMonth(inst.month_no);
+                        }
+                      }}
+                      style={{
+                        background: isSelected ? 'var(--brand-primary-light, #F0FEF5)' : isPaid ? '#FFFFFF' : '#FFFFFF',
+                        borderBottom: '1px solid #F1F5F9',
+                        cursor: !isPaid && rd.status === 'ACTIVE' ? 'pointer' : 'default',
+                        transition: 'background-color 0.15s ease'
+                      }}
+                    >
+                      {rd.status === 'ACTIVE' && pendingInstallments.length > 0 && (
+                        <td style={{ textAlign: 'center', padding: '8px 10px' }} onClick={e => e.stopPropagation()}>
+                          {isPaid ? (
+                            <Check style={{ width: 14, height: 14, color: 'var(--brand-primary, #15803D)', margin: 'auto', display: 'block' }} />
+                          ) : (
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              disabled={collecting}
+                              onChange={() => toggleMonth(inst.month_no)}
+                              style={{ cursor: 'pointer', accentColor: 'var(--brand-primary, #15803D)' }}
+                            />
+                          )}
+                        </td>
+                      )}
+                      <td style={{ textAlign: 'center', fontWeight: 600, padding: '8px 10px' }}>
+                        Month {inst.month_no}
+                      </td>
+                      <td style={{ fontSize: '0.78rem', color: '#475569', padding: '8px 10px' }}>
+                        {inst.due_date}
+                      </td>
+                      <td className="num" style={{ fontWeight: 600, padding: '8px 10px', fontFeatureSettings: '"tnum"' }}>
+                        ₹{fmt(inst.amount)}
+                      </td>
+                      <td style={{ textAlign: 'center', padding: '8px 10px' }}>
                         {isPaid ? (
                           <span className="fin-badge fin-badge--ok">{t('rd.status_paid')}</span>
                         ) : isOverdue ? (
@@ -716,32 +957,27 @@ function RdScheduleModal({ rd, onCollect, onClose }) {
                         ) : (
                           <span className="fin-badge">{t('rd.status_pending')}</span>
                         )}
-                        {isPaid && inst.paid_date && (
-                          <div style={{ fontSize: '0.66rem', color: '#94A3B8', marginTop: 2 }}>{t('rd.paid_on_prefix')} {inst.paid_date}</div>
-                        )}
                       </td>
-                      <td style={{ textAlign: 'right' }}>
-                        {!isPaid && (
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                            <select
-                              value={mode}
-                              disabled={collectingMonth === inst.month_no}
-                              onChange={(e) => setModeByMonth(prev => ({ ...prev, [inst.month_no]: e.target.value }))}
-                              style={{ height: 26, borderRadius: 5, border: '1px solid #CBD5E1', fontSize: '0.7rem', padding: '0 4px' }}
-                            >
-                              <option value="CASH">{t('fin.mode_cash')}</option>
-                              <option value="BANK_TRANSFER">Bank Transfer</option>
-                              <option value="UPI">UPI</option>
-                              <option value="CHEQUE">Cheque</option>
-                            </select>
-                            <ActionPill
-                              icon={<CheckCircle2 style={{ width: 11, height: 11 }} />}
-                              label={collectingMonth === inst.month_no ? '...' : t('rd.collect_btn')}
-                              tone="good"
-                              disabled={collectingMonth !== null}
-                              onClick={() => handleCollect(inst.month_no, mode)}
-                            />
+                      <td style={{ textAlign: 'right', padding: '8px 10px' }}>
+                        {isPaid ? (
+                          <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                            {inst.voucher_no && (
+                              <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--brand-primary, #15803D)', fontFamily: 'monospace' }}>
+                                {inst.voucher_no}
+                              </span>
+                            )}
+                            <span style={{ fontSize: '0.66rem', color: '#64748B' }}>
+                              {inst.payment_mode || 'CASH'} · {inst.paid_date || 'Paid'}
+                            </span>
                           </div>
+                        ) : isSelected ? (
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--brand-primary, #15803D)' }}>
+                            Selected for Payment
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.72rem', color: '#94A3B8' }}>
+                            Pending
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -751,8 +987,60 @@ function RdScheduleModal({ rd, onCollect, onClose }) {
             </table>
           </div>
         </div>
-        <div className="saas-modal-footer">
-          <button type="button" onClick={onClose} className="btn-cancel">{t('rd.close_btn')}</button>
+
+        {/* Modal Footer with Multi-Month Collection CTA */}
+        <div className="saas-modal-footer" style={{ padding: '14px 20px', borderTop: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            {selectedMonths.length > 0 ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#0F172A' }}>
+                  {selectedMonths.length} Month{selectedMonths.length > 1 ? 's' : ''} Selected:
+                </span>
+                <strong style={{ fontSize: '1.05rem', color: 'var(--brand-primary, #15803D)', fontFeatureSettings: '"tnum"' }}>
+                  ₹{fmt(selectedTotalAmount)}
+                </strong>
+                <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                  (Months: {selectedMonths.join(', ')})
+                </span>
+              </div>
+            ) : (
+              <span style={{ fontSize: '0.78rem', color: '#64748B' }}>
+                {pendingInstallments.length > 0 ? 'Select months above to collect payments' : 'All scheduled installments have been paid.'}
+              </span>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button type="button" onClick={onClose} disabled={collecting} className="btn-cancel">
+              {t('btn.cancel')}
+            </button>
+
+            {rd.status === 'ACTIVE' && pendingInstallments.length > 0 && (
+              <button
+                type="button"
+                disabled={collecting || selectedMonths.length === 0}
+                onClick={handleBulkCollect}
+                className="btn-submit"
+                style={{
+                  padding: '9px 18px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  opacity: selectedMonths.length === 0 ? 0.6 : 1,
+                  cursor: selectedMonths.length === 0 ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {collecting ? (
+                  <span>{collectingStep || 'Processing...'}</span>
+                ) : (
+                  <>
+                    <Wallet style={{ width: 14, height: 14 }} />
+                    <span>Collect ₹{fmt(selectedTotalAmount)} ({selectedMonths.length} {selectedMonths.length === 1 ? 'Month' : 'Months'})</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

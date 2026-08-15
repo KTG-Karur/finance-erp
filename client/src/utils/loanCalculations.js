@@ -1,3 +1,5 @@
+import { evaluateFormula } from './formulaEngine';
+
 // Shared loan payment allocation engine.
 //
 // A loan's repayment behavior is defined by two independent axes (set on its Loan
@@ -111,7 +113,6 @@ export function resolveSchemeInterestCalculation(scheme) {
  * EMI payments are always settled against this schedule, never recomputed live from
  * elapsed days, since the whole point of EMI is a pre-agreed fixed installment.
  */
-import { evaluateFormula } from './formulaEngine';
 
 // Evaluates a custom formula's token array and never throws — mirrors the shape the
 // rest of this file already returns errors in, so a broken/incomplete custom formula
@@ -125,6 +126,7 @@ export function generateEmiSchedule({
   principal,
   monthlyInterestRate,
   tenureMonths,
+  tenureDays,
   repaymentFrequency = 'DAILY',
   interestCalculation = 'CONSTANT_FLAT',
   startDate
@@ -132,22 +134,19 @@ export function generateEmiSchedule({
   const P = parseFloat(principal) || 0;
   const monthlyRate = parseFloat(monthlyInterestRate) || 0;
   const months = parseFloat(tenureMonths) || 1;
-  const totalDays = Math.max(Math.round(months * 30), 1);
+  const totalDays = tenureDays ? Math.max(Math.round(tenureDays), 1) : Math.max(Math.round(months * 30), 1);
+  const dailyRate = monthlyRate / 100 / 30;
 
   let periodsCount;
-  let ratePerPeriod;
   let periodDays;
   if (repaymentFrequency === 'WEEKLY') {
     periodsCount = Math.max(Math.round(totalDays / 7), 1);
-    ratePerPeriod = (monthlyRate / 100 / 30) * 7;
     periodDays = 7;
   } else if (repaymentFrequency === 'MONTHLY') {
-    periodsCount = Math.max(Math.round(months), 1);
-    ratePerPeriod = monthlyRate / 100;
+    periodsCount = Math.max(Math.round(totalDays / 30), 1);
     periodDays = 30;
   } else {
     periodsCount = totalDays;
-    ratePerPeriod = monthlyRate / 100 / 30;
     periodDays = 1;
   }
 
@@ -157,20 +156,26 @@ export function generateEmiSchedule({
   if (interestCalculation === 'FLEXIBLE_REDUCING') {
     // Standard reducing-balance amortization: EMI is fixed, but interest is charged
     // on the remaining balance each period so its share of the EMI shrinks over time.
+    const ratePerPeriod = repaymentFrequency === 'WEEKLY' ? (dailyRate * 7) : repaymentFrequency === 'MONTHLY' ? (dailyRate * 30) : dailyRate;
     const r = ratePerPeriod;
     const emi = r > 0
       ? Math.ceil((P * r * Math.pow(1 + r, periodsCount)) / (Math.pow(1 + r, periodsCount) - 1))
       : Math.ceil(P / periodsCount);
 
     let balance = P;
+    let cumPrincipal = 0;
     for (let i = 1; i <= periodsCount; i++) {
-      const interest = Math.round(balance * r);
-      let principalPortion = emi - interest;
-      if (i === periodsCount || principalPortion > balance) {
-        principalPortion = balance;
+      const isLast = (i === periodsCount);
+      let interest = Math.round(balance * r * 100) / 100;
+      let principalPortion = Math.round((emi - interest) * 100) / 100;
+      
+      if (isLast || principalPortion > balance) {
+        principalPortion = Math.max(0, Math.round((P - cumPrincipal) * 100) / 100);
       }
-      principalPortion = Math.max(0, Math.round(principalPortion));
-      balance = Math.max(0, balance - principalPortion);
+      
+      principalPortion = Math.max(0, principalPortion);
+      cumPrincipal = Math.round((cumPrincipal + principalPortion) * 100) / 100;
+      balance = Math.max(0, Math.round((P - cumPrincipal) * 100) / 100);
 
       const dueDate = new Date(base);
       dueDate.setDate(dueDate.getDate() + i * periodDays);
@@ -180,24 +185,29 @@ export function generateEmiSchedule({
         due_date: dueDate.toISOString().slice(0, 10),
         principal: principalPortion,
         interest,
-        emi: principalPortion + interest,
+        emi: Math.round((principalPortion + interest) * 100) / 100,
+        balance,
         principal_paid: 0,
         interest_paid: 0
       });
     }
   } else {
-    // CONSTANT_FLAT: interest every period is flat, always computed on the ORIGINAL
-    // sanctioned principal — the EMI amount never changes for the whole tenure.
-    const principalPerPeriod = Math.round(P / periodsCount);
-    const interestPerPeriod = Math.round(P * ratePerPeriod);
-    let allocatedPrincipal = 0;
+    // CONSTANT_FLAT: Total interest computed from single-day rate x exact days
+    const totalInterest = Math.round(P * dailyRate * totalDays * 100) / 100;
+    const totalPayable = Math.round((P + totalInterest) * 100) / 100;
+    const basePrincipalPerPeriod = Math.round((P / periodsCount) * 100) / 100;
+    const baseInterestPerPeriod = Math.round((totalInterest / periodsCount) * 100) / 100;
 
+    let cumP = 0;
+    let cumI = 0;
     for (let i = 1; i <= periodsCount; i++) {
-      let principalPortion = principalPerPeriod;
-      if (i === periodsCount) {
-        principalPortion = Math.max(0, P - allocatedPrincipal);
-      }
-      allocatedPrincipal += principalPortion;
+      const isLast = (i === periodsCount);
+      let pP = isLast ? Math.max(0, Math.round((P - cumP) * 100) / 100) : basePrincipalPerPeriod;
+      let iP = isLast ? Math.max(0, Math.round((totalInterest - cumI) * 100) / 100) : baseInterestPerPeriod;
+
+      cumP = Math.round((cumP + pP) * 100) / 100;
+      cumI = Math.round((cumI + iP) * 100) / 100;
+      const balance = Math.max(0, Math.round((P - cumP) * 100) / 100);
 
       const dueDate = new Date(base);
       dueDate.setDate(dueDate.getDate() + i * periodDays);
@@ -205,9 +215,10 @@ export function generateEmiSchedule({
       schedule.push({
         period: i,
         due_date: dueDate.toISOString().slice(0, 10),
-        principal: principalPortion,
-        interest: interestPerPeriod,
-        emi: principalPortion + interestPerPeriod,
+        principal: pP,
+        interest: iP,
+        emi: Math.round((pP + iP) * 100) / 100,
+        balance,
         principal_paid: 0,
         interest_paid: 0
       });

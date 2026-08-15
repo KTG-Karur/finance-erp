@@ -1,18 +1,48 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
 import mysql from 'mysql2/promise';
+import bcrypt from 'bcryptjs';
 import { getMasterDbConfig, getTenantDbConfig } from '../config/db.js';
-import * as tenantMigration from '../tenant-configuration/migrations/20260807000001-create-tenant-tables.js';
+import { runPendingTenantMigrations, getTenantMigrationFiles } from '../tenant-configuration/migrations/tenantMigrations.js';
 import * as tenantSeeder from '../tenant-configuration/seeders/tenantSeeders.js';
 import { DataTypes, Sequelize, createQueryInterface } from '../database/sequelizeShim.js';
-
-const TENANT_MIGRATION_NAME = '20260807000001-create-tenant-tables.js';
+import { ensureCompanyUploadDirectories, saveBase64File } from '../shared/utils/fileStorage.js';
 
 /**
  * Automates isolated Tenant Database creation, Sequelize table migrations, SequelizeMeta tracking,
  * and initial seeders whenever Super Admin provisions a new company.
  */
-export async function provisionNewTenantCompany(masterDb, { company_code, name, admin_email, admin_password, plan_id, plan_code }) {
+export async function provisionNewTenantCompany(masterDb, {
+  company_code,
+  name,
+  admin_email,
+  admin_password,
+  company_phone,
+  company_email,
+  phone,
+  address,
+  logo,
+  plan_id,
+  plan_code,
+  status = 'TRIAL',
+  trial_days = 15,
+  billing_cycle = '3_MONTHS',
+  custom_expiry_date = null
+}) {
   const code = String(company_code).trim().toUpperCase();
   const dbName = `finance_db_${code.toLowerCase()}`;
+  const contactPhone = phone || company_phone || null;
+  const contactAddress = address || null;
+
+  // Pre-create upload directories on disk for this tenant company
+  await ensureCompanyUploadDirectories(code);
+
+  // Save company logo to disk if base64 provided
+  let diskLogo = null;
+  if (logo && typeof logo === 'string') {
+    diskLogo = await saveBase64File(logo, code, 'company-info', 'company_logo');
+  }
 
   // 1. Resolve plan details if provided
   let planId = plan_id || null;
@@ -50,20 +80,51 @@ export async function provisionNewTenantCompany(masterDb, { company_code, name, 
 
   const allowedModulesStr = allowedModules ? (typeof allowedModules === 'string' ? allowedModules : JSON.stringify(allowedModules)) : null;
 
-  // 2. Insert company record in master database (without db credentials)
+  // 2. Insert company record in master database
+  const isCompanyActive = status.toUpperCase() !== 'SUSPENDED' ? 1 : 0;
   const [res] = await masterDb.query(
-    `INSERT INTO companies (name, company_code, db_name, plan_tier, max_branches, allowed_modules, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)`,
-    [name, code, dbName, planTier, maxBranches, allowedModulesStr]
+    `INSERT INTO companies (name, company_code, db_name, plan_tier, max_branches, allowed_modules, phone, address, logo, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [name, code, dbName, planTier, maxBranches, allowedModulesStr, contactPhone, contactAddress, diskLogo, isCompanyActive]
   );
   const companyId = res.insertId;
 
   // 3. Create Subscription record in master database
-  if (planId) {
-    await masterDb.query(
-      `INSERT INTO subscriptions (company_id, plan_id, status, start_date, auto_renew) VALUES (?, ?, 'ACTIVE', NOW(), 1)`,
-      [companyId, planId]
-    );
+  const subStatus = status.toUpperCase() === 'ACTIVE' ? 'ACTIVE' : (status.toUpperCase() === 'SUSPENDED' ? 'EXPIRED' : 'TRIAL');
+  let days = Number(trial_days) || 15;
+
+  if (subStatus === 'ACTIVE') {
+    if (billing_cycle === '1_YEAR' || billing_cycle === 'ANNUAL' || billing_cycle === '12') {
+      days = 365;
+    } else if (billing_cycle === '6_MONTHS' || billing_cycle === '6') {
+      days = 180;
+    } else if (billing_cycle === '3_MONTHS' || billing_cycle === '3') {
+      days = 90;
+    } else if (billing_cycle === '1_MONTH' || billing_cycle === '1') {
+      days = 30;
+    } else {
+      days = 90;
+    }
   }
+
+  const formattedCustomExpiry = custom_expiry_date ? String(custom_expiry_date).slice(0, 10) : null;
+
+  if (planId) {
+    if (formattedCustomExpiry) {
+      await masterDb.query(
+        `INSERT INTO subscriptions (company_id, plan_id, status, start_date, end_date, auto_renew) VALUES (?, ?, ?, NOW(), ?, 0)`,
+        [companyId, planId, subStatus, formattedCustomExpiry]
+      );
+    } else {
+      await masterDb.query(
+        `INSERT INTO subscriptions (company_id, plan_id, status, start_date, end_date, auto_renew) VALUES (?, ?, ?, NOW(), DATE_ADD(NOW(), INTERVAL ? DAY), 0)`,
+        [companyId, planId, subStatus, days]
+      );
+    }
+  }
+
+  // 4. Pre-create categorized upload directories for this tenant company
+  await ensureCompanyUploadDirectories(code);
+  console.log(`[INFO] Initialized upload directories for company '${code}' under server/uploads/${code}/`);
 
   // 4. Create physical MySQL database if connected to a real MySQL instance
   try {
@@ -86,34 +147,27 @@ export async function provisionNewTenantCompany(masterDb, { company_code, name, 
     // Create standard SequelizeMeta tracking table
     await tenantConn.query(`
       CREATE TABLE IF NOT EXISTS \`SequelizeMeta\` (
-        \`name\` varchar(255) COLLATE utf8mb3_unicode_ci NOT NULL,
+        \`name\` varchar(255) NOT NULL,
         PRIMARY KEY (\`name\`),
         UNIQUE KEY \`name\` (\`name\`)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
     const queryInterface = createQueryInterface(tenantConn);
-
-    // Execute tenant migrations and structural defaults (Chart of Accounts, EOD Denominations)
-    await tenantMigration.up(queryInterface, { ...Sequelize, DataTypes });
+    const { appliedCount, totalMigrations } = await runPendingTenantMigrations(tenantConn);
     await tenantSeeder.seedDefaults(queryInterface);
-
-    // Record migration in SequelizeMeta
-    await tenantConn.query(
-      `INSERT IGNORE INTO \`SequelizeMeta\` (\`name\`) VALUES (?)`,
-      [TENANT_MIGRATION_NAME]
-    );
 
     // Create default company admin user in tenant users table
     if (admin_email && admin_password) {
+      const hashedAdminPassword = admin_password.startsWith('$2') ? admin_password : await bcrypt.hash(admin_password, 10);
       await tenantConn.query(
         `INSERT INTO users (company_id, name, email, password, role, status) VALUES (1, ?, ?, ?, 'COMPANY_ADMIN', 'ACTIVE')`,
-        [`${name} Admin`, admin_email, admin_password]
+        [`${name} Admin`, admin_email, hashedAdminPassword]
       );
     }
 
     await tenantConn.end();
-    console.log(`[INFO] Automated migration (${TENANT_MIGRATION_NAME}) & seeding logged in SequelizeMeta for ${dbName}`);
+    console.log(`[INFO] Automated migrations (${appliedCount}/${totalMigrations} executed) & seeding completed for ${dbName}`);
   } catch (err) {
     console.warn(`[WARN] Automated tenant MySQL database creation note (${dbName}):`, err.message);
   }
