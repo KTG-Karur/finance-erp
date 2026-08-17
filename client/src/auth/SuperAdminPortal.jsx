@@ -150,13 +150,21 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
 
   const openEditPlanModal = (plan) => {
     setEditingPlan(plan);
+    const mPrice = Number(plan.monthly_price) || 0;
+    const sixPrice = (plan.six_month_price && Number(plan.six_month_price) > 0)
+      ? String(plan.six_month_price)
+      : (mPrice > 0 ? String(Math.round(mPrice * 5.5)) : '0');
+    const yPrice = (plan.yearly_price && Number(plan.yearly_price) > 0)
+      ? String(plan.yearly_price)
+      : (mPrice > 0 ? String(mPrice * 10) : '0');
+
     setPlanForm({
       name: plan.name,
       code: plan.code,
       max_branches: plan.max_branches ?? '',
       monthly_price: plan.monthly_price ?? '0',
-      six_month_price: plan.six_month_price ?? '0',
-      yearly_price: plan.yearly_price ?? '0',
+      six_month_price: sixPrice,
+      yearly_price: yPrice,
       allowed_modules: plan.allowed_modules ?? null
     });
     setErrorMsg('');
@@ -462,9 +470,9 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
 
   const renderCategorizedMenuTree = (allowedModules, toggleKey, basePlanModules = undefined) => {
     const isPlanAllowed = (k) => {
-      if (basePlanModules === undefined) return null;
+      if (basePlanModules === undefined || basePlanModules === false) return null;
       if (basePlanModules === null) return true;
-      return Array.isArray(basePlanModules) && basePlanModules.includes(k);
+      return Array.isArray(basePlanModules) ? basePlanModules.includes(k) : null;
     };
 
     return (
@@ -1643,7 +1651,27 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16 }}>
                     <div>
                       <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Monthly Price (₹) *</label>
-                      <input type="number" required value={planForm.monthly_price} onChange={(e) => setPlanForm({ ...planForm, monthly_price: e.target.value })} style={{ width: '100%', height: 40, padding: '0 14px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem' }} />
+                      <input
+                        type="number"
+                        required
+                        value={planForm.monthly_price}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const mNum = Number(val) || 0;
+                          setPlanForm(prev => {
+                            const prevM = Number(prev.monthly_price) || 0;
+                            const isDefaultSix = !prev.six_month_price || Number(prev.six_month_price) === 0 || prev.six_month_price === String(Math.round(prevM * 5.5));
+                            const isDefaultYear = !prev.yearly_price || Number(prev.yearly_price) === 0 || prev.yearly_price === String(prevM * 10);
+                            return {
+                              ...prev,
+                              monthly_price: val,
+                              six_month_price: isDefaultSix ? (mNum > 0 ? String(Math.round(mNum * 5.5)) : '') : prev.six_month_price,
+                              yearly_price: isDefaultYear ? (mNum > 0 ? String(mNum * 10) : '') : prev.yearly_price
+                            };
+                          });
+                        }}
+                        style={{ width: '100%', height: 40, padding: '0 14px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem' }}
+                      />
                     </div>
                     <div>
                       <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>6 Months Price (₹) *</label>
@@ -1667,7 +1695,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                         <button type="button" onClick={deselectAllPlanModules} style={{ background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Deselect All</button>
                       </div>
                     </div>
-                    {renderCategorizedMenuTree(planForm.allowed_modules, togglePlanModuleKey, false)}
+                    {renderCategorizedMenuTree(planForm.allowed_modules, togglePlanModuleKey, undefined)}
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 16, borderTop: '1px solid #E2E8F0' }}>
@@ -2110,7 +2138,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                             </div>
                           )}
 
-                          {renderCategorizedMenuTree(accessForm.allowed_modules, toggleModuleKey, matchedPlan ? matchedPlan.allowed_modules : null)}
+                          {renderCategorizedMenuTree(accessForm.allowed_modules, toggleModuleKey, matchedPlan ? matchedPlan.allowed_modules : undefined)}
 
                           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 16, borderTop: '1px solid #E2E8F0' }}>
                             <button type="button" onClick={() => { setAccessTarget(null); setActiveNav('registry'); }} style={{ background: '#F1F5F9', color: '#475569', border: '1px solid #CBD5E1', borderRadius: 8, padding: '10px 20px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
