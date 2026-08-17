@@ -188,6 +188,84 @@ export class LedgerService {
     }
   }
 
+  // Undoes a wrongly-posted voucher (e.g. a Cash Payment entered when a Cash
+  // Receipt was meant) by posting a mirror-image reversal — every line's
+  // debit and credit swapped — rather than deleting the original. Deleting
+  // would leave a gap in the voucher_no sequence and destroy the audit trail
+  // of what was actually entered; a reversal is the standard accounting fix
+  // and matches how this app already reverts loan/RD/FD collections.
+  //
+  // "Already reverted" is tracked via the existing ref_type/ref_id columns
+  // (ref_type='VOUCHER_REVERSAL', ref_id=<original id>) rather than a new
+  // schema column, so this needs no migration. Restricted to manual vouchers
+  // (is_auto=0) — an auto-posted voucher (loan collection, FD/RD transaction,
+  // ...) is tied to a real business record with its own dedicated revert flow
+  // that also fixes non-ledger state (loan balances, installment status,
+  // etc.); reverting only its ledger side here would desync the two.
+  static async revertVoucher(db, id, reason, revertedBy) {
+    const conn = await db.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const [entryRows] = await conn.query(`SELECT * FROM journal_entries WHERE id = ? FOR UPDATE`, [id]);
+      if (!entryRows.length) {
+        const err = new Error('Voucher not found.');
+        err.statusCode = 404;
+        throw err;
+      }
+      const original = entryRows[0];
+
+      if (original.is_auto) {
+        const err = new Error('This voucher was posted automatically by another module (a loan/FD/RD transaction) and must be reverted from there, not from Manual Vouchers.');
+        err.statusCode = 400;
+        throw err;
+      }
+      if (original.ref_type === 'VOUCHER_REVERSAL') {
+        const err = new Error('This is itself a reversal voucher and cannot be reverted again.');
+        err.statusCode = 400;
+        throw err;
+      }
+
+      const [alreadyReverted] = await conn.query(
+        `SELECT id FROM journal_entries WHERE ref_type = 'VOUCHER_REVERSAL' AND ref_id = ?`,
+        [id]
+      );
+      if (alreadyReverted.length) {
+        const err = new Error('This voucher has already been reverted.');
+        err.statusCode = 409;
+        throw err;
+      }
+
+      const [originalLines] = await conn.query(`SELECT * FROM journal_lines WHERE journal_entry_id = ?`, [id]);
+      const reversedLines = originalLines.map(l => ({
+        account_code: l.account_code,
+        account_name: l.account_name,
+        debit: Number(l.credit) || 0,
+        credit: Number(l.debit) || 0
+      }));
+
+      const reversal = await insertVoucherOnConnection(conn, {
+        entry_date: new Date().toISOString().slice(0, 10),
+        description: `Reversal of voucher ${original.voucher_no}${reason ? ` — ${reason}` : ''}`,
+        voucher_type: original.voucher_type,
+        is_auto: true,
+        ref_type: 'VOUCHER_REVERSAL',
+        ref_id: id,
+        branch: original.branch,
+        created_by: revertedBy || null,
+        lines: reversedLines
+      });
+
+      await conn.commit();
+      return reversal;
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  }
+
   static async getTrialBalance(db) {
     const [accounts] = await db.query(`SELECT * FROM chart_of_accounts WHERE is_active = 1`);
     const [lines] = await db.query(

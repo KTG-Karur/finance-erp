@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import {
   Landmark, Plus, X, AlertTriangle, CheckCircle2, LogOut, ArrowLeft,
   UserCheck, ChevronLeft, ChevronRight, Search, CalendarClock, Wallet,
-  CheckSquare, Square, Receipt, Check
+  CheckSquare, Square, Receipt, Check, History
 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import SharedDropdown from '../../components/common/SharedDropdown';
+import TransactionHistoryModal from '../../components/TransactionHistoryModal';
 
 const FORM_MAX_WIDTH = 780;
 
@@ -46,6 +47,14 @@ function BookRdScreen({ borrowers, onCancel, onSubmit }) {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // `loading` alone isn't enough to block a second click: React state updates
+  // aren't synchronous, so two clicks fired close together (exactly what
+  // happens when someone impatiently re-clicks Submit during a slow/flaky
+  // connection) can both read `loading === false` before the first click's
+  // setLoading(true) has actually committed, letting both requests through —
+  // this is what created 3 duplicate RD accounts from 3 clicks. A ref is
+  // checked-and-set synchronously, closing that gap.
+  const submittingRef = React.useRef(false);
 
   const setField = (field, val) => setForm(prev => ({ ...prev, [field]: val }));
 
@@ -55,7 +64,9 @@ function BookRdScreen({ borrowers, onCancel, onSubmit }) {
 
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
+    if (submittingRef.current) return;
     if (!form.borrower_id) { setError(t('rd.modal.select_customer_error')); return; }
+    submittingRef.current = true;
     setLoading(true);
     setError('');
     try {
@@ -78,6 +89,7 @@ function BookRdScreen({ borrowers, onCancel, onSubmit }) {
     } catch (err) {
       setError(err?.response?.data?.message || t('rd.modal.save_error'));
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   };
@@ -282,9 +294,11 @@ function Pagination({ page, setPage, totalPages, total, startIndex, pageSize }) 
 export default function RecurringDepositsView({
   recurringDeposits = [],
   borrowers = [],
+  tenant,
   branchesList = [],
   selectedBranch = 'ALL',
   bankAccounts = [],
+  journalEntries = [],
   onCreateRd,
   onCollectInstallment,
   onMatureRd,
@@ -294,6 +308,7 @@ export default function RecurringDepositsView({
   const [screen, setScreen] = useState('LIST'); // 'LIST' | 'BOOK'
   const [confirmAction, setConfirmAction] = useState(null); // { type: 'MATURE'|'PREMATURE', rd }
   const [scheduleRd, setScheduleRd] = useState(null);
+  const [historyRd, setHistoryRd] = useState(null);
   // Quick single-tap collection — enter the next due installment straight from
   // the table row, the same "pick account, hit collect" shape as Daily
   // Collections, instead of requiring staff to open the full month-by-month
@@ -463,6 +478,7 @@ export default function RecurringDepositsView({
                     ) : (
                       <ActionPill icon={<CalendarClock style={{ width: 11, height: 11 }} />} label="View Schedule & Receipts" tone="neutral" onClick={() => setScheduleRd(rd)} />
                     )}
+                    <ActionPill icon={<History style={{ width: 11, height: 11 }} />} label="History" tone="neutral" onClick={() => setHistoryRd(rd)} />
                   </div>
                 </td>
               </tr>
@@ -593,6 +609,19 @@ export default function RecurringDepositsView({
           />
         );
       })()}
+
+      {historyRd && (
+        <TransactionHistoryModal
+          title="Recurring Deposit Transaction History"
+          accountLabel={`${historyRd.rd_account_no} — ${historyRd.customer_name}`}
+          tenant={tenant}
+          entries={journalEntries.filter(e =>
+            ['RD_INSTALLMENT', 'RD_MATURITY', 'RD_PREMATURE_CLOSE'].includes(e.ref_type) &&
+            String(e.ref_id) === String(historyRd.id)
+          )}
+          onClose={() => setHistoryRd(null)}
+        />
+      )}
     </div>
   );
 }
@@ -630,6 +659,11 @@ function RdCollectScheduleModal({ rd, borrowers = [], bankAccounts = [], initial
   const [collectingStep, setCollectingStep] = useState('');
   const [error, setError] = useState('');
   const [successInfo, setSuccessInfo] = useState(null);
+  // Same reasoning as BookRdScreen's submittingRef: `collecting` state alone
+  // can't block a rapid second click before its own setCollecting(true) has
+  // committed, which is exactly the "clicked it 3 times, got 3 postings"
+  // scenario during a slow connection.
+  const collectingRef = React.useRef(false);
 
   useEffect(() => {
     if (!bankAccountId && (branchBankAccounts.length > 0 || activeBankAccounts.length > 0)) {
@@ -665,7 +699,8 @@ function RdCollectScheduleModal({ rd, borrowers = [], bankAccounts = [], initial
   }, 0);
 
   const handleBulkCollect = async () => {
-    if (selectedMonths.length === 0 || collecting) return;
+    if (selectedMonths.length === 0 || collecting || collectingRef.current) return;
+    collectingRef.current = true;
     setCollecting(true);
     setError('');
     setSuccessInfo(null);
@@ -702,6 +737,7 @@ function RdCollectScheduleModal({ rd, borrowers = [], bankAccounts = [], initial
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || 'Collection failed. Please try again.');
     } finally {
+      collectingRef.current = false;
       setCollecting(false);
       setCollectingStep('');
     }

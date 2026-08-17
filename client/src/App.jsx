@@ -246,6 +246,19 @@ export default function App() {
     return created;
   };
 
+  // Undoes a wrongly-posted manual voucher (e.g. Cash Payment entered when a
+  // Cash Receipt was meant) by posting a mirror-image reversal — the server
+  // rejects this for auto-posted vouchers (loan/FD/RD transactions), which
+  // have their own dedicated revert flows that also fix non-ledger state.
+  const handleRevertVoucher = async (voucherDbId, reason) => {
+    const res = await api.post(`/finance/ledger/vouchers/${voucherDbId}/revert`, { reason });
+    const reversal = res.data?.data;
+    if (reversal) {
+      setLedgerEntries(prev => [normalizeLedgerEntry(reversal), ...prev]);
+    }
+    return reversal;
+  };
+
   // Day-end cash closing — one record per branch per day. A matching count closes
   // the day outright; a mismatch still closes it (staff isn't blocked) but goes to
   // PENDING_REVIEW until an admin either recounts (handleUpdateEodRecord) or
@@ -805,25 +818,35 @@ export default function App() {
   // so a booking/maturity/closure and its journal voucher always commit or
   // roll back together — never one without the other. These handlers just
   // relay the API call and sync local state from the response.
+  // Each of these posts an auto-voucher server-side inside the same DB
+  // transaction as the state change (see server/src/finance/fixedDeposits/),
+  // but — same gap as the RD handlers below had — never refreshed the
+  // client's ledgerEntries, so Trial Balance/General Ledger/Financial
+  // Statements wouldn't reflect it until a full page reload even though the
+  // posting itself had genuinely succeeded.
   const handleCreateFixedDeposit = async (payload) => {
     const res = await api.post('/finance/fixed-deposits', payload);
     const newFd = res.data?.data;
     if (!newFd) return newFd;
     setFixedDeposits(prev => [newFd, ...prev]);
+    fetchLedgerEntries();
     return newFd;
   };
   const handleMatureFixedDeposit = async (id) => {
     const res = await api.post(`/finance/fixed-deposits/${id}/mature`);
     const updated = res.data?.data;
     if (updated) setFixedDeposits(prev => prev.map(f => (f.id === id ? updated : f)));
+    fetchLedgerEntries();
   };
   const handlePrematureCloseFixedDeposit = async (id, customPayoutAmount) => {
     const res = await api.post(`/finance/fixed-deposits/${id}/premature-close`, { payout_amount: customPayoutAmount });
     const updated = res.data?.data;
     if (updated) setFixedDeposits(prev => prev.map(f => (f.id === id ? updated : f)));
+    fetchLedgerEntries();
   };
   const handlePayFdMonthlyInterest = async (id, paymentMode) => {
     const res = await api.post(`/finance/fixed-deposits/${id}/pay-interest`, { payment_mode: paymentMode });
+    fetchLedgerEntries();
     return res.data?.data;
   };
 
@@ -849,17 +872,27 @@ export default function App() {
     });
     const updated = res.data?.data;
     if (updated) setRecurringDeposits(prev => prev.map(r => (r.id === id ? updated : r)));
+    // Every collection posts an auto-voucher server-side (see
+    // recurringDeposit.service.js's collectRdInstallment), but unlike loan
+    // collections (handleRecordCollection, above) this never refreshed the
+    // client's ledgerEntries — so the money was really posted and correctly
+    // in the DB, but Trial Balance/General Ledger/Financial Statements (all
+    // of which read from the in-memory ledgerEntries fetched once at app
+    // load) wouldn't show it until a full page reload.
+    fetchLedgerEntries();
     return updated;
   };
   const handleMatureRecurringDeposit = async (id) => {
     const res = await api.post(`/finance/recurring-deposits/${id}/mature`);
     const updated = res.data?.data;
     if (updated) setRecurringDeposits(prev => prev.map(r => (r.id === id ? updated : r)));
+    fetchLedgerEntries();
   };
   const handlePrematureCloseRecurringDeposit = async (id, customPayoutAmount) => {
     const res = await api.post(`/finance/recurring-deposits/${id}/premature-close`, { payout_amount: customPayoutAmount });
     const updated = res.data?.data;
     if (updated) setRecurringDeposits(prev => prev.map(r => (r.id === id ? updated : r)));
+    fetchLedgerEntries();
   };
 
   // ── Expense Allocation ──
@@ -1715,8 +1748,6 @@ export default function App() {
       selectedBranch={selectedBranch}
       onChangeBranch={handleChangeBranch}
       onSaveTheme={handleSaveCompanyProfile}
-      onRefresh={fetchData}
-      isRefreshing={isFetchingData}
     >
 
 
@@ -1757,6 +1788,7 @@ export default function App() {
           onApproveLoanClosure={handleApproveLoanClosure}
           onRejectLoanClosure={handleRejectLoanClosure}
           onDisburseApprovedLoan={handleDisburseApprovedLoan}
+          onCollectLoan={(loan) => setSelectedLoanForCollection(loan)}
         />
       )}
 
@@ -1779,8 +1811,10 @@ export default function App() {
           fixedDeposits={fixedDeposits}
           borrowers={borrowers}
           tenant={tenant}
+          user={user}
           branchesList={branchesList}
           selectedBranch={selectedBranch}
+          journalEntries={ledgerEntries}
           onCreateFd={handleCreateFixedDeposit}
           onMatureFd={handleMatureFixedDeposit}
           onPrematureCloseFd={handlePrematureCloseFixedDeposit}
@@ -1793,9 +1827,11 @@ export default function App() {
         <RecurringDepositsView
           recurringDeposits={recurringDeposits}
           borrowers={borrowers}
+          tenant={tenant}
           branchesList={branchesList}
           selectedBranch={selectedBranch}
           bankAccounts={bankAccounts}
+          journalEntries={ledgerEntries}
           onCreateRd={handleCreateRecurringDeposit}
           onCollectInstallment={handleCollectRdInstallment}
           onMatureRd={handleMatureRecurringDeposit}
@@ -1810,6 +1846,7 @@ export default function App() {
           loans={loans}
           borrowers={borrowers}
           loanSchemes={loanSchemes}
+          employees={employees}
           user={user}
           tenant={tenant}
           branchesList={branchesList}
@@ -1871,6 +1908,7 @@ export default function App() {
           tenant={tenant}
           selectedBranch={selectedBranch}
           onCreateManualVoucher={handleCreateManualVoucher}
+          onRevertVoucher={handleRevertVoucher}
         />
       )}
       {(activeTab.includes('eod-process')) && (
@@ -1908,7 +1946,7 @@ export default function App() {
 
       {/* Reports Module — each report is a standalone read-only page */}
       {(activeTab.includes('reports/loan-portfolio')) && (
-        <LoanPortfolioReportView loans={loans} branchesList={branchesList} journalEntries={ledgerEntries} tenant={tenant} user={user} selectedBranch={selectedBranch} />
+        <LoanPortfolioReportView loans={loans} borrowers={borrowers} receipts={collections} branchesList={branchesList} journalEntries={ledgerEntries} tenant={tenant} user={user} selectedBranch={selectedBranch} />
       )}
       {(activeTab.includes('reports/collections')) && (
         <CollectionsReportView collections={collections} loans={loans} branchesList={branchesList} journalEntries={ledgerEntries} tenant={tenant} user={user} selectedBranch={selectedBranch} />
@@ -1917,10 +1955,10 @@ export default function App() {
         <InvestorCapitalReportView investors={investors} tenant={tenant} user={user} />
       )}
       {(activeTab.includes('reports/fixed-deposits')) && (
-        <FixedDepositReportView fixedDeposits={fixedDeposits} borrowers={borrowers} tenant={tenant} user={user} />
+        <FixedDepositReportView fixedDeposits={fixedDeposits} borrowers={borrowers} journalEntries={ledgerEntries} tenant={tenant} user={user} />
       )}
       {(activeTab.includes('reports/recurring-deposits')) && (
-        <RecurringDepositReportView recurringDeposits={recurringDeposits} borrowers={borrowers} tenant={tenant} user={user} />
+        <RecurringDepositReportView recurringDeposits={recurringDeposits} borrowers={borrowers} journalEntries={ledgerEntries} tenant={tenant} user={user} />
       )}
       {(activeTab.includes('reports/financial-statements')) && (
         <FinancialStatementsReportView chartOfAccounts={ledgerAccounts} journalEntries={ledgerEntries} branchesList={branchesList} tenant={tenant} user={user} selectedBranch={selectedBranch} />
@@ -2009,6 +2047,7 @@ export default function App() {
         onClose={() => setSelectedLoanForCollection(null)}
         loan={selectedLoanForCollection}
         borrowers={borrowers}
+        employees={employees}
         allLoans={loans}
         branchesList={branchesList}
         currentUserName={user?.name}

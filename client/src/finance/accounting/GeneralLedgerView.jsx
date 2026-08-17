@@ -227,11 +227,11 @@ export default function GeneralLedgerView({
           )}
           <div className="fin-header-stat">
             <span className="fin-header-stat__label">{t('fin.col_debit')}:</span>
-            <span className="fin-header-stat__value fin-header-stat__value--good">₹{fmt(totalDebit)}</span>
+            <span className="fin-header-stat__value">₹{fmt(totalDebit)}</span>
           </div>
           <div className="fin-header-stat">
             <span className="fin-header-stat__label">{t('fin.col_credit')}:</span>
-            <span className="fin-header-stat__value fin-header-stat__value--bad">₹{fmt(totalCredit)}</span>
+            <span className="fin-header-stat__value">₹{fmt(totalCredit)}</span>
           </div>
           <div className="fin-header-stat">
             <span className="fin-header-stat__label">{t('fin.closing_balance')}:</span>
@@ -391,10 +391,10 @@ export default function GeneralLedgerView({
                   </span>
                 </td>
                 <td style={{ color: '#64748B', fontSize: '0.78rem', padding: '10px 12px' }}>{row.branch || '—'}</td>
-                <td style={{ textAlign: 'right', color: 'var(--brand-primary, #15803D)', fontWeight: 600, padding: '10px 12px' }}>
+                <td style={{ textAlign: 'right', color: '#0F172A', fontWeight: 600, padding: '10px 12px' }}>
                   {row.debit ? `₹${fmt(row.debit)}` : '—'}
                 </td>
-                <td style={{ textAlign: 'right', color: 'var(--color-danger, #DC2626)', fontWeight: 600, padding: '10px 12px' }}>
+                <td style={{ textAlign: 'right', color: '#0F172A', fontWeight: 600, padding: '10px 12px' }}>
                   {row.credit ? `₹${fmt(row.credit)}` : '—'}
                 </td>
                 <td style={{ textAlign: 'right', fontWeight: 700, color: row.balance < 0 ? 'var(--color-danger, #DC2626)' : '#0F172A', fontSize: '0.84rem', padding: '10px 14px' }}>

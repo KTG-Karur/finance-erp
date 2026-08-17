@@ -68,13 +68,24 @@ export async function createDisbursalVoucher(conn, {
   return { entryId: result.id, voucherNo: result.voucher_no, totalAmount: grossPrincipal, netDisbursed };
 }
 
-export async function createCollectionVoucher(conn, { collectionId, receiptNo, borrowerName, amount, principalPaid, interestPaid, penaltyPaid, entryDate, branch, createdBy }) {
+export async function createCollectionVoucher(conn, { collectionId, receiptNo, borrowerName, amount, principalPaid, interestPaid, penaltyPaid, entryDate, branch, createdBy, paymentMode = 'CASH' }) {
   const totalAmount = parseFloat(amount);
   const pPaid = parseFloat(principalPaid) || 0;
   const iPaid = parseFloat(interestPaid) || 0;
   const penPaid = parseFloat(penaltyPaid) || 0;
 
-  // Cash received (debit) must equal principal + interest + penalty (credits) —
+  // This used to hardcode account 1001 (Cash in Hand) for every collection
+  // regardless of how it was actually received — a UPI/Bank Transfer/Cheque
+  // payment never touched a vault, but was posted as if it had, inflating
+  // Cash in Hand (and therefore Day-End Closing's "Expected Closing Cash")
+  // by the full amount of every non-cash collection ever recorded. Routes to
+  // Bank (1002) for non-cash modes instead, matching how createDisbursalVoucher
+  // already branches on payment mode just above.
+  const isBank = (paymentMode || '').toUpperCase() !== 'CASH';
+  const debitCode = isBank ? '1002' : '1001';
+  const debitName = isBank ? 'Bank Account' : 'Cash in Hand';
+
+  // Cash/Bank received (debit) must equal principal + interest + penalty (credits) —
   // omitting penalty here used to leave the voucher short by exactly the
   // penalty amount, which insertVoucherOnConnection's balance check below
   // would reject outright, failing the whole collection whenever a penalty
@@ -84,7 +95,7 @@ export async function createCollectionVoucher(conn, { collectionId, receiptNo, b
   // emit a Loan Receivables line with both debit and credit at zero, which
   // insertVoucherOnConnection now correctly rejects as a meaningless line.
   const lines = [
-    { account_code: '1001', account_name: 'Cash in Hand', debit: totalAmount, credit: 0, description: 'Cash Received' }
+    { account_code: debitCode, account_name: debitName, debit: totalAmount, credit: 0, description: `${isBank ? paymentMode : 'Cash'} Received` }
   ];
   if (pPaid > 0) {
     lines.push({ account_code: '1100', account_name: 'Loan Receivables Portfolio', debit: 0, credit: pPaid, description: 'Principal Reduction' });
@@ -115,7 +126,7 @@ export async function createCollectionVoucher(conn, { collectionId, receiptNo, b
 // or a cheque bounces (see collection.service.js). Reverses exactly the lines
 // the original voucher posted: cash goes back out, receivable/interest income
 // go back up/down.
-export async function createCollectionReversalVoucher(conn, { collectionId, receiptNo, borrowerName, amount, principalPaid, interestPaid, penaltyPaid, entryDate, narration, branch, createdBy }) {
+export async function createCollectionReversalVoucher(conn, { collectionId, receiptNo, borrowerName, amount, principalPaid, interestPaid, penaltyPaid, entryDate, narration, branch, createdBy, paymentMode = 'CASH' }) {
   const totalAmount = parseFloat(amount);
   const pPaid = parseFloat(principalPaid) || 0;
   const iPaid = parseFloat(interestPaid) || 0;
@@ -131,7 +142,17 @@ export async function createCollectionReversalVoucher(conn, { collectionId, rece
   if (penPaid > 0) {
     lines.push({ account_code: '4002', account_name: 'Loan Penalty / Overdue Fee Income', debit: penPaid, credit: 0, description: 'Penalty Income Reversed' });
   }
-  lines.push({ account_code: '1001', account_name: 'Cash in Hand', debit: 0, credit: totalAmount, description: 'Cash Reversed' });
+  // Must reverse whichever account the original collection actually debited —
+  // a reversal always has to mirror-image the specific voucher it's undoing,
+  // not assume everything was cash (see createCollectionVoucher above).
+  const isBank = (paymentMode || '').toUpperCase() !== 'CASH';
+  lines.push({
+    account_code: isBank ? '1002' : '1001',
+    account_name: isBank ? 'Bank Account' : 'Cash in Hand',
+    debit: 0,
+    credit: totalAmount,
+    description: `${isBank ? paymentMode : 'Cash'} Reversed`
+  });
 
   const result = await insertVoucherOnConnection(conn, {
     entry_date: entryDate,

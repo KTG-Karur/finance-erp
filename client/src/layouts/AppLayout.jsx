@@ -21,7 +21,6 @@ import {
   UserCog,
   Shield,
   Building2,
-  Bell,
   Search,
   MapPin,
   Languages,
@@ -34,7 +33,6 @@ import {
   Repeat,
   Landmark,
   Lock,
-  RotateCw,
 } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import ThemeCustomizerDrawer from '../components/ThemeCustomizerDrawer';
@@ -53,9 +51,7 @@ export default function AppLayout({
   branchesList = [],
   selectedBranch = 'ALL',
   onChangeBranch,
-  onSaveTheme,
-  onRefresh,
-  isRefreshing = false
+  onSaveTheme
 }) {
   const { language, setLanguage, t } = useLanguage();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -189,7 +185,7 @@ export default function AppLayout({
     && ((allowed('loans') && can('LOANS', 'VIEW')) || (allowed('collections') && can('COLLECTIONS', 'VIEW')) || (allowed('fixed_deposits') && can('FIXED_DEPOSITS', 'VIEW')) || (allowed('recurring_deposits') && can('RECURRING_DEPOSITS', 'VIEW')) || (allowed('borrowers') && can('BORROWERS', 'VIEW')));
   const hasFinanceMatches = (match('Ledger') || match('General Ledger') || match('Loan Ledger') || match('Customer Ledger') || match('Trial Balance') || match('Vouchers') || match('Auto Vouchers') || match('Manual Vouchers') || match('Day-End Closing')) && (allowed('accounting') || allowed('ledger') || allowed('vouchers') || allowed('trial_balance') || allowed('eod_process')) && can('LEDGER', 'VIEW');
   const hasReportsMatches = (match('Reports') || match('Loan Portfolio') || match('Collections Report') || match('Borrower') || match('KYC') || match('Investor Capital Report') || match('Fixed Deposits Report') || match('Recurring Deposits Report') || match('Financial Statements') || match('Staff Performance')) && allowed('reports') && can('REPORTS', 'VIEW');
-  const hasSettingsMatches = (match('Master Settings') || match('Loan Scheme Master') || match('Organization & Company') || match('Expense Allocation') || match('Staff Directory') || match('RBAC Matrix') || match('Investor') || match('Investors') || match('Investor Master') || match('Investor Capital') || match('Chart of Accounts') || match('Bank Accounts')) && (allowed('org') || allowed('employees') || allowed('rbac') || allowed('loan_schemes') || allowed('expense_allocation') || allowed('investors')) && (can('ORG', 'VIEW') || can('EMPLOYEES', 'VIEW') || can('SCHEMES', 'VIEW') || can('INVESTORS', 'VIEW'));
+  const hasSettingsMatches = (match('Master Settings') || match('Loan Scheme Master') || match('Organization & Company') || match('Expense Allocation') || match('Staff Directory') || match('RBAC Matrix') || match('Investor') || match('Investors') || match('Investor Master') || match('Investor Capital') || match('Chart of Accounts') || match('Bank Accounts') || match('Estimation') || match('Calculator') || match('Quotation') || match('Loan Estimator')) && (allowed('org') || allowed('employees') || allowed('rbac') || allowed('loan_schemes') || allowed('expense_allocation') || allowed('investors') || allowed('loans')) && (can('ORG', 'VIEW') || can('EMPLOYEES', 'VIEW') || can('SCHEMES', 'VIEW') || can('INVESTORS', 'VIEW') || can('LOANS', 'VIEW'));
 
   const hasAnyMatches = hasWorkspaceMatches || hasLoanMatches || hasFinanceMatches || hasReportsMatches || hasSettingsMatches;
 
@@ -357,18 +353,6 @@ export default function AppLayout({
                           {!mini && <span className="sidebar__label">{t('nav.loans')}</span>}
                         </button>
                       )}
-
-                      {(match('Estimation') || match('Calculator') || match('Quotation') || match('Loan Estimator')) && allowed('loans') && can('LOANS', 'VIEW') && (
-                        <button id="nav-estimation"
-                          className={itemCls(isLoan('estimation') || activeTab === 'estimation')}
-                          onClick={() => setActiveTab('loan-management/estimation')}
-                          title={t('nav.estimation')}
-                        >
-                          <Calculator className="sidebar__item-icon" />
-                          {!mini && <span className="sidebar__label">{t('nav.estimation')}</span>}
-                        </button>
-                      )}
-
 
                       {match('Collections') && allowed('loans') && can('COLLECTIONS', 'VIEW') && (
                         <button id="nav-collections"
@@ -832,6 +816,15 @@ export default function AppLayout({
                                   <span>{t('nav.loan_scheme_master')}</span>
                                 </button>
                               )}
+                              {(match('Estimation') || match('Calculator') || match('Quotation') || match('Loan Estimator')) && allowed('loans') && can('LOANS', 'VIEW') && (
+                                <button id="nav-estimation"
+                                  className={subCls(isSet('estimation'))}
+                                  onClick={() => setActiveTab('master-settings/estimation')}
+                                >
+                                  <Calculator className="sidebar__sub-icon" />
+                                  <span>{t('nav.estimation')}</span>
+                                </button>
+                              )}
                               {match('Expense Allocation') && allowed('expense_allocation') && (
                                 <button id="nav-accounting-masters"
                                   className={subCls(isSet('accounting-masters'))}
@@ -904,6 +897,15 @@ export default function AppLayout({
                               title={t('nav.loan_scheme_master')}
                             >
                               <Percent className="sidebar__item-icon" />
+                            </button>
+                          )}
+                          {allowed('loans') && can('LOANS', 'VIEW') && (
+                            <button
+                              className={itemCls(isSet('estimation'))}
+                              onClick={() => setActiveTab('master-settings/estimation')}
+                              title={t('nav.estimation')}
+                            >
+                              <Calculator className="sidebar__item-icon" />
                             </button>
                           )}
                           {allowed('expense_allocation') && (
@@ -1000,33 +1002,6 @@ export default function AppLayout({
                   தமிழ்
                 </button>
               </div>
-
-              {/* Refresh Live Data Button */}
-              {onRefresh && (
-                <button
-                  type="button"
-                  className="app-header__notification-btn"
-                  onClick={onRefresh}
-                  disabled={isRefreshing}
-                  title="Fetch Latest Data"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: isRefreshing ? 'wait' : 'pointer'
-                  }}
-                >
-                  <RotateCw style={{
-                    width: 15,
-                    height: 15,
-                    animation: isRefreshing ? 'spin 0.8s linear infinite' : 'none'
-                  }} />
-                </button>
-              )}
-
-              <button className="app-header__notification-btn" title={t('topbar.notifications')}>
-                <Bell style={{ width: 16, height: 16 }} />
-              </button>
 
               <button
                 id="user-menu-btn"

@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Check, Search, X } from 'lucide-react';
 
 /**
@@ -31,8 +32,44 @@ export default function SharedDropdown({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [menuCoords, setMenuCoords] = useState(null);
   const dropdownRef = useRef(null);
+  const triggerBtnRef = useRef(null);
+  const menuRef = useRef(null);
   const searchInputRef = useRef(null);
+
+  // The popover used to be `position: absolute` inside this component's own
+  // wrapper — fine standalone, but every modal in this app wraps its fields in
+  // an `overflow-y: auto` scroll container, which clips or mis-stacks an
+  // absolutely positioned descendant instead of letting it float freely above
+  // the modal. Portaling to document.body with viewport (`fixed`) coordinates
+  // computed from the trigger's actual position sidesteps that ancestor
+  // entirely, so the menu always renders on top, unclipped, wherever it's used.
+  const updateMenuCoords = () => {
+    const rect = triggerBtnRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setMenuCoords({
+      top: rect.bottom + 4,
+      left: rect.left,
+      right: window.innerWidth - rect.right,
+      width: rect.width
+    });
+  };
+
+  useLayoutEffect(() => {
+    if (isOpen) updateMenuCoords();
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onReposition = () => updateMenuCoords();
+    window.addEventListener('scroll', onReposition, true);
+    window.addEventListener('resize', onReposition);
+    return () => {
+      window.removeEventListener('scroll', onReposition, true);
+      window.removeEventListener('resize', onReposition);
+    };
+  }, [isOpen]);
 
   // Height map based on size prop
   const heightMap = {
@@ -121,7 +158,9 @@ export default function SharedDropdown({
   // Click outside & Escape key listeners
   useEffect(() => {
     function handleClickOutside(e) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+      const insideTrigger = dropdownRef.current && dropdownRef.current.contains(e.target);
+      const insideMenu = menuRef.current && menuRef.current.contains(e.target);
+      if (!insideTrigger && !insideMenu) {
         setIsOpen(false);
       }
     }
@@ -246,6 +285,7 @@ export default function SharedDropdown({
 
       {/* Dropdown Trigger Button */}
       <button
+        ref={triggerBtnRef}
         type="button"
         id={id}
         name={name}
@@ -323,16 +363,25 @@ export default function SharedDropdown({
         </div>
       </button>
 
-      {/* Floating Dropdown Popover */}
-      {isOpen && (
+      {/* Floating Dropdown Popover — portaled to document.body so it can never be
+          clipped or mis-stacked by a modal's `overflow-y: auto` field container */}
+      {isOpen && menuCoords && createPortal(
         <div
+          ref={menuRef}
           role="listbox"
           style={{
-            position: 'absolute',
-            top: 'calc(100% + 4px)',
-            [align === 'right' ? 'right' : 'left']: 0,
-            zIndex: 99999,
-            minWidth: '100%',
+            position: 'fixed',
+            top: menuCoords.top,
+            ...(align === 'right' ? { right: menuCoords.right } : { left: menuCoords.left }),
+            // Portaled to document.body as a sibling of whatever modal it was
+            // opened from, not a descendant — so its stacking order is decided
+            // purely by z-index comparison against that modal's own overlay,
+            // not DOM nesting. Modals in this app go as high as 9999999
+            // (z-index), so anything lower here (99999 originally) renders the
+            // popover invisibly behind the modal that opened it. This needs to
+            // outrank every overlay in the app, always.
+            zIndex: 2147483000,
+            minWidth: menuCoords.width,
             maxWidth: 380,
             maxHeight: 260,
             overflowY: 'auto',
@@ -495,7 +544,8 @@ export default function SharedDropdown({
               });
             })()
           )}
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Error or Helper text */}

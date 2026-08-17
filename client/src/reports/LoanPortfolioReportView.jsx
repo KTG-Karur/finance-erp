@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { FileText, Search, ChevronLeft, ChevronRight, Download, Printer, FileDown } from 'lucide-react';
+import { FileText, Search, ChevronLeft, ChevronRight, Download, Printer, FileDown, History } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import { exportToCsv } from '../utils/csvExport';
 import ReportPreviewModal from '../components/ReportPreviewModal';
 import { refTimeMap } from '../utils/accounting';
 import DropdownSelect from '../components/DropdownSelect';
+import PrintablePaymentHistorySheet from '../finance/loan/PrintablePaymentHistorySheet';
 
 const STATUS_KEY = {
   ACTIVE: 'fin.status_active',
@@ -18,8 +19,15 @@ function fmtTime(iso) {
   return new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
-export default function LoanPortfolioReportView({ loans = [], branchesList = [], journalEntries = [], tenant, user, selectedBranch = 'ALL' }) {
+export default function LoanPortfolioReportView({ loans = [], borrowers = [], receipts = [], branchesList = [], journalEntries = [], tenant, user, selectedBranch = 'ALL' }) {
   const { t } = useLanguage();
+  // Individual loan's full transaction/payment history — the report table
+  // itself only ever showed one summary row per loan; this opens the same
+  // printable statement sheet used elsewhere in the app (Loan Detail's
+  // Export PDF, Loans register's History pill) for whichever specific loan
+  // was clicked, so this report can drill into one account, not just the
+  // whole portfolio at once.
+  const [historyLoan, setHistoryLoan] = useState(null);
   const [branch, setBranch] = useState(() => (selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL'));
   useEffect(() => {
     setBranch(selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL');
@@ -211,11 +219,12 @@ export default function LoanPortfolioReportView({ loans = [], branchesList = [],
               <th>{t('fin.last_payment_label')}</th>
               <th className="num">{t('fin.days_overdue_label')}</th>
               <th>{t('col.status')}</th>
+              <th style={{ textAlign: 'right' }}>Details</th>
             </tr>
           </thead>
           <tbody>
             {pagedLoans.length === 0 ? (
-              <tr><td colSpan="18" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>{hasBranchSelected ? t('fin.no_results_hint') : t('fin.select_branch_hint')}</td></tr>
+              <tr><td colSpan="19" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>{hasBranchSelected ? t('fin.no_results_hint') : t('fin.select_branch_hint')}</td></tr>
             ) : pagedLoans.map(l => (
               <tr key={l.id}>
                 <td className="code">{l.loan_account_no}</td>
@@ -240,6 +249,16 @@ export default function LoanPortfolioReportView({ loans = [], branchesList = [],
                     {STATUS_KEY[l.status] ? t(STATUS_KEY[l.status]) : l.status}
                   </span>
                 </td>
+                <td style={{ textAlign: 'right' }}>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryLoan(l)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#334155', borderRadius: 6, padding: '4px 9px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    <History style={{ width: 11, height: 11 }} />
+                    <span>Details</span>
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -263,6 +282,16 @@ export default function LoanPortfolioReportView({ loans = [], branchesList = [],
       </div>
 
       {showPreview && <ReportPreviewModal {...previewProps} onClose={() => setShowPreview(false)} />}
+
+      {historyLoan && (
+        <PrintablePaymentHistorySheet
+          loan={historyLoan}
+          borrower={borrowers.find(b => b.id === historyLoan.borrower_id || b.phone === historyLoan.phone) || {}}
+          receipts={receipts}
+          tenant={tenant}
+          onClose={() => setHistoryLoan(null)}
+        />
+      )}
     </div>
   );
 }

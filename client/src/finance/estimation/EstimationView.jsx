@@ -79,6 +79,12 @@ export default function EstimationView({
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 12;
 
+  // Right-column view — Overview (KPIs + charts) vs Schedule (the full
+  // amortization table) used to always render together in one long scroll,
+  // which is exactly what read as "congested." Splitting them into tabs means
+  // only one dense block is visible at a time.
+  const [rightPanelTab, setRightPanelTab] = useState('OVERVIEW'); // 'OVERVIEW' | 'SCHEDULE'
+
   // Save as Scheme Modal state
   const [showSaveSchemeModal, setShowSaveSchemeModal] = useState(false);
   const [schemeFormName, setSchemeFormName] = useState('');
@@ -459,6 +465,8 @@ export default function EstimationView({
             </div>
           )}
 
+          <div className="estimation-page__section-label">Amount &amp; Tenure</div>
+
           {/* Principal Amount */}
           <div className="estimation-page__form-group">
             <label>Sanction Principal Amount (₹)</label>
@@ -564,6 +572,8 @@ export default function EstimationView({
             </div>
           </div>
 
+          <div className="estimation-page__section-label">Interest Rate</div>
+
           {/* Interest Specification Method Box (Amount / Days / Interest Amount Rule) */}
           <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '14px', marginBottom: 6 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -632,18 +642,16 @@ export default function EstimationView({
                     <span style={{ fontSize: '0.65rem', color: '#15803D', display: 'block', marginTop: 3, fontWeight: 600 }}>₹{Number(ruleInterest || 0).toLocaleString('en-IN')}</span>
                   </div>
                 </div>
-                {/* Single Day & Tenure Calculation Banner */}
-                <div style={{ marginTop: 10, background: '#F0FEF5', border: '1px solid #A3F5C1', padding: '10px 14px', borderRadius: 8 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', rowGap: 6, columnGap: 12, alignItems: 'center', fontSize: '0.74rem' }}>
-                    <span style={{ color: '#075F27', fontWeight: 600 }}>Single Day (Base ₹{Number(ruleAmount || 0).toLocaleString('en-IN')}):</span>
-                    <strong style={{ color: '#075F27', fontWeight: 700, fontFeatureSettings: '"tnum"' }}>₹{(Number(ruleDays) > 0 ? (Number(ruleInterest || 0) / Number(ruleDays)) : 0).toFixed(2)} / day</strong>
-
-                    <span style={{ color: '#075F27', fontWeight: 600 }}>Daily on Loan Principal:</span>
-                    <strong style={{ color: '#15803D', fontWeight: 800, fontSize: '0.8rem', fontFeatureSettings: '"tnum"' }}>₹{((Number(ruleAmount) > 0 && Number(ruleDays) > 0) ? (Number(principal || 0) * (Number(ruleInterest || 0) / (Number(ruleAmount) * Number(ruleDays)))) : 0).toFixed(2)} / day</strong>
+                {/* Derived Rate Banner — just the two numbers that matter for
+                    this loan's actual principal, not every intermediate ratio */}
+                <div style={{ marginTop: 10, background: '#F0FEF5', border: '1px solid #A3F5C1', padding: '10px 14px', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <span style={{ fontSize: '0.68rem', color: '#075F27', fontWeight: 600, display: 'block' }}>Interest on this loan's principal</span>
+                    <strong style={{ color: '#15803D', fontWeight: 800, fontSize: '0.9rem', fontFeatureSettings: '"tnum"' }}>₹{((Number(ruleAmount) > 0 && Number(ruleDays) > 0) ? (Number(principal || 0) * (Number(ruleInterest || 0) / (Number(ruleAmount) * Number(ruleDays)))) : 0).toFixed(2)} / day</strong>
                   </div>
-                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed #A3F5C1', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', color: '#0F172A' }}>
-                    <span>Daily Rate: <strong>{((Number(ruleAmount) > 0 && Number(ruleDays) > 0) ? ((Number(ruleInterest || 0) / (Number(ruleAmount) * Number(ruleDays))) * 100) : 0).toFixed(3)}%</strong></span>
-                    <span>Monthly (30d): <strong style={{ color: '#15803D' }}>{effectiveMonthlyRate.toFixed(2)}%</strong></span>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '0.68rem', color: '#075F27', fontWeight: 600, display: 'block' }}>Equivalent Rate</span>
+                    <strong style={{ fontSize: '0.85rem', color: '#0F172A' }}>{effectiveMonthlyRate.toFixed(2)}% / mo</strong>
                   </div>
                 </div>
               </div>
@@ -660,6 +668,8 @@ export default function EstimationView({
               </div>
             )}
           </div>
+
+          <div className="estimation-page__section-label">Repayment &amp; Fees</div>
 
           {/* Repayment Method & Calculation Formula */}
           <div className="estimation-page__form-row">
@@ -761,7 +771,8 @@ export default function EstimationView({
         {/* Right Column: Output Metrics, Visual Charts, and Schedule Table */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
 
-          {/* 4 Top KPI Cards */}
+          {/* 4 Top KPI Cards — always visible regardless of tab, since these are
+              the headline numbers someone glances at first */}
           <div className="estimation-page__kpi-grid">
             <div className="estimation-page__kpi-card estimation-page__kpi-card--primary">
               <span className="estimation-page__kpi-card-label">Net Disbursed Amount</span>
@@ -803,6 +814,29 @@ export default function EstimationView({
               </span>
             </div>
           </div>
+
+          {/* Overview / Schedule Tabs — charts and the full amortization table
+              used to always render together in one long stack; splitting them
+              means only one dense section is on screen at a time. */}
+          <div className="estimation-page__view-tabs">
+            <button
+              type="button"
+              className={`estimation-page__view-tab ${rightPanelTab === 'OVERVIEW' ? 'estimation-page__view-tab--active' : ''}`}
+              onClick={() => setRightPanelTab('OVERVIEW')}
+            >
+              <PieChartIcon style={{ width: 14, height: 14 }} /> Overview
+            </button>
+            <button
+              type="button"
+              className={`estimation-page__view-tab ${rightPanelTab === 'SCHEDULE' ? 'estimation-page__view-tab--active' : ''}`}
+              onClick={() => setRightPanelTab('SCHEDULE')}
+            >
+              <Layers style={{ width: 14, height: 14 }} /> Schedule ({estimateResult.schedule.length})
+            </button>
+          </div>
+
+          {rightPanelTab === 'OVERVIEW' && (
+          <>
 
           {/* Visual Charts Row */}
           <div className="estimation-page__charts-grid">
@@ -856,8 +890,11 @@ export default function EstimationView({
             </div>
 
           </div>
+          </>
+          )}
 
-          {/* Amortization Schedule Table */}
+          {rightPanelTab === 'SCHEDULE' && (
+          /* Amortization Schedule Table */
           <div className="estimation-page__table-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
               <div>
@@ -958,6 +995,7 @@ export default function EstimationView({
               </div>
             )}
           </div>
+          )}
 
         </div>
 

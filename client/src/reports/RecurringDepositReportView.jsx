@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Banknote, Search, ChevronLeft, ChevronRight, Download, Printer, FileDown } from 'lucide-react';
+import { Banknote, Search, ChevronLeft, ChevronRight, Download, Printer, FileDown, History } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import { exportToCsv } from '../utils/csvExport';
 import ReportPreviewModal from '../components/ReportPreviewModal';
 import DropdownSelect from '../components/DropdownSelect';
+import TransactionHistoryModal from '../components/TransactionHistoryModal';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -15,8 +16,9 @@ function daysUntil(dateStr) {
   return Math.round((target - today) / 86400000);
 }
 
-export default function RecurringDepositReportView({ recurringDeposits = [], borrowers = [], tenant, user }) {
+export default function RecurringDepositReportView({ recurringDeposits = [], borrowers = [], journalEntries = [], tenant, user }) {
   const { t, tStatus } = useLanguage();
+  const [historyRd, setHistoryRd] = useState(null);
   const [status, setStatus] = useState('ALL');
   const [upcomingOnly, setUpcomingOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -199,11 +201,12 @@ export default function RecurringDepositReportView({ recurringDeposits = [], bor
               <th>{t('fin.maturity_date_label')}</th>
               <th className="num">{t('fin.maturity_value_label')}</th>
               <th style={{ textAlign: 'center' }}>{t('col.status')}</th>
+              <th style={{ textAlign: 'right' }}>Details</th>
             </tr>
           </thead>
           <tbody>
             {pagedRows.length === 0 ? (
-              <tr><td colSpan="11" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>No recurring deposit records found.</td></tr>
+              <tr><td colSpan="12" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>No recurring deposit records found.</td></tr>
             ) : pagedRows.map(r => (
               <tr key={r.id}>
                 <td className="code" style={{ fontWeight: 700, color: 'var(--brand-primary, #15803D)' }}>{r.rd_account_no}</td>
@@ -220,6 +223,16 @@ export default function RecurringDepositReportView({ recurringDeposits = [], bor
                   <span className={`fin-badge ${r.status === 'ACTIVE' ? 'fin-badge--ok' : r.status === 'MATURED' ? 'fin-badge--info' : 'fin-badge--warn'}`}>
                     {tStatus(r.status)}
                   </span>
+                </td>
+                <td style={{ textAlign: 'right' }}>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryRd(r)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#334155', borderRadius: 6, padding: '4px 9px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    <History style={{ width: 11, height: 11 }} />
+                    <span>Details</span>
+                  </button>
                 </td>
               </tr>
             ))}
@@ -244,6 +257,19 @@ export default function RecurringDepositReportView({ recurringDeposits = [], bor
       </div>
 
       {showPreview && <ReportPreviewModal {...previewProps} onClose={() => setShowPreview(false)} />}
+
+      {historyRd && (
+        <TransactionHistoryModal
+          title="Recurring Deposit Transaction History"
+          accountLabel={`${historyRd.rd_account_no} — ${historyRd.customer_name}`}
+          tenant={tenant}
+          entries={journalEntries.filter(e =>
+            ['RD_INSTALLMENT', 'RD_MATURITY', 'RD_PREMATURE_CLOSE'].includes(e.ref_type) &&
+            String(e.ref_id) === String(historyRd.id)
+          )}
+          onClose={() => setHistoryRd(null)}
+        />
+      )}
     </div>
   );
 }

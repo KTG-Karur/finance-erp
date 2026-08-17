@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { X, Banknote, Clock, ArrowRight, User, Phone, DollarSign, Percent, Calendar, FileText } from 'lucide-react';
 import SharedDropdown from './common/SharedDropdown';
+import { convertRateToMonthly, rateBasisSuffix } from '../utils/loanCalculations';
 
 export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBURSE', loanSchemes = [] }) {
-  if (!isOpen) return null;
-
-  const isAppMode = mode === 'APPLICATION';
-  // Only active schemes can be picked for a new loan — inactive ones stay in Loan Scheme
-  // Master for reference but shouldn't be offered here.
+  // App.jsx renders this component unconditionally and just toggles `isOpen`
+  // (it never unmounts), so every hook must run on every render — bailing
+  // out early before the useState calls (as this used to do) made React
+  // call a different number of hooks between the closed and open renders,
+  // corrupting form state on the closed -> open transition.
   const activeSchemes = loanSchemes.filter(s => s.is_active);
   const initialScheme = activeSchemes[0] || null;
 
@@ -15,7 +16,7 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
     borrower_name: '',
     phone: '',
     principal_amount: 50000,
-    monthly_interest_rate: initialScheme?.rate_per_unit != null ? Number(initialScheme.rate_per_unit) : 2.0,
+    monthly_interest_rate: initialScheme?.rate_per_unit != null ? convertRateToMonthly(initialScheme.rate_per_unit, initialScheme.interest_basis) : 2.0,
     tenure_months: 4,
     installment_amount: 500,
     purpose: 'Working Capital',
@@ -24,6 +25,10 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  if (!isOpen) return null;
+
+  const isAppMode = mode === 'APPLICATION';
 
   const calculateInstallment = (principal, monthlyRate, tenureMonths) => {
     const p = parseFloat(principal) || 0;
@@ -50,7 +55,7 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
     // drives the loan terms instead of being a disconnected label.
     if (name === 'scheme_id') {
       const scheme = activeSchemes.find(s => String(s.id) === String(value));
-      if (scheme) updatedForm.monthly_interest_rate = scheme?.rate_per_unit != null ? Number(scheme.rate_per_unit) : '';
+      if (scheme) updatedForm.monthly_interest_rate = scheme?.rate_per_unit != null ? convertRateToMonthly(scheme.rate_per_unit, scheme.interest_basis) : '';
     }
 
     if (name === 'principal_amount' || name === 'monthly_interest_rate' || name === 'tenure_months' || name === 'scheme_id') {
@@ -250,7 +255,7 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
                 placeholder={activeSchemes.length === 0 ? 'No active loan schemes available' : 'Select scheme'}
                 options={activeSchemes.map(s => ({
                   value: s.id,
-                  label: `${s.scheme_name} (${s.rate_per_unit || 0}% / mo — ${s.tenure_value || 0} ${s.tenure_unit || 'Days'})`
+                  label: `${s.scheme_name} (${s.rate_per_unit || 0}% ${rateBasisSuffix(s.interest_basis)} — ${s.tenure_value || 0} ${s.tenure_unit || 'Days'})`
                 }))}
               />
             </div>

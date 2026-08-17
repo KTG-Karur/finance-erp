@@ -71,12 +71,12 @@ export default function TrialBalanceView({ chartOfAccounts = [], journalEntries 
           <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontSize: '0.7rem', fontWeight: 500, color: '#64748B', textTransform: 'uppercase' }}>Total Debit</span>
-              <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--brand-primary-hover, #0E5327)' }}>₹{fmt(totals.debit)}</span>
+              <span style={{ fontSize: '1.1rem', fontWeight: 600, color: '#0F172A' }}>₹{fmt(totals.debit)}</span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontSize: '0.7rem', fontWeight: 500, color: '#64748B', textTransform: 'uppercase' }}>Total Credit</span>
-              <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--color-danger-hover, #B91C1C)' }}>₹{fmt(totals.credit)}</span>
+              <span style={{ fontSize: '1.1rem', fontWeight: 600, color: '#0F172A' }}>₹{fmt(totals.credit)}</span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -198,8 +198,8 @@ export default function TrialBalanceView({ chartOfAccounts = [], journalEntries 
               <td colSpan="2" style={{ fontWeight: 600, color: isBalanced ? undefined : '#991B1B' }}>
                 {t('fin.total_row')} {!isBalanced && '(MISMATCH DETECTED)'}
               </td>
-              <td className="num" style={{ fontWeight: 700, color: isBalanced ? 'var(--brand-primary-hover, #0E5327)' : '#DC2626' }}>₹{fmt(totals.debit)}</td>
-              <td className="num" style={{ fontWeight: 700, color: 'var(--color-danger-hover, #B91C1C)' }}>₹{fmt(totals.credit)}</td>
+              <td className="num" style={{ fontWeight: 700, color: isBalanced ? '#0F172A' : '#DC2626' }}>₹{fmt(totals.debit)}</td>
+              <td className="num" style={{ fontWeight: 700, color: isBalanced ? '#0F172A' : '#DC2626' }}>₹{fmt(totals.credit)}</td>
             </tr>
           </tbody>
         </table>

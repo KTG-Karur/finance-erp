@@ -1312,5 +1312,27 @@
     margin: 0 auto !important;
     font-size: 11px !important;
   }
+
+  // Every "paper sheet" wrapper across the printable components (loan/FD/
+  // customer statements, certificates, estimation & report sheets) sets an
+  // on-screen box-shadow and — in at least one case — a hardcoded px
+  // min-height equal to exactly one A4 page's pixel height. Either one is
+  // enough to push the container's bottom border past the real printable
+  // page boundary, orphaning just that border onto an otherwise-blank second
+  // sheet. Screen-only chrome has no business surviving into print, and a
+  // forced min-height should never fight the browser's own pagination — so
+  // both are stripped here, with !important since several of these are set
+  // as inline styles (higher specificity than any unmarked class rule).
+  .paper-sheet,
+  .bank-form-paper,
+  .printable-sheet-paper,
+  .report-preview-paper,
+  .fd-reg-paper,
+  .fd-cert-paper,
+  .directory-report-paper {
+    min-height: 0 !important;
+    height: auto !important;
+    box-shadow: none !important;
+  }
 }
 

@@ -13,8 +13,12 @@ function tp(t, key, vars) {
 
 export default function QuickActionModal({ type, isOpen, onClose, onSubmit, expenseCategories = [] }) {
   const { t } = useLanguage();
-  if (!isOpen) return null;
 
+  // App.jsx renders this component unconditionally and just toggles `isOpen`
+  // (it never unmounts), so every hook must run on every render — bailing
+  // out early before the useState calls (as this used to do) made React
+  // call a different number of hooks between the closed and open renders,
+  // corrupting form state on the closed -> open transition.
   const activeCategories = expenseCategories.filter(c => c.status === 'ACTIVE');
 
   const [form, setForm] = useState({
@@ -29,13 +33,15 @@ export default function QuickActionModal({ type, isOpen, onClose, onSubmit, expe
     type: 'CASH_IN'
   });
 
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  if (!isOpen) return null;
+
   const selectedCategory = expenseCategories.find(c => String(c.id) === String(form.category_id));
   const amountEntered = Number(form.amount) || 0;
   const insufficientBalance = type === 'EXPENSE' && selectedCategory && amountEntered > selectedCategory.balance;
   const canSubmitExpense = type !== 'EXPENSE' || (selectedCategory && amountEntered > 0 && !insufficientBalance);
-
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();

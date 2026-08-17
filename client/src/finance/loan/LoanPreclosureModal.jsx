@@ -4,7 +4,7 @@ import {
   CreditCard, ArrowRight, ShieldCheck, FileCheck, RefreshCw,
   Clock, Calendar
 } from 'lucide-react';
-import axios from 'axios';
+import api from '../../api/client';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import DropdownSelect from '../../components/DropdownSelect';
 import SharedDatePicker from '../../components/common/SharedDatePicker';
@@ -38,7 +38,7 @@ export default function LoanPreclosureModal({
     setLoadingQuote(true);
     setError('');
     try {
-      const res = await axios.get(`/api/v1/finance/loans/${loan.id}/preclosure-quote`, {
+      const res = await api.get(`/finance/loans/${loan.id}/preclosure-quote`, {
         params: { as_of_date: date }
       });
       if (res.data?.success) {
@@ -95,7 +95,7 @@ export default function LoanPreclosureModal({
     setError('');
 
     try {
-      const res = await axios.post(`/api/v1/finance/loans/${loan.id}/preclose`, {
+      const res = await api.post(`/finance/loans/${loan.id}/preclose`, {
         settlement_date: settlementDate,
         payment_mode: paymentMode,
         transaction_ref: transactionRef,

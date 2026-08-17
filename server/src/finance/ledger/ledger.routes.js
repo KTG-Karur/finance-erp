@@ -5,6 +5,7 @@ import {
   deleteAccountHandler,
   getJournalEntriesHandler,
   postVoucherHandler,
+  revertVoucherHandler,
   getTrialBalanceHandler
 } from './ledger.controller.js';
 
@@ -18,5 +19,6 @@ export default async function ledgerRoutes(fastify, options) {
   fastify.delete('/ledger/accounts/:code', { onRequest, preHandler: fastify.moduleGuard('LEDGER', 'DELETE') }, deleteAccountHandler);
   fastify.get('/ledger/vouchers', { onRequest, preHandler: fastify.moduleGuard('LEDGER', 'VIEW') }, getJournalEntriesHandler);
   fastify.post('/ledger/vouchers', { onRequest, preHandler: fastify.moduleGuard('LEDGER', 'POST') }, postVoucherHandler);
+  fastify.post('/ledger/vouchers/:id/revert', { onRequest, preHandler: fastify.moduleGuard('LEDGER', 'POST') }, revertVoucherHandler);
   fastify.get('/ledger/trial-balance', { onRequest, preHandler: fastify.moduleGuard('LEDGER', 'VIEW') }, getTrialBalanceHandler);
 }

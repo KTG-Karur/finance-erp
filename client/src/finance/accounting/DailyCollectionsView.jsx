@@ -21,7 +21,9 @@ import {
   Clock,
   Calendar,
   ArrowRight,
-  Wallet
+  Wallet,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import CustomerProfileModal from '../borrowers/CustomerProfileModal';
 import DedicatedThermalPrintModal from '../../components/DedicatedThermalPrintModal';
@@ -94,6 +96,7 @@ export default function DailyCollectionsView({
   loans = [],
   borrowers = [],
   loanSchemes = [],
+  employees = [],
   user,
   tenant,
   branchesList = [],
@@ -151,6 +154,19 @@ export default function DailyCollectionsView({
   const canControl = user?.role !== 'COLLECTOR';
   // Collection Modal State
   const [collectionModalData, setCollectionModalData] = useState(null);
+  // The Interest Accrual card is dense (days elapsed, rate, both dates,
+  // calculated interest) — most collectors just want the suggested amount,
+  // not the derivation. Collapsed by default, expandable for anyone who
+  // wants to verify the calculation.
+  const [showAccrualDetails, setShowAccrualDetails] = useState(false);
+  // The receipt view's branch/GPS/notes/proof section — optional, most
+  // people just want the amount/mode breakdown, not every field.
+  const [showMoreReceiptDetails, setShowMoreReceiptDetails] = useState(false);
+  useEffect(() => { setShowMoreReceiptDetails(false); }, [selectedReceipt]);
+  // "Received By" — pick from a real staff list, or type a name manually
+  // when the collector isn't in that list (a field agent not yet added as
+  // an employee record, a one-off substitute, etc).
+  const [collectorEntryMode, setCollectorEntryMode] = useState('SELECT'); // 'SELECT' | 'MANUAL'
 
   // Header Loan Selection State
   const [selectedLoanId, setSelectedLoanId] = useState('');
@@ -196,13 +212,15 @@ export default function DailyCollectionsView({
       return;
     }
     setEntryError('');
+    setCollectorEntryMode('SELECT');
+    setShowAccrualDetails(false);
     setCollectionModalData({
       is_edit: false,
       loan: loan,
       amountPaid: '',
       paymentMode: 'CASH',
       collectionDate: new Date().toISOString().slice(0, 10),
-      collectorName: user?.name || 'Staff Collector',
+      collectorName: user?.name || '',
       referenceNo: '',
       notes: ''
     });
@@ -210,6 +228,8 @@ export default function DailyCollectionsView({
 
   const prefillCollectionForEdit = (collection) => {
     const matchedLoan = (loans || []).find(l => String(l.id) === String(collection.loan_id) || l.loan_account_no === collection.loan_account_no);
+    setCollectorEntryMode('SELECT');
+    setShowAccrualDetails(false);
     setCollectionModalData({
       is_edit: true,
       collection_id: collection.id,
@@ -979,10 +999,77 @@ export default function DailyCollectionsView({
                         })()}
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #F1F5F9', paddingTop: 6 }}>
-                        <span style={{ color: '#64748B' }}>Collector Name:</span>
+                        <span style={{ color: '#64748B' }}>Received By:</span>
                         <span style={{ color: '#334155', fontWeight: 600 }}>{selectedReceipt.collector_name || user?.name || '—'}</span>
                       </div>
+                      {Number(selectedReceipt.penalty) > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#64748B' }}>Late Fee / Penalty:</span>
+                          <strong style={{ color: 'var(--color-warning, #D97706)' }}>₹{fmt(selectedReceipt.penalty)}</strong>
+                        </div>
+                      )}
                     </div>
+                  </div>
+
+                  {/* Additional Details Card — branch, notes, proof, location.
+                      Optional/collapsed by default: most people just want the
+                      amount/mode breakdown above, not every field. */}
+                  <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowMoreReceiptDetails(v => !v)}
+                      style={{
+                        width: '100%', background: '#F1F5F9', border: 'none', cursor: 'pointer',
+                        padding: '8px 12px', fontSize: '0.75rem', fontWeight: 700, color: '#334155',
+                        borderBottom: showMoreReceiptDetails ? '1px solid #E2E8F0' : 'none',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                      }}
+                    >
+                      <span>Additional Details</span>
+                      {showMoreReceiptDetails ? <ChevronUp style={{ width: 14, height: 14 }} /> : <ChevronDown style={{ width: 14, height: 14 }} />}
+                    </button>
+                    {showMoreReceiptDetails && (
+                      <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.8rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#64748B' }}>Branch:</span>
+                          <strong style={{ color: '#0F172A' }}>{selectedReceipt.branch || linkedBorrower.branch || '—'}</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#64748B' }}>Received At:</span>
+                          <strong style={{ color: '#0F172A' }}>{selectedReceipt.received_at === 'FIELD_VISIT' ? 'Field Visit' : 'Branch Counter'}</strong>
+                        </div>
+                        {(selectedReceipt.latitude != null && selectedReceipt.longitude != null) && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: '#64748B' }}>GPS Location:</span>
+                            <a
+                              href={`https://maps.google.com/?q=${selectedReceipt.latitude},${selectedReceipt.longitude}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: 'var(--color-info, #2563EB)', fontFamily: 'monospace', fontSize: '0.72rem' }}
+                            >
+                              {Number(selectedReceipt.latitude).toFixed(5)}, {Number(selectedReceipt.longitude).toFixed(5)}
+                            </a>
+                          </div>
+                        )}
+                        {selectedReceipt.notes && (
+                          <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 6 }}>
+                            <span style={{ color: '#64748B', display: 'block', marginBottom: 3 }}>Remarks:</span>
+                            <span style={{ color: '#334155' }}>{selectedReceipt.notes}</span>
+                          </div>
+                        )}
+                        {selectedReceipt.proof_image && (
+                          <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 8 }}>
+                            <span style={{ color: '#64748B', display: 'block', marginBottom: 6 }}>Proof of Payment:</span>
+                            <img
+                              src={selectedReceipt.proof_image}
+                              alt="Proof of payment"
+                              onClick={() => setPreviewImage(selectedReceipt.proof_image)}
+                              style={{ width: 90, height: 90, borderRadius: 8, objectFit: 'cover', border: '1px solid #E2E8F0', cursor: 'pointer' }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1188,7 +1275,7 @@ export default function DailyCollectionsView({
 
         return (
           <div className="saas-modal-backdrop" style={{ zIndex: 1000000 }}>
-            <div className="saas-modal-card" style={{ maxWidth: 620, borderRadius: 14, overflow: 'hidden' }}>
+            <div className="saas-modal-card" style={{ maxWidth: 620, borderRadius: 14, overflow: 'hidden', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif' }}>
               {/* Modal Header */}
               <div className="saas-modal-header" style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', padding: '16px 22px' }}>
                 <div className="head-left">
@@ -1242,10 +1329,19 @@ export default function DailyCollectionsView({
                     borderRadius: 10,
                     padding: '14px 16px'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowAccrualDetails(v => !v)}
+                      style={{
+                        width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        marginBottom: showAccrualDetails ? 10 : 0
+                      }}
+                    >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#065F46', fontWeight: 700, fontSize: '0.82rem' }}>
                         <Clock style={{ width: 16, height: 16, color: '#059669' }} />
                         <span>Interest Accrual & Period Calculation</span>
+                        {showAccrualDetails ? <ChevronUp style={{ width: 14, height: 14 }} /> : <ChevronDown style={{ width: 14, height: 14 }} />}
                       </div>
                       <span style={{
                         background: '#D1FAE5', color: '#065F46', fontSize: '0.7rem',
@@ -1253,39 +1349,43 @@ export default function DailyCollectionsView({
                       }}>
                         {daysElapsed} Days Elapsed
                       </span>
-                    </div>
+                    </button>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, fontSize: '0.76rem' }}>
-                      <div>
-                        <span style={{ color: '#047857', display: 'block', fontSize: '0.7rem' }}>Interest Last Paid Date</span>
-                        <strong style={{ color: '#0F172A' }}>{formatDateDDMMYYYY(lastPaidDate)}</strong>
-                      </div>
-                      <div>
-                        <span style={{ color: '#047857', display: 'block', fontSize: '0.7rem' }}>Collection Date (To Date)</span>
-                        <strong style={{ color: '#0F172A' }}>{formatDateDDMMYYYY(effectivePaymentDate)}</strong>
-                      </div>
-                      <div>
-                        <span style={{ color: '#047857', display: 'block', fontSize: '0.7rem' }}>Rate ({loan.repayment_method || 'EMI'})</span>
-                        <strong style={{ color: '#0F172A' }}>{monthlyRate}% / mo ({(dailyRate * 100).toFixed(4)}%/d)</strong>
-                      </div>
-                      <div>
-                        <span style={{ color: '#047857', display: 'block', fontSize: '0.7rem' }}>Calculated Interest Due</span>
-                        <strong style={{ color: '#0E7490', fontSize: '0.92rem' }}>₹{fmt(calculatedInterestDue)}</strong>
-                      </div>
-                    </div>
+                    {showAccrualDetails && (
+                      <>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, fontSize: '0.76rem' }}>
+                          <div>
+                            <span style={{ color: '#047857', display: 'block', fontSize: '0.7rem' }}>Interest Last Paid Date</span>
+                            <strong style={{ color: '#0F172A' }}>{formatDateDDMMYYYY(lastPaidDate)}</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: '#047857', display: 'block', fontSize: '0.7rem' }}>Collection Date (To Date)</span>
+                            <strong style={{ color: '#0F172A' }}>{formatDateDDMMYYYY(effectivePaymentDate)}</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: '#047857', display: 'block', fontSize: '0.7rem' }}>Rate ({loan.repayment_method || 'EMI'})</span>
+                            <strong style={{ color: '#0F172A' }}>{monthlyRate}% / mo ({(dailyRate * 100).toFixed(4)}%/d)</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: '#047857', display: 'block', fontSize: '0.7rem' }}>Calculated Interest Due</span>
+                            <strong style={{ color: '#0E7490', fontSize: '0.92rem' }}>₹{fmt(calculatedInterestDue)}</strong>
+                          </div>
+                        </div>
 
-                    {/* Summary of Suggested Payable */}
-                    <div style={{
-                      marginTop: 10, paddingTop: 10, borderTop: '1px dashed #A7F3D0',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem'
-                    }}>
-                      <span style={{ color: '#065F46' }}>
-                        Suggested Amount ({loan.repayment_method === 'INTEREST_ONLY' ? 'Interest Accrued' : 'Scheduled EMI'}):
-                      </span>
-                      <strong style={{ color: 'var(--brand-primary, #15803D)', fontSize: '0.96rem' }}>
-                        ₹{fmt(suggestedTotal)}
-                      </strong>
-                    </div>
+                        {/* Summary of Suggested Payable */}
+                        <div style={{
+                          marginTop: 10, paddingTop: 10, borderTop: '1px dashed #A7F3D0',
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem'
+                        }}>
+                          <span style={{ color: '#065F46' }}>
+                            Suggested Amount ({loan.repayment_method === 'INTEREST_ONLY' ? 'Interest Accrued' : 'Scheduled EMI'}):
+                          </span>
+                          <strong style={{ color: 'var(--brand-primary, #15803D)', fontSize: '0.96rem' }}>
+                            ₹{fmt(suggestedTotal)}
+                          </strong>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Payment Inputs */}
@@ -1339,18 +1439,54 @@ export default function DailyCollectionsView({
                       />
                     </div>
 
-                    {/* Collector Name */}
+                    {/* Received By — pick from the real staff list, or type a
+                        name manually when the collector isn't one of them
+                        (a field agent not yet added as an employee record,
+                        a one-off substitute, etc). */}
                     <div className="form-group" style={{ margin: 0 }}>
                       <label style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155', marginBottom: 4, display: 'block' }}>
-                        Collector / Staff Name
+                        Received By
                       </label>
-                      <input
-                        type="text"
-                        value={collectionModalData.collectorName || ''}
-                        onChange={(e) => setCollectionModalData(prev => ({ ...prev, collectorName: e.target.value }))}
-                        className="input-control"
-                        style={{ height: 38, fontSize: '0.8rem', borderRadius: 8 }}
-                      />
+                      {collectorEntryMode === 'MANUAL' ? (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <input
+                            type="text"
+                            autoFocus
+                            value={collectionModalData.collectorName || ''}
+                            onChange={(e) => setCollectionModalData(prev => ({ ...prev, collectorName: e.target.value }))}
+                            placeholder="Enter staff name"
+                            className="input-control"
+                            style={{ height: 38, fontSize: '0.8rem', borderRadius: 8, flex: 1 }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => { setCollectorEntryMode('SELECT'); setCollectionModalData(prev => ({ ...prev, collectorName: '' })); }}
+                            title="Pick from staff list instead"
+                            style={{ height: 38, padding: '0 10px', borderRadius: 8, border: '1px solid #CBD5E1', background: '#F8FAFC', color: '#475569', fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          >
+                            List
+                          </button>
+                        </div>
+                      ) : (
+                        <SharedDropdown
+                          value={collectionModalData.collectorName || ''}
+                          onChange={(e) => {
+                            if (e.target.value === '__MANUAL__') {
+                              setCollectorEntryMode('MANUAL');
+                              setCollectionModalData(prev => ({ ...prev, collectorName: '' }));
+                            } else {
+                              setCollectionModalData(prev => ({ ...prev, collectorName: e.target.value }));
+                            }
+                          }}
+                          placeholder="Select staff..."
+                          searchable
+                          buttonStyle={{ height: 38, fontSize: '0.8rem' }}
+                          options={[
+                            ...employees.map(emp => ({ value: emp.name, label: emp.name })),
+                            { value: '__MANUAL__', label: '+ Enter name manually...' }
+                          ]}
+                        />
+                      )}
                     </div>
                   </div>
 

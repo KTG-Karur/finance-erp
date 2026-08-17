@@ -253,10 +253,25 @@ export default function PrintableCustomerDirectoryReport({
                         <td style={{ textAlign: 'center', fontWeight: 600 }}>{idx + 1}</td>
                         <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>{b.borrower_code || '—'}</td>
                         <td>
-                          <div style={{ fontWeight: 700, color: '#000' }}>{b.full_name || '—'}</div>
-                          {b.father_spouse_name && (
-                            <div style={{ fontSize: '0.62rem', color: '#475569' }}>S/o, W/o: {b.father_spouse_name}</div>
-                          )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {(b.photo || b.profile_image) ? (
+                              <img
+                                src={b.photo || b.profile_image}
+                                alt=""
+                                style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover', border: '1px solid #94A3B8', flexShrink: 0 }}
+                              />
+                            ) : (
+                              <div style={{ width: 22, height: 22, borderRadius: '50%', border: '1px solid #94A3B8', background: '#F1F5F9', color: '#475569', fontSize: '0.58rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                {(b.full_name || '?').slice(0, 1).toUpperCase()}
+                              </div>
+                            )}
+                            <div>
+                              <div style={{ fontWeight: 700, color: '#000' }}>{b.full_name || '—'}</div>
+                              {b.father_spouse_name && (
+                                <div style={{ fontSize: '0.62rem', color: '#475569' }}>S/o, W/o: {b.father_spouse_name}</div>
+                              )}
+                            </div>
+                          </div>
                         </td>
                         <td style={{ fontFamily: 'monospace' }}>
                           <div>{b.phone || '—'}</div>

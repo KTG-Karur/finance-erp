@@ -24,6 +24,49 @@ import { evaluateFormula } from './formulaEngine';
 // settled, it is always collected before that period's principal — paying more than
 // what's owed for interest just accelerates principal payoff (prepayment).
 
+// Every downstream calculation (generateEmiSchedule, calculatePaymentAllocation,
+// the server's mirror in interestEngine.js) treats `monthly_interest_rate` as
+// exactly that — a % per 30-day month — regardless of how the rate was quoted
+// on the scheme. A scheme's `rate_per_unit` is only meaningful together with
+// its `interest_basis`: "2% DAILY" and "2% MONTHLY" are wildly different rates
+// but were previously copied onto a loan identically, silently discarding the
+// chosen basis. This converts a scheme's quoted rate into the equivalent
+// monthly rate the rest of the app actually expects.
+export function convertRateToMonthly(rate, basis) {
+  const r = parseFloat(rate) || 0;
+  switch (basis) {
+    case 'DAILY': return r * 30;
+    case 'WEEKLY': return r * (30 / 7);
+    case 'ANNUAL': return r / 12;
+    case 'MONTHLY':
+    default: return r;
+  }
+}
+
+// Inverse-ish of convertRateToMonthly: given a rate already expressed as %/day
+// (e.g. from an Amount/Days/Interest calculator, which always reasons in days),
+// express it in whatever unit the scheme's interest_basis actually is.
+export function convertDailyRateToBasis(dailyRatePct, basis) {
+  const r = parseFloat(dailyRatePct) || 0;
+  switch (basis) {
+    case 'DAILY': return r;
+    case 'WEEKLY': return r * 7;
+    case 'ANNUAL': return r * 365;
+    case 'MONTHLY':
+    default: return r * 30;
+  }
+}
+
+export function rateBasisSuffix(basis) {
+  switch (basis) {
+    case 'DAILY': return '/ day';
+    case 'WEEKLY': return '/ wk';
+    case 'ANNUAL': return '/ yr';
+    case 'MONTHLY':
+    default: return '/ mo';
+  }
+}
+
 export function daysBetween(fromDateStr, toDateStr) {
   if (!fromDateStr || !toDateStr) return 0;
   const from = new Date(fromDateStr);

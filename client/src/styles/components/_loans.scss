@@ -636,7 +636,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
 
     .form-section-title {
       font-size: 0.72rem;
-      font-weight: 700 !important;
+      font-weight: 600 !important;
       color: #475569;
       text-transform: uppercase;
       letter-spacing: 0.05em;
@@ -711,7 +711,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
       padding: 10px 22px;
       border-radius: 10px;
       font-size: 0.82rem;
-      font-weight: 700 !important;
+      font-weight: 600 !important;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
@@ -732,7 +732,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
       padding: 10px 22px;
       border-radius: 10px;
       font-size: 0.82rem;
-      font-weight: 700 !important;
+      font-weight: 600 !important;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
@@ -1374,7 +1374,7 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
         th {
           text-align: left;
           font-size: 0.66rem;
-          font-weight: 700;
+          font-weight: 600;
           color: #64748B;
           text-transform: uppercase;
           letter-spacing: 0.03em;
@@ -1478,6 +1478,19 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
       }
     }
   }
+}
+
+// Loan row action pills (Collect/View/History/Preclose/NOC) — used to wrap
+// onto a second line inside the table cell once more than 2-3 pills were
+// present. Keeping them on one row and letting the table's own horizontal
+// scroll (.fin-tablewrap) handle overflow instead reads far cleaner than a
+// ragged two-line action cell in every row.
+.loan-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
 }
 
 

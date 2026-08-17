@@ -26,7 +26,9 @@ import { useLanguage } from '../../i18n/LanguageContext';
 import {
   generateEmiSchedule,
   resolveSchemeRepaymentMethod,
-  resolveSchemeInterestCalculation
+  resolveSchemeInterestCalculation,
+  convertRateToMonthly,
+  rateBasisSuffix
 } from '../../utils/loanCalculations';
 import SharedDropdown from '../../components/common/SharedDropdown';
 import SharedDatePicker from '../../components/common/SharedDatePicker';
@@ -75,7 +77,7 @@ export default function NewLoanApplicationPage({
   // Core Loan Terms State — pre-filled if initialTerms provided from Estimator
   const [loanTerms, setLoanTerms] = useState(() => ({
     principal_amount: initialTerms?.principal != null ? String(initialTerms.principal) : '',
-    monthly_interest_rate: initialTerms?.monthlyRate != null ? String(initialTerms.monthlyRate) : (initialSchemeMatch?.rate_per_unit != null ? String(initialSchemeMatch.rate_per_unit) : ''),
+    monthly_interest_rate: initialTerms?.monthlyRate != null ? String(initialTerms.monthlyRate) : (initialSchemeMatch?.rate_per_unit != null ? String(convertRateToMonthly(initialSchemeMatch.rate_per_unit, initialSchemeMatch.interest_basis)) : ''),
     tenure_months: initialTerms?.tenureMonths != null ? String(initialTerms.tenureMonths) : '',
     repayment_frequency: initialTerms?.repaymentFrequency || initialSchemeMatch?.repayment_frequency || '',
     purpose: initialTerms?.purpose || ''
@@ -92,7 +94,7 @@ export default function NewLoanApplicationPage({
     if (scheme) {
       setLoanTerms(prev => ({
         ...prev,
-        monthly_interest_rate: scheme.rate_per_unit != null ? Number(scheme.rate_per_unit) : '',
+        monthly_interest_rate: scheme.rate_per_unit != null ? convertRateToMonthly(scheme.rate_per_unit, scheme.interest_basis) : '',
         repayment_frequency: scheme.repayment_frequency || prev.repayment_frequency
       }));
     }
@@ -533,7 +535,7 @@ export default function NewLoanApplicationPage({
                     placeholder="-- Select Loan Scheme --"
                     options={activeSchemes.map(s => ({
                       value: s.id,
-                      label: `${s.name} (${s.rate_per_unit}% p.m.)`
+                      label: `${s.name} (${s.rate_per_unit}% ${rateBasisSuffix(s.interest_basis)})`
                     }))}
                   />
                   {formErrors.scheme && <span className="err-txt">{formErrors.scheme}</span>}

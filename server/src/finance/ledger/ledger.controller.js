@@ -54,6 +54,18 @@ export async function postVoucherHandler(request, reply) {
   } catch (err) { return fail(reply, err); }
 }
 
+export async function revertVoucherHandler(request, reply) {
+  try {
+    const reversal = await LedgerService.revertVoucher(
+      request.tenantDb,
+      request.params.id,
+      request.body?.reason,
+      request.user?.name
+    );
+    return reply.send({ success: true, message: 'Voucher reverted successfully', data: reversal });
+  } catch (err) { return fail(reply, err); }
+}
+
 export async function getTrialBalanceHandler(request, reply) {
   try {
     const trialBalance = await LedgerService.getTrialBalance(request.tenantDb);

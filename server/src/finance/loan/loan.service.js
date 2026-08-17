@@ -74,11 +74,10 @@ export class LoanService {
       let installmentAmount = 0;
 
       if (repaymentMethod === 'EMI') {
-        const tenureMonths = Math.ceil(tenureDays / 30);
         schedule = generateEmiSchedule({
           principal,
           monthlyInterestRate: rate,
-          tenureMonths,
+          tenureDays,
           repaymentFrequency,
           interestCalculation,
           startDate: loanData.loan_date

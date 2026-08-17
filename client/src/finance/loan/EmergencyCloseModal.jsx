@@ -3,7 +3,7 @@ import {
   X, AlertTriangle, CheckCircle2, ShieldAlert, FileText,
   DollarSign, ArrowRight, Building2
 } from 'lucide-react';
-import axios from 'axios';
+import api from '../../api/client';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import SharedDropdown from '../../components/common/SharedDropdown';
 import SharedDatePicker from '../../components/common/SharedDatePicker';
@@ -55,7 +55,7 @@ export default function EmergencyCloseModal({
     setError('');
 
     try {
-      const res = await axios.post(`/api/v1/finance/loans/${loan.id}/emergency-close`, {
+      const res = await api.post(`/finance/loans/${loan.id}/emergency-close`, {
         closed_date: closedDate,
         recovery_amount: Number(recoveryAmount || 0),
         reason_category: reasonCategory,

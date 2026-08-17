@@ -6,6 +6,7 @@ import {
   Check, FileCheck, CalendarClock
 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
+import PrintablePaymentHistorySheet from './PrintablePaymentHistorySheet';
 
 const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
@@ -142,6 +143,7 @@ export default function LoanDetailPage({
   loan,
   borrower,
   receipts = [],
+  tenant,
   onBack,
   onPreclose,
   onEmergencyClose,
@@ -149,6 +151,7 @@ export default function LoanDetailPage({
 }) {
   const { t, tStatus } = useLanguage();
   const [activeTab, setActiveTab] = useState('OVERVIEW'); // 'OVERVIEW' | 'BORROWER' | 'HISTORY'
+  const [showPaymentHistorySheet, setShowPaymentHistorySheet] = useState(false);
 
   if (!loan) return null;
 
@@ -272,7 +275,7 @@ export default function LoanDetailPage({
               </button>
             )}
 
-            <button type="button" onClick={() => window.print()} className="btn-header-secondary">
+            <button type="button" onClick={() => setShowPaymentHistorySheet(true)} className="btn-header-secondary">
               <Download style={{ width: 14, height: 14 }} />
               <span>{t('ld.export_pdf')}</span>
             </button>
@@ -611,6 +614,16 @@ export default function LoanDetailPage({
             )}
           </div>
         </div>
+      )}
+
+      {showPaymentHistorySheet && (
+        <PrintablePaymentHistorySheet
+          loan={loan}
+          borrower={borrower}
+          receipts={receipts}
+          tenant={tenant}
+          onClose={() => setShowPaymentHistorySheet(false)}
+        />
       )}
 
     </div>

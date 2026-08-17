@@ -135,7 +135,8 @@ export default function LoansView({
   onRevertApplication,
   onApproveLoanClosure,
   onRejectLoanClosure,
-  onDisburseApprovedLoan
+  onDisburseApprovedLoan,
+  onCollectLoan
 }) {
   const { t, tStatus } = useLanguage();
 
@@ -231,8 +232,11 @@ export default function LoansView({
 
   const isClosedTab = viewMode === 'CLOSED';
 
-  // Counts for top view tabs.
-  const allLoansCount = scopedLoans.filter(l => l.status !== 'PENDING' && l.status !== 'REJECTED').length;
+  // Counts for top view tabs. PENDING loans are included here (visible in
+  // the register with a Pending badge, so staff can track a loan's status
+  // from the moment it's created) — only REJECTED stays out, since a
+  // rejected application never becomes a real loan account.
+  const allLoansCount = scopedLoans.filter(l => l.status !== 'REJECTED').length;
   const activeLoansCount = scopedLoans.filter(l => l.status === 'ACTIVE' || l.status === 'OVERDUE').length;
   const applicationsCount = scopedLoans.filter(l => l.status === 'PENDING' || l.status === 'APPROVED' || l.status === 'REJECTED').length;
   const closedLoansCount = scopedLoans.filter(l => l.status === 'CLOSED').length;
@@ -246,8 +250,11 @@ export default function LoansView({
       } else if (viewMode === 'ACTIVE') {
         matchesTab = l.status === 'ACTIVE' || l.status === 'OVERDUE';
       } else if (viewMode === 'ALL') {
-        // Exclude un-disbursed pending applications from general loan register
-        matchesTab = l.status !== 'PENDING' && l.status !== 'REJECTED';
+        // PENDING (and APPROVED, awaiting disbursal) loans are shown here too
+        // — so the register reflects a loan's status from creation onward,
+        // not just once it's disbursed — but a REJECTED application never
+        // becomes a real loan account, so that one stays excluded.
+        matchesTab = l.status !== 'REJECTED';
       }
 
       const q = searchQuery.toLowerCase().trim();
@@ -302,15 +309,47 @@ export default function LoansView({
   }
 
   if (viewingLoan) {
+    // This used to `return` just <LoanDetailPage /> alone, which meant every
+    // other modal defined later in this component's main render (Preclose,
+    // NOC, ...) never got mounted while viewing a loan's detail page —
+    // clicking "Preclose Loan" there set precloseTarget correctly, but with
+    // no <LoanPreclosureModal> anywhere in the tree to react to it, nothing
+    // visibly happened.
     return (
-      <LoanDetailPage
-        loan={viewingLoan}
-        borrower={linkedBorrower(viewingLoan)}
-        receipts={receipts}
-        onBack={() => setViewingLoan(null)}
-        onPreclose={(l) => setPrecloseTarget(l)}
-        onViewNoc={(l) => setNocTarget(l)}
-      />
+      <>
+        <LoanDetailPage
+          loan={viewingLoan}
+          borrower={linkedBorrower(viewingLoan)}
+          receipts={receipts}
+          tenant={tenant}
+          onBack={() => setViewingLoan(null)}
+          onPreclose={(l) => setPrecloseTarget(l)}
+          onViewNoc={(l) => setNocTarget(l)}
+        />
+
+        {precloseTarget && (
+          <LoanPreclosureModal
+            loan={precloseTarget}
+            onClose={() => setPrecloseTarget(null)}
+            onSuccess={() => {
+              onQuickAction?.('REFRESH_LOANS');
+              if (viewingLoan?.id === precloseTarget.id) setViewingLoan(null);
+            }}
+            onViewNoc={(l) => {
+              setPrecloseTarget(null);
+              setNocTarget(l);
+            }}
+          />
+        )}
+
+        {nocTarget && (
+          <PrintableNocCertificate
+            loan={nocTarget}
+            tenant={tenant}
+            onClose={() => setNocTarget(null)}
+          />
+        )}
+      </>
     );
   }
 
@@ -652,7 +691,7 @@ export default function LoansView({
                 <th className="num">{t('col.collected_rs')}</th>
                 <th className="num">{t('col.outstanding_rs')}</th>
                 <th style={{ textAlign: 'center' }}>{t('col.status')}</th>
-                <th style={{ textAlign: 'right' }}>{t('col.actions')}</th>
+                <th style={{ textAlign: 'right', minWidth: 300 }}>{t('col.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -719,13 +758,32 @@ export default function LoansView({
                       </td>
 
                       <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                          <ActionPill icon={<Eye style={{ width: 11, height: 11 }} />} label={t('loans.view_pill')} onClick={() => setViewingLoan(loan)} />
-                          <ActionPill icon={<History style={{ width: 11, height: 11 }} />} label={t('loans.history_pill')} onClick={() => setHistoryLoan(loan)} />
-                          {loan.status === 'CLOSED' ? (
-                            <ActionPill icon={<FileCheck style={{ width: 11, height: 11, color: '#15803D' }} />} label="NOC" onClick={() => setNocTarget(loan)} />
+                        <div className="loan-row-actions">
+                          {/* A PENDING or APPROVED loan hasn't been disbursed yet — no
+                              cash has moved, so there's nothing to collect against,
+                              no payment history to show, and nothing to preclose.
+                              It's visible here for status tracking only; View is the
+                              only action until it's actually disbursed. */}
+                          {loan.status === 'PENDING' || loan.status === 'APPROVED' ? (
+                            <>
+                              <ActionPill icon={<Eye style={{ width: 11, height: 11 }} />} label={t('loans.view_pill')} onClick={() => setViewingLoan(loan)} />
+                              <span style={{ fontSize: '0.68rem', color: '#94A3B8', fontStyle: 'italic', alignSelf: 'center' }}>
+                                {loan.status === 'PENDING' ? 'Awaiting review' : 'Awaiting disbursal'}
+                              </span>
+                            </>
                           ) : (
-                            <ActionPill icon={<CheckCircle2 style={{ width: 11, height: 11, color: 'var(--brand-primary, #15803D)' }} />} label="Preclose" onClick={() => setPrecloseTarget(loan)} />
+                            <>
+                              {(loan.status === 'ACTIVE' || loan.status === 'OVERDUE') && onCollectLoan && (
+                                <ActionPill icon={<Banknote style={{ width: 11, height: 11 }} />} label="Collect" tone="good" onClick={() => onCollectLoan(loan)} />
+                              )}
+                              <ActionPill icon={<Eye style={{ width: 11, height: 11 }} />} label={t('loans.view_pill')} onClick={() => setViewingLoan(loan)} />
+                              <ActionPill icon={<History style={{ width: 11, height: 11 }} />} label={t('loans.history_pill')} onClick={() => setHistoryLoan(loan)} />
+                              {loan.status === 'CLOSED' ? (
+                                <ActionPill icon={<FileCheck style={{ width: 11, height: 11, color: '#15803D' }} />} label="NOC" onClick={() => setNocTarget(loan)} />
+                              ) : (
+                                <ActionPill icon={<CheckCircle2 style={{ width: 11, height: 11, color: 'var(--brand-primary, #15803D)' }} />} label="Preclose" onClick={() => setPrecloseTarget(loan)} />
+                              )}
+                            </>
                           )}
                         </div>
                       </td>

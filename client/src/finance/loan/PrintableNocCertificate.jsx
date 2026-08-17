@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { ShieldCheck, Printer, ArrowLeft } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 
@@ -30,85 +31,32 @@ export default function PrintableNocCertificate({
     window.print();
   };
 
-  return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      zIndex: 999999,
-      background: 'rgba(15, 23, 42, 0.75)',
-      backdropFilter: 'blur(6px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 16,
-      overflowY: 'auto'
-    }}>
+  const content = (
+    <div className="printable-form-overlay">
+      {/* Floating Action Header (Hidden during actual browser print — the
+          global .printable-form-floating-btns / .no-print print rules in
+          _printable-form.scss handle this) */}
+      <div className="printable-form-floating-btns">
+        <button type="button" onClick={onClose} className="btn-close" title="Back to Loans">
+          <ArrowLeft style={{ width: 14, height: 14 }} />
+          <span>Back to Loans</span>
+        </button>
+
+        <button type="button" onClick={handlePrint} className="btn-print">
+          <Printer style={{ width: 14, height: 14 }} />
+          <span>Print NOC Certificate</span>
+        </button>
+      </div>
+
       <div style={{
         background: '#FFFFFF',
         borderRadius: 12,
         maxWidth: 800,
         width: '100%',
-        maxHeight: '94vh',
-        overflowY: 'auto',
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-        display: 'flex',
-        flexDirection: 'column',
         fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         color: '#0F172A'
       }}>
-        {/* Top Control Bar (Hidden during print) */}
-        <div className="no-print" style={{
-          padding: '12px 20px',
-          background: '#F8FAFC',
-          borderBottom: '1px solid #E2E8F0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              background: '#FFFFFF',
-              border: '1px solid #CBD5E1',
-              padding: '6px 14px',
-              borderRadius: 6,
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              color: '#475569',
-              cursor: 'pointer'
-            }}
-          >
-            <ArrowLeft style={{ width: 14, height: 14 }} />
-            <span>Back to Loans</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handlePrint}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              background: 'var(--brand-primary, #15803D)',
-              color: '#FFFFFF',
-              border: 'none',
-              padding: '6px 16px',
-              borderRadius: 6,
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-            }}
-          >
-            <Printer style={{ width: 14, height: 14 }} />
-            <span>Print NOC Certificate</span>
-          </button>
-        </div>
-
         {/* Certificate Printable Body */}
         <div id="printable-noc" style={{
           padding: '40px 48px',
@@ -273,29 +221,8 @@ export default function PrintableNocCertificate({
         </div>
 
       </div>
-
-      {/* Print Stylesheet */}
-      <style>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          #printable-noc, #printable-noc * {
-            visibility: visible;
-          }
-          #printable-noc {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            padding: 20px !important;
-            margin: 0 !important;
-          }
-          .no-print {
-            display: none !important;
-          }
-        }
-      `}</style>
     </div>
   );
+
+  return createPortal(content, document.body);
 }

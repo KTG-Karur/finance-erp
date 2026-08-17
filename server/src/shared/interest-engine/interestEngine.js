@@ -2,6 +2,7 @@ export function generateEmiSchedule({
   principal,
   monthlyInterestRate,
   tenureMonths,
+  tenureDays,
   repaymentFrequency = 'DAILY',
   interestCalculation = 'CONSTANT_FLAT',
   startDate
@@ -9,7 +10,11 @@ export function generateEmiSchedule({
   const P = parseFloat(principal) || 0;
   const monthlyRate = parseFloat(monthlyInterestRate) || 0;
   const months = parseFloat(tenureMonths) || 1;
-  const totalDays = Math.max(Math.round(months * 30), 1);
+  // Prefer the exact day count when the caller has one (e.g. a loan's real
+  // tenure_days) — deriving days from tenureMonths*30 only ever matches when
+  // the tenure happens to be a clean multiple of 30, otherwise it silently
+  // rounds the schedule (and total interest) up to the next month boundary.
+  const totalDays = tenureDays ? Math.max(Math.round(parseFloat(tenureDays)), 1) : Math.max(Math.round(months * 30), 1);
 
   let periodsCount;
   let ratePerPeriod;
@@ -67,8 +72,9 @@ export function generateEmiSchedule({
       });
     }
   } else {
-    // CONSTANT_FLAT
-    const totalInterest = Math.round(P * (monthlyRate / 100) * months * 100) / 100;
+    // CONSTANT_FLAT — computed off the exact day count, not the (possibly
+    // rounded-up) month count, so the total matches the loan's real tenure.
+    const totalInterest = Math.round(P * (monthlyRate / 100 / 30) * totalDays * 100) / 100;
     const totalPayable = Math.round((P + totalInterest) * 100) / 100;
     const emi = Math.round((totalPayable / periodsCount) * 100) / 100;
     const basePrincipalPerPeriod = Math.round((P / periodsCount) * 100) / 100;

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Percent, Plus, Trash2, Pencil, X, AlertTriangle, Calculator, Sigma, Check } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import { theme } from '../styles/theme.js';
-import { generateEmiSchedule, calculatePaymentAllocation, resolveSchemeRepaymentMethod, resolveSchemeInterestCalculation } from '../utils/loanCalculations';
+import { generateEmiSchedule, calculatePaymentAllocation, resolveSchemeRepaymentMethod, resolveSchemeInterestCalculation, rateBasisSuffix, convertDailyRateToBasis } from '../utils/loanCalculations';
 import FormulaDurationPreview from '../components/FormulaDurationPreview';
 import CustomFormulaModal from '../components/CustomFormulaModal';
 import SharedDropdown from '../components/common/SharedDropdown';
@@ -191,6 +191,7 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [formulaModalOpen, setFormulaModalOpen] = useState(false);
+  const [rateModalOpen, setRateModalOpen] = useState(false);
   const [schemeInterestMode, setSchemeInterestMode] = useState('RULE_BASED');
   const [ruleBaseAmt, setRuleBaseAmt] = useState(100);
   const [ruleBaseDays, setRuleBaseDays] = useState(100);
@@ -200,8 +201,12 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
 
   const updateRateFromRule = (amt, days, interest) => {
     if (amt > 0 && days > 0 && interest >= 0) {
-      const monthlyRate = Number(((interest / (amt * days)) * 30 * 100).toFixed(2));
-      setForm(prev => ({ ...prev, rate_per_unit: monthlyRate, unit_base: amt }));
+      const dailyRatePct = (interest / (amt * days)) * 100;
+      setForm(prev => ({
+        ...prev,
+        rate_per_unit: Number(convertDailyRateToBasis(dailyRatePct, prev.interest_basis).toFixed(4)),
+        unit_base: amt
+      }));
     }
   };
 
@@ -309,7 +314,20 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
               <p style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 400, margin: 0 }}>{t('scheme.modal.subtitle')}</p>
             </div>
           </div>
-          <button onClick={onClose} className="close-btn" type="button" style={{ background: 'transparent', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}><X style={{ width: 16, height: 16 }} /></button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button
+              type="button"
+              onClick={() => setRateModalOpen(true)}
+              title="Optional — derive the rate from an Amount/Days rule instead of entering it directly"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid #CBD5E1', borderRadius: 6,
+                padding: '5px 10px', fontSize: '0.7rem', fontWeight: 600, color: '#334155', background: '#F8FAFC', cursor: 'pointer'
+              }}
+            >
+              <Calculator style={{ width: 12, height: 12, color: 'var(--brand-primary, #15803D)' }} /> Rate Calculator
+            </button>
+            <button onClick={onClose} className="close-btn" type="button" style={{ background: 'transparent', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}><X style={{ width: 16, height: 16 }} /></button>
+          </div>
         </div>
         <form onSubmit={handleSubmit} style={{ padding: '20px 24px' }}>
           {error && <div className="form-alert form-alert--error" style={{ marginBottom: 16, background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger-text, #991B1B)', padding: '8px 12px', borderRadius: 8, fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 6 }}><AlertTriangle style={{ width: 14, height: 14 }} /><span>{error}</span></div>}
@@ -417,113 +435,24 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
               </div>
             )}
 
-            {/* Interest Specification Rule (Amount / Days / Interest Amount) */}
-            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '12px 14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <span style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155', display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <Percent style={{ width: 13, height: 13, color: 'var(--brand-primary, #15803D)' }} />
-                  Interest Rate Definition
-                </span>
-                <div style={{ display: 'inline-flex', background: '#E2E8F0', padding: 2, borderRadius: 6 }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSchemeInterestMode('RULE_BASED');
-                      updateRateFromRule(ruleBaseAmt, ruleBaseDays, ruleBaseInterest);
-                    }}
-                    style={{
-                      border: 'none', padding: '4px 9px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', borderRadius: 4,
-                      background: schemeInterestMode === 'RULE_BASED' ? 'var(--brand-primary, #15803D)' : 'transparent',
-                      color: schemeInterestMode === 'RULE_BASED' ? '#FFFFFF' : '#475569'
-                    }}
-                  >
-                    Amount / Days Rule
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSchemeInterestMode('PERCENTAGE')}
-                    style={{
-                      border: 'none', padding: '4px 9px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', borderRadius: 4,
-                      background: schemeInterestMode === 'PERCENTAGE' ? 'var(--brand-primary, #15803D)' : 'transparent',
-                      color: schemeInterestMode === 'PERCENTAGE' ? '#FFFFFF' : '#475569'
-                    }}
-                  >
-                    Direct % Rate
-                  </button>
-                </div>
-              </div>
-
-              {schemeInterestMode === 'RULE_BASED' ? (
-                <div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                    <div>
-                      <label style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 2 }}>Base Amount (₹)</label>
-                      <input
-                        type="number"
-                        value={ruleBaseAmt}
-                        onChange={e => {
-                          const val = Math.max(1, Number(e.target.value));
-                          setRuleBaseAmt(val);
-                          updateRateFromRule(val, ruleBaseDays, ruleBaseInterest);
-                        }}
-                        style={{ ...inputStyle, height: 34, fontSize: '0.78rem' }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 2 }}>Days Period</label>
-                      <input
-                        type="number"
-                        value={ruleBaseDays}
-                        onChange={e => {
-                          const val = Math.max(1, Number(e.target.value));
-                          setRuleBaseDays(val);
-                          updateRateFromRule(ruleBaseAmt, val, ruleBaseInterest);
-                        }}
-                        style={{ ...inputStyle, height: 34, fontSize: '0.78rem' }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 2 }}>Interest (₹)</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={ruleBaseInterest}
-                        onChange={e => {
-                          const val = Math.max(0, Number(e.target.value));
-                          setRuleBaseInterest(val);
-                          updateRateFromRule(ruleBaseAmt, ruleBaseDays, val);
-                        }}
-                        style={{ ...inputStyle, height: 34, fontSize: '0.78rem', color: 'var(--brand-primary, #15803D)', fontWeight: 700 }}
-                      />
-                    </div>
-                  </div>
-                  <div style={{ marginTop: 8, background: '#F0FEF5', border: '1px solid #A3F5C1', padding: '6px 10px', borderRadius: 6 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.71rem', color: '#075F27', fontWeight: 600 }}>
-                      <span>Single Day Interest (Base ₹{Number(ruleBaseAmt).toLocaleString('en-IN')}):</span>
-                      <strong>₹{(ruleBaseDays > 0 ? (ruleBaseInterest / ruleBaseDays) : 0).toFixed(2)} / day</strong>
-                    </div>
-                    <div style={{ marginTop: 3, paddingTop: 3, borderTop: '1px dashed #A3F5C1', display: 'flex', justifyContent: 'space-between', fontSize: '0.69rem', color: '#0F172A' }}>
-                      <span>Daily: <strong>{((ruleBaseAmt > 0 && ruleBaseDays > 0) ? ((ruleBaseInterest / (ruleBaseAmt * ruleBaseDays)) * 100) : 0).toFixed(3)}% / day</strong></span>
-                      <span>Monthly (30d): <strong>{form.rate_per_unit}% / month</strong></span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
-                  <div>
-                    <label style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 2 }}>Monthly Interest Rate (%)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      required
-                      value={form.rate_per_unit}
-                      onChange={e => setForm({ ...form, rate_per_unit: e.target.value })}
-                      placeholder="2.0"
-                      style={{ ...inputStyle, height: 34 }}
-                    />
-                  </div>
-                </div>
-              )}
+            {/* Interest Rate summary — full definition lives in the "Interest Rate Definition" popup (top of modal) */}
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <label style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+                <Percent style={{ width: 13, height: 13, color: 'var(--brand-primary, #15803D)' }} />
+                Interest Rate (% {rateBasisSuffix(form.interest_basis)})
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                value={form.rate_per_unit}
+                onChange={e => {
+                  setSchemeInterestMode('PERCENTAGE');
+                  setForm({ ...form, rate_per_unit: e.target.value });
+                }}
+                placeholder="2.0"
+                style={{ ...inputStyle, height: 32, width: 100, textAlign: 'right', fontWeight: 700, color: 'var(--brand-primary, #15803D)' }}
+              />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -609,6 +538,95 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
           return created;
         }}
       />
+
+      {rateModalOpen && (
+        <div className="saas-modal-backdrop" style={{ zIndex: 60 }}>
+          <div className="saas-modal-card" style={{ maxWidth: 460, width: '100%', fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif' }}>
+            <div className="saas-modal-header" style={{ borderBottom: '1px solid #E2E8F0', padding: '16px 20px' }}>
+              <div className="head-left" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div className="head-icon-badge" style={{ background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #15803D)', border: '1px solid var(--brand-primary-border, #A3F5C1)', width: 34, height: 34, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Percent style={{ width: 16, height: 16 }} />
+                </div>
+                <div className="head-titles">
+                  <h3 style={{ fontWeight: 600, fontSize: '0.98rem', color: '#0F172A', margin: 0 }}>Rate Calculator</h3>
+                  <p style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 400, margin: 0 }}>Optional — work out the monthly % from a familiar Amount/Days/Interest rule instead of entering it directly</p>
+                </div>
+              </div>
+              <button onClick={() => setRateModalOpen(false)} className="close-btn" type="button" style={{ background: 'transparent', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}><X style={{ width: 16, height: 16 }} /></button>
+            </div>
+
+            <div style={{ padding: '20px 24px' }}>
+              <div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 2 }}>Base Amount (₹)</label>
+                    <input
+                      type="number"
+                      value={ruleBaseAmt}
+                      onChange={e => {
+                        const val = Math.max(1, Number(e.target.value));
+                        setRuleBaseAmt(val);
+                        setSchemeInterestMode('RULE_BASED');
+                        updateRateFromRule(val, ruleBaseDays, ruleBaseInterest);
+                      }}
+                      style={{ ...inputStyle, height: 34, fontSize: '0.78rem' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 2 }}>Days Period</label>
+                    <input
+                      type="number"
+                      value={ruleBaseDays}
+                      onChange={e => {
+                        const val = Math.max(1, Number(e.target.value));
+                        setRuleBaseDays(val);
+                        setSchemeInterestMode('RULE_BASED');
+                        updateRateFromRule(ruleBaseAmt, val, ruleBaseInterest);
+                      }}
+                      style={{ ...inputStyle, height: 34, fontSize: '0.78rem' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 2 }}>Interest (₹)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={ruleBaseInterest}
+                      onChange={e => {
+                        const val = Math.max(0, Number(e.target.value));
+                        setRuleBaseInterest(val);
+                        setSchemeInterestMode('RULE_BASED');
+                        updateRateFromRule(ruleBaseAmt, ruleBaseDays, val);
+                      }}
+                      style={{ ...inputStyle, height: 34, fontSize: '0.78rem', color: 'var(--brand-primary, #15803D)', fontWeight: 700 }}
+                    />
+                  </div>
+                </div>
+                <div style={{ marginTop: 8, background: '#F0FEF5', border: '1px solid #A3F5C1', padding: '6px 10px', borderRadius: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.71rem', color: '#075F27', fontWeight: 600 }}>
+                    <span>Single Day Interest (Base ₹{Number(ruleBaseAmt).toLocaleString('en-IN')}):</span>
+                    <strong>₹{(ruleBaseDays > 0 ? (ruleBaseInterest / ruleBaseDays) : 0).toFixed(2)} / day</strong>
+                  </div>
+                  <div style={{ marginTop: 3, paddingTop: 3, borderTop: '1px dashed #A3F5C1', display: 'flex', justifyContent: 'space-between', fontSize: '0.69rem', color: '#0F172A' }}>
+                    <span>Daily: <strong>{((ruleBaseAmt > 0 && ruleBaseDays > 0) ? ((ruleBaseInterest / (ruleBaseAmt * ruleBaseDays)) * 100) : 0).toFixed(3)}% / day</strong></span>
+                    <span>Applied Rate ({rateBasisSuffix(form.interest_basis)}): <strong>{form.rate_per_unit}%</strong></span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
+                <button
+                  type="button"
+                  onClick={() => setRateModalOpen(false)}
+                  style={{ background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -679,7 +697,7 @@ export default function LoanSchemeMasterView({ schemes = [], onCreateScheme, onU
                 <tr key={s.id}>
                   <td style={{ textAlign: 'center', color: '#64748B' }}>{idx + 1}</td>
                   <td><span style={{ fontWeight: 500, color: '#0F172A' }}>{s.name}</span></td>
-                  <td style={{ textAlign: 'right', color: 'var(--color-info, #2563EB)', fontWeight: 500, fontFamily: 'SF Mono, Consolas, monospace' }}>{Number(s.rate_per_unit || 0)}%</td>
+                  <td style={{ textAlign: 'right', color: 'var(--color-info, #2563EB)', fontWeight: 500, fontFamily: 'SF Mono, Consolas, monospace' }}>{Number(s.rate_per_unit || 0)}% {rateBasisSuffix(s.interest_basis)}</td>
                   <td><span style={{ fontSize: '0.75rem', color: '#334155', fontWeight: 400 }}>{s.formula_type === 'CUSTOM' ? (s.accrual_mode === 'SCHEDULED' ? 'Fixed Installments' : 'Pay Anytime') : repaymentLabel(s)}</span></td>
                   <td><span style={{ fontSize: '0.75rem', color: s.formula_type === 'CUSTOM' ? '#7C3AED' : 'var(--brand-primary, #15803D)', fontWeight: 500 }}>{s.formula_type === 'CUSTOM' ? 'Custom Formula' : calcLabel(s)}</span></td>
                   <td><span style={{ fontSize: '0.75rem', color: '#334155', fontWeight: 400 }}>{frequencyLabel(s)}</span></td>

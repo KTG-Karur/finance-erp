@@ -144,6 +144,59 @@
     }
   }
 
+  // Sub-section dividers inside the left form panel — breaks one long flat
+  // list of inputs into scannable groups (Amount & Tenure / Interest Rate /
+  // Repayment & Fees) instead of everything reading as one undifferentiated block.
+  &__section-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--brand-primary, #15803D);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding-top: 4px;
+    margin-top: 4px;
+    border-top: 1px dashed var(--border-light, #E2E8F0);
+
+    &:first-of-type {
+      padding-top: 0;
+      margin-top: 0;
+      border-top: none;
+    }
+  }
+
+  // Overview / Schedule view switch — keeps only one dense block (charts vs.
+  // the full amortization table) on screen at a time instead of stacking both.
+  &__view-tabs {
+    display: inline-flex;
+    background: #F1F5F9;
+    border: 1px solid var(--border-light, #E2E8F0);
+    padding: 3px;
+    border-radius: 9px;
+    gap: 2px;
+    width: fit-content;
+  }
+
+  &__view-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: none;
+    background: transparent;
+    color: #475569;
+    padding: 7px 14px;
+    border-radius: 7px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &--active {
+      background: #FFFFFF;
+      color: var(--brand-primary, #15803D);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+  }
+
   &__form-group {
     display: flex;
     flex-direction: column;

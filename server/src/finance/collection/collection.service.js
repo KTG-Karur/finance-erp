@@ -181,7 +181,8 @@ export class CollectionService {
         penaltyPaid,
         entryDate: collectionDate,
         branch: branch || loan.branch,
-        createdBy
+        createdBy,
+        paymentMode: payment_mode
       });
       await conn.query(`UPDATE collections SET voucher_no = ?, new_principal_balance = ? WHERE id = ?`, [voucherNo, newPending, collectionId]);
 
@@ -328,7 +329,8 @@ export class CollectionService {
         penaltyPaid,
         entryDate: new Date().toISOString().slice(0, 10),
         branch: collection.branch || loan.branch,
-        createdBy: actor
+        createdBy: actor,
+        paymentMode: collection.payment_mode
       });
     }
   }

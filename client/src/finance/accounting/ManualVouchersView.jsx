@@ -404,6 +404,7 @@ export default function ManualVouchersView({
   bankAccounts = [],
   tenant,
   onCreateManualVoucher,
+  onRevertVoucher,
   selectedBranch = 'ALL'
 }) {
   const { t } = useLanguage();
@@ -419,7 +420,22 @@ export default function ManualVouchersView({
   const [currentPage, setCurrentPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [receiptVoucher, setReceiptVoucher] = useState(null);
+  const [revertTarget, setRevertTarget] = useState(null);
+  const [revertReason, setRevertReason] = useState('');
+  const [revertBusy, setRevertBusy] = useState(false);
+  const [revertError, setRevertError] = useState('');
   const pageSize = 10;
+
+  // A voucher already has a reversal posted against it once some other entry
+  // references it via ref_type='VOUCHER_REVERSAL' — used to hide the Revert
+  // button so the same mistake can't be reverted twice.
+  const revertedIds = useMemo(() => {
+    const s = new Set();
+    journalEntries.forEach(e => {
+      if (e.ref_type === 'VOUCHER_REVERSAL' && e.ref_id != null) s.add(String(e.ref_id));
+    });
+    return s;
+  }, [journalEntries]);
 
   const accountName = (code) => {
     const acc = chartOfAccounts.find(a => a.code === code);
@@ -555,14 +571,33 @@ export default function ManualVouchersView({
                 <td>{je.created_by || '—'}</td>
                 <td className="num" style={{ fontWeight: 600, color: '#0F172A' }}>₹{fmt(lineTotal(je))}</td>
                 <td style={{ textAlign: 'right' }}>
-                  <button
-                    type="button"
-                    onClick={() => setReceiptVoucher(je)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: '1px solid #E2E8F0', background: '#FFFFFF', color: '#334155', borderRadius: 6, padding: '4px 9px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    <Printer style={{ width: 11, height: 11 }} />
-                    <span>{t('fin.print_voucher_btn')}</span>
-                  </button>
+                  <div style={{ display: 'inline-flex', gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => setReceiptVoucher(je)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: '1px solid #E2E8F0', background: '#FFFFFF', color: '#334155', borderRadius: 6, padding: '4px 9px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      <Printer style={{ width: 11, height: 11 }} />
+                      <span>{t('fin.print_voucher_btn')}</span>
+                    </button>
+                    {!je.is_auto && je.ref_type !== 'VOUCHER_REVERSAL' && !revertedIds.has(String(je.db_id)) && onRevertVoucher && (
+                      <button
+                        type="button"
+                        onClick={() => { setRevertTarget(je); setRevertReason(''); setRevertError(''); }}
+                        title="Undo this voucher with a mirror-image reversal"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: '1px solid var(--color-danger-border, #FECACA)', background: 'var(--color-danger-light, #FEF2F2)', color: 'var(--color-danger, #DC2626)', borderRadius: 6, padding: '4px 9px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        <Trash2 style={{ width: 11, height: 11 }} />
+                        <span>Revert</span>
+                      </button>
+                    )}
+                    {je.ref_type === 'VOUCHER_REVERSAL' && (
+                      <span style={{ fontSize: '0.68rem', color: '#94A3B8', fontStyle: 'italic', alignSelf: 'center' }}>Reversal</span>
+                    )}
+                    {revertedIds.has(String(je.db_id)) && (
+                      <span style={{ fontSize: '0.68rem', color: '#94A3B8', fontStyle: 'italic', alignSelf: 'center' }}>Reverted</span>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -606,6 +641,75 @@ export default function ManualVouchersView({
           typeLabel={VOUCHER_TYPE_LABEL_KEY[receiptVoucher.voucher_type] ? t(VOUCHER_TYPE_LABEL_KEY[receiptVoucher.voucher_type]) : receiptVoucher.voucher_type}
           onClose={() => setReceiptVoucher(null)}
         />
+      )}
+
+      {revertTarget && (
+        <div className="saas-modal-backdrop" style={{ zIndex: 100000 }}>
+          <div className="saas-modal-card" style={{ maxWidth: 440 }}>
+            <div className="saas-modal-header">
+              <div className="head-left">
+                <div className="head-icon-badge" style={{ background: 'var(--color-danger-light, #FEF2F2)', borderColor: 'var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)' }}>
+                  <Trash2 style={{ width: 18, height: 18 }} />
+                </div>
+                <div className="head-titles">
+                  <h3>Revert Voucher {revertTarget.id}</h3>
+                  <p>Posts a mirror-image reversal — the original stays on record, unchanged.</p>
+                </div>
+              </div>
+              <button onClick={() => setRevertTarget(null)} className="close-btn" type="button" disabled={revertBusy}><X style={{ width: 16, height: 16 }} /></button>
+            </div>
+            <div className="saas-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '12px 14px', fontSize: '0.8rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ color: '#64748B' }}>Description:</span>
+                  <strong style={{ color: '#0F172A', textAlign: 'right' }}>{revertTarget.narration}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#64748B' }}>Amount:</span>
+                  <strong style={{ color: '#0F172A' }}>₹{fmt(lineTotal(revertTarget))}</strong>
+                </div>
+              </div>
+
+              {revertError && <div className="form-alert form-alert--error"><span>{revertError}</span></div>}
+
+              <div>
+                <label style={{ fontSize: '0.75rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>
+                  Reason for reverting
+                </label>
+                <input
+                  type="text"
+                  value={revertReason}
+                  onChange={(e) => setRevertReason(e.target.value)}
+                  placeholder="e.g. Wrong voucher type selected"
+                  style={{ width: '100%', height: 40, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', boxSizing: 'border-box' }}
+                />
+              </div>
+            </div>
+            <div className="saas-modal-footer">
+              <button type="button" onClick={() => setRevertTarget(null)} disabled={revertBusy} className="btn-cancel">{t('btn.cancel')}</button>
+              <button
+                type="button"
+                disabled={revertBusy}
+                onClick={async () => {
+                  setRevertBusy(true);
+                  setRevertError('');
+                  try {
+                    await onRevertVoucher(revertTarget.db_id, revertReason);
+                    setRevertTarget(null);
+                  } catch (err) {
+                    setRevertError(err?.response?.data?.message || err?.message || 'Failed to revert this voucher.');
+                  } finally {
+                    setRevertBusy(false);
+                  }
+                }}
+                className="btn-submit"
+                style={{ background: 'var(--color-danger, #DC2626)' }}
+              >
+                {revertBusy ? 'Reverting...' : 'Confirm Revert'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

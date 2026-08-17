@@ -320,6 +320,7 @@ export function normalizeLedgerEntry(row) {
     ref_id: row.ref_id,
     branch: row.branch,
     voucher_type: row.voucher_type,
+    is_auto: Boolean(row.is_auto),
     created_by: row.created_by,
     created_at: row.created_at
   };

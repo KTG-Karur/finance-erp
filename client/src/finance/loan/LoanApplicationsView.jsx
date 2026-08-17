@@ -12,7 +12,8 @@ import {
   Plus,
   ChevronLeft,
   ChevronRight,
-  RotateCcw
+  RotateCcw,
+  Printer
 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 
@@ -273,9 +274,14 @@ export default function LoanApplicationsView({
     );
   }
 
+  // "Approved" here IS the disbursal queue — an approved application sits in
+  // this exact tab until someone disburses it, at which point its status
+  // flips to ACTIVE and it naturally drops out of allAppsList (PENDING /
+  // APPROVED / REJECTED only) below. Labeling it "Disbursal" makes that
+  // relationship obvious instead of implying two separate stages.
   const TABS = [
     { id: 'PENDING', label: t('kyc.pending_review'), count: pendingAppsCount },
-    { id: 'APPROVED', label: tStatus('APPROVED'), count: approvedAppsCount },
+    { id: 'APPROVED', label: 'Disbursal', count: approvedAppsCount },
     { id: 'REJECTED', label: tStatus('REJECTED'), count: rejectedAppsCount }
   ];
 
@@ -390,6 +396,7 @@ export default function LoanApplicationsView({
                     <td style={{ textAlign: 'right' }}>
                       <div style={{ display: 'inline-flex', gap: 6 }}>
                         <ActionPill icon={<Eye style={{ width: 11, height: 11 }} />} label="View" onClick={() => handleOpenModal(loan, 'VIEW')} />
+                        <ActionPill icon={<Printer style={{ width: 11, height: 11 }} />} label="Print" onClick={() => handleOpenModal(loan, 'PRINT')} />
                         {loan.status === 'PENDING' && (
                           <>
                             <ActionPill icon={<CheckCircle2 style={{ width: 11, height: 11 }} />} label="Approve" tone="good" onClick={() => handleOpenModal(loan, 'APPROVE')} />

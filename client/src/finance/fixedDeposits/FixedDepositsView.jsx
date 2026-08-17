@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   Landmark, Plus, Eye, X, AlertTriangle, CheckCircle2, LogOut, ArrowLeft,
-  UserCheck, ChevronLeft, ChevronRight, Search, Printer, FileText, Wallet
+  UserCheck, ChevronLeft, ChevronRight, Search, Printer, FileText, Wallet, History
 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import FixedDepositCertificateModal from '../../components/FixedDepositCertificateModal';
 import PrintableFixedDepositRegister from './PrintableFixedDepositRegister';
 import SharedDropdown from '../../components/common/SharedDropdown';
+import TransactionHistoryModal from '../../components/TransactionHistoryModal';
 
 const FORM_MAX_WIDTH = 780;
 
@@ -296,10 +297,11 @@ function Pagination({ page, setPage, totalPages, total, startIndex, pageSize }) 
   );
 }
 
-export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], tenant, branchesList = [], selectedBranch = 'ALL', onCreateFd, onMatureFd, onPrematureCloseFd, onPayFdMonthlyInterest }) {
+export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], tenant, user, branchesList = [], selectedBranch = 'ALL', journalEntries = [], onCreateFd, onMatureFd, onPrematureCloseFd, onPayFdMonthlyInterest }) {
   const { t, tStatus } = useLanguage();
   const [screen, setScreen] = useState('LIST'); // 'LIST' | 'BOOK'
   const [confirmAction, setConfirmAction] = useState(null); // { type: 'MATURE'|'PREMATURE', fd }
+  const [historyFd, setHistoryFd] = useState(null);
   const [payInterestFd, setPayInterestFd] = useState(null);
   const [payInterestMode, setPayInterestMode] = useState('CASH');
   const [payInterestLoading, setPayInterestLoading] = useState(false);
@@ -494,6 +496,7 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
                 <td style={{ textAlign: 'right' }}>
                   <div style={{ display: 'inline-flex', gap: 6 }}>
                     <ActionPill icon={<Printer style={{ width: 11, height: 11 }} />} label="Print" tone="neutral" onClick={() => setCertificateFd(fd)} />
+                    <ActionPill icon={<History style={{ width: 11, height: 11 }} />} label="History" tone="neutral" onClick={() => setHistoryFd(fd)} />
                     {fd.status === 'ACTIVE' && (
                       <>
                         {fd.scheme === 'MONTHLY_PAYOUT' && (
@@ -625,6 +628,11 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
         const principal = Number(payInterestFd.principal_amount) || 0;
         const rate = Number(payInterestFd.interest_rate) || 0;
         const monthlyAmount = Math.round(principal * (rate / 100) / 12);
+        const monthsAlreadyPaid = journalEntries.filter(e =>
+          e.ref_type === 'FD_INTEREST_PAYOUT' && String(e.ref_id) === String(payInterestFd.id)
+        ).length;
+        const upcomingMonthNumber = monthsAlreadyPaid + 1;
+        const today = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
         return (
           <div className="saas-modal-backdrop">
             <div className="saas-modal-card" style={{ maxWidth: 400 }}>
@@ -654,13 +662,44 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
                     <p style={{ margin: 0, fontSize: '0.85rem', color: '#0F172A', fontWeight: 600 }}>
                       ₹{fmt(payInterestResult.amount)} paid — month {payInterestResult.month_number} of {payInterestResult.tenure_months}
                     </p>
-                    <p style={{ margin: '4px 0 0 0', fontSize: '0.72rem', color: '#64748B' }}>Voucher {payInterestResult.voucher_no}</p>
+                    <div style={{ marginTop: 12, textAlign: 'left', background: '#FFFFFF', border: '1px solid var(--brand-primary-border, #A3F5C1)', borderRadius: 8, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.76rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#64748B' }}>Paid by:</span>
+                        <strong style={{ color: '#0F172A' }}>{payInterestResult.created_by || user?.name || '—'}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#64748B' }}>Date:</span>
+                        <strong style={{ color: '#0F172A' }}>{payInterestResult.entry_date || today}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#64748B' }}>For month:</span>
+                        <strong style={{ color: '#0F172A' }}>Month {payInterestResult.month_number} of {payInterestResult.tenure_months}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#64748B' }}>Voucher No:</span>
+                        <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>{payInterestResult.voucher_no}</strong>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <>
                     <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 16px' }}>
                       <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>This Month's Interest</span>
                       <strong style={{ fontSize: '1.2rem', color: '#0F172A' }}>₹{fmt(monthlyAmount)}</strong>
+                    </div>
+                    <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.76rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#64748B' }}>Paying as:</span>
+                        <strong style={{ color: '#0F172A' }}>{user?.name || '—'}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#64748B' }}>Date:</span>
+                        <strong style={{ color: '#0F172A' }}>{today}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#64748B' }}>This will record:</span>
+                        <strong style={{ color: '#0F172A' }}>Month {upcomingMonthNumber} of {payInterestFd.tenure_months}</strong>
+                      </div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#334155' }}>Payment Mode</label>
@@ -721,6 +760,19 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
           fd={certificateFd}
           labels={certificateLabels(certificateFd)}
           onClose={() => setCertificateFd(null)}
+        />
+      )}
+
+      {historyFd && (
+        <TransactionHistoryModal
+          title="Fixed Deposit Transaction History"
+          accountLabel={`${historyFd.fd_account_no} — ${historyFd.customer_name}`}
+          tenant={tenant}
+          entries={journalEntries.filter(e =>
+            ['FD_BOOKING', 'FD_INTEREST_PAYOUT', 'FD_MATURITY', 'FD_PREMATURE_CLOSE'].includes(e.ref_type) &&
+            String(e.ref_id) === String(historyFd.id)
+          )}
+          onClose={() => setHistoryFd(null)}
         />
       )}
 
