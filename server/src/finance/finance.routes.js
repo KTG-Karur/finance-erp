@@ -8,6 +8,8 @@ import investorRoutes from './investors/investor.routes.js';
 import fixedDepositRoutes from './fixedDeposits/fixedDeposit.routes.js';
 import recurringDepositRoutes from './recurringDeposits/recurringDeposit.routes.js';
 import expenseRoutes from './expenses/expense.routes.js';
+import bankRoutes from './bank/bank.routes.js';
+import eodRoutes from './eod/eod.routes.js';
 
 export default async function financeRoutes(fastify, opts) {
   await fastify.register(loanRoutes);
@@ -20,4 +22,7 @@ export default async function financeRoutes(fastify, opts) {
   await fastify.register(fixedDepositRoutes);
   await fastify.register(recurringDepositRoutes);
   await fastify.register(expenseRoutes);
+  await fastify.register(bankRoutes, { prefix: '/bank-accounts' });
+  await fastify.register(eodRoutes, { prefix: '/eod' });
 }
+

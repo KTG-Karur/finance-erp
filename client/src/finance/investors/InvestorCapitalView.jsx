@@ -4,6 +4,8 @@ import {
   Eye, ArrowLeft, Search, Camera, Phone, Mail, MapPin, UserCheck, ChevronLeft, ChevronRight, TrendingUp
 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
+import SharedDropdown from '../../components/common/SharedDropdown';
+import SharedDatePicker from '../../components/common/SharedDatePicker';
 
 const FORM_MAX_WIDTH = 780;
 
@@ -95,19 +97,20 @@ function StatusTabs({ tabs, active, onChange }) {
 }
 
 function Pagination({ page, setPage, totalPages, total, startIndex, pageSize }) {
+  const { t } = useLanguage();
   return (
     <div className="table-pagination">
       <div className="table-pagination__info">
-        Showing <strong>{total === 0 ? 0 : startIndex + 1}</strong> to <strong>{Math.min(startIndex + pageSize, total)}</strong> of <strong>{total}</strong> entries
+        {t('pagination.showing', 'Showing')} <strong>{total === 0 ? 0 : startIndex + 1}</strong> {t('pagination.to', 'to')} <strong>{Math.min(startIndex + pageSize, total)}</strong> {t('pagination.of', 'of')} <strong>{total}</strong> {t('pagination.entries', 'entries')}
       </div>
       <div className="table-pagination__controls">
         <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
           <ChevronLeft style={{ width: 14, height: 14 }} />
-          <span>Previous</span>
+          <span>{t('btn.prev', 'Previous')}</span>
         </button>
-        <span className="page-indicator">Page {page} of {totalPages}</span>
+        <span className="page-indicator">{t('pagination.page', 'Page')} {page} {t('pagination.of', 'of')} {totalPages}</span>
         <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
-          <span>Next</span>
+          <span>{t('btn.next', 'Next')}</span>
           <ChevronRight style={{ width: 14, height: 14 }} />
         </button>
       </div>
@@ -239,10 +242,14 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
           <div className="form-row form-row--3">
             <div className="form-group">
               <label>{t('col.status')}</label>
-              <select value={form.status} onChange={e => setField('status', e.target.value)} className="input-control">
-                <option value="ACTIVE">{tStatus('ACTIVE')}</option>
-                <option value="EXITED">{tStatus('EXITED')}</option>
-              </select>
+              <SharedDropdown
+                value={form.status}
+                onChange={e => setField('status', e.target.value)}
+                options={[
+                  { value: 'ACTIVE', label: tStatus('ACTIVE') },
+                  { value: 'EXITED', label: tStatus('EXITED') }
+                ]}
+              />
             </div>
             <div className="form-group">
               <label>{t('form.pincode')}</label>
@@ -270,25 +277,33 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
           <div className="cf-pane-title" style={{ paddingBottom: 12 }}>
             <TrendingUp style={{ width: 16, height: 16, color: 'var(--brand-primary, #15803D)' }} />
             <div>
-              <h3>Capital</h3>
-              <p>How much this investor has put in</p>
+              <h3>{t('inv.kpi_total_capital', 'Capital')}</h3>
+              <p>{t('inv.subtitle', 'How much this investor has put in')}</p>
             </div>
           </div>
           <div className="form-row form-row--2">
             <div className="form-group">
-              <label>Capital Amount (₹)</label>
+              <label>{t('inv.initial_capital', 'Capital Amount (₹)')}</label>
               <input type="number" min="0" value={form.capital_amount} onChange={e => setField('capital_amount', e.target.value)} className="input-control mono" placeholder="e.g. 2500000" />
             </div>
             <div className="form-group">
-              <label>Join Date</label>
-              <input type="date" value={form.join_date || ''} onChange={e => setField('join_date', e.target.value)} className="input-control" />
+              <label>{t('inv.onboard_date', 'Join Date')}</label>
+              <SharedDatePicker
+                value={form.join_date || ''}
+                onChange={e => setField('join_date', e.target.value)}
+                buttonStyle={{ height: 42 }}
+              />
             </div>
           </div>
           {form.status === 'EXITED' && (
             <div className="form-row form-row--2">
               <div className="form-group">
-                <label>Exit Date</label>
-                <input type="date" value={form.exit_date || ''} onChange={e => setField('exit_date', e.target.value)} className="input-control" />
+                <label>{t('col.exit_date', 'Exit Date')}</label>
+                <SharedDatePicker
+                  value={form.exit_date || ''}
+                  onChange={e => setField('exit_date', e.target.value)}
+                  buttonStyle={{ height: 42 }}
+                />
               </div>
             </div>
           )}
@@ -625,7 +640,7 @@ export default function InvestorCapitalView({
           <thead>
             <tr>
               <th style={{ width: 50, textAlign: 'center' }}>{t('col.sno')}</th>
-              <th>Investor ID</th>
+              <th>{t('inv.investor_id', 'Investor ID')}</th>
               <th>{t('col.investor')}</th>
               <th>{t('col.phone')}</th>
               <th>{t('col.email_address')}</th>

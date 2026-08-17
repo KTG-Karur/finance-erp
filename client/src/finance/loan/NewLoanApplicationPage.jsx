@@ -23,6 +23,15 @@ import {
 import PrintableLoanApplicationSheet from './PrintableLoanApplicationSheet';
 import CustomerFormPage from '../borrowers/CustomerFormPage';
 import { useLanguage } from '../../i18n/LanguageContext';
+import {
+  generateEmiSchedule,
+  resolveSchemeRepaymentMethod,
+  resolveSchemeInterestCalculation,
+  convertRateToMonthly,
+  rateBasisSuffix
+} from '../../utils/loanCalculations';
+import SharedDropdown from '../../components/common/SharedDropdown';
+import SharedDatePicker from '../../components/common/SharedDatePicker';
 
 function tp(t, key, vars) {
   let str = t(key);
@@ -37,6 +46,7 @@ export default function NewLoanApplicationPage({
   loanSchemes = [],
   branches = [],
   tenant,
+  initialTerms = null,
   onCreateBorrower,
   onCancel,
   onSubmit
@@ -47,7 +57,14 @@ export default function NewLoanApplicationPage({
   // offered for fresh loans.
   const activeSchemes = loanSchemes.filter(s => s.is_active);
 
-  // No customer or loan scheme pre-selected initially
+  // Pre-match scheme if initialTerms passed from Estimation
+  const initialSchemeMatch = initialTerms?.schemeId
+    ? activeSchemes.find(s => String(s.id) === String(initialTerms.schemeId))
+    : initialTerms?.schemeName
+      ? activeSchemes.find(s => (s.name === initialTerms.schemeName || s.scheme_name === initialTerms.schemeName))
+      : null;
+
+  // No customer pre-selected initially
   const [selectedBorrowerId, setSelectedBorrowerId] = useState('');
 
   // Creating a new customer happens in a full-screen overlay on TOP of this form —
@@ -55,16 +72,16 @@ export default function NewLoanApplicationPage({
   // the detour instead of being lost to a remount.
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
   const [customerCreatedMsg, setCustomerCreatedMsg] = useState('');
-  const [schemeId, setSchemeId] = useState('');
+  const [schemeId, setSchemeId] = useState(() => initialSchemeMatch ? String(initialSchemeMatch.id) : (initialTerms?.schemeId ? String(initialTerms.schemeId) : ''));
 
-  // Core Loan Terms State — completely empty by default
-  const [loanTerms, setLoanTerms] = useState({
-    principal_amount: '',
-    monthly_interest_rate: '',
-    tenure_months: '',
-    repayment_frequency: '',
-    purpose: ''
-  });
+  // Core Loan Terms State — pre-filled if initialTerms provided from Estimator
+  const [loanTerms, setLoanTerms] = useState(() => ({
+    principal_amount: initialTerms?.principal != null ? String(initialTerms.principal) : '',
+    monthly_interest_rate: initialTerms?.monthlyRate != null ? String(initialTerms.monthlyRate) : (initialSchemeMatch?.rate_per_unit != null ? String(convertRateToMonthly(initialSchemeMatch.rate_per_unit, initialSchemeMatch.interest_basis)) : ''),
+    tenure_months: initialTerms?.tenureMonths != null ? String(initialTerms.tenureMonths) : '',
+    repayment_frequency: initialTerms?.repaymentFrequency || initialSchemeMatch?.repayment_frequency || '',
+    purpose: initialTerms?.purpose || ''
+  }));
 
   const selectedScheme = activeSchemes.find(s => String(s.id) === String(schemeId)) || null;
 
@@ -77,7 +94,7 @@ export default function NewLoanApplicationPage({
     if (scheme) {
       setLoanTerms(prev => ({
         ...prev,
-        monthly_interest_rate: scheme.rate_per_unit != null ? Number(scheme.rate_per_unit) : '',
+        monthly_interest_rate: scheme.rate_per_unit != null ? convertRateToMonthly(scheme.rate_per_unit, scheme.interest_basis) : '',
         repayment_frequency: scheme.repayment_frequency || prev.repayment_frequency
       }));
     }
@@ -142,52 +159,59 @@ export default function NewLoanApplicationPage({
     const p = parseFloat(loanTerms.principal_amount) || 0;
     const mRate = parseFloat(loanTerms.monthly_interest_rate) || 0;
     const months = parseFloat(loanTerms.tenure_months) || 1;
-    const totalDays = Math.round(months * 30);
+    const totalDays = Math.max(Math.round(months * 30), 1);
+    const freq = loanTerms.repayment_frequency || 'DAILY';
 
-    const repMethod = selectedScheme?.repayment_method || (selectedScheme?.repayment_mode === 'INTEREST_ONLY' ? 'INTEREST_ONLY' : 'EMI');
-    const calcStrategy = selectedScheme?.interest_calculation || (selectedScheme?.repayment_mode === 'FLEXIBLE' ? 'FLEXIBLE_REDUCING' : 'CONSTANT_FLAT');
+    const repMethod = resolveSchemeRepaymentMethod(selectedScheme);
+    const calcStrategy = resolveSchemeInterestCalculation(selectedScheme);
 
-    let totalInterest = 0;
-    let installmentAmount = 0;
-
-    if (repMethod === 'INTEREST_ONLY') {
-      // Interest-Only Repayment Method
-      if (calcStrategy === 'FLEXIBLE_REDUCING') {
-        // Interest Only + Flexible (Reducing Interest as Principal is paid)
-        totalInterest = Math.round(p * (mRate / 100) * months);
-      } else {
-        // Interest Only + Constant (Flat Interest on Original Amount)
-        totalInterest = Math.round(p * (mRate / 100) * months);
-      }
-      installmentAmount = Math.ceil(totalInterest / Math.max(months, 1));
-    } else {
-      // EMI Repayment Method
-      if (calcStrategy === 'FLEXIBLE_REDUCING') {
-        // EMI + Flexible (Reducing EMI)
-        const r = (mRate / 100);
-        if (r > 0) {
-          installmentAmount = Math.ceil((p * r * Math.pow(1 + r, months)) / (Math.pow(1 + r, months) - 1));
-          totalInterest = Math.round((installmentAmount * months) - p);
-        } else {
-          installmentAmount = Math.ceil(p / months);
-          totalInterest = 0;
-        }
-      } else {
-        // EMI + Constant (Flat EMI)
-        totalInterest = Math.round(p * (mRate / 100) * months);
-        const totalPayableCalc = p + totalInterest;
-        if (loanTerms.repayment_frequency === 'DAILY') {
-          installmentAmount = Math.ceil(totalPayableCalc / Math.max(totalDays, 1));
-        } else if (loanTerms.repayment_frequency === 'WEEKLY') {
-          const weeks = Math.max(Math.round(totalDays / 7), 1);
-          installmentAmount = Math.ceil(totalPayableCalc / weeks);
-        } else {
-          installmentAmount = Math.ceil(totalPayableCalc / Math.max(months, 1));
-        }
-      }
+    if (p <= 0) {
+      return {
+        principal: 0,
+        totalInterest: 0,
+        totalPayable: 0,
+        installmentAmount: 0,
+        totalDays,
+        repMethod,
+        calcStrategy
+      };
     }
 
-    const totalPayable = repMethod === 'INTEREST_ONLY' ? p + totalInterest : (installmentAmount * (loanTerms.repayment_frequency === 'DAILY' ? totalDays : months));
+    if (repMethod === 'INTEREST_ONLY') {
+      const totalInterest = Math.round(p * (mRate / 100) * months);
+      let installmentAmount = 0;
+      if (freq === 'DAILY') {
+        installmentAmount = Math.ceil(totalInterest / totalDays);
+      } else if (freq === 'WEEKLY') {
+        const weeks = Math.max(Math.round(totalDays / 7), 1);
+        installmentAmount = Math.ceil(totalInterest / weeks);
+      } else {
+        installmentAmount = Math.ceil(totalInterest / Math.max(months, 1));
+      }
+
+      return {
+        principal: p,
+        totalInterest,
+        totalPayable: p + totalInterest,
+        installmentAmount,
+        totalDays,
+        repMethod,
+        calcStrategy
+      };
+    }
+
+    // Standard EMI Repayment Method (Constant Flat or Flexible Reducing)
+    const schedule = generateEmiSchedule({
+      principal: p,
+      monthlyInterestRate: mRate,
+      tenureMonths: months,
+      repaymentFrequency: freq,
+      interestCalculation: calcStrategy
+    });
+
+    const totalPayable = schedule.reduce((sum, item) => sum + (item.emi || 0), 0);
+    const totalInterest = Math.max(0, totalPayable - p);
+    const installmentAmount = schedule[0]?.emi || (months > 0 ? Math.ceil(totalPayable / months) : 0);
 
     return {
       principal: p,
@@ -320,8 +344,12 @@ export default function NewLoanApplicationPage({
       monthly_interest_rate: parseFloat(loanTerms.monthly_interest_rate),
       tenure_months: parseFloat(loanTerms.tenure_months),
       repayment_frequency: loanTerms.repayment_frequency,
+      repayment_method: creditSummary.repMethod,
+      interest_calculation: creditSummary.calcStrategy,
       purpose: loanTerms.purpose,
       installment_amount: creditSummary.installmentAmount,
+      total_interest: creditSummary.totalInterest,
+      total_payable: creditSummary.totalPayable,
       nominee: selectedDocType === 'NOMINEE' ? {
         ...nominee,
         final_relationship: nominee.relationship === 'Other' ? nominee.custom_relationship : nominee.relationship
@@ -438,27 +466,26 @@ export default function NewLoanApplicationPage({
               )}
               <div className="form-group-full">
                 <label className="req">{t('nla.select_applicant_customer')}</label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <select
-                    value={selectedBorrowerId}
-                    onChange={(e) => setSelectedBorrowerId(e.target.value)}
-                    className="input-field-select"
-                    style={{ flex: 1 }}
-                  >
-                    <option value="">{t('nla.select_customer_placeholder')}</option>
-                    {borrowers.map(b => (
-                      <option key={b.id} value={b.id}>
-                        {b.full_name} ({b.borrower_code || 'KTG-CUST'}) - Ph: {b.phone}
-                      </option>
-                    ))}
-                  </select>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ flex: 1 }}>
+                    <SharedDropdown
+                      value={selectedBorrowerId}
+                      onChange={(e) => setSelectedBorrowerId(e.target.value)}
+                      placeholder={t('nla.select_customer_placeholder')}
+                      searchable
+                      options={borrowers.map(b => ({
+                        value: b.id,
+                        label: `${b.full_name} (${b.borrower_code || 'KTG-CUST'}) - Ph: ${b.phone}`
+                      }))}
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={() => setShowCreateCustomer(true)}
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
                       border: '1px solid #CBD5E1', background: '#F8FAFC', color: '#334155', borderRadius: 8,
-                      padding: '0 14px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer'
+                      height: 36, padding: '0 14px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer'
                     }}
                   >
                     <UserPlus style={{ width: 15, height: 15 }} />
@@ -502,16 +529,15 @@ export default function NewLoanApplicationPage({
 
                 <div className="form-group">
                   <label className="req">{t('nla.select_loan_scheme')}</label>
-                  <select
+                  <SharedDropdown
                     value={schemeId}
                     onChange={handleSchemeChange}
-                    className="input-field-select"
-                  >
-                    <option value="">-- Select Loan Scheme --</option>
-                    {activeSchemes.map(s => (
-                      <option key={s.id} value={s.id}>{s.name} ({s.rate_per_unit}% p.m.)</option>
-                    ))}
-                  </select>
+                    placeholder="-- Select Loan Scheme --"
+                    options={activeSchemes.map(s => ({
+                      value: s.id,
+                      label: `${s.name} (${s.rate_per_unit}% ${rateBasisSuffix(s.interest_basis)})`
+                    }))}
+                  />
                   {formErrors.scheme && <span className="err-txt">{formErrors.scheme}</span>}
                   {selectedScheme && (selectedScheme.min_amount || selectedScheme.max_amount) && (
                     <span style={{ fontSize: '0.68rem', color: '#94A3B8', display: 'block', marginTop: 4 }}>
@@ -561,17 +587,17 @@ export default function NewLoanApplicationPage({
 
                 <div className="form-group">
                   <label className="req">{t('nla.installment_frequency')}</label>
-                  <select
+                  <SharedDropdown
                     name="repayment_frequency"
                     value={loanTerms.repayment_frequency}
                     onChange={handleTermChange}
-                    className="input-field-select"
-                  >
-                    <option value="">-- Select Frequency --</option>
-                    <option value="DAILY">{t('nla.freq_daily_emi')}</option>
-                    <option value="WEEKLY">{t('nla.freq_weekly_installment')}</option>
-                    <option value="MONTHLY">{t('nla.freq_monthly_emi')}</option>
-                  </select>
+                    placeholder="-- Select Frequency --"
+                    options={[
+                      { value: 'DAILY', label: t('nla.freq_daily_emi') },
+                      { value: 'WEEKLY', label: t('nla.freq_weekly_installment') },
+                      { value: 'MONTHLY', label: t('nla.freq_monthly_emi') }
+                    ]}
+                  />
                   {formErrors.repayment_frequency && <span className="err-txt">{formErrors.repayment_frequency}</span>}
                 </div>
 
@@ -606,18 +632,18 @@ export default function NewLoanApplicationPage({
               {/* Document Dropdown Selection ('NONE' initially) */}
               <div className="form-group-full">
                 <label>{t('nla.select_verification_doc_type')}</label>
-                <select
+                <SharedDropdown
                   value={selectedDocType}
                   onChange={(e) => setSelectedDocType(e.target.value)}
-                  className="input-field-select"
-                >
-                  <option value="NONE">{t('nla.sec_none')}</option>
-                  <option value="NOMINEE">{t('nla.sec_nominee')}</option>
-                  <option value="PROPERTY">{t('nla.sec_property')}</option>
-                  <option value="VEHICLE">{t('nla.sec_vehicle')}</option>
-                  <option value="CHEQUE">{t('nla.sec_cheque')}</option>
-                  <option value="OTHERS">{t('nla.sec_others')}</option>
-                </select>
+                  options={[
+                    { value: 'NONE', label: t('nla.sec_none') },
+                    { value: 'NOMINEE', label: t('nla.sec_nominee') },
+                    { value: 'PROPERTY', label: t('nla.sec_property') },
+                    { value: 'VEHICLE', label: t('nla.sec_vehicle') },
+                    { value: 'CHEQUE', label: t('nla.sec_cheque') },
+                    { value: 'OTHERS', label: t('nla.sec_others') }
+                  ]}
+                />
               </div>
 
               {/* Dynamic Revealed Input Fields Container */}
@@ -646,33 +672,32 @@ export default function NewLoanApplicationPage({
 
                     <div className="form-group">
                       <label className="req">{t('nla.nominee_dob')}</label>
-                      <input
-                        type="date"
+                      <SharedDatePicker
                         name="dob"
                         value={nominee.dob}
                         onChange={handleNomineeChange}
-                        className="input-field"
+                        buttonStyle={{ height: 38 }}
                       />
                       {formErrors.nominee_dob && <span className="err-txt">{formErrors.nominee_dob}</span>}
                     </div>
 
                     <div className="form-group">
                       <label className="req">{t('nla.relationship')}</label>
-                      <select
+                      <SharedDropdown
                         name="relationship"
                         value={nominee.relationship}
                         onChange={handleNomineeChange}
-                        className="input-field-select"
-                      >
-                        <option value="Spouse">{t('nla.rel_spouse')}</option>
-                        <option value="Father">{t('nla.rel_father')}</option>
-                        <option value="Mother">{t('nla.rel_mother')}</option>
-                        <option value="Son">{t('nla.rel_son')}</option>
-                        <option value="Daughter">{t('nla.rel_daughter')}</option>
-                        <option value="Brother">{t('nla.rel_brother')}</option>
-                        <option value="Sister">{t('nla.rel_sister')}</option>
-                        <option value="Other">{t('nla.rel_other')}</option>
-                      </select>
+                        options={[
+                          { value: 'Spouse', label: t('nla.rel_spouse') },
+                          { value: 'Father', label: t('nla.rel_father') },
+                          { value: 'Mother', label: t('nla.rel_mother') },
+                          { value: 'Son', label: t('nla.rel_son') },
+                          { value: 'Daughter', label: t('nla.rel_daughter') },
+                          { value: 'Brother', label: t('nla.rel_brother') },
+                          { value: 'Sister', label: t('nla.rel_sister') },
+                          { value: 'Other', label: t('nla.rel_other') }
+                        ]}
+                      />
                     </div>
 
                     {/* If Relationship === 'Other', reveal custom relationship input */}
@@ -706,17 +731,17 @@ export default function NewLoanApplicationPage({
 
                     <div className="form-group">
                       <label className="req">{t('nla.id_proof_type')}</label>
-                      <select
+                      <SharedDropdown
                         name="id_proof_type"
                         value={nominee.id_proof_type}
                         onChange={handleNomineeChange}
-                        className="input-field-select"
-                      >
-                        <option value="Aadhaar Card">{t('nla.id_aadhaar_card')}</option>
-                        <option value="PAN Card">{t('nla.id_pan_card')}</option>
-                        <option value="Voter ID">{t('nla.id_voter_id')}</option>
-                        <option value="Driving License">{t('nla.id_driving_license')}</option>
-                      </select>
+                        options={[
+                          { value: 'Aadhaar Card', label: t('nla.id_aadhaar_card') },
+                          { value: 'PAN Card', label: t('nla.id_pan_card') },
+                          { value: 'Voter ID', label: t('nla.id_voter_id') },
+                          { value: 'Driving License', label: t('nla.id_driving_license') }
+                        ]}
+                      />
                     </div>
 
                     <div className="form-group">
@@ -768,17 +793,17 @@ export default function NewLoanApplicationPage({
                   <div className="form-grid-3col">
                     <div className="form-group">
                       <label className="req">{t('nla.property_type')}</label>
-                      <select
+                      <SharedDropdown
                         value={propertyDetails.type}
                         onChange={(e) => setPropertyDetails({ ...propertyDetails, type: e.target.value })}
-                        className="input-field-select"
-                      >
-                        <option value="Residential House">{t('nla.prop_residential')}</option>
-                        <option value="Commercial Shop">{t('nla.prop_commercial')}</option>
-                        <option value="Agricultural Land">{t('nla.prop_agricultural')}</option>
-                        <option value="Vacant Plot">{t('nla.prop_vacant')}</option>
-                        <option value="Other">{t('nla.prop_other')}</option>
-                      </select>
+                        options={[
+                          { value: 'Residential House', label: t('nla.prop_residential') },
+                          { value: 'Commercial Shop', label: t('nla.prop_commercial') },
+                          { value: 'Agricultural Land', label: t('nla.prop_agricultural') },
+                          { value: 'Vacant Plot', label: t('nla.prop_vacant') },
+                          { value: 'Other', label: t('nla.prop_other') }
+                        ]}
+                      />
                     </div>
 
                     {/* If Property Type === 'Other', reveal custom property type input */}
@@ -1114,7 +1139,11 @@ export default function NewLoanApplicationPage({
             </div>
 
             <div className="preview-row preview-row--emi">
-              <span>{t('nla.calculated_prefix')} {loanTerms.repayment_frequency === 'DAILY' ? t('nla.freq_daily_short') : loanTerms.repayment_frequency === 'WEEKLY' ? t('nla.freq_weekly_short') : t('nla.freq_monthly_short')} {t('nla.emi_suffix')}</span>
+              <span>
+                {creditSummary.repMethod === 'INTEREST_ONLY'
+                  ? `${loanTerms.repayment_frequency === 'DAILY' ? 'Daily' : loanTerms.repayment_frequency === 'WEEKLY' ? 'Weekly' : 'Monthly'} Interest Due:`
+                  : `${t('nla.calculated_prefix')} ${loanTerms.repayment_frequency === 'DAILY' ? t('nla.freq_daily_short') : loanTerms.repayment_frequency === 'WEEKLY' ? t('nla.freq_weekly_short') : t('nla.freq_monthly_short')} ${t('nla.emi_suffix')}:`}
+              </span>
               <span className="emi-val">₹{fmt(creditSummary.installmentAmount)}</span>
             </div>
           </div>

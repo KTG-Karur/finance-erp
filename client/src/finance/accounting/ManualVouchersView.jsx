@@ -1,8 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { PenLine, Search, ChevronLeft, ChevronRight, Plus, X, Trash2, Printer } from 'lucide-react';
+import { PenLine, Search, ChevronLeft, ChevronRight, Plus, X, Trash2, Printer, Landmark } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import { filterEntriesInRange, filterEntriesByBranch, MANUAL_VOUCHER_TYPES } from '../../utils/accounting';
 import VoucherReceiptModal from '../../components/VoucherReceiptModal';
+import SharedDropdown from '../../components/common/SharedDropdown';
+import SharedDatePicker from '../../components/common/SharedDatePicker';
 
 const VOUCHER_TYPE_LABEL_KEY = {
   CASH_RECEIPT: 'fin.voucher_type_cash_receipt',
@@ -17,6 +19,8 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+const fmt = n => Number(n || 0).toLocaleString('en-IN');
+
 function fmtTime(iso) {
   if (!iso) return '—';
   return new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
@@ -27,6 +31,7 @@ const EMPTY_FORM = {
   date: todayStr(),
   branch: '',
   created_by: '',
+  bank_account_id: '',
   amount: '',
   other_account_code: '',
   expense_category_id: '',
@@ -37,7 +42,7 @@ const EMPTY_FORM = {
   lines: [{ account_code: '', debit: '', credit: '' }, { account_code: '', debit: '', credit: '' }]
 };
 
-function NewVoucherModal({ isOpen, onClose, onSubmit, chartOfAccounts, branchesList, employees, expenseCategories, t }) {
+function NewVoucherModal({ isOpen, onClose, onSubmit, chartOfAccounts, branchesList, employees, expenseCategories, bankAccounts = [], t }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -103,10 +108,22 @@ function NewVoucherModal({ isOpen, onClose, onSubmit, chartOfAccounts, branchesL
     } else if (isContra) {
       if (!(Number(form.amount) > 0)) { setError(t('fin.amount_label') + ' *'); return; }
     } else {
-      if (!(Number(form.amount) > 0) || !form.other_account_code) { setError(t('fin.amount_label') + ' / ' + t('fin.select_account_label')); return; }
-      // Category is optional here — not every payment voucher is an expense
-      // draw against a funded category — but if staff did pick one, "Miscellaneous"
-      // still requires a stated purpose so it's not a total black hole.
+      if (!form.other_account_code && !isOthers) {
+        setError(isReceipt ? (t('fin.received_against_label') + ' *') : (t('fin.paid_towards_label') + ' *'));
+        return;
+      }
+      if (!(Number(form.amount) > 0)) {
+        setError(t('fin.amount_label') + ' *');
+        return;
+      }
+      if (isOfficeExpense && selectedCategory) {
+        const availableBalance = Number(selectedCategory.balance || 0);
+        const voucherAmount = Number(form.amount || 0);
+        if (voucherAmount > availableBalance) {
+          setError('there is no enough money for this expense category please topup');
+          return;
+        }
+      }
       if (isOfficeExpense && form.expense_category_id && isMiscCategory && !form.purpose.trim()) { setError(t('fin.purpose_label') + ' *'); return; }
       if (isOthers && !form.other_reason.trim()) { setError(t('fin.other_reason_label') + ' *'); return; }
     }
@@ -126,6 +143,15 @@ function NewVoucherModal({ isOpen, onClose, onSubmit, chartOfAccounts, branchesL
       narration += ` — ${t('fin.others_option')}: ${form.other_reason.trim()}`;
     }
 
+    // If bank account is chosen, enrich narration and payload with bank info
+    const selectedBank = bankAccounts.find(b => String(b.id) === String(form.bank_account_id)) || null;
+    if (selectedBank) {
+      const bankTag = `[Bank: ${selectedBank.bank_name} A/C ...${(selectedBank.account_number || '').slice(-4)} IFSC: ${selectedBank.ifsc_code}]`;
+      if (!narration.includes(selectedBank.bank_name)) {
+        narration += ` ${bankTag}`;
+      }
+    }
+
     // "Others" isn't a real ledger account — it maps to a generic
     // miscellaneous income/expense account (which side depends on whether
     // this is a receipt or a payment) so the entry still posts correctly.
@@ -139,8 +165,14 @@ function NewVoucherModal({ isOpen, onClose, onSubmit, chartOfAccounts, branchesL
         branch: form.branch,
         created_by: form.created_by,
         amount: form.amount,
+        bank_account_id: form.bank_account_id || null,
+        bank_name: selectedBank?.bank_name || null,
+        bank_account_number: selectedBank?.account_number || null,
+        ifsc_code: selectedBank?.ifsc_code || null,
+        bank_branch: selectedBank?.branch_name || selectedBank?.branch || null,
         other_account_code: resolvedAccountCode,
         contra_direction: form.contra_direction,
+        expense_category_id: form.expense_category_id || null,
         narration,
         lines: isJournal ? form.lines.filter(l => l.account_code).map(l => ({ account_code: l.account_code, debit: Number(l.debit) || 0, credit: Number(l.credit) || 0 })) : undefined
       });
@@ -177,51 +209,100 @@ function NewVoucherModal({ isOpen, onClose, onSubmit, chartOfAccounts, branchesL
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
             <div className="fin-field">
               <label>{t('fin.voucher_type_label')}</label>
-              <select className="fin-select" style={{ width: '100%' }} value={form.voucher_type} onChange={(e) => setForm({ ...form, voucher_type: e.target.value })}>
-                {MANUAL_VOUCHER_TYPES.map(vt => <option key={vt} value={vt}>{t(VOUCHER_TYPE_LABEL_KEY[vt])}</option>)}
-              </select>
+              <SharedDropdown
+                value={form.voucher_type}
+                onChange={(e) => setForm({ ...form, voucher_type: e.target.value })}
+                options={MANUAL_VOUCHER_TYPES.map(vt => ({ value: vt, label: t(VOUCHER_TYPE_LABEL_KEY[vt]) }))}
+              />
             </div>
             <div className="fin-field">
               <label>{t('col.date')}</label>
-              <input type="date" className="fin-input" style={{ width: '100%' }} value={form.date} max={todayStr()} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+              <SharedDatePicker
+                value={form.date}
+                max={todayStr()}
+                onChange={(e) => setForm({ ...form, date: e.target.value })}
+                buttonStyle={{ height: 36 }}
+              />
             </div>
             <div className="fin-field">
               <label>{t('fin.branch_label')}</label>
-              <select className="fin-select" style={{ width: '100%' }} value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })}>
-                {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-              </select>
+              <SharedDropdown
+                value={form.branch}
+                onChange={(e) => setForm({ ...form, branch: e.target.value })}
+                options={branchesList.map(b => ({ value: b.name, label: b.name }))}
+              />
             </div>
             <div className="fin-field">
-              <label>{t('fin.created_by_label')}</label>
-              <select className="fin-select" style={{ width: '100%' }} value={form.created_by} onChange={(e) => setForm({ ...form, created_by: e.target.value })}>
-                <option value="">{t('fin.select_account_placeholder')}</option>
-                {employees.map(emp => <option key={emp.id} value={emp.name}>{emp.name}</option>)}
-              </select>
+              <label>{t('fin.staff_name_label') || 'Staff Name'}</label>
+              <SharedDropdown
+                value={form.created_by}
+                onChange={(e) => setForm({ ...form, created_by: e.target.value })}
+                placeholder={t('fin.select_staff_placeholder') || '— Select Staff / Cashier —'}
+                options={employees.map(emp => ({ value: emp.name, label: emp.name }))}
+              />
             </div>
           </div>
+
+          {/* Registered Bank Account Selector for Bank Receipt / Bank Payment / Contra */}
+          {(form.voucher_type === 'BANK_RECEIPT' || form.voucher_type === 'BANK_PAYMENT' || isContra) && bankAccounts.length > 0 && (
+            <div className="fin-field" style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: '10px 12px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, color: '#0369A1', fontSize: '0.75rem', marginBottom: 4 }}>
+                <Landmark style={{ width: 14, height: 14 }} />
+                <span>Select Company Bank Account</span>
+              </label>
+              <SharedDropdown
+                value={form.bank_account_id || ''}
+                placeholder="-- Choose Registered Bank Account (Auto-syncs Branch) --"
+                onChange={(e) => {
+                  const bId = e.target.value;
+                  const selectedBank = bankAccounts.find(b => String(b.id) === String(bId));
+                  setForm(prev => ({
+                    ...prev,
+                    bank_account_id: bId,
+                    branch: (selectedBank?.branch || selectedBank?.branch_name) && branchesList.some(b => b.name === (selectedBank.branch || selectedBank.branch_name))
+                      ? (selectedBank.branch || selectedBank.branch_name)
+                      : prev.branch
+                  }));
+                }}
+                options={bankAccounts.filter(b => b.is_active !== false).map(b => ({
+                  value: b.id,
+                  label: `${b.bank_name} - ${b.account_name} (A/C: ...${(b.account_number || '').slice(-4)}) [IFSC: ${b.ifsc_code}] ${b.branch ? `— Branch: ${b.branch}` : ''}`
+                }))}
+              />
+            </div>
+          )}
 
           {(isReceipt || isPayment) && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="fin-field">
-                <label>{t('fin.amount_label')}</label>
+                <label>{t('fin.amount_label') || 'Amount (₹)'}</label>
                 <input type="number" min="0" step="0.01" className="fin-input" style={{ width: '100%' }} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
               </div>
               <div className="fin-field">
-                <label>{isReceipt ? t('fin.received_against_label') : t('fin.paid_towards_label')}</label>
-                <select className="fin-select" style={{ width: '100%' }} value={form.other_account_code} onChange={(e) => setForm({ ...form, other_account_code: e.target.value, expense_category_id: '', purpose: '', other_reason: '' })}>
-                  <option value="">{t('fin.select_account_placeholder')}</option>
-                  {otherAccounts.map(acc => <option key={acc.code} value={acc.code}>{accountName(acc)}</option>)}
-                  <option value="OTHERS">{t('fin.others_option')}</option>
-                </select>
+                <label>{isReceipt ? (t('fin.received_against_label') || 'Received From / Against Account *') : (t('fin.paid_towards_label') || 'Paid Towards Account (Debit) *')}</label>
+                <SharedDropdown
+                  value={form.other_account_code}
+                  placeholder={t('fin.select_account_placeholder') || '— Select Account —'}
+                  onChange={(e) => setForm({ ...form, other_account_code: e.target.value, expense_category_id: '', purpose: '', other_reason: '' })}
+                  options={[
+                    ...otherAccounts.map(acc => ({ value: acc.code, label: accountName(acc) })),
+                    { value: 'OTHERS', label: t('fin.others_option') || 'Others' }
+                  ]}
+                />
               </div>
 
               {isOfficeExpense && (
                 <div className="fin-field">
-                  <label>{t('fin.expense_category_label')}</label>
-                  <select className="fin-select" style={{ width: '100%' }} value={form.expense_category_id} onChange={(e) => setForm({ ...form, expense_category_id: e.target.value, purpose: '' })}>
-                    <option value="">{t('fin.select_account_placeholder')}</option>
-                    {expenseCategories.filter(c => c.status === 'ACTIVE').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  <label>{t('fin.expense_category_label') || 'Expense Category'}</label>
+                  <SharedDropdown
+                    value={form.expense_category_id}
+                    placeholder="-- Select Expense Category --"
+                    onChange={(e) => setForm({ ...form, expense_category_id: e.target.value, purpose: '' })}
+                    options={expenseCategories.filter(c => c.status === 'ACTIVE').map(c => ({
+                      value: c.id,
+                      label: `${c.name} (${c.branch ? c.branch + ' — ' : ''}Available: ₹${fmt(c.balance)})`
+                    }))}
+                  />
                 </div>
               )}
 
@@ -249,10 +330,14 @@ function NewVoucherModal({ isOpen, onClose, onSubmit, chartOfAccounts, branchesL
               </div>
               <div className="fin-field">
                 <label>{t('fin.contra_direction_label')}</label>
-                <select className="fin-select" style={{ width: '100%' }} value={form.contra_direction} onChange={(e) => setForm({ ...form, contra_direction: e.target.value })}>
-                  <option value="CASH_TO_BANK">{t('fin.contra_cash_to_bank')}</option>
-                  <option value="BANK_TO_CASH">{t('fin.contra_bank_to_cash')}</option>
-                </select>
+                <SharedDropdown
+                  value={form.contra_direction}
+                  onChange={(e) => setForm({ ...form, contra_direction: e.target.value })}
+                  options={[
+                    { value: 'CASH_TO_BANK', label: t('fin.contra_cash_to_bank') },
+                    { value: 'BANK_TO_CASH', label: t('fin.contra_bank_to_cash') }
+                  ]}
+                />
               </div>
             </div>
           )}
@@ -265,10 +350,12 @@ function NewVoucherModal({ isOpen, onClose, onSubmit, chartOfAccounts, branchesL
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {form.lines.map((line, idx) => (
                   <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px 32px', gap: 8, alignItems: 'center' }}>
-                    <select className="fin-select" style={{ width: '100%' }} value={line.account_code} onChange={(e) => setLine(idx, 'account_code', e.target.value)}>
-                      <option value="">{t('fin.select_account_placeholder')}</option>
-                      {chartOfAccounts.map(acc => <option key={acc.code} value={acc.code}>{accountName(acc)}</option>)}
-                    </select>
+                    <SharedDropdown
+                      value={line.account_code}
+                      placeholder={t('fin.select_account_placeholder') || '— Select Account —'}
+                      onChange={(e) => setLine(idx, 'account_code', e.target.value)}
+                      options={chartOfAccounts.map(acc => ({ value: acc.code, label: accountName(acc) }))}
+                    />
                     <input type="number" min="0" step="0.01" className="fin-input" placeholder={t('fin.col_debit')} value={line.debit} onChange={(e) => setLine(idx, 'debit', e.target.value)} />
                     <input type="number" min="0" step="0.01" className="fin-input" placeholder={t('fin.col_credit')} value={line.credit} onChange={(e) => setLine(idx, 'credit', e.target.value)} />
                     <button type="button" onClick={() => removeLine(idx)} disabled={form.lines.length <= 2} style={{ border: 'none', background: 'transparent', color: 'var(--color-danger, #DC2626)', cursor: form.lines.length <= 2 ? 'default' : 'pointer', opacity: form.lines.length <= 2 ? 0.3 : 1 }}>
@@ -308,21 +395,47 @@ function NewVoucherModal({ isOpen, onClose, onSubmit, chartOfAccounts, branchesL
   );
 }
 
-export default function ManualVouchersView({ journalEntries = [], chartOfAccounts = [], branchesList = [], employees = [], expenseCategories = [], tenant, onCreateManualVoucher, selectedBranch = 'ALL' }) {
+export default function ManualVouchersView({
+  journalEntries = [],
+  chartOfAccounts = [],
+  branchesList = [],
+  employees = [],
+  expenseCategories = [],
+  bankAccounts = [],
+  tenant,
+  onCreateManualVoucher,
+  onRevertVoucher,
+  selectedBranch = 'ALL'
+}) {
   const { t } = useLanguage();
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [applied, setApplied] = useState({ from: '', to: '' });
-  const [branch, setBranch] = useState('');
+  const [branch, setBranch] = useState(() => (selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL'));
   useEffect(() => {
-    if (selectedBranch && selectedBranch !== 'ALL') setBranch(selectedBranch);
+    setBranch(selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL');
   }, [selectedBranch]);
   const hasBranchSelected = branch !== '';
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [receiptVoucher, setReceiptVoucher] = useState(null);
+  const [revertTarget, setRevertTarget] = useState(null);
+  const [revertReason, setRevertReason] = useState('');
+  const [revertBusy, setRevertBusy] = useState(false);
+  const [revertError, setRevertError] = useState('');
   const pageSize = 10;
+
+  // A voucher already has a reversal posted against it once some other entry
+  // references it via ref_type='VOUCHER_REVERSAL' — used to hide the Revert
+  // button so the same mistake can't be reverted twice.
+  const revertedIds = useMemo(() => {
+    const s = new Set();
+    journalEntries.forEach(e => {
+      if (e.ref_type === 'VOUCHER_REVERSAL' && e.ref_id != null) s.add(String(e.ref_id));
+    });
+    return s;
+  }, [journalEntries]);
 
   const accountName = (code) => {
     const acc = chartOfAccounts.find(a => a.code === code);
@@ -334,13 +447,17 @@ export default function ManualVouchersView({ journalEntries = [], chartOfAccount
     setApplied({ from: fromDate, to: toDate });
   };
 
-  const manualEntries = useMemo(() => journalEntries.filter(je => je.ref_type === 'MANUAL'), [journalEntries]);
+  const manualEntries = useMemo(() => journalEntries.filter(je => !je.ref_type || je.ref_type === 'MANUAL' || je.ref_type === 'EXPENSE'), [journalEntries]);
   const byBranch = useMemo(() => filterEntriesByBranch(manualEntries, branch), [manualEntries, branch]);
   const byRange = useMemo(() => filterEntriesInRange(byBranch, applied.from || null, applied.to || null), [byBranch, applied.from, applied.to]);
 
   const filtered = byRange.filter(je => {
     const q = searchQuery.toLowerCase().trim();
-    return !q || je.narration.toLowerCase().includes(q);
+    if (!q) return true;
+    const narration = (je.narration || '').toLowerCase();
+    const voucherNo = (je.voucher_no || je.id || '').toLowerCase();
+    const createdBy = (je.created_by || '').toLowerCase();
+    return narration.includes(q) || voucherNo.includes(q) || createdBy.includes(q);
   }).slice().sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 
   const totalPages = Math.ceil(filtered.length / pageSize) || 1;
@@ -386,20 +503,36 @@ export default function ManualVouchersView({ journalEntries = [], chartOfAccount
       <form className="fin-filterbar" onSubmit={handleSearch}>
         <div className="fin-field">
           <label>{t('fin.branch_label')}</label>
-          <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
-            <option value="">{t('fin.select_branch_placeholder')}</option>
-            <option value="ALL">{t('fin.all_branches')}</option>
-            {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-          </select>
+          <SharedDropdown
+            value={branch}
+            onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }}
+            disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
+            buttonStyle={{ height: 36, minWidth: 160 }}
+            options={[
+              { value: '', label: t('fin.select_branch_placeholder') || '— Select Branch —' },
+              { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
+              ...branchesList.map(b => ({ value: b.name, label: b.name }))
+            ]}
+          />
         </div>
 
         <div className="fin-field">
           <label>{t('fin.from_label')}</label>
-          <input type="date" className="fin-input" value={fromDate} max={toDate || todayStr()} onChange={(e) => setFromDate(e.target.value)} />
+          <SharedDatePicker
+            value={fromDate}
+            max={toDate || todayStr()}
+            onChange={(e) => setFromDate(e.target.value)}
+            buttonStyle={{ height: 36, minWidth: 140 }}
+          />
         </div>
         <div className="fin-field">
           <label>{t('fin.to_label')}</label>
-          <input type="date" className="fin-input" value={toDate} max={todayStr()} onChange={(e) => setToDate(e.target.value)} />
+          <SharedDatePicker
+            value={toDate}
+            max={todayStr()}
+            onChange={(e) => setToDate(e.target.value)}
+            buttonStyle={{ height: 36, minWidth: 140 }}
+          />
         </div>
         <div className="fin-field" style={{ minWidth: 160 }}>
           <label>{t('fin.find_transactions_placeholder')}</label>
@@ -438,14 +571,33 @@ export default function ManualVouchersView({ journalEntries = [], chartOfAccount
                 <td>{je.created_by || '—'}</td>
                 <td className="num" style={{ fontWeight: 600, color: '#0F172A' }}>₹{fmt(lineTotal(je))}</td>
                 <td style={{ textAlign: 'right' }}>
-                  <button
-                    type="button"
-                    onClick={() => setReceiptVoucher(je)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: '1px solid #E2E8F0', background: '#FFFFFF', color: '#334155', borderRadius: 6, padding: '4px 9px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    <Printer style={{ width: 11, height: 11 }} />
-                    <span>{t('fin.print_voucher_btn')}</span>
-                  </button>
+                  <div style={{ display: 'inline-flex', gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => setReceiptVoucher(je)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: '1px solid #E2E8F0', background: '#FFFFFF', color: '#334155', borderRadius: 6, padding: '4px 9px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      <Printer style={{ width: 11, height: 11 }} />
+                      <span>{t('fin.print_voucher_btn')}</span>
+                    </button>
+                    {!je.is_auto && je.ref_type !== 'VOUCHER_REVERSAL' && !revertedIds.has(String(je.db_id)) && onRevertVoucher && (
+                      <button
+                        type="button"
+                        onClick={() => { setRevertTarget(je); setRevertReason(''); setRevertError(''); }}
+                        title="Undo this voucher with a mirror-image reversal"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: '1px solid var(--color-danger-border, #FECACA)', background: 'var(--color-danger-light, #FEF2F2)', color: 'var(--color-danger, #DC2626)', borderRadius: 6, padding: '4px 9px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        <Trash2 style={{ width: 11, height: 11 }} />
+                        <span>Revert</span>
+                      </button>
+                    )}
+                    {je.ref_type === 'VOUCHER_REVERSAL' && (
+                      <span style={{ fontSize: '0.68rem', color: '#94A3B8', fontStyle: 'italic', alignSelf: 'center' }}>Reversal</span>
+                    )}
+                    {revertedIds.has(String(je.db_id)) && (
+                      <span style={{ fontSize: '0.68rem', color: '#94A3B8', fontStyle: 'italic', alignSelf: 'center' }}>Reverted</span>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -477,6 +629,7 @@ export default function ManualVouchersView({ journalEntries = [], chartOfAccount
         branchesList={branchesList}
         employees={employees}
         expenseCategories={expenseCategories}
+        bankAccounts={bankAccounts}
         t={t}
       />
 
@@ -488,6 +641,75 @@ export default function ManualVouchersView({ journalEntries = [], chartOfAccount
           typeLabel={VOUCHER_TYPE_LABEL_KEY[receiptVoucher.voucher_type] ? t(VOUCHER_TYPE_LABEL_KEY[receiptVoucher.voucher_type]) : receiptVoucher.voucher_type}
           onClose={() => setReceiptVoucher(null)}
         />
+      )}
+
+      {revertTarget && (
+        <div className="saas-modal-backdrop" style={{ zIndex: 100000 }}>
+          <div className="saas-modal-card" style={{ maxWidth: 440 }}>
+            <div className="saas-modal-header">
+              <div className="head-left">
+                <div className="head-icon-badge" style={{ background: 'var(--color-danger-light, #FEF2F2)', borderColor: 'var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)' }}>
+                  <Trash2 style={{ width: 18, height: 18 }} />
+                </div>
+                <div className="head-titles">
+                  <h3>Revert Voucher {revertTarget.id}</h3>
+                  <p>Posts a mirror-image reversal — the original stays on record, unchanged.</p>
+                </div>
+              </div>
+              <button onClick={() => setRevertTarget(null)} className="close-btn" type="button" disabled={revertBusy}><X style={{ width: 16, height: 16 }} /></button>
+            </div>
+            <div className="saas-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '12px 14px', fontSize: '0.8rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ color: '#64748B' }}>Description:</span>
+                  <strong style={{ color: '#0F172A', textAlign: 'right' }}>{revertTarget.narration}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#64748B' }}>Amount:</span>
+                  <strong style={{ color: '#0F172A' }}>₹{fmt(lineTotal(revertTarget))}</strong>
+                </div>
+              </div>
+
+              {revertError && <div className="form-alert form-alert--error"><span>{revertError}</span></div>}
+
+              <div>
+                <label style={{ fontSize: '0.75rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>
+                  Reason for reverting
+                </label>
+                <input
+                  type="text"
+                  value={revertReason}
+                  onChange={(e) => setRevertReason(e.target.value)}
+                  placeholder="e.g. Wrong voucher type selected"
+                  style={{ width: '100%', height: 40, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', boxSizing: 'border-box' }}
+                />
+              </div>
+            </div>
+            <div className="saas-modal-footer">
+              <button type="button" onClick={() => setRevertTarget(null)} disabled={revertBusy} className="btn-cancel">{t('btn.cancel')}</button>
+              <button
+                type="button"
+                disabled={revertBusy}
+                onClick={async () => {
+                  setRevertBusy(true);
+                  setRevertError('');
+                  try {
+                    await onRevertVoucher(revertTarget.db_id, revertReason);
+                    setRevertTarget(null);
+                  } catch (err) {
+                    setRevertError(err?.response?.data?.message || err?.message || 'Failed to revert this voucher.');
+                  } finally {
+                    setRevertBusy(false);
+                  }
+                }}
+                className="btn-submit"
+                style={{ background: 'var(--color-danger, #DC2626)' }}
+              >
+                {revertBusy ? 'Reverting...' : 'Confirm Revert'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

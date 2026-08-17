@@ -7,7 +7,7 @@ import {
 } from './borrower.controller.js';
 
 export default async function borrowerRoutes(fastify, options) {
-  const onRequest = [fastify.authenticate, fastify.tenantGuard, fastify.requireTenantModule('borrowers')];
+  const onRequest = [fastify.authenticate, fastify.tenantGuard, fastify.requireTenantModule('loans')];
 
   // Dashboard reads this same list — DASHBOARD/VIEW alone is enough (see
   // moduleGuardAny's comment in moduleGuard.js).

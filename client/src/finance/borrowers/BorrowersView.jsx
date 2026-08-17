@@ -26,6 +26,7 @@ import PrintableCustomerApplicationForm from './PrintableCustomerApplicationForm
 import PrintableCustomerDirectoryReport from './PrintableCustomerDirectoryReport';
 import CustomerProfileModal from './CustomerProfileModal';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
+import SharedDropdown from '../../components/common/SharedDropdown';
 
 const normalizePhone = (p) => (p || '').toString().replace(/\D/g, '');
 
@@ -279,27 +280,29 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
 
         <div className="fin-field">
           <label>Filter</label>
-          <select
-            className="fin-select"
+          <SharedDropdown
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-          >
-            <option value="ALL">All Customers ({totalBorrowers})</option>
-            <option value="ACTIVE_LOANS">Active Loans Only</option>
-          </select>
+            buttonStyle={{ height: 36, minWidth: 160 }}
+            options={[
+              { value: 'ALL', label: `All Customers (${totalBorrowers})` },
+              { value: 'ACTIVE_LOANS', label: 'Active Loans Only' }
+            ]}
+          />
         </div>
 
         <div className="fin-field">
           <label>{t('fin.branch_label')}</label>
-          <select
-            className="fin-select"
+          <SharedDropdown
             value={branchFilter}
             onChange={(e) => { setBranchFilter(e.target.value); setCurrentPage(1); }}
             disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
-          >
-            <option value="ALL">All Branches</option>
-            {branches.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-          </select>
+            buttonStyle={{ height: 36, minWidth: 160 }}
+            options={[
+              { value: 'ALL', label: 'All Branches' },
+              ...branches.map(b => ({ value: b.name, label: b.name }))
+            ]}
+          />
         </div>
 
         <div className="fin-quickrow">

@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { FileText } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
+import SharedDropdown from '../../components/common/SharedDropdown';
+import SharedDatePicker from '../../components/common/SharedDatePicker';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -15,9 +17,9 @@ function monthStartStr() {
 // every collection against it in order, with a running outstanding balance.
 export default function LoanLedgerView({ loans = [], collections = [], branchesList = [], selectedBranch = 'ALL' }) {
   const { t } = useLanguage();
-  const [branch, setBranch] = useState('');
+  const [branch, setBranch] = useState(() => (selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL'));
   useEffect(() => {
-    if (selectedBranch && selectedBranch !== 'ALL') setBranch(selectedBranch);
+    setBranch(selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL');
   }, [selectedBranch]);
   const hasBranchSelected = branch !== '';
   const [fromDate, setFromDate] = useState(monthStartStr());
@@ -54,15 +56,17 @@ export default function LoanLedgerView({ loans = [], collections = [], branchesL
     }];
 
     loanCollections.forEach(c => {
-      running = Math.max(0, running - (c.principalPaid || 0));
+      const pPaid = Number(c.principal_paid ?? c.principal_portion ?? c.principalPaid ?? 0);
+      const iPaid = Number(c.interest_paid ?? c.interest_portion ?? c.interestPaid ?? 0);
+      running = Math.max(0, running - pPaid);
       out.push({
         id: c.id,
         date: c.collection_date,
         type: 'COLLECTION',
         voucher_no: c.voucher_no || '—',
-        principal: c.principalPaid || 0,
-        interest: c.interestPaid || 0,
-        penalty: c.penalty || 0,
+        principal: pPaid,
+        interest: iPaid,
+        penalty: Number(c.penalty || 0),
         mode: c.payment_mode || '—',
         balance: running
       });
@@ -114,30 +118,51 @@ export default function LoanLedgerView({ loans = [], collections = [], branchesL
       <div className="fin-filterbar">
         <div className="fin-field">
           <label>{t('fin.branch_label')}</label>
-          <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setLoanId(''); }} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
-            <option value="">{t('fin.select_branch_placeholder')}</option>
-            <option value="ALL">{t('fin.all_branches')}</option>
-            {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-          </select>
+          <SharedDropdown
+            value={branch}
+            onChange={(e) => { setBranch(e.target.value); setLoanId(''); }}
+            disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
+            buttonStyle={{ height: 36, minWidth: 160 }}
+            options={[
+              { value: '', label: t('fin.select_branch_placeholder') || '— Select Branch —' },
+              { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
+              ...branchesList.map(b => ({ value: b.name, label: b.name }))
+            ]}
+          />
         </div>
         {hasBranchSelected && (
           <div className="fin-field" style={{ minWidth: 260 }}>
             <label>{t('col.loan_acc')}</label>
-            <select className="fin-select" value={effectiveLoanId} onChange={(e) => setLoanId(Number(e.target.value))}>
-              <option value="">{t('fin.select_account_placeholder')}</option>
-              {branchLoans.map(l => (
-                <option key={l.id} value={l.id}>{l.loan_account_no} — {l.borrower_name}</option>
-              ))}
-            </select>
+            <SharedDropdown
+              value={effectiveLoanId}
+              placeholder={t('fin.select_account_placeholder') || '— Select Account —'}
+              onChange={(e) => setLoanId(Number(e.target.value))}
+              searchable
+              buttonStyle={{ height: 36, minWidth: 260 }}
+              options={branchLoans.map(l => ({
+                value: l.id,
+                label: `${l.loan_account_no} — ${l.borrower_name}`
+              }))}
+            />
           </div>
         )}
         <div className="fin-field">
           <label>{t('fin.from_label')}</label>
-          <input type="date" className="fin-input" value={fromDate} max={toDate || todayStr()} onChange={(e) => setFromDate(e.target.value)} />
+          <SharedDatePicker
+            value={fromDate}
+            max={toDate || todayStr()}
+            onChange={(e) => setFromDate(e.target.value)}
+            buttonStyle={{ height: 36, minWidth: 140 }}
+          />
         </div>
         <div className="fin-field">
           <label>{t('fin.to_label')}</label>
-          <input type="date" className="fin-input" value={toDate} max={todayStr()} onChange={(e) => setToDate(e.target.value)} />
+          <SharedDatePicker
+            value={toDate}
+            max={todayStr()}
+            onChange={(e) => setToDate(e.target.value)}
+            buttonStyle={{ height: 36, minWidth: 140 }}
+          />
         </div>
       </div>
 

@@ -24,6 +24,8 @@ import {
 import CustomerProfileModal from '../borrowers/CustomerProfileModal';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { calculatePaymentAllocation } from '../../utils/loanCalculations';
+import SharedDropdown from '../../components/common/SharedDropdown';
+import SharedDatePicker from '../../components/common/SharedDatePicker';
 
 export default function NewCollectionEntryPage({
   loans = [],
@@ -381,15 +383,17 @@ export default function NewCollectionEntryPage({
               {branchOptions.length > 1 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <Filter style={{ width: 11, height: 11, color: '#94A3B8' }} />
-                  <select
+                  <SharedDropdown
                     value={branchFilter}
                     onChange={(e) => setBranchFilter(e.target.value)}
                     disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
-                    style={{ border: 'none', background: 'transparent', fontSize: '0.7rem', fontWeight: 500, color: '#475569', cursor: 'pointer' }}
-                  >
-                    <option value="ALL">All Branches</option>
-                    {branchOptions.map(b => <option key={b} value={b}>{b}</option>)}
-                  </select>
+                    size="sm"
+                    buttonStyle={{ height: 28, fontSize: '0.72rem', minWidth: 120, padding: '0 8px' }}
+                    options={[
+                      { value: 'ALL', label: 'All Branches' },
+                      ...branchOptions.map(b => ({ value: b, label: b }))
+                    ]}
+                  />
                 </div>
               )}
             </div>
@@ -444,16 +448,16 @@ export default function NewCollectionEntryPage({
               )}
             </div>
 
-            <select
+            <SharedDropdown
               value={selectedLoanId}
+              placeholder="-- Select Customer --"
               onChange={(e) => setSelectedLoanId(e.target.value)}
-              style={{ width: '100%', height: 40, padding: '0 12px', borderRadius: 9, border: '1px solid #CBD5E1', background: '#F8FAFC', fontSize: '0.8rem', fontWeight: 500, color: '#0F172A', cursor: 'pointer', boxSizing: 'border-box' }}
-            >
-              <option value="">-- Select Customer --</option>
-              {(branchFilter === 'ALL' ? activeLoans : activeLoans.filter(l => l.branch === branchFilter)).map(l => (
-                <option key={l.id} value={l.id}>{l.loan_account_no} • {l.borrower_name}</option>
-              ))}
-            </select>
+              searchable
+              options={(branchFilter === 'ALL' ? activeLoans : activeLoans.filter(l => l.branch === branchFilter)).map(l => ({
+                value: l.id,
+                label: `${l.loan_account_no} • ${l.borrower_name}`
+              }))}
+            />
           </div>
 
           {/* Profile card — always rendered; empty placeholders until selected. */}
@@ -726,26 +730,25 @@ export default function NewCollectionEntryPage({
                   <label style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 4 }}>
                     {t('nce.collector_staff')}
                   </label>
-                  <select
+                  <SharedDropdown
                     value={collectorName}
                     onChange={(e) => setCollectorName(e.target.value)}
-                    style={{ width: '100%', height: 38, padding: '0 10px', borderRadius: 9, border: '1px solid #CBD5E1', fontSize: '0.78rem', color: '#0F172A', boxSizing: 'border-box' }}
-                  >
-                    <option value="K. Ramesh (Field Officer)">K. Ramesh (Field Officer)</option>
-                    <option value="S. Priya (Counter Staff)">S. Priya (Counter Staff)</option>
-                    <option value="M. Vignesh (Collection Head)">M. Vignesh (Manager)</option>
-                    <option value="Online Self-Pay">Online Self-Pay</option>
-                  </select>
+                    options={[
+                      { value: 'K. Ramesh (Field Officer)', label: 'K. Ramesh (Field Officer)' },
+                      { value: 'S. Priya (Counter Staff)', label: 'S. Priya (Counter Staff)' },
+                      { value: 'M. Vignesh (Collection Head)', label: 'M. Vignesh (Manager)' },
+                      { value: 'Online Self-Pay', label: 'Online Self-Pay' }
+                    ]}
+                  />
                 </div>
                 <div>
                   <label style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 4 }}>
                     {t('nce.transaction_date')}
                   </label>
-                  <input
-                    type="date"
+                  <SharedDatePicker
                     value={collectionDate}
                     onChange={(e) => setCollectionDate(e.target.value)}
-                    style={{ width: '100%', height: 38, padding: '0 10px', borderRadius: 9, border: '1px solid #CBD5E1', fontSize: '0.78rem', color: '#0F172A', boxSizing: 'border-box' }}
+                    buttonStyle={{ height: 38 }}
                   />
                 </div>
               </div>
@@ -829,8 +832,8 @@ export default function NewCollectionEntryPage({
                       <td style={{ padding: '7px 8px', color: '#334155' }}>{rec.collection_date}</td>
                       <td style={{ padding: '7px 8px', color: 'var(--color-info, #2563EB)', fontFamily: 'monospace' }}>{rec.voucher_no}</td>
                       <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 600, color: '#0F172A' }}>₹{fmt(rec.amount)}</td>
-                      <td style={{ padding: '7px 8px', textAlign: 'right', color: '#0F172A' }}>₹{fmt(rec.principalPaid)}</td>
-                      <td style={{ padding: '7px 8px', textAlign: 'right', color: '#7C3AED' }}>₹{fmt(rec.interestPaid)}</td>
+                      <td style={{ padding: '7px 8px', textAlign: 'right', color: '#0F172A' }}>₹{fmt(rec.principal_paid ?? rec.principal_portion ?? rec.principalPaid ?? 0)}</td>
+                      <td style={{ padding: '7px 8px', textAlign: 'right', color: '#7C3AED' }}>₹{fmt(rec.interest_paid ?? rec.interest_portion ?? rec.interestPaid ?? 0)}</td>
                       <td style={{ padding: '7px 8px', color: '#334155' }}>{getModeLabel(rec.payment_mode)}</td>
                     </tr>
                   ))}
@@ -959,8 +962,8 @@ export default function NewCollectionEntryPage({
 
             <div style={{ borderBottom: '1px dashed #000000', paddingBottom: 10, marginBottom: 10 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', fontWeight: 700, padding: '4px 0', borderBottom: '1px solid #000000' }}><span>RECEIVED:</span><span>Rs. {fmt(lastReceipt.amount)}</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}><span>Principal:</span><span>Rs. {fmt(lastReceipt.principalPaid ?? lastReceipt.principal_portion)}</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}><span>Interest:</span><span>Rs. {fmt(lastReceipt.interestPaid ?? lastReceipt.interest_portion)}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}><span>Principal:</span><span>Rs. {fmt(lastReceipt.principal_paid ?? lastReceipt.principal_portion ?? lastReceipt.principalPaid ?? 0)}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}><span>Interest:</span><span>Rs. {fmt(lastReceipt.interest_paid ?? lastReceipt.interest_portion ?? lastReceipt.interestPaid ?? 0)}</span></div>
               {lastReceipt.penalty > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}><span>Late Fee:</span><span>Rs. {fmt(lastReceipt.penalty)}</span></div>
               )}

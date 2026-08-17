@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Users } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
+import SharedDropdown from '../../components/common/SharedDropdown';
+import SharedDatePicker from '../../components/common/SharedDatePicker';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -16,9 +18,9 @@ function monthStartStr() {
 // history with us" without opening each loan separately.
 export default function CustomerLedgerView({ borrowers = [], loans = [], collections = [], branchesList = [], selectedBranch = 'ALL' }) {
   const { t } = useLanguage();
-  const [branch, setBranch] = useState('');
+  const [branch, setBranch] = useState(() => (selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL'));
   useEffect(() => {
-    if (selectedBranch && selectedBranch !== 'ALL') setBranch(selectedBranch);
+    setBranch(selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL');
   }, [selectedBranch]);
   const hasBranchSelected = branch !== '';
   const [fromDate, setFromDate] = useState(monthStartStr());
@@ -115,30 +117,51 @@ export default function CustomerLedgerView({ borrowers = [], loans = [], collect
       <div className="fin-filterbar">
         <div className="fin-field">
           <label>{t('fin.branch_label')}</label>
-          <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setBorrowerId(''); }} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
-            <option value="">{t('fin.select_branch_placeholder')}</option>
-            <option value="ALL">{t('fin.all_branches')}</option>
-            {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-          </select>
+          <SharedDropdown
+            value={branch}
+            onChange={(e) => { setBranch(e.target.value); setBorrowerId(''); }}
+            disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
+            buttonStyle={{ height: 36, minWidth: 160 }}
+            options={[
+              { value: '', label: t('fin.select_branch_placeholder') || '— Select Branch —' },
+              { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
+              ...branchesList.map(b => ({ value: b.name, label: b.name }))
+            ]}
+          />
         </div>
         {hasBranchSelected && (
           <div className="fin-field" style={{ minWidth: 260 }}>
             <label>{t('col.customer')}</label>
-            <select className="fin-select" value={effectiveBorrowerId} onChange={(e) => setBorrowerId(Number(e.target.value))}>
-              <option value="">{t('fin.select_account_placeholder')}</option>
-              {branchBorrowers.map(b => (
-                <option key={b.id} value={b.id}>{b.full_name} — {b.phone}</option>
-              ))}
-            </select>
+            <SharedDropdown
+              value={effectiveBorrowerId}
+              placeholder={t('fin.select_account_placeholder') || '— Select Customer —'}
+              onChange={(e) => setBorrowerId(Number(e.target.value))}
+              searchable
+              buttonStyle={{ height: 36, minWidth: 260 }}
+              options={branchBorrowers.map(b => ({
+                value: b.id,
+                label: `${b.full_name} — ${b.phone}`
+              }))}
+            />
           </div>
         )}
         <div className="fin-field">
           <label>{t('fin.from_label')}</label>
-          <input type="date" className="fin-input" value={fromDate} max={toDate || todayStr()} onChange={(e) => setFromDate(e.target.value)} />
+          <SharedDatePicker
+            value={fromDate}
+            max={toDate || todayStr()}
+            onChange={(e) => setFromDate(e.target.value)}
+            buttonStyle={{ height: 36, minWidth: 140 }}
+          />
         </div>
         <div className="fin-field">
           <label>{t('fin.to_label')}</label>
-          <input type="date" className="fin-input" value={toDate} max={todayStr()} onChange={(e) => setToDate(e.target.value)} />
+          <SharedDatePicker
+            value={toDate}
+            max={todayStr()}
+            onChange={(e) => setToDate(e.target.value)}
+            buttonStyle={{ height: 36, minWidth: 140 }}
+          />
         </div>
       </div>
 

@@ -4,9 +4,55 @@ import { X, Receipt, CheckCircle2, FileText } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
 import { calculatePaymentAllocation } from '../utils/loanCalculations';
 import ThermalVoucherModal from './ThermalVoucherModal';
+import SharedDropdown from './common/SharedDropdown';
+import SharedDatePicker from './common/SharedDatePicker';
 
-export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = [], tenant, onSubmit }) {
+export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = [], employees = [], tenant, onSubmit }) {
   const { t } = useLanguage();
+
+  // This component is always mounted (App.jsx renders it unconditionally and
+  // toggles `isOpen`/`loan` instead of mounting/unmounting it), so every hook
+  // below must run on every render regardless of open state — bailing out
+  // early before them (as this used to do) made React call a different
+  // number of hooks between the closed and open renders, which corrupts
+  // component state on the very transition that matters (closed -> open).
+  // All hooks are declared first; the early return comes after every one of
+  // them, with loan-dependent values guarded via `loan?.` until then.
+  const [amountPaid, setAmountPaid] = useState(loan?.installment_amount || 0);
+  const [paymentMode, setPaymentMode] = useState('CASH');
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [remarks, setRemarks] = useState('');
+  const [collectorName, setCollectorName] = useState('');
+  // "Received By" — pick from the real staff list, or type a name manually
+  // when the collector isn't in that list.
+  const [collectorEntryMode, setCollectorEntryMode] = useState('SELECT'); // 'SELECT' | 'MANUAL'
+
+  // Dynamic Payment Method Fields
+  const [upiTxnId, setUpiTxnId] = useState('');
+  const [chequeNo, setChequeNo] = useState('');
+  const [chequeBank, setChequeBank] = useState('');
+  const [bankRefNo, setBankRefNo] = useState('');
+
+  const [loading, setLoading] = useState(false);
+  const [receipt, setReceipt] = useState(null);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+
+  useEffect(() => {
+    if (loan) {
+      setAmountPaid(loan.installment_amount || 500);
+      setReceipt(null);
+      setShowReceiptModal(false);
+      setSubmitError('');
+      setUpiTxnId('');
+      setChequeNo('');
+      setChequeBank('');
+      setBankRefNo('');
+      setCollectorEntryMode('SELECT');
+      setCollectorName('');
+    }
+  }, [loan]);
+
   if (!isOpen || !loan) return null;
 
   const currentLoan = loan;
@@ -29,35 +75,6 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
   const pendingBal = currentLoan.pending_amount || 0;
   const principalAmt = currentLoan.principal_amount || 0;
   const collectedAmt = currentLoan.collected_amount || 0;
-
-  const [amountPaid, setAmountPaid] = useState(dailyEmi);
-  const [paymentMode, setPaymentMode] = useState('CASH');
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
-  const [remarks, setRemarks] = useState('');
-  const [collectorName, setCollectorName] = useState('Staff Collector');
-
-  // Dynamic Payment Method Fields
-  const [upiTxnId, setUpiTxnId] = useState('');
-  const [chequeNo, setChequeNo] = useState('');
-  const [chequeBank, setChequeBank] = useState('');
-  const [bankRefNo, setBankRefNo] = useState('');
-
-  const [loading, setLoading] = useState(false);
-  const [receipt, setReceipt] = useState(null);
-  const [showReceiptModal, setShowReceiptModal] = useState(false);
-  const [submitError, setSubmitError] = useState('');
-
-  useEffect(() => {
-    if (loan) {
-      setAmountPaid(loan.installment_amount || 500);
-      setReceipt(null);
-      setShowReceiptModal(false);
-      setUpiTxnId('');
-      setChequeNo('');
-      setChequeBank('');
-      setBankRefNo('');
-    }
-  }, [loan]);
 
   const receivedVal = parseFloat(amountPaid) || 0;
 
@@ -152,7 +169,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
         overflow: 'hidden',
         display: 'grid',
         gridTemplateColumns: '320px 1fr',
-        fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif'
       }}>
 
         {/* ── LEFT PANEL: Borrower Image & Full Profile Details ─────────── */}
@@ -483,27 +500,17 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                 <label style={{ fontSize: '0.75rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>
                   {t('cd.payment_method')}
                 </label>
-                <select
+                <SharedDropdown
                   value={paymentMode}
                   onChange={(e) => setPaymentMode(e.target.value)}
-                  style={{
-                    width: '100%',
-                    height: 44,
-                    padding: '0 14px',
-                    borderRadius: 9,
-                    border: '1px solid #CBD5E1',
-                    fontSize: '0.88rem',
-                    fontWeight: 400,
-                    color: '#0F172A',
-                    background: '#FFFFFF',
-                    boxSizing: 'border-box'
-                  }}
-                >
-                  <option value="CASH">{t('cd.mode_cash')}</option>
-                  <option value="UPI">{t('cd.mode_upi')}</option>
-                  <option value="BANK_TRANSFER">{t('cd.mode_bank_transfer')}</option>
-                  <option value="CHEQUE">{t('cd.mode_cheque')}</option>
-                </select>
+                  buttonStyle={{ height: 44, fontSize: '0.88rem' }}
+                  options={[
+                    { value: 'CASH', label: t('cd.mode_cash') },
+                    { value: 'UPI', label: t('cd.mode_upi') },
+                    { value: 'BANK_TRANSFER', label: t('cd.mode_bank_transfer') },
+                    { value: 'CHEQUE', label: t('cd.mode_cheque') }
+                  ]}
+                />
               </div>
 
               {/* Dynamic Payment Fields */}
@@ -613,22 +620,10 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                   <label style={{ fontSize: '0.75rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>
                     {t('cd.collection_date')}
                   </label>
-                  <input
-                    type="date"
+                  <SharedDatePicker
                     value={paymentDate}
                     onChange={(e) => setPaymentDate(e.target.value)}
-                    style={{
-                      width: '100%',
-                      height: 44,
-                      padding: '0 14px',
-                      borderRadius: 9,
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.88rem',
-                      fontWeight: 400,
-                      color: '#0F172A',
-                      background: '#FFFFFF',
-                      boxSizing: 'border-box'
-                    }}
+                    buttonStyle={{ height: 44 }}
                   />
                 </div>
 
@@ -636,24 +631,49 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                   <label style={{ fontSize: '0.75rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>
                     {t('cd.collector_agent_name')}
                   </label>
-                  <input
-                    type="text"
-                    value={collectorName}
-                    onChange={(e) => setCollectorName(e.target.value)}
-                    placeholder="Staff Collector"
-                    style={{
-                      width: '100%',
-                      height: 44,
-                      padding: '0 14px',
-                      borderRadius: 9,
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.88rem',
-                      fontWeight: 400,
-                      color: '#0F172A',
-                      background: '#FFFFFF',
-                      boxSizing: 'border-box'
-                    }}
-                  />
+                  {collectorEntryMode === 'MANUAL' ? (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input
+                        type="text"
+                        autoFocus
+                        value={collectorName}
+                        onChange={(e) => setCollectorName(e.target.value)}
+                        placeholder="Enter staff name"
+                        style={{
+                          flex: 1, height: 44, padding: '0 14px', borderRadius: 9,
+                          border: '1px solid #CBD5E1', fontSize: '0.88rem', fontWeight: 400,
+                          color: '#0F172A', background: '#FFFFFF', boxSizing: 'border-box'
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => { setCollectorEntryMode('SELECT'); setCollectorName(''); }}
+                        title="Pick from staff list instead"
+                        style={{ height: 44, padding: '0 12px', borderRadius: 9, border: '1px solid #CBD5E1', background: '#F8FAFC', color: '#475569', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >
+                        List
+                      </button>
+                    </div>
+                  ) : (
+                    <SharedDropdown
+                      value={collectorName}
+                      onChange={(e) => {
+                        if (e.target.value === '__MANUAL__') {
+                          setCollectorEntryMode('MANUAL');
+                          setCollectorName('');
+                        } else {
+                          setCollectorName(e.target.value);
+                        }
+                      }}
+                      placeholder="Select staff..."
+                      searchable
+                      buttonStyle={{ height: 44 }}
+                      options={[
+                        ...employees.map(emp => ({ value: emp.name, label: emp.name })),
+                        { value: '__MANUAL__', label: '+ Enter name manually...' }
+                      ]}
+                    />
+                  )}
                 </div>
               </div>
 

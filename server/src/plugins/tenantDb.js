@@ -43,8 +43,26 @@ export function getTenantDbPool(dbName) {
   return pool;
 }
 
+export async function flushTenantDbPools() {
+  const closed = [];
+  for (const [dbName, pool] of tenantPoolsMap.entries()) {
+    if (pool && typeof pool.end === 'function') {
+      try {
+        await pool.end();
+      } catch {
+        // ignore errors on close
+      }
+      closed.push(dbName);
+    }
+  }
+  tenantPoolsMap.clear();
+  poolLastAccessedMap.clear();
+  return { flushedCount: closed.length, closedDatabases: closed };
+}
+
 async function tenantDbPlugin(fastify, options) {
   fastify.decorate('getTenantDbPool', getTenantDbPool);
+  fastify.decorate('flushTenantDbPools', flushTenantDbPools);
 }
 
 export default fp(tenantDbPlugin, {

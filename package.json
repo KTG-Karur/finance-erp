@@ -1,0 +1,13 @@
+{
+  "name": "financial-erp-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "finance:audit": "node finance-regression/cli.js",
+    "finance:audit:ci": "node finance-regression/cli.js --ci",
+    "finance:audit:quick": "node finance-regression/cli.js --quick",
+    "finance:reconcile": "node finance-regression/reconcile-cli.js",
+    "finance:ui-audit": "node ui-audit/runner.js"
+  }
+}

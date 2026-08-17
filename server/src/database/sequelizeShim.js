@@ -73,7 +73,7 @@ export function createQueryInterface(conn) {
     async createTable(tableName, columns, options = {}) {
       const colDefs = Object.entries(columns).map(([name, spec]) => columnDefinitionSql(conn, name, spec));
       const engine = options.engine || 'InnoDB';
-      await conn.query(`CREATE TABLE IF NOT EXISTS \`${tableName}\` (${colDefs.join(', ')}) ENGINE=${engine} DEFAULT CHARSET=utf8mb4;`);
+      await conn.query(`CREATE TABLE IF NOT EXISTS \`${tableName}\` (${colDefs.join(', ')}) ENGINE=${engine} DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`);
     },
 
     async dropTable(tableName) {

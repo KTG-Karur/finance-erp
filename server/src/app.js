@@ -7,6 +7,10 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import sensible from '@fastify/sensible';
 
+import fastifyStatic from '@fastify/static';
+import path from 'path';
+import fs from 'fs';
+
 import masterDbPlugin from './plugins/masterDb.js';
 import tenantDbPlugin from './plugins/tenantDb.js';
 import dbPlugin from './plugins/db.js';
@@ -18,6 +22,7 @@ import authRoutes from './modules/auth/auth.routes.js';
 import financeRoutes from './finance/finance.routes.js';
 import orgRoutes from './modules/org/org.routes.js';
 import employeeRoutes from './modules/employee/employee.routes.js';
+import { ensureCompanyUploadDirectories } from './shared/utils/fileStorage.js';
 
 // Fastify's default bodyLimit is 1MB — too small for real uploads: a single
 // 5MB photo becomes ~6.7MB once base64-encoded in the JSON body, and the
@@ -77,6 +82,17 @@ await fastify.register(rateLimit, {
   })
 });
 
+const uploadsDir = path.resolve(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+await fastify.register(fastifyStatic, {
+  root: uploadsDir,
+  prefix: '/uploads/',
+  decorateReply: false
+});
+
 await fastify.register(sensible);
 await fastify.register(masterDbPlugin);
 await fastify.register(tenantDbPlugin);
@@ -84,6 +100,16 @@ await fastify.register(dbPlugin);
 await fastify.register(authPlugin);
 await fastify.register(tenantGuardPlugin);
 await fastify.register(moduleGuardPlugin);
+
+// Pre-create upload directories for all active tenant companies on boot
+try {
+  const [activeCompanies] = await fastify.masterDb.query('SELECT company_code FROM companies WHERE is_active = 1');
+  for (const c of activeCompanies) {
+    if (c.company_code) await ensureCompanyUploadDirectories(c.company_code);
+  }
+} catch (e) {
+  // Ignored if masterDb not yet migrated
+}
 
 // Health Check
 fastify.get('/health', async (request, reply) => {
@@ -107,7 +133,8 @@ const HOST = process.env.HOST || '0.0.0.0';
 async function start() {
   try {
     await fastify.listen({ port: PORT, host: HOST });
-    console.log(`API server listening on http://${HOST}:${PORT}`);
+    const displayHost = HOST === '0.0.0.0' ? 'localhost' : HOST;
+    console.log(`API server listening on port ${PORT} (http://${displayHost}:${PORT})`);
   } catch (err) {
     console.error('[ERROR] Server failed to start:', err.message);
     process.exit(1);

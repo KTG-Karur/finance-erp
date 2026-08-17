@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Banknote, Search, ChevronLeft, ChevronRight, Download, Printer, FileDown } from 'lucide-react';
+import { Banknote, Search, ChevronLeft, ChevronRight, Download, Printer, FileDown, History } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import { exportToCsv } from '../utils/csvExport';
 import ReportPreviewModal from '../components/ReportPreviewModal';
+import DropdownSelect from '../components/DropdownSelect';
+import TransactionHistoryModal from '../components/TransactionHistoryModal';
 
 const STATUS_KEY = {
   ACTIVE: 'fin.status_active',
@@ -20,8 +22,11 @@ function daysUntil(dateStr) {
   return Math.round((target - today) / 86400000);
 }
 
-export default function FixedDepositReportView({ fixedDeposits = [], borrowers = [], tenant, user }) {
+export default function FixedDepositReportView({ fixedDeposits = [], borrowers = [], journalEntries = [], tenant, user }) {
   const { t, tStatus } = useLanguage();
+  // One specific FD's full transaction history — the table itself only ever
+  // showed one summary row per account.
+  const [historyFd, setHistoryFd] = useState(null);
   const [status, setStatus] = useState('ALL');
   const [upcomingOnly, setUpcomingOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -126,16 +131,17 @@ export default function FixedDepositReportView({ fixedDeposits = [], borrowers =
       {/* Filter Bar & Controls */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, margin: '18px 0 12px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <select
+          <DropdownSelect
             value={status}
             onChange={(e) => { setStatus(e.target.value); setCurrentPage(1); }}
-            style={{ height: 34, padding: '0 10px', borderRadius: 7, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: '0.78rem', fontWeight: 600, color: '#0F172A', outline: 'none' }}
-          >
-            <option value="ALL">All Statuses ({fixedDeposits.length})</option>
-            <option value="ACTIVE">Active Accounts</option>
-            <option value="MATURED">Matured Accounts</option>
-            <option value="CLOSED_PREMATURE">Premature Exits</option>
-          </select>
+            buttonStyle={{ height: 34, minWidth: 170 }}
+            options={[
+              { value: 'ALL', label: `All Statuses (${fixedDeposits.length})` },
+              { value: 'ACTIVE', label: 'Active Accounts' },
+              { value: 'MATURED', label: 'Matured Accounts' },
+              { value: 'CLOSED_PREMATURE', label: 'Premature Exits' }
+            ]}
+          />
 
           <button
             type="button"
@@ -204,11 +210,12 @@ export default function FixedDepositReportView({ fixedDeposits = [], borrowers =
               <th>{t('fin.maturity_date_label')}</th>
               <th className="num">{t('fin.maturity_value_label')}</th>
               <th style={{ textAlign: 'center' }}>{t('col.status')}</th>
+              <th style={{ textAlign: 'right' }}>Details</th>
             </tr>
           </thead>
           <tbody>
             {pagedRows.length === 0 ? (
-              <tr><td colSpan="11" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>No fixed deposit records found.</td></tr>
+              <tr><td colSpan="12" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>No fixed deposit records found.</td></tr>
             ) : pagedRows.map(f => (
               <tr key={f.id}>
                 <td className="code" style={{ fontWeight: 700, color: 'var(--brand-primary, #15803D)' }}>{f.fd_account_no}</td>
@@ -225,6 +232,16 @@ export default function FixedDepositReportView({ fixedDeposits = [], borrowers =
                   <span className={`fin-badge ${f.status === 'ACTIVE' ? 'fin-badge--ok' : f.status === 'MATURED' ? 'fin-badge--info' : 'fin-badge--warn'}`}>
                     {tStatus(f.status)}
                   </span>
+                </td>
+                <td style={{ textAlign: 'right' }}>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryFd(f)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#334155', borderRadius: 6, padding: '4px 9px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    <History style={{ width: 11, height: 11 }} />
+                    <span>Details</span>
+                  </button>
                 </td>
               </tr>
             ))}
@@ -249,6 +266,19 @@ export default function FixedDepositReportView({ fixedDeposits = [], borrowers =
       </div>
 
       {showPreview && <ReportPreviewModal {...previewProps} onClose={() => setShowPreview(false)} />}
+
+      {historyFd && (
+        <TransactionHistoryModal
+          title="Fixed Deposit Transaction History"
+          accountLabel={`${historyFd.fd_account_no} — ${historyFd.customer_name}`}
+          tenant={tenant}
+          entries={journalEntries.filter(e =>
+            ['FD_BOOKING', 'FD_INTEREST_PAYOUT', 'FD_MATURITY', 'FD_PREMATURE_CLOSE'].includes(e.ref_type) &&
+            String(e.ref_id) === String(historyFd.id)
+          )}
+          onClose={() => setHistoryFd(null)}
+        />
+      )}
     </div>
   );
 }

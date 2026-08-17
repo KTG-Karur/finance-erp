@@ -121,7 +121,6 @@ input[type="email"],
 input[type="password"],
 input[type="tel"],
 input[type="date"],
-select,
 textarea {
   width: 100%;
   padding: 6px 10px;
@@ -139,14 +138,56 @@ textarea {
   &::placeholder { color: $text-subtle; }
 
   &:focus {
-    border-color: $brand-primary;
-    box-shadow: 0 0 0 3px rgba(var(--color-info-rgb), 0.12);
+    border-color: var(--brand-primary, #15803D);
+    box-shadow: 0 0 0 3px rgba(var(--brand-primary-rgb), 0.16);
   }
 
   &:disabled {
     background: $neutral-100;
     color: $text-muted;
     cursor: not-allowed;
+  }
+}
+
+select {
+  width: 100%;
+  padding: 6px 32px 6px 10px;
+  height: 34px;
+  font-size: $text-base;
+  font-family: inherit;
+  color: $text-primary;
+  background-color: $surface-white;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
+  border: 1px solid $border-default;
+  border-radius: $radius-md;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  transition: border-color $duration-fast $ease-out,
+              box-shadow $duration-fast $ease-out,
+              background-color $duration-fast $ease-out;
+  line-height: 1.4;
+
+  &:hover {
+    border-color: $border-strong;
+  }
+
+  &:focus {
+    border-color: var(--brand-primary, #15803D);
+    box-shadow: 0 0 0 3px rgba(var(--brand-primary-rgb), 0.16);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2315803d' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  }
+
+  &:disabled {
+    background-color: $neutral-100;
+    color: $text-muted;
+    cursor: not-allowed;
+    opacity: 0.65;
   }
 }
 

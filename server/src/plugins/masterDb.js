@@ -10,9 +10,32 @@ async function masterDbPlugin(fastify, options) {
   const config = getMasterDbConfig();
   const masterPool = mysql.createPool(config);
 
-  const conn = await masterPool.getConnection();
-  conn.release();
-  console.log(`Connected to Central Master Database (${config.database}).`);
+  const maxRetries = Number(process.env.DB_CONNECT_RETRIES) || 10;
+  const retryIntervalMs = Number(process.env.DB_CONNECT_RETRY_INTERVAL_MS) || 3000;
+  let connected = false;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const conn = await masterPool.getConnection();
+      conn.release();
+      console.log(`Connected to Central Master Database (${config.database}).`);
+      connected = true;
+      break;
+    } catch (err) {
+      console.warn(
+        `[WARN] Central Master Database connection attempt ${attempt}/${maxRetries} failed (${err.code || err.message}). Retrying in ${retryIntervalMs / 1000}s...`
+      );
+      if (attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, retryIntervalMs));
+      }
+    }
+  }
+
+  if (!connected) {
+    throw new Error(
+      `Failed to connect to Central Master Database (${config.database}) after ${maxRetries} attempts.`
+    );
+  }
 
   fastify.decorate('masterDb', masterPool);
 }

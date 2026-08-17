@@ -17,12 +17,20 @@ import {
   Building2,
   FileSpreadsheet,
   StickyNote,
-  Printer
+  Printer,
+  Clock,
+  Calendar,
+  ArrowRight,
+  Wallet,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import CustomerProfileModal from '../borrowers/CustomerProfileModal';
 import DedicatedThermalPrintModal from '../../components/DedicatedThermalPrintModal';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
-import { calculatePaymentAllocation } from '../../utils/loanCalculations';
+import { calculatePaymentAllocation, daysBetween, resolveLastPaymentDate } from '../../utils/loanCalculations';
+import SharedDropdown from '../../components/common/SharedDropdown';
+import SharedDatePicker from '../../components/common/SharedDatePicker';
 
 function getInitials(name = '') {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
@@ -88,6 +96,7 @@ export default function DailyCollectionsView({
   loans = [],
   borrowers = [],
   loanSchemes = [],
+  employees = [],
   user,
   tenant,
   branchesList = [],
@@ -116,9 +125,9 @@ export default function DailyCollectionsView({
   // Table filter, date filter & modal state
   const [searchQuery, setSearchQuery] = useState('');
   const [modeFilter, setModeFilter] = useState('ALL');
-  const [datePreset, setDatePreset] = useState('TODAY'); // Default to 'TODAY'
-  const [fromDate, setFromDate] = useState(getTodayISO());
-  const [toDate, setToDate] = useState(getTodayISO());
+  const [datePreset, setDatePreset] = useState('ALL'); // Default to 'ALL' so historical collections display immediately
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [printThermalReceipt, setPrintThermalReceipt] = useState(null);
   const [selectedCustomerForProfile, setSelectedCustomerForProfile] = useState(null);
@@ -143,21 +152,28 @@ export default function DailyCollectionsView({
   const pageSize = 10;
 
   const canControl = user?.role !== 'COLLECTOR';
-  const [confirmCollectionModal, setConfirmCollectionModal] = useState(null);
+  // Collection Modal State
+  const [collectionModalData, setCollectionModalData] = useState(null);
+  // The Interest Accrual card is dense (days elapsed, rate, both dates,
+  // calculated interest) — most collectors just want the suggested amount,
+  // not the derivation. Collapsed by default, expandable for anyone who
+  // wants to verify the calculation.
+  const [showAccrualDetails, setShowAccrualDetails] = useState(false);
+  // The receipt view's branch/GPS/notes/proof section — optional, most
+  // people just want the amount/mode breakdown, not every field.
+  const [showMoreReceiptDetails, setShowMoreReceiptDetails] = useState(false);
+  useEffect(() => { setShowMoreReceiptDetails(false); }, [selectedReceipt]);
+  // "Received By" — pick from a real staff list, or type a name manually
+  // when the collector isn't in that list (a field agent not yet added as
+  // an employee record, a one-off substitute, etc).
+  const [collectorEntryMode, setCollectorEntryMode] = useState('SELECT'); // 'SELECT' | 'MANUAL'
 
-  // Inline Quick Collection Header Form State
+  // Header Loan Selection State
   const [selectedLoanId, setSelectedLoanId] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
-  const [amountPaid, setAmountPaid] = useState('');
-  const [paymentMode, setPaymentMode] = useState('CASH');
-  const [collectorName, setCollectorName] = useState(user?.name || 'Sarah Collector');
-  const [collectionDate, setCollectionDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [referenceNo, setReferenceNo] = useState('');
-  const [notes, setNotes] = useState('');
   const [entryError, setEntryError] = useState('');
   const [posting, setPosting] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [editingCollectionId, setEditingCollectionId] = useState(null);
 
   const activeLoans = (loans || []).filter(l => l.status === 'ACTIVE' || l.status === 'OVERDUE');
 
@@ -171,13 +187,8 @@ export default function DailyCollectionsView({
     );
   });
 
-  // While editing, the loan may have since moved past ACTIVE/OVERDUE (e.g. it
-  // fully closed after this collection was made) — the selector itself stays
-  // locked to whatever was originally chosen, so look it up in the full loan
-  // list rather than the active-only one, or a stale edit would fail to even
-  // find its own loan.
   const targetLoan = selectedLoanId
-    ? (editingCollectionId ? loans : activeLoans).find(l => String(l.id) === String(selectedLoanId))
+    ? activeLoans.find(l => String(l.id) === String(selectedLoanId))
     : null;
 
   const selectLoanItem = (loan) => {
@@ -185,118 +196,60 @@ export default function DailyCollectionsView({
     setCustomerSearch(`${loan.loan_account_no} - ${loan.borrower_name}`);
     setIsDropdownOpen(false);
     setEntryError('');
-    setAmountPaid(loan.installment_amount || '');
   };
 
   const clearCustomerSelection = () => {
     setSelectedLoanId('');
     setCustomerSearch('');
-    setAmountPaid('');
     setEntryError('');
     setIsDropdownOpen(false);
-    setEditingCollectionId(null);
+  };
+
+  const handleOpenCollectionModal = (loanToOpen = null) => {
+    const loan = loanToOpen || targetLoan;
+    if (!loan) {
+      setEntryError('Please select a customer / loan account to record collection.');
+      return;
+    }
+    setEntryError('');
+    setCollectorEntryMode('SELECT');
+    setShowAccrualDetails(false);
+    setCollectionModalData({
+      is_edit: false,
+      loan: loan,
+      amountPaid: '',
+      paymentMode: 'CASH',
+      collectionDate: new Date().toISOString().slice(0, 10),
+      collectorName: user?.name || '',
+      referenceNo: '',
+      notes: ''
+    });
   };
 
   const prefillCollectionForEdit = (collection) => {
-    setEditingCollectionId(collection.id);
-    setSelectedLoanId(collection.loan_id);
-    setCustomerSearch(`${collection.loan_account_no} - ${collection.borrower_name}`);
-    setAmountPaid(String(collection.amount || ''));
-    setPaymentMode(collection.payment_mode || 'CASH');
-    setCollectorName(collection.collector_name || user?.name || '');
-    setCollectionDate(collection.collection_date || new Date().toISOString().slice(0, 10));
-    setReferenceNo(collection.reference_no || '');
-    setNotes(collection.notes || '');
-    setEntryError('');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const liveAllocation = (!editingCollectionId && targetLoan && parseFloat(amountPaid) > 0) ? calculatePaymentAllocation({
-    loan: targetLoan,
-    paymentAmount: parseFloat(amountPaid) || 0,
-    paymentDate: collectionDate
-  }) : null;
-
-  const handleQuickSubmit = (e) => {
-    e.preventDefault();
-    if (!targetLoan) {
-      setEntryError('Please select a customer / loan account.');
-      return;
-    }
-    const numAmt = parseFloat(amountPaid);
-    if (!numAmt || numAmt <= 0) {
-      setEntryError('Please enter a valid collection amount.');
-      return;
-    }
-
-    const isEdit = Boolean(editingCollectionId);
-
-    // Editing only ever touches metadata (payment mode/ref/collector/date/
-    // notes) — the amount field is locked in that mode, so re-validating it
-    // against the loan's *current* pending balance would spuriously fail
-    // (that balance has moved since the original collection) and re-running
-    // allocation math nobody's going to use is just wasted work.
-    if (!isEdit && numAmt > targetLoan.pending_amount) {
-      setEntryError(`Collection amount (₹${fmt(numAmt)}) cannot exceed pending balance (₹${fmt(targetLoan.pending_amount)}).`);
-      return;
-    }
-
-    setEntryError('');
-
-    const payload = {
-      is_edit: isEdit,
-      collection_id: editingCollectionId,
-      loan_id: targetLoan.id,
-      loan_account_no: targetLoan.loan_account_no,
-      borrower_name: targetLoan.borrower_name,
-      phone: targetLoan.phone,
-      branch: targetLoan.branch || '',
-      amount: numAmt,
-      payment_mode: paymentMode,
-      reference_no: referenceNo,
-      collector_name: collectorName,
-      collection_date: collectionDate,
-      notes: notes
-    };
-
-    if (!isEdit) {
-      const allocation = calculatePaymentAllocation({
-        loan: targetLoan,
-        paymentAmount: numAmt,
-        paymentDate: collectionDate
-      });
-      payload.principal_portion = allocation.principalPortion;
-      payload.interest_portion = allocation.interestPortion;
-      payload.new_principal_balance = allocation.newPendingPrincipal;
-      payload.updated_schedule = allocation.updatedSchedule;
-      payload.allocation = allocation;
-    }
-
-    setConfirmCollectionModal(payload);
-  };
-
-  const executeConfirmedCollection = async () => {
-    if (!confirmCollectionModal) return;
-    setPosting(true);
-    try {
-      if (confirmCollectionModal.is_edit) {
-        await onUpdateCollection(confirmCollectionModal.collection_id, confirmCollectionModal);
-      } else {
-        await onRecordCollection(confirmCollectionModal);
-      }
-
-      // Show animated tick confirmation badge for 0.3s
-      setShowSuccessTick(true);
-      setTimeout(() => setShowSuccessTick(false), 300);
-
-      // Reset form
-      clearCustomerSelection();
-      setConfirmCollectionModal(null);
-    } catch (err) {
-      setEntryError(err?.response?.data?.message || err?.message || 'Failed to record collection entry.');
-    } finally {
-      setPosting(false);
-    }
+    const matchedLoan = (loans || []).find(l => String(l.id) === String(collection.loan_id) || l.loan_account_no === collection.loan_account_no);
+    setCollectorEntryMode('SELECT');
+    setShowAccrualDetails(false);
+    setCollectionModalData({
+      is_edit: true,
+      collection_id: collection.id,
+      loan: matchedLoan || {
+        id: collection.loan_id,
+        loan_account_no: collection.loan_account_no,
+        borrower_name: collection.borrower_name,
+        phone: collection.phone,
+        branch: collection.branch,
+        pending_amount: collection.new_principal_balance || collection.amount,
+        principal_amount: collection.principal_paid || collection.amount,
+        installment_amount: collection.amount
+      },
+      amountPaid: String(collection.amount || ''),
+      paymentMode: collection.payment_mode || 'CASH',
+      collectionDate: collection.collection_date || new Date().toISOString().slice(0, 10),
+      collectorName: collection.collector_name || user?.name || '',
+      referenceNo: collection.reference_no || '',
+      notes: collection.notes || ''
+    });
   };
 
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
@@ -482,19 +435,19 @@ export default function DailyCollectionsView({
       {/* ── Collection Entry Form Card with integrated Page Header ── */}
       <div className="fin-card" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 18, marginBottom: 18, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 8, background: editingCollectionId ? 'var(--color-info-light, #EFF6FF)' : 'var(--brand-primary-light, #F0FEF5)', border: `1px solid ${editingCollectionId ? 'var(--color-info-border, #BFDBFE)' : 'var(--brand-primary-border, #A3F5C1)'}`, color: editingCollectionId ? 'var(--color-info, #2563EB)' : 'var(--brand-primary, #15803D)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                {editingCollectionId ? <Pencil style={{ width: 18, height: 18 }} /> : <Receipt style={{ width: 18, height: 18 }} />}
-              </div>
-              <div>
-                <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#0F172A', lineHeight: 1.2 }}>
-                  {editingCollectionId ? 'Edit Collection Entry' : t('coll.title')}
-                </h1>
-                <p style={{ margin: 0, fontSize: '0.76rem', color: '#64748B' }}>
-                  {editingCollectionId ? 'Modify collection details and update record' : t('coll.subtitle')}
-                </p>
-              </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 8, background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Receipt style={{ width: 18, height: 18 }} />
             </div>
+            <div>
+              <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#0F172A', lineHeight: 1.2 }}>
+                {t('coll.title')}
+              </h1>
+              <p style={{ margin: 0, fontSize: '0.76rem', color: '#64748B' }}>
+                {t('coll.subtitle')}
+              </p>
+            </div>
+          </div>
           {targetLoan && (
             <div style={{ fontSize: '0.76rem', color: '#64748B', background: '#F8FAFC', padding: '6px 12px', borderRadius: 6, border: '1px solid #E2E8F0' }}>
               Pending Bal: <strong style={{ color: 'var(--color-danger, #DC2626)' }}>₹{fmt(targetLoan.pending_amount)}</strong> | EMI: <strong style={{ color: 'var(--brand-primary, #15803D)' }}>₹{fmt(targetLoan.installment_amount)}</strong>
@@ -509,12 +462,13 @@ export default function DailyCollectionsView({
           </div>
         )}
 
-        <form onSubmit={handleQuickSubmit}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, alignItems: 'end' }}>
+        {/* Header Bar: Searchable Loan Selector + Record Collection Trigger */}
+        <form onSubmit={(e) => { e.preventDefault(); handleOpenCollectionModal(); }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
             {/* Searchable Customer / Loan Select */}
-            <div className="form-group" style={{ margin: 0, position: 'relative' }}>
-              <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', marginBottom: 4, display: 'block' }}>
-                Select Customer / Loan *
+            <div className="form-group" style={{ margin: 0, position: 'relative', flex: '1 1 360px' }}>
+              <label style={{ fontSize: '0.74rem', fontWeight: 600, color: '#475569', marginBottom: 4, display: 'block' }}>
+                Select Customer / Loan Account *
               </label>
               <div style={{ position: 'relative' }}>
                 <input
@@ -526,12 +480,10 @@ export default function DailyCollectionsView({
                     setIsDropdownOpen(true);
                   }}
                   onFocus={() => setIsDropdownOpen(true)}
-                  placeholder="Type name, loan # or phone..."
+                  placeholder="Search customer name, loan # or phone number..."
                   className="input-control"
-                  style={{ height: 34, fontSize: '0.78rem', borderRadius: 6, paddingRight: customerSearch ? 28 : 24 }}
+                  style={{ height: 38, fontSize: '0.82rem', borderRadius: 8, paddingRight: customerSearch ? 32 : 28 }}
                   required={!selectedLoanId}
-                  disabled={Boolean(editingCollectionId)}
-                  title={editingCollectionId ? 'The loan account on an existing collection cannot be changed — revert it and record a new one instead.' : undefined}
                 />
                 {customerSearch ? (
                   <button
@@ -539,17 +491,17 @@ export default function DailyCollectionsView({
                     onClick={clearCustomerSelection}
                     title="Clear selection"
                     style={{
-                      position: 'absolute', right: 7, top: 8, background: 'none',
+                      position: 'absolute', right: 8, top: 10, background: 'none',
                       border: 'none', padding: 2, cursor: 'pointer', color: '#94A3B8',
                       display: 'flex', alignItems: 'center', justifyContent: 'center'
                     }}
                     onMouseEnter={(e) => e.currentTarget.style.color = '#EF4444'}
                     onMouseLeave={(e) => e.currentTarget.style.color = '#94A3B8'}
                   >
-                    <X style={{ width: 14, height: 14 }} />
+                    <X style={{ width: 16, height: 16 }} />
                   </button>
                 ) : (
-                  <Search style={{ position: 'absolute', right: 8, top: 9, width: 14, height: 14, color: '#94A3B8', pointerEvents: 'none' }} />
+                  <Search style={{ position: 'absolute', right: 10, top: 11, width: 16, height: 16, color: '#94A3B8', pointerEvents: 'none' }} />
                 )}
               </div>
 
@@ -561,20 +513,23 @@ export default function DailyCollectionsView({
                   />
                   <div style={{
                     position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, marginTop: 4,
-                    background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 6,
-                    maxHeight: 200, overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 8,
+                    maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 20px rgba(0,0,0,0.12)'
                   }}>
                     {filteredCustomerLoans.length === 0 ? (
-                      <div style={{ padding: '8px 12px', fontSize: '0.75rem', color: '#94A3B8', textAlign: 'center' }}>
+                      <div style={{ padding: '10px 14px', fontSize: '0.78rem', color: '#94A3B8', textAlign: 'center' }}>
                         No matching active loans found
                       </div>
                     ) : (
                       filteredCustomerLoans.map(l => (
                         <div
                           key={l.id}
-                          onClick={() => selectLoanItem(l)}
+                          onClick={() => {
+                            selectLoanItem(l);
+                            handleOpenCollectionModal(l);
+                          }}
                           style={{
-                            padding: '8px 12px', fontSize: '0.75rem', cursor: 'pointer',
+                            padding: '10px 14px', fontSize: '0.78rem', cursor: 'pointer',
                             borderBottom: '1px solid #F1F5F9',
                             background: String(selectedLoanId) === String(l.id) ? 'var(--brand-primary-light, #F0FEF5)' : '#FFFFFF'
                           }}
@@ -582,8 +537,8 @@ export default function DailyCollectionsView({
                           onMouseLeave={(e) => e.currentTarget.style.background = String(selectedLoanId) === String(l.id) ? 'var(--brand-primary-light, #F0FEF5)' : '#FFFFFF'}
                         >
                           <div style={{ fontWeight: 600, color: '#0F172A' }}>{l.borrower_name}</div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748B', fontSize: '0.7rem' }}>
-                            <span>{l.loan_account_no} ({l.phone || 'No phone'})</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748B', fontSize: '0.72rem', marginTop: 2 }}>
+                            <span>{l.loan_account_no} • {l.phone || 'No phone'} • {l.branch || 'Main Branch'}</span>
                             <span style={{ color: 'var(--color-danger, #DC2626)', fontWeight: 600 }}>Bal: ₹{fmt(l.pending_amount)}</span>
                           </div>
                         </div>
@@ -594,157 +549,31 @@ export default function DailyCollectionsView({
               )}
             </div>
 
-            {/* Collection Amount */}
-            <div className="form-group" style={{ margin: 0 }}>
-              <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', marginBottom: 4, display: 'block' }}>
-                Amount Paid (₹) *
-              </label>
-              <input
-                type="number"
-                step="any"
-                min="0.01"
-                max={targetLoan ? targetLoan.pending_amount : undefined}
-                value={amountPaid}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (targetLoan && parseFloat(val) > targetLoan.pending_amount) {
-                    setEntryError(`Amount cannot exceed pending balance (₹${fmt(targetLoan.pending_amount)}).`);
-                  } else {
-                    setEntryError('');
-                  }
-                  setAmountPaid(val);
+            {/* Action Button: Opens the Calculation & Collection Modal */}
+            <div style={{ margin: 0 }}>
+              <button
+                type="submit"
+                className="fin-btn-primary"
+                style={{
+                  height: 38,
+                  padding: '0 20px',
+                  justifyContent: 'center',
+                  background: 'var(--brand-primary, #15803D)',
+                  borderColor: 'var(--brand-primary, #15803D)',
+                  borderRadius: 8,
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  boxShadow: '0 2px 5px rgba(21, 128, 61, 0.2)'
                 }}
-                placeholder="0.00"
-                className="input-control mono"
-                style={{ height: 34, fontSize: '0.85rem', fontWeight: 700, color: 'var(--brand-primary, #15803D)', borderRadius: 6 }}
-                required
-                disabled={Boolean(editingCollectionId)}
-                title={editingCollectionId ? 'The amount on an existing collection cannot be changed — revert it and record a new one instead.' : undefined}
-              />
-            </div>
-
-            {/* Payment Mode */}
-            <div className="form-group" style={{ margin: 0 }}>
-              <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', marginBottom: 4, display: 'block' }}>
-                Payment Mode
-              </label>
-              <select
-                value={paymentMode}
-                onChange={(e) => setPaymentMode(e.target.value)}
-                className="input-control"
-                style={{ height: 34, fontSize: '0.78rem', borderRadius: 6 }}
               >
-                {PAYMENT_MODES.map(m => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
+                <Receipt style={{ width: 16, height: 16 }} />
+                <span>Record Collection</span>
+              </button>
             </div>
-
-            {/* Collection Date */}
-            <div className="form-group" style={{ margin: 0 }}>
-              <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', marginBottom: 4, display: 'block' }}>
-                Collection Date *
-              </label>
-              <input
-                type="date"
-                max={getTodayISO()}
-                value={collectionDate}
-                onChange={(e) => setCollectionDate(e.target.value)}
-                className="input-control"
-                style={{ height: 34, fontSize: '0.78rem', borderRadius: 6 }}
-                required
-              />
-            </div>
-
-            {/* Submit / Update & Cancel Buttons */}
-            <div style={{ margin: 0, display: 'flex', gap: 6 }}>
-              {editingCollectionId ? (
-                <>
-                  <button
-                    type="submit"
-                    disabled={posting}
-                    className="fin-btn-primary"
-                    style={{
-                      height: 34,
-                      flex: 1,
-                      justifyContent: 'center',
-                      background: 'var(--color-info, #2563EB)',
-                      borderColor: 'var(--color-info, #2563EB)',
-                      borderRadius: 6,
-                      fontSize: '0.78rem',
-                      fontWeight: 600,
-                      cursor: posting ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    <Pencil style={{ width: 14, height: 14 }} />
-                    <span>{posting ? 'Updating...' : 'Update Collection'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={clearCustomerSelection}
-                    className="btn-cancel"
-                    style={{
-                      height: 34,
-                      padding: '0 12px',
-                      borderRadius: 6,
-                      fontSize: '0.78rem',
-                      fontWeight: 600,
-                      background: '#F1F5F9',
-                      border: '1px solid #CBD5E1',
-                      color: '#475569',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="submit"
-                  disabled={posting}
-                  className="fin-btn-primary"
-                  style={{
-                    height: 34,
-                    width: '100%',
-                    justifyContent: 'center',
-                    background: 'var(--brand-primary, #15803D)',
-                    borderColor: 'var(--brand-primary, #15803D)',
-                    borderRadius: 6,
-                    fontSize: '0.78rem',
-                    fontWeight: 600,
-                    cursor: posting ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  <Plus style={{ width: 14, height: 14 }} />
-                  <span>{posting ? 'Saving...' : 'Record Collection'}</span>
-                </button>
-              )}
-            </div>
-            {/* Live Allocation Preview Box */}
-            {liveAllocation && (
-              <div style={{
-                gridColumn: '1 / -1', background: '#F8FAFC', border: '1px solid #E2E8F0',
-                borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'center',
-                justify: 'space-between', gap: 16, fontSize: '0.76rem'
-              }}>
-                <div style={{ display: 'flex', gap: 16 }}>
-                  <div>
-                    <span style={{ color: '#64748B' }}>Principal: </span>
-                    <strong style={{ color: '#0F172A' }}>₹{fmt(liveAllocation.principalPortion)}</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: '#64748B' }}>Interest: </span>
-                    <strong style={{ color: '#0E7490' }}>₹{fmt(liveAllocation.interestPortion)}</strong>
-                  </div>
-                </div>
-                <div>
-                  <span style={{ color: '#64748B' }}>New Pending Bal: </span>
-                  <strong style={{ color: liveAllocation.newPendingPrincipal > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)' }}>
-                    ₹{fmt(liveAllocation.newPendingPrincipal)}
-                  </strong>
-                </div>
-              </div>
-            )}
           </div>
         </form>
       </div>
@@ -816,68 +645,62 @@ export default function DailyCollectionsView({
           </div>
 
           {/* Branch Filter */}
-          <select
+          <SharedDropdown
             value={branchFilter}
             onChange={(e) => { setBranchFilter(e.target.value); setCurrentPage(1); }}
             disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
-            style={{
-              height: 28, padding: '0 6px', borderRadius: 5, border: '1px solid #CBD5E1',
-              background: '#FFFFFF', fontSize: '0.74rem', color: '#0F172A',
-              fontFamily: 'inherit', cursor: 'pointer', flexShrink: 0, width: 120
-            }}
-          >
-            <option value="ALL">All Branches</option>
-            {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-          </select>
+            size="sm"
+            buttonStyle={{ height: 28, minWidth: 120, fontSize: '0.74rem', padding: '0 8px' }}
+            options={[
+              { value: 'ALL', label: 'All Branches' },
+              ...branchesList.map(b => ({ value: b.name, label: b.name }))
+            ]}
+          />
 
           {/* Payment Mode Filter */}
-          <select
+          <SharedDropdown
             value={modeFilter}
             onChange={(e) => { setModeFilter(e.target.value); setCurrentPage(1); }}
-            style={{
-              height: 28, padding: '0 6px', borderRadius: 5, border: '1px solid #CBD5E1',
-              background: '#FFFFFF', fontSize: '0.74rem', color: '#0F172A',
-              fontFamily: 'inherit', cursor: 'pointer', flexShrink: 0, width: 120
-            }}
-          >
-            <option value="ALL">All Modes ({countAll})</option>
-            <option value="CASH">Cash ({countCash})</option>
-            <option value="UPI">UPI ({countUpi})</option>
-            <option value="CHEQUE">Cheque ({countCheque})</option>
-          </select>
+            size="sm"
+            buttonStyle={{ height: 28, minWidth: 120, fontSize: '0.74rem', padding: '0 8px' }}
+            options={[
+              { value: 'ALL', label: `All Modes (${countAll})` },
+              { value: 'CASH', label: `Cash (${countCash})` },
+              { value: 'UPI', label: `UPI (${countUpi})` },
+              { value: 'CHEQUE', label: `Cheque (${countCheque})` }
+            ]}
+          />
 
           {/* Date Preset Filter */}
-          <select
+          <SharedDropdown
             value={datePreset}
             onChange={(e) => handleDatePresetChange(e.target.value)}
-            style={{
-              height: 28, padding: '0 6px', borderRadius: 5, border: '1px solid #CBD5E1',
-              background: '#FFFFFF', fontSize: '0.74rem', color: '#0F172A',
-              fontFamily: 'inherit', cursor: 'pointer', flexShrink: 0, width: 110
-            }}
-          >
-            <option value="ALL">All Dates</option>
-            <option value="TODAY">Today</option>
-            <option value="7D">7 Days</option>
-            <option value="30D">30 Days</option>
-            <option value="CUSTOM">Custom</option>
-          </select>
+            size="sm"
+            buttonStyle={{ height: 28, minWidth: 110, fontSize: '0.74rem', padding: '0 8px' }}
+            options={[
+              { value: 'ALL', label: 'All Dates' },
+              { value: 'TODAY', label: 'Today' },
+              { value: '7D', label: '7 Days' },
+              { value: '30D', label: '30 Days' },
+              { value: 'CUSTOM', label: 'Custom' }
+            ]}
+          />
 
           {/* Custom Date Pickers */}
           {datePreset === 'CUSTOM' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-              <input
-                type="date"
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              <SharedDatePicker
                 value={fromDate}
                 onChange={(e) => { setFromDate(e.target.value); setCurrentPage(1); }}
-                style={{ height: 28, padding: '0 4px', borderRadius: 5, border: '1px solid #CBD5E1', fontSize: '0.7rem', background: '#FFFFFF' }}
+                size="sm"
+                buttonStyle={{ height: 32, minWidth: 120, fontSize: '0.72rem' }}
               />
               <span style={{ fontSize: '0.7rem', color: '#64748B' }}>-</span>
-              <input
-                type="date"
+              <SharedDatePicker
                 value={toDate}
                 onChange={(e) => { setToDate(e.target.value); setCurrentPage(1); }}
-                style={{ height: 28, padding: '0 4px', borderRadius: 5, border: '1px solid #CBD5E1', fontSize: '0.7rem', background: '#FFFFFF' }}
+                size="sm"
+                buttonStyle={{ height: 32, minWidth: 120, fontSize: '0.72rem' }}
               />
             </div>
           )}
@@ -1176,10 +999,77 @@ export default function DailyCollectionsView({
                         })()}
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #F1F5F9', paddingTop: 6 }}>
-                        <span style={{ color: '#64748B' }}>Collector Name:</span>
+                        <span style={{ color: '#64748B' }}>Received By:</span>
                         <span style={{ color: '#334155', fontWeight: 600 }}>{selectedReceipt.collector_name || user?.name || '—'}</span>
                       </div>
+                      {Number(selectedReceipt.penalty) > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#64748B' }}>Late Fee / Penalty:</span>
+                          <strong style={{ color: 'var(--color-warning, #D97706)' }}>₹{fmt(selectedReceipt.penalty)}</strong>
+                        </div>
+                      )}
                     </div>
+                  </div>
+
+                  {/* Additional Details Card — branch, notes, proof, location.
+                      Optional/collapsed by default: most people just want the
+                      amount/mode breakdown above, not every field. */}
+                  <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowMoreReceiptDetails(v => !v)}
+                      style={{
+                        width: '100%', background: '#F1F5F9', border: 'none', cursor: 'pointer',
+                        padding: '8px 12px', fontSize: '0.75rem', fontWeight: 700, color: '#334155',
+                        borderBottom: showMoreReceiptDetails ? '1px solid #E2E8F0' : 'none',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                      }}
+                    >
+                      <span>Additional Details</span>
+                      {showMoreReceiptDetails ? <ChevronUp style={{ width: 14, height: 14 }} /> : <ChevronDown style={{ width: 14, height: 14 }} />}
+                    </button>
+                    {showMoreReceiptDetails && (
+                      <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.8rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#64748B' }}>Branch:</span>
+                          <strong style={{ color: '#0F172A' }}>{selectedReceipt.branch || linkedBorrower.branch || '—'}</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#64748B' }}>Received At:</span>
+                          <strong style={{ color: '#0F172A' }}>{selectedReceipt.received_at === 'FIELD_VISIT' ? 'Field Visit' : 'Branch Counter'}</strong>
+                        </div>
+                        {(selectedReceipt.latitude != null && selectedReceipt.longitude != null) && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: '#64748B' }}>GPS Location:</span>
+                            <a
+                              href={`https://maps.google.com/?q=${selectedReceipt.latitude},${selectedReceipt.longitude}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: 'var(--color-info, #2563EB)', fontFamily: 'monospace', fontSize: '0.72rem' }}
+                            >
+                              {Number(selectedReceipt.latitude).toFixed(5)}, {Number(selectedReceipt.longitude).toFixed(5)}
+                            </a>
+                          </div>
+                        )}
+                        {selectedReceipt.notes && (
+                          <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 6 }}>
+                            <span style={{ color: '#64748B', display: 'block', marginBottom: 3 }}>Remarks:</span>
+                            <span style={{ color: '#334155' }}>{selectedReceipt.notes}</span>
+                          </div>
+                        )}
+                        {selectedReceipt.proof_image && (
+                          <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 8 }}>
+                            <span style={{ color: '#64748B', display: 'block', marginBottom: 6 }}>Proof of Payment:</span>
+                            <img
+                              src={selectedReceipt.proof_image}
+                              alt="Proof of payment"
+                              onClick={() => setPreviewImage(selectedReceipt.proof_image)}
+                              style={{ width: 90, height: 90, borderRadius: 8, objectFit: 'cover', border: '1px solid #E2E8F0', cursor: 'pointer' }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1275,86 +1165,418 @@ export default function DailyCollectionsView({
 
 
 
-      {/* ── Record Collection Confirmation Popup Modal ────────────────────── */}
-      {confirmCollectionModal && (
-        <div className="saas-modal-backdrop" style={{ zIndex: 1000000 }}>
-          <div className="saas-modal-card" style={{ maxWidth: 460 }}>
-            <div className="saas-modal-header">
-              <div className="head-left">
-                <div className="head-icon-badge" style={{ background: 'var(--brand-primary-light, #F0FEF5)', borderColor: 'var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)' }}>
-                  <Receipt style={{ width: 18, height: 18 }} />
-                </div>
-                <div className="head-titles">
-                  <h3>{confirmCollectionModal.is_edit ? 'Confirm Collection Update' : 'Confirm Collection Entry'}</h3>
-                  <p>{confirmCollectionModal.loan_account_no} — {confirmCollectionModal.borrower_name}</p>
-                </div>
-              </div>
-              <button onClick={() => setConfirmCollectionModal(null)} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>
-            </div>
-            <div className="saas-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                  <span style={{ color: '#64748B' }}>Customer:</span>
-                  <strong style={{ color: '#0F172A' }}>{confirmCollectionModal.borrower_name}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                  <span style={{ color: '#64748B' }}>Loan Account:</span>
-                  <span style={{ color: 'var(--brand-primary, #15803D)', fontWeight: 600 }}>{confirmCollectionModal.loan_account_no}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                  <span style={{ color: '#64748B' }}>Collection Date:</span>
-                  <span style={{ color: '#0F172A' }}>{formatDateDDMMYYYY(confirmCollectionModal.collection_date)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                  <span style={{ color: '#64748B' }}>Payment Mode:</span>
-                  <span style={{ color: '#334155', fontWeight: 600 }}>{confirmCollectionModal.payment_mode}</span>
-                </div>
-                {confirmCollectionModal.reference_no && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                    <span style={{ color: '#64748B' }}>Ref / Txn No:</span>
-                    <span style={{ color: '#0F172A', fontFamily: 'monospace' }}>{confirmCollectionModal.reference_no}</span>
+      {/* ── Record Loan Collection & Interest Accrual Calculation Modal ── */}
+      {collectionModalData && (() => {
+        const loan = collectionModalData.loan;
+        const isEdit = Boolean(collectionModalData.is_edit);
+        const linkedBorrower = getLinkedBorrower(loan);
+        const customerName = loan.borrower_name || linkedBorrower.full_name || 'Customer';
+        const customerPhone = loan.phone || linkedBorrower.phone || '—';
+        const branchName = loan.branch || linkedBorrower.branch || 'Main Branch';
+
+        const principal = parseFloat(loan.principal_amount) || 0;
+        const pendingPrincipal = parseFloat(loan.pending_amount) || 0;
+        const monthlyRate = parseFloat(loan.monthly_interest_rate) || 2.0;
+        const dailyRate = (monthlyRate / 100) / 30;
+
+        const effectivePaymentDate = collectionModalData.collectionDate || new Date().toISOString().slice(0, 10);
+        const lastPaidDate = resolveLastPaymentDate(loan, effectivePaymentDate);
+        const daysElapsed = daysBetween(lastPaidDate, effectivePaymentDate);
+
+        // Interest calculation
+        let calculatedInterestDue = 0;
+        let suggestedPrincipalDue = 0;
+
+        if (loan.repayment_method === 'INTEREST_ONLY') {
+          const base = (loan.interest_calculation === 'CONSTANT_FLAT') ? principal : pendingPrincipal;
+          calculatedInterestDue = Math.round(base * dailyRate * daysElapsed);
+          suggestedPrincipalDue = 0;
+        } else {
+          // EMI loan
+          const emi = parseFloat(loan.installment_amount) || 0;
+          const baseInterest = Math.round(principal * (monthlyRate / 100));
+          calculatedInterestDue = baseInterest;
+          suggestedPrincipalDue = Math.max(0, emi - calculatedInterestDue);
+        }
+
+        const suggestedTotal = loan.repayment_method === 'INTEREST_ONLY'
+          ? Math.max(0, calculatedInterestDue)
+          : (parseFloat(loan.installment_amount) || (calculatedInterestDue + suggestedPrincipalDue));
+
+        const currentAmount = collectionModalData.amountPaid !== ''
+          ? collectionModalData.amountPaid
+          : (suggestedTotal > 0 ? String(suggestedTotal) : '');
+
+        const numAmount = parseFloat(currentAmount) || 0;
+
+        const liveAlloc = calculatePaymentAllocation({
+          loan,
+          paymentAmount: numAmount,
+          paymentDate: effectivePaymentDate
+        });
+
+        const handleModalSubmit = async (e) => {
+          e.preventDefault();
+          if (numAmount <= 0) {
+            setEntryError('Please enter a valid collection amount.');
+            return;
+          }
+          if (!isEdit && numAmount > loan.pending_amount) {
+            setEntryError(`Collection amount (₹${fmt(numAmount)}) cannot exceed pending balance (₹${fmt(loan.pending_amount)}).`);
+            return;
+          }
+
+          setPosting(true);
+          try {
+            const payload = {
+              is_edit: isEdit,
+              collection_id: collectionModalData.collection_id,
+              loan_id: loan.id,
+              loan_account_no: loan.loan_account_no,
+              borrower_name: customerName,
+              phone: customerPhone,
+              branch: branchName,
+              amount: numAmount,
+              principal_portion: liveAlloc.principalPortion,
+              interest_portion: liveAlloc.interestPortion,
+              new_principal_balance: liveAlloc.newPendingPrincipal,
+              updated_schedule: liveAlloc.updatedSchedule,
+              payment_mode: collectionModalData.paymentMode || 'CASH',
+              reference_no: collectionModalData.referenceNo || '',
+              collector_name: collectionModalData.collectorName || user?.name || 'Staff Collector',
+              collection_date: effectivePaymentDate,
+              notes: collectionModalData.notes || '',
+              allocation: liveAlloc
+            };
+
+            let res;
+            if (isEdit) {
+              res = await onUpdateCollection(collectionModalData.collection_id, payload);
+            } else {
+              res = await onRecordCollection(payload);
+            }
+
+            // Success feedback
+            setShowSuccessTick(true);
+            setTimeout(() => setShowSuccessTick(false), 800);
+
+            // Automatically open printable thermal receipt
+            setPrintThermalReceipt(res?.data || payload);
+
+            // Reset selection & close modal
+            clearCustomerSelection();
+            setCollectionModalData(null);
+          } catch (err) {
+            setEntryError(err?.response?.data?.message || err?.message || 'Failed to record collection entry.');
+          } finally {
+            setPosting(false);
+          }
+        };
+
+        return (
+          <div className="saas-modal-backdrop" style={{ zIndex: 1000000 }}>
+            <div className="saas-modal-card" style={{ maxWidth: 620, borderRadius: 14, overflow: 'hidden', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif' }}>
+              {/* Modal Header */}
+              <div className="saas-modal-header" style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', padding: '16px 22px' }}>
+                <div className="head-left">
+                  <div className="head-icon-badge" style={{ background: 'var(--brand-primary-light, #F0FEF5)', borderColor: 'var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)' }}>
+                    <Receipt style={{ width: 20, height: 20 }} />
                   </div>
-                )}
-                <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 8, marginTop: 2, display: 'flex', justifyContent: 'space-between', fontSize: '0.86rem' }}>
-                  <span style={{ color: '#0F172A', fontWeight: 600 }}>Total Paid Amount:</span>
-                  <strong style={{ color: 'var(--brand-primary, #15803D)', fontSize: '1rem' }}>₹{fmt(confirmCollectionModal.amount)}</strong>
+                  <div className="head-titles">
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: '#0F172A' }}>
+                      {isEdit ? 'Edit Collection Entry' : 'Record Loan Collection'}
+                    </h3>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '0.76rem', color: '#64748B' }}>
+                      {loan.loan_account_no} • {customerName} • {branchName}
+                    </p>
+                  </div>
                 </div>
+                <button onClick={() => setCollectionModalData(null)} className="close-btn" type="button"><X style={{ width: 18, height: 18 }} /></button>
               </div>
 
-              {/* Breakdown details */}
-              {confirmCollectionModal.allocation && (
-                <div style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', borderRadius: 8, padding: '10px 12px', fontSize: '0.76rem', display: 'flex', justifyContent: 'space-between' }}>
-                  <div>
-                    <span style={{ color: 'var(--brand-primary-hover, #0E5327)' }}>Principal: </span>
-                    <strong style={{ color: '#0F172A' }}>₹{fmt(confirmCollectionModal.allocation.principalPortion)}</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--brand-primary-hover, #0E5327)' }}>Interest: </span>
-                    <strong style={{ color: '#0E7490' }}>₹{fmt(confirmCollectionModal.allocation.interestPortion)}</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--brand-primary-hover, #0E5327)' }}>New Balance: </span>
-                    <strong style={{ color: confirmCollectionModal.allocation.newPendingPrincipal > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)' }}>₹{fmt(confirmCollectionModal.allocation.newPendingPrincipal)}</strong>
-                  </div>
-                </div>
-              )}
-            </div>
+              {/* Modal Body */}
+              <form onSubmit={handleModalSubmit}>
+                <div className="saas-modal-body" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14, maxHeight: 'calc(85vh - 120px)', overflowY: 'auto' }}>
 
-            <div className="saas-modal-footer">
-              <button type="button" onClick={() => setConfirmCollectionModal(null)} className="btn-cancel">{t('btn.cancel')}</button>
-              <button
-                type="button"
-                onClick={executeConfirmedCollection}
-                disabled={posting}
-                className="btn-submit"
-                style={{ background: 'var(--brand-primary, #15803D)', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.3)', opacity: posting ? 0.7 : 1, cursor: posting ? 'not-allowed' : 'pointer' }}
-              >
-                {posting ? 'Processing...' : (confirmCollectionModal.is_edit ? 'Confirm Update' : 'Confirm Collection')}
-              </button>
+                  {/* Customer & Loan Overview Card */}
+                  <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '12px 16px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, fontSize: '0.76rem' }}>
+                      <div>
+                        <span style={{ color: '#64748B', display: 'block', fontSize: '0.7rem' }}>Customer Name</span>
+                        <strong style={{ color: '#0F172A', fontSize: '0.82rem' }}>{customerName}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748B', display: 'block', fontSize: '0.7rem' }}>Loan Account No</span>
+                        <strong style={{ color: 'var(--brand-primary, #15803D)', fontSize: '0.82rem' }}>{loan.loan_account_no}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748B', display: 'block', fontSize: '0.7rem' }}>Sanctioned Principal</span>
+                        <strong style={{ color: '#0F172A' }}>₹{fmt(principal)}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748B', display: 'block', fontSize: '0.7rem' }}>Outstanding Balance</span>
+                        <strong style={{ color: pendingPrincipal > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)' }}>
+                          ₹{fmt(pendingPrincipal)}
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Interest Accrual Calculation Card */}
+                  <div style={{
+                    background: 'linear-gradient(135deg, #F0FDF4 0%, #ECFEFF 100%)',
+                    border: '1px solid #A7F3D0',
+                    borderRadius: 10,
+                    padding: '14px 16px'
+                  }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowAccrualDetails(v => !v)}
+                      style={{
+                        width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        marginBottom: showAccrualDetails ? 10 : 0
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#065F46', fontWeight: 700, fontSize: '0.82rem' }}>
+                        <Clock style={{ width: 16, height: 16, color: '#059669' }} />
+                        <span>Interest Accrual & Period Calculation</span>
+                        {showAccrualDetails ? <ChevronUp style={{ width: 14, height: 14 }} /> : <ChevronDown style={{ width: 14, height: 14 }} />}
+                      </div>
+                      <span style={{
+                        background: '#D1FAE5', color: '#065F46', fontSize: '0.7rem',
+                        fontWeight: 700, padding: '3px 8px', borderRadius: 6, border: '1px solid #A7F3D0'
+                      }}>
+                        {daysElapsed} Days Elapsed
+                      </span>
+                    </button>
+
+                    {showAccrualDetails && (
+                      <>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, fontSize: '0.76rem' }}>
+                          <div>
+                            <span style={{ color: '#047857', display: 'block', fontSize: '0.7rem' }}>Interest Last Paid Date</span>
+                            <strong style={{ color: '#0F172A' }}>{formatDateDDMMYYYY(lastPaidDate)}</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: '#047857', display: 'block', fontSize: '0.7rem' }}>Collection Date (To Date)</span>
+                            <strong style={{ color: '#0F172A' }}>{formatDateDDMMYYYY(effectivePaymentDate)}</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: '#047857', display: 'block', fontSize: '0.7rem' }}>Rate ({loan.repayment_method || 'EMI'})</span>
+                            <strong style={{ color: '#0F172A' }}>{monthlyRate}% / mo ({(dailyRate * 100).toFixed(4)}%/d)</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: '#047857', display: 'block', fontSize: '0.7rem' }}>Calculated Interest Due</span>
+                            <strong style={{ color: '#0E7490', fontSize: '0.92rem' }}>₹{fmt(calculatedInterestDue)}</strong>
+                          </div>
+                        </div>
+
+                        {/* Summary of Suggested Payable */}
+                        <div style={{
+                          marginTop: 10, paddingTop: 10, borderTop: '1px dashed #A7F3D0',
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem'
+                        }}>
+                          <span style={{ color: '#065F46' }}>
+                            Suggested Amount ({loan.repayment_method === 'INTEREST_ONLY' ? 'Interest Accrued' : 'Scheduled EMI'}):
+                          </span>
+                          <strong style={{ color: 'var(--brand-primary, #15803D)', fontSize: '0.96rem' }}>
+                            ₹{fmt(suggestedTotal)}
+                          </strong>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Payment Inputs */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
+                    {/* Amount Paid */}
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155', marginBottom: 4, display: 'block' }}>
+                        Amount Received (₹) *
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0.01"
+                        max={loan.pending_amount}
+                        value={currentAmount}
+                        onChange={(e) => {
+                          setCollectionModalData(prev => ({ ...prev, amountPaid: e.target.value }));
+                          setEntryError('');
+                        }}
+                        placeholder="0.00"
+                        className="input-control mono"
+                        style={{ height: 38, fontSize: '0.95rem', fontWeight: 700, color: 'var(--brand-primary, #15803D)', borderRadius: 8 }}
+                        required
+                        autoFocus
+                      />
+                    </div>
+
+                    {/* Payment Mode */}
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155', marginBottom: 4, display: 'block' }}>
+                        Payment Mode *
+                      </label>
+                      <SharedDropdown
+                        value={collectionModalData.paymentMode || 'CASH'}
+                        onChange={(e) => setCollectionModalData(prev => ({ ...prev, paymentMode: e.target.value }))}
+                        options={PAYMENT_MODES.map(m => ({ value: m, label: m }))}
+                      />
+                    </div>
+
+                    {/* Collection Date */}
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155', marginBottom: 4, display: 'block' }}>
+                        Collection Date *
+                      </label>
+                      <SharedDatePicker
+                        max={getTodayISO()}
+                        value={effectivePaymentDate}
+                        onChange={(e) => setCollectionModalData(prev => ({ ...prev, collectionDate: e.target.value }))}
+                        buttonStyle={{ height: 38, fontSize: '0.8rem', borderRadius: 8 }}
+                        required
+                      />
+                    </div>
+
+                    {/* Received By — pick from the real staff list, or type a
+                        name manually when the collector isn't one of them
+                        (a field agent not yet added as an employee record,
+                        a one-off substitute, etc). */}
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155', marginBottom: 4, display: 'block' }}>
+                        Received By
+                      </label>
+                      {collectorEntryMode === 'MANUAL' ? (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <input
+                            type="text"
+                            autoFocus
+                            value={collectionModalData.collectorName || ''}
+                            onChange={(e) => setCollectionModalData(prev => ({ ...prev, collectorName: e.target.value }))}
+                            placeholder="Enter staff name"
+                            className="input-control"
+                            style={{ height: 38, fontSize: '0.8rem', borderRadius: 8, flex: 1 }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => { setCollectorEntryMode('SELECT'); setCollectionModalData(prev => ({ ...prev, collectorName: '' })); }}
+                            title="Pick from staff list instead"
+                            style={{ height: 38, padding: '0 10px', borderRadius: 8, border: '1px solid #CBD5E1', background: '#F8FAFC', color: '#475569', fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          >
+                            List
+                          </button>
+                        </div>
+                      ) : (
+                        <SharedDropdown
+                          value={collectionModalData.collectorName || ''}
+                          onChange={(e) => {
+                            if (e.target.value === '__MANUAL__') {
+                              setCollectorEntryMode('MANUAL');
+                              setCollectionModalData(prev => ({ ...prev, collectorName: '' }));
+                            } else {
+                              setCollectionModalData(prev => ({ ...prev, collectorName: e.target.value }));
+                            }
+                          }}
+                          placeholder="Select staff..."
+                          searchable
+                          buttonStyle={{ height: 38, fontSize: '0.8rem' }}
+                          options={[
+                            ...employees.map(emp => ({ value: emp.name, label: emp.name })),
+                            { value: '__MANUAL__', label: '+ Enter name manually...' }
+                          ]}
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Reference No based on Mode */}
+                  {(collectionModalData.paymentMode !== 'CASH') && (
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155', marginBottom: 4, display: 'block' }}>
+                        {collectionModalData.paymentMode === 'UPI' ? 'UPI Transaction ID / UTR *' : collectionModalData.paymentMode === 'CHEQUE' ? 'Cheque No & Bank Details *' : 'NEFT / Bank Reference No *'}
+                      </label>
+                      <input
+                        type="text"
+                        value={collectionModalData.referenceNo || ''}
+                        onChange={(e) => setCollectionModalData(prev => ({ ...prev, referenceNo: e.target.value }))}
+                        placeholder={collectionModalData.paymentMode === 'UPI' ? 'e.g. 423489123891' : collectionModalData.paymentMode === 'CHEQUE' ? 'e.g. Cheque #491021 - SBI' : 'e.g. UTR / Ref #'}
+                        className="input-control"
+                        style={{ height: 36, fontSize: '0.8rem', borderRadius: 8 }}
+                        required={collectionModalData.paymentMode !== 'CASH'}
+                      />
+                    </div>
+                  )}
+
+                  {/* Remarks / Notes */}
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155', marginBottom: 4, display: 'block' }}>
+                      Notes / Remarks
+                    </label>
+                    <input
+                      type="text"
+                      value={collectionModalData.notes || ''}
+                      onChange={(e) => setCollectionModalData(prev => ({ ...prev, notes: e.target.value }))}
+                      placeholder="Optional notes regarding this collection..."
+                      className="input-control"
+                      style={{ height: 36, fontSize: '0.8rem', borderRadius: 8 }}
+                    />
+                  </div>
+
+                  {/* Live Real-time Allocation Box */}
+                  {numAmount > 0 && liveAlloc && (
+                    <div style={{
+                      background: '#F8FAFC', border: '1px solid #CBD5E1',
+                      borderRadius: 10, padding: '12px 16px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      flexWrap: 'wrap', gap: 12, fontSize: '0.78rem'
+                    }}>
+                      <div>
+                        <span style={{ color: '#64748B', display: 'block', fontSize: '0.7rem' }}>Principal Covered</span>
+                        <strong style={{ color: '#0F172A', fontSize: '0.88rem' }}>₹{fmt(liveAlloc.principalPortion)}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748B', display: 'block', fontSize: '0.7rem' }}>Interest Covered</span>
+                        <strong style={{ color: '#0E7490', fontSize: '0.88rem' }}>₹{fmt(liveAlloc.interestPortion)}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748B', display: 'block', fontSize: '0.7rem' }}>New Outstanding Balance</span>
+                        <strong style={{ color: liveAlloc.newPendingPrincipal > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)', fontSize: '0.88rem' }}>
+                          ₹{fmt(liveAlloc.newPendingPrincipal)}
+                        </strong>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Modal Footer */}
+                <div className="saas-modal-footer" style={{ background: '#F8FAFC', borderTop: '1px solid #E2E8F0', padding: '14px 22px' }}>
+                  <button type="button" onClick={() => setCollectionModalData(null)} className="btn-cancel" disabled={posting} style={{ borderRadius: 8 }}>
+                    {t('btn.cancel')}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={posting || numAmount <= 0}
+                    className="btn-submit"
+                    style={{
+                      background: 'var(--brand-primary, #15803D)',
+                      boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.3)',
+                      borderRadius: 8,
+                      padding: '9px 20px',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      opacity: posting ? 0.7 : 1,
+                      cursor: posting ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    {posting ? 'Processing Payment...' : isEdit ? 'Update Collection' : `Confirm & Record Collection (₹${fmt(numAmount)})`}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── Collection Success Animated Tick Toast Modal Overlay ── */}
       {showSuccessTick && (

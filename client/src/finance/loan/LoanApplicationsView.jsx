@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import NewLoanApplicationPage from './NewLoanApplicationPage';
 import PrintableLoanApplicationSheet from './PrintableLoanApplicationSheet';
 import CustomerProfileModal from '../borrowers/CustomerProfileModal';
+import DisburseLoanModal from './DisburseLoanModal';
 import {
   Clock,
   Search,
@@ -11,7 +12,8 @@ import {
   Plus,
   ChevronLeft,
   ChevronRight,
-  RotateCcw
+  RotateCcw,
+  Printer
 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 
@@ -110,6 +112,8 @@ export default function LoanApplicationsView({
   loanSchemes = [],
   branches = [],
   tenant,
+  chartOfAccounts = [],
+  bankAccounts = [],
   externalSearchQuery = '',
   onCreateBorrower,
   onQuickAction,
@@ -129,6 +133,7 @@ export default function LoanApplicationsView({
   const pageSize = 10;
 
   const [selectedApplication, setSelectedApplication] = useState(null);
+  const [loanToDisburse, setLoanToDisburse] = useState(null);
   const [modalAction, setModalAction] = useState('VIEW'); // 'VIEW' | 'APPROVE' | 'REJECT'
   const [rejectReason, setRejectReason] = useState('');
   const [actionSuccessMsg, setActionSuccessMsg] = useState('');
@@ -228,16 +233,23 @@ export default function LoanApplicationsView({
     }
   };
 
-  const handleDisburseConfirm = async (app) => {
+  const handleDisburseConfirm = (app) => {
     if (!app || actionLoading) return;
+    setLoanToDisburse(app);
+  };
+
+  const handleDisburseSubmit = async (disbursalData) => {
+    if (!loanToDisburse) return;
     setActionLoading(true);
     setActionErrorMsg('');
     try {
-      await onDisburseApprovedLoan?.(app.id);
-      setActionSuccessMsg(`Loan ${app.loan_account_no} for ${app.borrower_name} has been disbursed — cash posted.`);
+      await onDisburseApprovedLoan?.(loanToDisburse.id, disbursalData);
+      setActionSuccessMsg(`Loan ${loanToDisburse.loan_account_no} for ${loanToDisburse.borrower_name} has been disbursed from ${disbursalData.branch} via ${disbursalData.payment_mode}. Voucher posted.`);
+      setLoanToDisburse(null);
       setTimeout(() => setActionSuccessMsg(''), 4000);
     } catch (err) {
-      setActionErrorMsg(err?.response?.data?.message || 'Failed to disburse this loan.');
+      setActionErrorMsg(err?.response?.data?.message || err?.message || 'Failed to disburse this loan.');
+      throw err;
     } finally {
       setActionLoading(false);
     }
@@ -262,9 +274,14 @@ export default function LoanApplicationsView({
     );
   }
 
+  // "Approved" here IS the disbursal queue — an approved application sits in
+  // this exact tab until someone disburses it, at which point its status
+  // flips to ACTIVE and it naturally drops out of allAppsList (PENDING /
+  // APPROVED / REJECTED only) below. Labeling it "Disbursal" makes that
+  // relationship obvious instead of implying two separate stages.
   const TABS = [
     { id: 'PENDING', label: t('kyc.pending_review'), count: pendingAppsCount },
-    { id: 'APPROVED', label: tStatus('APPROVED'), count: approvedAppsCount },
+    { id: 'APPROVED', label: 'Disbursal', count: approvedAppsCount },
     { id: 'REJECTED', label: tStatus('REJECTED'), count: rejectedAppsCount }
   ];
 
@@ -379,6 +396,7 @@ export default function LoanApplicationsView({
                     <td style={{ textAlign: 'right' }}>
                       <div style={{ display: 'inline-flex', gap: 6 }}>
                         <ActionPill icon={<Eye style={{ width: 11, height: 11 }} />} label="View" onClick={() => handleOpenModal(loan, 'VIEW')} />
+                        <ActionPill icon={<Printer style={{ width: 11, height: 11 }} />} label="Print" onClick={() => handleOpenModal(loan, 'PRINT')} />
                         {loan.status === 'PENDING' && (
                           <>
                             <ActionPill icon={<CheckCircle2 style={{ width: 11, height: 11 }} />} label="Approve" tone="good" onClick={() => handleOpenModal(loan, 'APPROVE')} />
@@ -441,6 +459,17 @@ export default function LoanApplicationsView({
           borrower={selectedCustomerForProfile}
           onClose={() => setSelectedCustomerForProfile(null)}
           onEdit={() => setSelectedCustomerForProfile(null)}
+        />
+      )}
+
+      {loanToDisburse && (
+        <DisburseLoanModal
+          loan={loanToDisburse}
+          branchesList={branches}
+          chartOfAccounts={chartOfAccounts}
+          bankAccounts={bankAccounts}
+          onConfirm={handleDisburseSubmit}
+          onClose={() => setLoanToDisburse(null)}
         />
       )}
     </div>

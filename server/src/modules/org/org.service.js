@@ -82,7 +82,7 @@ export async function createBranch(db, companyId, payload, maxBranches) {
   }
   const [result] = await db.execute(
     'INSERT INTO branches (company_id, sub_company_id, name, code, address, city, state, pincode, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [companyId, payload.sub_company_id || null, payload.name, payload.code.toUpperCase(), payload.address || '', payload.city || null, payload.state || null, payload.pincode || null, payload.phone || null]
+    [companyId, payload.sub_company_id || null, String(payload.name || '').trim(), payload.code.toUpperCase(), payload.address || '', payload.city || null, payload.state || null, payload.pincode || null, payload.phone || null]
   );
   const [[created]] = await db.query('SELECT * FROM branches WHERE id = ?', [result.insertId]);
   return created;
@@ -102,7 +102,7 @@ export async function updateBranch(db, companyId, id, payload) {
   }
   await db.execute(
     'UPDATE branches SET sub_company_id = ?, name = ?, code = ?, address = ?, city = ?, state = ?, pincode = ?, phone = ?, is_active = ? WHERE id = ? AND company_id = ?',
-    [payload.sub_company_id || null, payload.name, payload.code.toUpperCase(), payload.address || '', payload.city || null, payload.state || null, payload.pincode || null, payload.phone || null, payload.is_active === undefined ? 1 : (payload.is_active ? 1 : 0), id, companyId]
+    [payload.sub_company_id || null, String(payload.name || '').trim(), payload.code.toUpperCase(), payload.address || '', payload.city || null, payload.state || null, payload.pincode || null, payload.phone || null, payload.is_active === undefined ? 1 : (payload.is_active ? 1 : 0), id, companyId]
   );
   const [[updated]] = await db.query('SELECT * FROM branches WHERE id = ?', [id]);
   return updated;

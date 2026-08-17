@@ -17,7 +17,8 @@ export async function listEmployeesHandler(request, reply) {
 
 export async function createEmployeeHandler(request, reply) {
   try {
-    const newEmp = await employeeService.createEmployee(request.tenantDb, request.tenantCompanyId, request.body);
+    const companyCode = request.tenantCode || request.user?.companyCode || 'default';
+    const newEmp = await employeeService.createEmployee(request.tenantDb, request.tenantCompanyId, request.body, companyCode);
     return reply.code(201).send({ success: true, data: newEmp });
   } catch (err) { return fail(reply, err); }
 }
@@ -25,7 +26,8 @@ export async function createEmployeeHandler(request, reply) {
 export async function updateEmployeeHandler(request, reply) {
   try {
     const { userId } = request.params;
-    const updated = await employeeService.updateEmployee(request.tenantDb, request.tenantCompanyId, Number(userId), request.body);
+    const companyCode = request.tenantCode || request.user?.companyCode || 'default';
+    const updated = await employeeService.updateEmployee(request.tenantDb, request.tenantCompanyId, Number(userId), request.body, companyCode);
     return reply.send({ success: true, data: updated });
   } catch (err) { return fail(reply, err); }
 }

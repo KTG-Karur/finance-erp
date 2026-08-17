@@ -9,6 +9,7 @@ import {
   Clock, ShieldCheck
 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
+import SharedDropdown from '../../components/common/SharedDropdown';
 
 // ── Sparkline SVG Helper ──────────────────────────────────────
 function Sparkline({ data = [], color = 'var(--brand-primary, #15803D)', height = 24, width = 64 }) {
@@ -540,28 +541,29 @@ export default function DashboardOverviewView({
           <div className="db-banner__meta">
             {/* Branch Selector Pill */}
             {isAdmin ? (
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255, 255, 255, 0.2)', padding: '2px 10px', borderRadius: 20 }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255, 255, 255, 0.15)', padding: '2px 8px', borderRadius: 20 }}>
                 <Building2 style={{ width: 12, height: 12, color: '#FFFFFF' }} />
                 <span style={{ fontSize: '0.72rem', color: '#FFFFFF', fontWeight: 500 }}>{t('dash.branch')}</span>
-                <select
+                <SharedDropdown
                   value={selectedBranch}
                   onChange={e => setSelectedBranch(e.target.value)}
                   disabled={Boolean(globalBranch && globalBranch !== 'ALL')}
-                  style={{
+                  size="sm"
+                  buttonStyle={{
                     background: 'transparent',
                     border: 'none',
                     color: '#FFFFFF',
-                    fontWeight: 500,
-                    fontSize: '0.72rem',
-                    cursor: 'pointer',
-                    outline: 'none'
+                    fontWeight: 600,
+                    fontSize: '0.75rem',
+                    height: 24,
+                    padding: '0 4px',
+                    minWidth: 100
                   }}
-                >
-                  <option value="ALL" style={{ color: '#0F172A' }}>{t('dash.all_branches')}</option>
-                  {availableBranches.map((br, idx) => (
-                    <option key={idx} value={br} style={{ color: '#0F172A' }}>{br}</option>
-                  ))}
-                </select>
+                  options={[
+                    { value: 'ALL', label: t('dash.all_branches') || 'All Branches' },
+                    ...availableBranches.map(br => ({ value: br, label: br }))
+                  ]}
+                />
               </div>
             ) : (
               <span className="db-banner__tag db-banner__tag--green">

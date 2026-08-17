@@ -4,6 +4,9 @@ import LoanDetailPage from './LoanDetailPage';
 import LoanApplicationsView from './LoanApplicationsView';
 import NewLoanApplicationPage from './NewLoanApplicationPage';
 import CustomerProfileModal from '../borrowers/CustomerProfileModal';
+import LoanPreclosureModal from './LoanPreclosureModal';
+import PrintableNocCertificate from './PrintableNocCertificate';
+import DropdownSelect from '../../components/DropdownSelect';
 import {
   Banknote,
   Archive,
@@ -18,7 +21,10 @@ import {
   History,
   Clock,
   Plus,
-  X
+  X,
+  ShieldAlert,
+  FileCheck,
+  Zap
 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 
@@ -118,6 +124,10 @@ export default function LoansView({
   branches = [],
   selectedBranch = 'ALL',
   tenant,
+  chartOfAccounts = [],
+  bankAccounts = [],
+  initialApplicationTerms = null,
+  onClearInitialApplicationTerms,
   onCreateBorrower,
   onQuickAction,
   onApproveApplication,
@@ -125,7 +135,8 @@ export default function LoansView({
   onRevertApplication,
   onApproveLoanClosure,
   onRejectLoanClosure,
-  onDisburseApprovedLoan
+  onDisburseApprovedLoan,
+  onCollectLoan
 }) {
   const { t, tStatus } = useLanguage();
 
@@ -135,11 +146,12 @@ export default function LoansView({
     if (selectedBranch && selectedBranch !== 'ALL') setBranchFilter(selectedBranch);
   }, [selectedBranch]);
   const scopedLoans = branchFilter === 'ALL' ? loans : loans.filter(l => l.branch === branchFilter);
-  // Primary Account View Mode: 'ACTIVE' | 'APPLICATIONS' | 'CLOSED' | 'CLOSURE_REQUESTS'
+  // Primary Account View Mode: 'ALL' | 'ACTIVE' | 'CLOSED' | 'APPLICATIONS' | 'CLOSURE_REQUESTS'
   const [viewMode, setViewMode] = useState(() => {
     if (activeTab.includes('loan-applications')) return 'APPLICATIONS';
     if (activeTab.includes('closed-loans')) return 'CLOSED';
-    return 'ACTIVE';
+    if (activeTab.includes('active-loans')) return 'ACTIVE';
+    return 'ALL';
   });
 
   useEffect(() => {
@@ -147,8 +159,10 @@ export default function LoansView({
       setViewMode('APPLICATIONS');
     } else if (activeTab.includes('closed-loans')) {
       setViewMode('CLOSED');
-    } else {
+    } else if (activeTab.includes('active-loans')) {
       setViewMode('ACTIVE');
+    } else {
+      setViewMode('ALL');
     }
   }, [activeTab]);
 
@@ -195,7 +209,13 @@ export default function LoansView({
   const [historyLoan, setHistoryLoan] = useState(null);
 
   // New Loan Application Full-Page Form state
-  const [openNewApp, setOpenNewApp] = useState(false);
+  const [openNewApp, setOpenNewApp] = useState(() => Boolean(initialApplicationTerms));
+
+  useEffect(() => {
+    if (initialApplicationTerms) {
+      setOpenNewApp(true);
+    }
+  }, [initialApplicationTerms]);
 
   // Selected Borrower for Customer Profile Modal
   const [selectedCustomerForProfile, setSelectedCustomerForProfile] = useState(null);
@@ -203,37 +223,54 @@ export default function LoansView({
   // Full-screen Loan Detail Page (customer + loan + payment history + chart)
   const [viewingLoan, setViewingLoan] = useState(null);
 
+  // Closure & Preclosure Modals state
+  const [precloseTarget, setPrecloseTarget] = useState(null);
+  const [nocTarget, setNocTarget] = useState(null);
+
   const schemeName = (schemeId) => loanSchemes.find(s => s.id === schemeId)?.name || '—';
   const linkedBorrower = (loan) => borrowers.find(b => b.id === loan.borrower_id || b.phone === loan.phone) || null;
 
   const isClosedTab = viewMode === 'CLOSED';
 
-  // Counts for top view tabs. APPROVED means "reviewed, not yet disbursed" —
-  // see loan.service.js's APPROVED->ACTIVE transition, which is the actual
-  // disbursal step (real cash out, real GL voucher). It used to count as
-  // "Active" here, which double-counted an application that hasn't actually
-  // become a loan yet — it already has its own APPROVED sub-tab under
-  // Applications (with the Disburse action) and doesn't need to also inflate
-  // the Active Loans register/exposure numbers.
+  // Counts for top view tabs. PENDING loans are included here (visible in
+  // the register with a Pending badge, so staff can track a loan's status
+  // from the moment it's created) — only REJECTED stays out, since a
+  // rejected application never becomes a real loan account.
+  const allLoansCount = scopedLoans.filter(l => l.status !== 'REJECTED').length;
   const activeLoansCount = scopedLoans.filter(l => l.status === 'ACTIVE' || l.status === 'OVERDUE').length;
   const applicationsCount = scopedLoans.filter(l => l.status === 'PENDING' || l.status === 'APPROVED' || l.status === 'REJECTED').length;
   const closedLoansCount = scopedLoans.filter(l => l.status === 'CLOSED').length;
 
-  // Filter loans for current viewMode
-  const displayList = scopedLoans.filter(l => {
-    const matchesTab = isClosedTab
-      ? l.status === 'CLOSED'
-      : (l.status === 'ACTIVE' || l.status === 'OVERDUE');
+  // Filter and sort loans by date descending (newest first)
+  const displayList = scopedLoans
+    .filter(l => {
+      let matchesTab = true;
+      if (viewMode === 'CLOSED') {
+        matchesTab = l.status === 'CLOSED';
+      } else if (viewMode === 'ACTIVE') {
+        matchesTab = l.status === 'ACTIVE' || l.status === 'OVERDUE';
+      } else if (viewMode === 'ALL') {
+        // PENDING (and APPROVED, awaiting disbursal) loans are shown here too
+        // — so the register reflects a loan's status from creation onward,
+        // not just once it's disbursed — but a REJECTED application never
+        // becomes a real loan account, so that one stays excluded.
+        matchesTab = l.status !== 'REJECTED';
+      }
 
-    const q = searchQuery.toLowerCase().trim();
-    const matchesSearch = !q || (
-      (l.borrower_name && l.borrower_name.toLowerCase().includes(q)) ||
-      (l.loan_account_no && l.loan_account_no.toLowerCase().includes(q)) ||
-      (l.phone && l.phone.includes(q))
-    );
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch = !q || (
+        (l.borrower_name && l.borrower_name.toLowerCase().includes(q)) ||
+        (l.loan_account_no && l.loan_account_no.toLowerCase().includes(q)) ||
+        (l.phone && l.phone.includes(q))
+      );
 
-    return matchesTab && matchesSearch;
-  });
+      return matchesTab && matchesSearch;
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.loan_date || a.created_at || 0).getTime();
+      const dateB = new Date(b.loan_date || b.created_at || 0).getTime();
+      return dateB - dateA;
+    });
 
   // Calculate Pagination
   const totalPages = Math.ceil(displayList.length / pageSize) || 1;
@@ -256,28 +293,68 @@ export default function LoansView({
         loanSchemes={loanSchemes}
         branches={branches}
         tenant={tenant}
+        initialTerms={initialApplicationTerms}
         onCreateBorrower={onCreateBorrower}
-        onCancel={() => setOpenNewApp(false)}
+        onCancel={() => {
+          setOpenNewApp(false);
+          onClearInitialApplicationTerms?.();
+        }}
         onSubmit={async (payload) => {
           await onQuickAction?.('SUBMIT_APPLICATION', payload);
           setOpenNewApp(false);
+          onClearInitialApplicationTerms?.();
         }}
       />
     );
   }
 
   if (viewingLoan) {
+    // This used to `return` just <LoanDetailPage /> alone, which meant every
+    // other modal defined later in this component's main render (Preclose,
+    // NOC, ...) never got mounted while viewing a loan's detail page —
+    // clicking "Preclose Loan" there set precloseTarget correctly, but with
+    // no <LoanPreclosureModal> anywhere in the tree to react to it, nothing
+    // visibly happened.
     return (
-      <LoanDetailPage
-        loan={viewingLoan}
-        borrower={linkedBorrower(viewingLoan)}
-        receipts={receipts}
-        onBack={() => setViewingLoan(null)}
-      />
+      <>
+        <LoanDetailPage
+          loan={viewingLoan}
+          borrower={linkedBorrower(viewingLoan)}
+          receipts={receipts}
+          tenant={tenant}
+          onBack={() => setViewingLoan(null)}
+          onPreclose={(l) => setPrecloseTarget(l)}
+          onViewNoc={(l) => setNocTarget(l)}
+        />
+
+        {precloseTarget && (
+          <LoanPreclosureModal
+            loan={precloseTarget}
+            onClose={() => setPrecloseTarget(null)}
+            onSuccess={() => {
+              onQuickAction?.('REFRESH_LOANS');
+              if (viewingLoan?.id === precloseTarget.id) setViewingLoan(null);
+            }}
+            onViewNoc={(l) => {
+              setPrecloseTarget(null);
+              setNocTarget(l);
+            }}
+          />
+        )}
+
+        {nocTarget && (
+          <PrintableNocCertificate
+            loan={nocTarget}
+            tenant={tenant}
+            onClose={() => setNocTarget(null)}
+          />
+        )}
+      </>
     );
   }
 
   const TABS = [
+    { id: 'ALL', label: t('loans.tab_all'), count: allLoansCount },
     { id: 'ACTIVE', label: t('loans.tab_active'), count: activeLoansCount },
     { id: 'CLOSED', label: t('loans.tab_closed'), count: closedLoansCount },
     ...(closureRequestsList.length > 0 ? [{ id: 'CLOSURE_REQUESTS', label: t('loans.closure_requests_tab'), count: closureRequestsList.length }] : [])
@@ -292,8 +369,12 @@ export default function LoansView({
               {isClosedTab ? <Archive style={{ width: 18, height: 18 }} /> : viewMode === 'APPLICATIONS' ? <Clock style={{ width: 18, height: 18 }} /> : <Banknote style={{ width: 18, height: 18 }} />}
             </div>
             <div>
-              <h1 className="fin-page-header__title">{isClosedTab ? t('loans.closed_title') : viewMode === 'APPLICATIONS' ? t('loans.applications_title') : t('loans.active_title')}</h1>
-              <p className="fin-page-header__subtitle">{isClosedTab ? t('loans.closed_subtitle') : viewMode === 'APPLICATIONS' ? t('loans.applications_subtitle') : t('loans.active_subtitle')}</p>
+              <h1 className="fin-page-header__title">
+                {viewMode === 'CLOSED' ? t('loans.closed_title') : viewMode === 'APPLICATIONS' ? t('loans.applications_title') : viewMode === 'ALL' ? 'Loans Register' : t('loans.active_title')}
+              </h1>
+              <p className="fin-page-header__subtitle">
+                {viewMode === 'CLOSED' ? t('loans.closed_subtitle') : viewMode === 'APPLICATIONS' ? t('loans.applications_subtitle') : viewMode === 'ALL' ? 'Comprehensive list of all loans ordered by date, filterable by status' : t('loans.active_subtitle')}
+              </p>
             </div>
           </div>
           <button type="button" className="fin-btn-primary" onClick={() => setOpenNewApp(true)}>
@@ -348,16 +429,16 @@ export default function LoansView({
 
         {viewMode !== 'CLOSURE_REQUESTS' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <select
-              className="fin-select"
-              style={{ height: 32 }}
+            <DropdownSelect
               value={branchFilter}
               onChange={(e) => { setBranchFilter(e.target.value); setCurrentPage(1); }}
               disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
-            >
-              <option value="ALL">{t('fin.all_branches')}</option>
-              {branches.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-            </select>
+              buttonStyle={{ height: 32, minWidth: 150 }}
+              options={[
+                { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
+                ...branches.map(b => ({ value: b.name, label: b.name }))
+              ]}
+            />
             <div style={{ position: 'relative', width: 220 }}>
               <Search style={{ position: 'absolute', left: 9, top: 8, width: 13, height: 13, color: '#94A3B8' }} />
               <input
@@ -428,6 +509,8 @@ export default function LoansView({
           loanSchemes={loanSchemes}
           branches={branches}
           tenant={tenant}
+          chartOfAccounts={chartOfAccounts}
+          bankAccounts={bankAccounts}
           externalSearchQuery={searchQuery}
           onCreateBorrower={onCreateBorrower}
           onQuickAction={onQuickAction}
@@ -608,7 +691,7 @@ export default function LoansView({
                 <th className="num">{t('col.collected_rs')}</th>
                 <th className="num">{t('col.outstanding_rs')}</th>
                 <th style={{ textAlign: 'center' }}>{t('col.status')}</th>
-                <th style={{ textAlign: 'right' }}>{t('col.actions')}</th>
+                <th style={{ textAlign: 'right', minWidth: 300 }}>{t('col.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -675,9 +758,33 @@ export default function LoansView({
                       </td>
 
                       <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: 6 }}>
-                          <ActionPill icon={<Eye style={{ width: 11, height: 11 }} />} label={t('loans.view_pill')} onClick={() => setViewingLoan(loan)} />
-                          <ActionPill icon={<History style={{ width: 11, height: 11 }} />} label={t('loans.history_pill')} onClick={() => setHistoryLoan(loan)} />
+                        <div className="loan-row-actions">
+                          {/* A PENDING or APPROVED loan hasn't been disbursed yet — no
+                              cash has moved, so there's nothing to collect against,
+                              no payment history to show, and nothing to preclose.
+                              It's visible here for status tracking only; View is the
+                              only action until it's actually disbursed. */}
+                          {loan.status === 'PENDING' || loan.status === 'APPROVED' ? (
+                            <>
+                              <ActionPill icon={<Eye style={{ width: 11, height: 11 }} />} label={t('loans.view_pill')} onClick={() => setViewingLoan(loan)} />
+                              <span style={{ fontSize: '0.68rem', color: '#94A3B8', fontStyle: 'italic', alignSelf: 'center' }}>
+                                {loan.status === 'PENDING' ? 'Awaiting review' : 'Awaiting disbursal'}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              {(loan.status === 'ACTIVE' || loan.status === 'OVERDUE') && onCollectLoan && (
+                                <ActionPill icon={<Banknote style={{ width: 11, height: 11 }} />} label="Collect" tone="good" onClick={() => onCollectLoan(loan)} />
+                              )}
+                              <ActionPill icon={<Eye style={{ width: 11, height: 11 }} />} label={t('loans.view_pill')} onClick={() => setViewingLoan(loan)} />
+                              <ActionPill icon={<History style={{ width: 11, height: 11 }} />} label={t('loans.history_pill')} onClick={() => setHistoryLoan(loan)} />
+                              {loan.status === 'CLOSED' ? (
+                                <ActionPill icon={<FileCheck style={{ width: 11, height: 11, color: '#15803D' }} />} label="NOC" onClick={() => setNocTarget(loan)} />
+                              ) : (
+                                <ActionPill icon={<CheckCircle2 style={{ width: 11, height: 11, color: 'var(--brand-primary, #15803D)' }} />} label="Preclose" onClick={() => setPrecloseTarget(loan)} />
+                              )}
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -724,6 +831,31 @@ export default function LoansView({
           borrower={selectedCustomerForProfile}
           onClose={() => setSelectedCustomerForProfile(null)}
           onEdit={() => setSelectedCustomerForProfile(null)}
+        />
+      )}
+
+      {/* ── Loan Preclosure Settlement Modal ────────── */}
+      {precloseTarget && (
+        <LoanPreclosureModal
+          loan={precloseTarget}
+          onClose={() => setPrecloseTarget(null)}
+          onSuccess={() => {
+            onQuickAction?.('REFRESH_LOANS');
+            if (viewingLoan?.id === precloseTarget.id) setViewingLoan(null);
+          }}
+          onViewNoc={(l) => {
+            setPrecloseTarget(null);
+            setNocTarget(l);
+          }}
+        />
+      )}
+
+      {/* ── Printable NOC / Clearance Certificate Modal ────────── */}
+      {nocTarget && (
+        <PrintableNocCertificate
+          loan={nocTarget}
+          tenant={tenant}
+          onClose={() => setNocTarget(null)}
         />
       )}
 

@@ -27,4 +27,9 @@
 5. **Frontend UI (React + SCSS)**:
    - Follow SCSS design tokens in `client/src/styles/_variables.scss` and BEM methodology.
    - High-density light enterprise layout (`#F8FAFC` workspace background, `tabular-nums` for numbers).
+6. **Canonical Shared Form Components (Strict Rule)**:
+   - **Zero Native `<select>` or `<input type="date">`**: Never use native browser `<select>` or `<input type="date">` in any module, page, modal, drawer, or filter toolbar.
+   - **Dropdowns**: Always use `SharedDropdown` (`client/src/components/common/SharedDropdown.jsx`).
+   - **Calendars / Dates**: Always use `SharedDatePicker` (`client/src/components/common/SharedDatePicker.jsx`).
+   - When creating or modifying forms/filters, always maintain these shared components across all views for system-wide UI consistency.
 

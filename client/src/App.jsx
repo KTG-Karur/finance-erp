@@ -8,6 +8,7 @@ import DashboardOverviewView from './finance/dashboard/DashboardOverviewView';
 import BorrowersView from './finance/borrowers/BorrowersView';
 import LoansView from './finance/loan/LoansView';
 import LoanApplicationsView from './finance/loan/LoanApplicationsView';
+import EstimationView from './finance/estimation/EstimationView';
 import InvestorCapitalView from './finance/investors/InvestorCapitalView';
 import FixedDepositsView from './finance/fixedDeposits/FixedDepositsView';
 import RecurringDepositsView from './finance/recurringDeposits/RecurringDepositsView';
@@ -18,6 +19,7 @@ import CustomerLedgerView from './finance/accounting/CustomerLedgerView';
 import TrialBalanceView from './finance/accounting/TrialBalanceView';
 import AutoVouchersView from './finance/accounting/AutoVouchersView';
 import ManualVouchersView from './finance/accounting/ManualVouchersView';
+import BranchExpenseTrackerView from './finance/expenses/BranchExpenseTrackerView';
 import EODProcessView from './finance/accounting/EODProcessView';
 import LoanPortfolioReportView from './reports/LoanPortfolioReportView';
 import CollectionsReportView from './reports/CollectionsReportView';
@@ -26,15 +28,15 @@ import FixedDepositReportView from './reports/FixedDepositReportView';
 import RecurringDepositReportView from './reports/RecurringDepositReportView';
 import FinancialStatementsReportView from './reports/FinancialStatementsReportView';
 import StaffPerformanceReportView from './reports/StaffPerformanceReportView';
+import ExpenseReportView from './reports/ExpenseReportView';
 import MasterSettingsView from './settings/MasterSettingsView';
 import CollectionDrawer from './components/CollectionDrawer';
 import NewLoanModal from './components/NewLoanModal';
 import QuickActionModal from './components/QuickActionModal';
 import api from './api/client';
-import { INITIAL_CHART_OF_ACCOUNTS } from './data/mockFinanceData';
 import { applyTheme, generateThemePalette } from './utils/themeUtils';
 import { generateEmiSchedule, generateCustomSchedule, resolveSchemeRepaymentMethod, resolveSchemeInterestCalculation, estimateCustomTotalPayable } from './utils/loanCalculations';
-import { journalLine, buildJournalEntry, buildVoucherLines, normalizeLedgerAccount, normalizeLedgerEntry } from './utils/accounting';
+import { INITIAL_CHART_OF_ACCOUNTS, journalLine, buildJournalEntry, buildVoucherLines, normalizeLedgerAccount, normalizeLedgerEntry } from './utils/accounting';
 
 // Every ACTIVE/CLOSED/OVERDUE loan below is seeded with numbers actually produced by
 // utils/loanCalculations.js (not hand-typed guesses), so collected_amount /
@@ -188,6 +190,40 @@ export default function App() {
   // Vouchers pages (and everything downstream reading the ledger) tell them apart.
   const handleCreateManualVoucher = async (payload) => {
     assertEodNotLocked(payload.branch, payload.date);
+
+    if (payload.expense_category_id) {
+      // Save directly into the dedicated expense_vouchers table
+      const res = await api.post('/finance/expenses/vouchers', {
+        category_id: payload.expense_category_id,
+        amount: payload.amount,
+        payee: payload.created_by,
+        branch: payload.branch,
+        date: payload.date,
+        narration: payload.narration,
+        voucher_type: payload.voucher_type,
+        created_by: payload.created_by
+      });
+      const createdVoucher = res.data?.data;
+
+      if (createdVoucher) {
+        setExpenseVouchers(prev => [createdVoucher, ...prev]);
+        fetchLedgerEntries();
+      }
+
+      // Refresh categories list so balance decreases in state
+      setExpenseCategories(prev => prev.map(cat => {
+        if (String(cat.id) === String(payload.expense_category_id)) {
+          return {
+            ...cat,
+            balance: Math.max(0, (Number(cat.balance) || 0) - Number(payload.amount))
+          };
+        }
+        return cat;
+      }));
+
+      return createdVoucher;
+    }
+
     const lines = buildVoucherLines(payload.voucher_type, {
       amount: payload.amount,
       otherAccountCode: payload.other_account_code,
@@ -204,8 +240,23 @@ export default function App() {
       lines
     });
     const created = res.data?.data;
-    if (created) setLedgerEntries(prev => [normalizeLedgerEntry(created), ...prev]);
+    if (created) {
+      setLedgerEntries(prev => [normalizeLedgerEntry(created), ...prev]);
+    }
     return created;
+  };
+
+  // Undoes a wrongly-posted manual voucher (e.g. Cash Payment entered when a
+  // Cash Receipt was meant) by posting a mirror-image reversal — the server
+  // rejects this for auto-posted vouchers (loan/FD/RD transactions), which
+  // have their own dedicated revert flows that also fix non-ledger state.
+  const handleRevertVoucher = async (voucherDbId, reason) => {
+    const res = await api.post(`/finance/ledger/vouchers/${voucherDbId}/revert`, { reason });
+    const reversal = res.data?.data;
+    if (reversal) {
+      setLedgerEntries(prev => [normalizeLedgerEntry(reversal), ...prev]);
+    }
+    return reversal;
   };
 
   // Day-end cash closing — one record per branch per day. A matching count closes
@@ -213,64 +264,33 @@ export default function App() {
   // PENDING_REVIEW until an admin either recounts (handleUpdateEodRecord) or
   // acknowledges the variance with a resolution note (handleResolveEodVariance) —
   // never silently absorbed either way.
-  const hasVarianceAmount = (diff) => Math.round((diff || 0) * 100) !== 0;
-
-  const handleCloseEodDay = (payload) => {
-    const alreadyClosed = eodRecords.some(r => r.branch === payload.branch && r.date === payload.date);
-    if (alreadyClosed) {
-      throw new Error('This day is already closed for this branch.');
+  const handleCloseEodDay = async (payload) => {
+    const res = await api.post('/finance/eod/close', payload);
+    const newRecord = res.data?.data;
+    if (newRecord) {
+      setEodRecords(prev => [newRecord, ...prev.filter(r => !(r.branch === newRecord.branch && r.date === newRecord.date))]);
     }
-    const variance = hasVarianceAmount(payload.difference);
-    const record = {
-      id: `EOD-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      ...payload,
-      status: variance ? 'PENDING_REVIEW' : 'CLOSED',
-      has_variance: variance,
-      edited: false,
-      closed_by: user?.name || 'Staff',
-      closed_at: new Date().toISOString()
-    };
-    setEodRecords(prev => [...prev, record]);
-    logAudit('EOD_CLOSURE', record.id, 'CREATE', `${record.branch} ${record.date} — ${record.status}`);
+    return newRecord;
   };
 
-  // Admin recount: replaces the denomination counts and re-derives status from the
-  // corrected difference — if the recount now matches, the day clears straight
-  // back to CLOSED; if it still doesn't, it stays PENDING_REVIEW for a follow-up.
-  const handleUpdateEodRecord = (id, payload) => {
-    const before = eodRecords.find(r => r.id === id);
-    const variance = hasVarianceAmount(payload.difference);
-    setEodRecords(prev => prev.map(r => (r.id === id ? {
-      ...r,
-      ...payload,
-      status: variance ? 'PENDING_REVIEW' : 'CLOSED',
-      has_variance: variance,
-      edited: true,
-      reopened_by: user?.name || 'Admin',
-      reopened_at: new Date().toISOString()
-    } : r)));
-    logAudit('EOD_CLOSURE', id, 'RECOUNT', `${before?.branch} ${before?.date} recounted — ${variance ? 'PENDING_REVIEW' : 'CLOSED'}`);
+  const handleUpdateEodRecord = async (id, payload) => {
+    const res = await api.post('/finance/eod/close', payload);
+    const updated = res.data?.data;
+    if (updated) {
+      setEodRecords(prev => prev.map(r => (r.id === id ? updated : r)));
+    }
+    return updated;
   };
 
-  // Admin acknowledges a variance without recounting — e.g. the shortage was
-  // recovered from the collector the next day, or written off. The variance stays
-  // on record (has_variance survives) but the record clears to CLOSED so it stops
-  // showing up as something that still needs attention.
-  const handleResolveEodVariance = (id, resolutionNote) => {
-    const before = eodRecords.find(r => r.id === id);
-    setEodRecords(prev => prev.map(r => (r.id === id ? {
-      ...r,
-      status: 'CLOSED',
-      resolution_note: resolutionNote,
-      reviewed_by: user?.name || 'Admin',
-      reviewed_at: new Date().toISOString()
-    } : r)));
-    logAudit('EOD_CLOSURE', id, 'VARIANCE_RESOLVED', `${before?.branch} ${before?.date} — ${resolutionNote}`);
+  const handleResolveEodVariance = async (id, resolutionNote) => {
+    const res = await api.post('/finance/eod/resolve-variance', { id, resolution_note: resolutionNote });
+    const resolved = res.data?.data;
+    if (resolved) {
+      setEodRecords(prev => prev.map(r => (r.id === id ? { ...r, status: 'CLOSED', has_variance: false, resolution_note: resolutionNote } : r)));
+    }
+    return resolved;
   };
 
-  // Time-boxed exception, common to both paths below: appends one entry to
-  // reopen_history — never overwritten — so the record keeps a permanent trail of
-  // exactly who unlocked it, when, and for how long, even across repeated grants.
   const grantEodReopenWindow = (id, hours, openedBy) => {
     const openedAt = new Date();
     const expiresAt = new Date(openedAt.getTime() + hours * 60 * 60 * 1000);
@@ -279,11 +299,15 @@ export default function App() {
     return grant;
   };
 
-  // Admin self-service: admin doesn't need to ask permission from themselves.
-  const handleGrantEodReopen = (id, hours) => {
-    const before = eodRecords.find(r => r.id === id);
-    const grant = grantEodReopenWindow(id, hours, user?.name || 'Admin');
-    logAudit('EOD_CLOSURE', id, 'REOPENED', `${before?.branch} ${before?.date} reopened for ${hours}h`);
+  const handleGrantEodReopen = async (id, hours, reason) => {
+    try {
+      const res = await api.post('/finance/eod/grant-reopen', { id, granted_hours: hours, reason });
+      if (res.data?.data) {
+        setEodRecords(res.data.data);
+      }
+    } catch {
+      grantEodReopenWindow(id, hours, user?.name || 'Admin');
+    }
   };
 
   // Everyone else: a closed day can't be edited directly — they submit a reopen
@@ -361,15 +385,36 @@ export default function App() {
   const [borrowers, setBorrowers] = useState([]);
   const [branchesList, setBranchesList] = useState([]);
 
-  // Global branch lock — 'ALL' means every page behaves exactly as it always has
-  // (its own independent filter, freely switchable). Any specific branch name means
-  // every page's own branch filter is forced to it and disabled — the only way to
-  // change it is back through the sidebar control. Persisted so a refresh doesn't
-  // silently drop the lock.
-  const [selectedBranch, setSelectedBranch] = useState(() => localStorage.getItem('financial_erp_selected_branch') || 'ALL');
+  // Global branch selection — defaults automatically to the logged-in user's branch
+  const [selectedBranch, setSelectedBranch] = useState(() => {
+    const saved = localStorage.getItem('financial_erp_selected_branch');
+    if (saved && saved !== 'ALL') return saved;
+    const savedUser = localStorage.getItem('financial_erp_user');
+    if (savedUser) {
+      try {
+        const u = JSON.parse(savedUser);
+        const b = u.branch || u.branch_name || u.branchName;
+        if (b) return b;
+      } catch {}
+    }
+    return saved || 'ALL';
+  });
+
   useEffect(() => {
     localStorage.setItem('financial_erp_selected_branch', selectedBranch);
   }, [selectedBranch]);
+
+  useEffect(() => {
+    if (branchesList.length > 0) {
+      const userBranch = user?.branch || user?.branch_name || user?.branchName;
+      if (userBranch && branchesList.some(b => b.name === userBranch)) {
+        if (!selectedBranch || selectedBranch === 'ALL') {
+          setSelectedBranch(userBranch);
+        }
+      }
+    }
+  }, [branchesList, user]);
+
   const handleChangeBranch = (branchNameOrAll) => setSelectedBranch(branchNameOrAll);
   const [orgLoading, setOrgLoading] = useState(false);
   const [orgError, setOrgError] = useState('');
@@ -387,6 +432,7 @@ export default function App() {
   const [expenseCategories, setExpenseCategories] = useState([]);
   const [expenseAllocationRequests, setExpenseAllocationRequests] = useState([]);
   const [expenseVouchers, setExpenseVouchers] = useState([]);
+  const [bankAccounts, setBankAccounts] = useState([]);
   // Real chart of accounts + every real journal entry, both fetched from the
   // actual ledger backend (server/src/finance/ledger). Manual Vouchers,
   // General Ledger, and Trial Balance all read from these now. Kept separate
@@ -429,6 +475,7 @@ export default function App() {
   const [selectedLoanForCollection, setSelectedLoanForCollection] = useState(null);
   const [isDisburseModalOpen, setIsDisburseModalOpen] = useState(false);
   const [quickActionModalType, setQuickActionModalType] = useState(null);
+  const [estimationTermsForNewLoan, setEstimationTermsForNewLoan] = useState(null);
 
   const navigateTo = (targetPath) => {
     window.history.pushState({}, '', targetPath);
@@ -467,47 +514,62 @@ export default function App() {
     // loop. tenant.id is a stable primitive that only actually changes when the
     // user switches tenants, which is the only time this effect needs to re-run.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenant?.id, isAuthenticated, user]);
+  }, [tenant?.id, isAuthenticated, user?.id, user?.role]);
 
   // Promise.allSettled, not Promise.all — one endpoint failing (network blip,
   // a single 5xx) shouldn't fail the whole batch and skip every other setter.
   // Each result is applied independently based on its own outcome.
+  const [isFetchingData, setIsFetchingData] = useState(false);
+
   const fetchData = async () => {
-    const [
-      loansRes, empsRes, colRes, schemesRes, borrowersRes,
-      investorsRes, fdRes, rdRes, expCatRes, expReqRes, expVouchRes,
-      ledgerAccountsRes
-    ] = await Promise.allSettled([
-      api.get('/finance/loans'),
-      api.get('/employees'),
-      api.get('/finance/collections'),
-      api.get('/finance/schemes'),
-      api.get('/finance/borrowers'),
-      api.get('/finance/investors'),
-      api.get('/finance/fixed-deposits'),
-      api.get('/finance/recurring-deposits'),
-      api.get('/finance/expenses/categories'),
-      api.get('/finance/expenses/allocation-requests'),
-      api.get('/finance/expenses/vouchers'),
-      api.get('/finance/ledger/accounts')
-    ]);
-    if (loansRes.status === 'fulfilled' && loansRes.value.data?.data) setLoans(loansRes.value.data.data);
-    if (empsRes.status === 'fulfilled' && empsRes.value.data?.data) setEmployees(empsRes.value.data.data);
-    if (colRes.status === 'fulfilled' && colRes.value.data?.data) setCollections(colRes.value.data.data);
-    if (schemesRes.status === 'fulfilled' && schemesRes.value.data?.data) setLoanSchemes(schemesRes.value.data.data);
-    if (borrowersRes.status === 'fulfilled' && borrowersRes.value.data?.data) setBorrowers(borrowersRes.value.data.data);
-    if (investorsRes.status === 'fulfilled' && investorsRes.value.data?.data) setInvestors(investorsRes.value.data.data);
-    if (fdRes.status === 'fulfilled' && fdRes.value.data?.data) setFixedDeposits(fdRes.value.data.data);
-    if (rdRes.status === 'fulfilled' && rdRes.value.data?.data) setRecurringDeposits(rdRes.value.data.data);
-    if (expCatRes.status === 'fulfilled' && expCatRes.value.data?.data) setExpenseCategories(expCatRes.value.data.data);
-    if (expReqRes.status === 'fulfilled' && expReqRes.value.data?.data) setExpenseAllocationRequests(expReqRes.value.data.data);
-    if (expVouchRes.status === 'fulfilled' && expVouchRes.value.data?.data) setExpenseVouchers(expVouchRes.value.data.data);
-    if (ledgerAccountsRes.status === 'fulfilled' && ledgerAccountsRes.value.data?.data) {
-      setLedgerAccounts(ledgerAccountsRes.value.data.data.map(normalizeLedgerAccount));
+    setIsFetchingData(true);
+    try {
+      const [
+        loansRes, empsRes, colRes, schemesRes, borrowersRes,
+        investorsRes, fdRes, rdRes, expCatRes, expReqRes, expVouchRes,
+        ledgerAccountsRes, bankAccountsRes, eodRes
+      ] = await Promise.allSettled([
+        api.get('/finance/loans'),
+        api.get('/employees'),
+        api.get('/finance/collections'),
+        api.get('/finance/schemes'),
+        api.get('/finance/borrowers'),
+        api.get('/finance/investors'),
+        api.get('/finance/fixed-deposits'),
+        api.get('/finance/recurring-deposits'),
+        api.get('/finance/expenses/categories'),
+        api.get('/finance/expenses/allocation-requests'),
+        api.get('/finance/expenses/vouchers'),
+        api.get('/finance/ledger/accounts'),
+        api.get('/finance/bank-accounts'),
+        api.get('/finance/eod/records')
+      ]);
+      if (loansRes.status === 'fulfilled' && loansRes.value.data?.data) setLoans(loansRes.value.data.data);
+      if (empsRes.status === 'fulfilled' && empsRes.value.data?.data) setEmployees(empsRes.value.data.data);
+      if (colRes.status === 'fulfilled' && colRes.value.data?.data) setCollections(colRes.value.data.data);
+      if (schemesRes.status === 'fulfilled' && schemesRes.value.data?.data) setLoanSchemes(schemesRes.value.data.data);
+      if (borrowersRes.status === 'fulfilled' && borrowersRes.value.data?.data) setBorrowers(borrowersRes.value.data.data);
+      if (investorsRes.status === 'fulfilled' && investorsRes.value.data?.data) setInvestors(investorsRes.value.data.data);
+      if (fdRes.status === 'fulfilled' && fdRes.value.data?.data) setFixedDeposits(fdRes.value.data.data);
+      if (rdRes.status === 'fulfilled' && rdRes.value.data?.data) setRecurringDeposits(rdRes.value.data.data);
+      if (expCatRes.status === 'fulfilled' && expCatRes.value.data?.data) setExpenseCategories(expCatRes.value.data.data);
+      if (expReqRes.status === 'fulfilled' && expReqRes.value.data?.data) setExpenseAllocationRequests(expReqRes.value.data.data);
+      if (expVouchRes.status === 'fulfilled' && expVouchRes.value.data?.data) setExpenseVouchers(expVouchRes.value.data.data);
+      if (eodRes.status === 'fulfilled' && eodRes.value.data?.data) setEodRecords(eodRes.value.data.data);
+      if (ledgerAccountsRes.status === 'fulfilled' && ledgerAccountsRes.value.data?.data) {
+        setLedgerAccounts(ledgerAccountsRes.value.data.data.map(normalizeLedgerAccount));
+      }
+      if (bankAccountsRes.status === 'fulfilled' && bankAccountsRes.value.data?.data) {
+        setBankAccounts(bankAccountsRes.value.data.data);
+      }
+      await Promise.allSettled([
+        fetchLedgerEntries(),
+        fetchOrgHierarchy(),
+        fetchCompanyProfile()
+      ]);
+    } finally {
+      setIsFetchingData(false);
     }
-    fetchLedgerEntries();
-    fetchOrgHierarchy();
-    fetchCompanyProfile();
   };
 
   // Manual Vouchers, General Ledger, and Trial Balance all read from this one
@@ -586,13 +648,66 @@ export default function App() {
     return updated;
   };
 
+  const handleCreateBankAccount = async (payload) => {
+    const res = await api.post('/finance/bank-accounts', payload);
+    const created = res.data?.data;
+    if (created) {
+      setBankAccounts(prev => [...prev, created]);
+      logAudit('BANK_ACCOUNT', created.id, 'CREATE', `${created.bank_name} - ${created.account_number}`);
+      fetchData();
+    }
+    return created;
+  };
+
+  const handleUpdateBankAccount = async (id, payload) => {
+    const before = bankAccounts.find(b => b.id === id);
+    const res = await api.put(`/finance/bank-accounts/${id}`, payload);
+    const updated = res.data?.data;
+    if (updated) {
+      setBankAccounts(prev => prev.map(b => b.id === id ? { ...b, ...updated } : b));
+      logAudit('BANK_ACCOUNT', id, 'UPDATE', `${updated.bank_name} - ${updated.account_number}`);
+    }
+    return updated;
+  };
+
+  const handleDeleteBankAccount = async (id) => {
+    const before = bankAccounts.find(b => b.id === id);
+    await api.delete(`/finance/bank-accounts/${id}`);
+    setBankAccounts(prev => prev.map(b => b.id === id ? { ...b, is_active: false } : b));
+    logAudit('BANK_ACCOUNT', id, 'DEACTIVATE', before ? `${before.bank_name} - ${before.account_number}` : String(id));
+  };
+
   const fetchCompanyProfile = async () => {
     try {
       const res = await api.get('/auth/company/profile');
       const data = res.data?.data;
-      if (data) setTenant(prev => ({ ...prev, ...data }));
+      if (data) {
+        setTenant(prev => ({ ...prev, ...data }));
+        if (data.allowed_modules !== undefined) {
+          const freshModules = data.allowed_modules;
+          setUser(prevUser => {
+            if (!prevUser) return prevUser;
+            const updated = { ...prevUser, allowedModules: freshModules };
+            localStorage.setItem('financial_erp_user', JSON.stringify(updated));
+            return updated;
+          });
+        }
+      }
     } catch { /* surfaced globally via the axios response interceptor */ }
   };
+
+  // Sync tenant permissions on window focus or route change so Super Admin feature changes reflect instantly
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetchCompanyProfile();
+    const handleFocus = () => fetchCompanyProfile();
+    window.addEventListener('focus', handleFocus);
+    const syncInterval = setInterval(fetchCompanyProfile, 15000);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(syncInterval);
+    };
+  }, [isAuthenticated]);
 
   // The brand color is a DB column (companies.theme_color), shared across every
   // user of this tenant — apply it the instant it arrives from
@@ -703,25 +818,35 @@ export default function App() {
   // so a booking/maturity/closure and its journal voucher always commit or
   // roll back together — never one without the other. These handlers just
   // relay the API call and sync local state from the response.
+  // Each of these posts an auto-voucher server-side inside the same DB
+  // transaction as the state change (see server/src/finance/fixedDeposits/),
+  // but — same gap as the RD handlers below had — never refreshed the
+  // client's ledgerEntries, so Trial Balance/General Ledger/Financial
+  // Statements wouldn't reflect it until a full page reload even though the
+  // posting itself had genuinely succeeded.
   const handleCreateFixedDeposit = async (payload) => {
     const res = await api.post('/finance/fixed-deposits', payload);
     const newFd = res.data?.data;
     if (!newFd) return newFd;
     setFixedDeposits(prev => [newFd, ...prev]);
+    fetchLedgerEntries();
     return newFd;
   };
   const handleMatureFixedDeposit = async (id) => {
     const res = await api.post(`/finance/fixed-deposits/${id}/mature`);
     const updated = res.data?.data;
     if (updated) setFixedDeposits(prev => prev.map(f => (f.id === id ? updated : f)));
+    fetchLedgerEntries();
   };
   const handlePrematureCloseFixedDeposit = async (id, customPayoutAmount) => {
     const res = await api.post(`/finance/fixed-deposits/${id}/premature-close`, { payout_amount: customPayoutAmount });
     const updated = res.data?.data;
     if (updated) setFixedDeposits(prev => prev.map(f => (f.id === id ? updated : f)));
+    fetchLedgerEntries();
   };
   const handlePayFdMonthlyInterest = async (id, paymentMode) => {
     const res = await api.post(`/finance/fixed-deposits/${id}/pay-interest`, { payment_mode: paymentMode });
+    fetchLedgerEntries();
     return res.data?.data;
   };
 
@@ -740,20 +865,34 @@ export default function App() {
     if (newRd) setRecurringDeposits(prev => [newRd, ...prev]);
     return newRd;
   };
-  const handleCollectRdInstallment = async (id, monthNo, paymentMode = 'CASH') => {
-    const res = await api.post(`/finance/recurring-deposits/${id}/installments/${monthNo}/collect`, { payment_mode: paymentMode });
+  const handleCollectRdInstallment = async (id, monthNo, paymentMode = 'CASH', extra = {}) => {
+    const res = await api.post(`/finance/recurring-deposits/${id}/installments/${monthNo}/collect`, {
+      payment_mode: paymentMode,
+      ...extra
+    });
     const updated = res.data?.data;
     if (updated) setRecurringDeposits(prev => prev.map(r => (r.id === id ? updated : r)));
+    // Every collection posts an auto-voucher server-side (see
+    // recurringDeposit.service.js's collectRdInstallment), but unlike loan
+    // collections (handleRecordCollection, above) this never refreshed the
+    // client's ledgerEntries — so the money was really posted and correctly
+    // in the DB, but Trial Balance/General Ledger/Financial Statements (all
+    // of which read from the in-memory ledgerEntries fetched once at app
+    // load) wouldn't show it until a full page reload.
+    fetchLedgerEntries();
+    return updated;
   };
   const handleMatureRecurringDeposit = async (id) => {
     const res = await api.post(`/finance/recurring-deposits/${id}/mature`);
     const updated = res.data?.data;
     if (updated) setRecurringDeposits(prev => prev.map(r => (r.id === id ? updated : r)));
+    fetchLedgerEntries();
   };
   const handlePrematureCloseRecurringDeposit = async (id, customPayoutAmount) => {
     const res = await api.post(`/finance/recurring-deposits/${id}/premature-close`, { payout_amount: customPayoutAmount });
     const updated = res.data?.data;
     if (updated) setRecurringDeposits(prev => prev.map(r => (r.id === id ? updated : r)));
+    fetchLedgerEntries();
   };
 
   // ── Expense Allocation ──
@@ -1185,14 +1324,8 @@ export default function App() {
     setCollections(prev => [newReceipt, ...prev]);
     logAudit('COLLECTION', newReceipt.id, 'PAYMENT_RECORDED', `₹${totalAmt.toLocaleString('en-IN')} for loan #${payload.loan_id} (${newReceipt.payment_mode})`);
 
-    // The ledger voucher itself already exists — collection.service.js posts it
-    // server-side, atomically with the collection row and the loan balance
-    // update (see createCollectionVoucher in shared/voucher-engine). Nothing
-    // to post from here anymore for a real (synced) collection. Custom-formula
-    // collections have no real voucher either way, since they never reach the
-    // server at all — a locally-fabricated ledger entry for a payment that was
-    // never actually saved would be more misleading than showing nothing.
-    if (synced) fetchLedgerEntries();
+    // Fetch refreshed general ledger entries so trial balance & day end closing update immediately
+    fetchLedgerEntries();
 
     return { data: newReceipt };
   };
@@ -1413,8 +1546,8 @@ export default function App() {
   // their status transitions stay local-only too, since the server has no row
   // for them to update. Everything else goes through the real
   // PATCH /finance/loans/:id/status state machine (server/src/finance/loan/loan.service.js).
-  const updateLoanStatusReal = async (loanId, status, reason) => {
-    const res = await api.patch(`/finance/loans/${loanId}/status`, { status, reason });
+  const updateLoanStatusReal = async (loanId, status, reason, extraData = {}) => {
+    const res = await api.patch(`/finance/loans/${loanId}/status`, { status, reason, ...extraData });
     const updated = res.data?.data;
     if (updated) {
       setLoans(prev => prev.map(l => (l.id === loanId ? { ...l, ...updated } : l)));
@@ -1460,12 +1593,12 @@ export default function App() {
     logAudit('LOAN', loanId, 'APPLICATION_REVERTED', loan?.loan_account_no);
   };
 
-  // Disburses an already-APPROVED application — cash actually leaves the vault
-  // now (real voucher posted server-side), not at approval time.
-  const handleDisburseApprovedLoan = async (loanId) => {
+  // Disburses an already-APPROVED application — cash leaves the vault/bank
+  // now (real voucher posted server-side with selected source account & branch).
+  const handleDisburseApprovedLoan = async (loanId, disbursalDetails = {}) => {
     const loan = loans.find(l => l.id === loanId);
-    await updateLoanStatusReal(loanId, 'ACTIVE');
-    logAudit('LOAN', loanId, 'DISBURSED', loan?.loan_account_no);
+    await updateLoanStatusReal(loanId, 'ACTIVE', undefined, disbursalDetails);
+    logAudit('LOAN', loanId, 'DISBURSED', `${loan?.loan_account_no} (${disbursalDetails.payment_mode || 'CASH'})`);
     fetchLedgerEntries();
   };
 
@@ -1520,6 +1653,9 @@ export default function App() {
   };
 
   const getSettingsSubTab = (tabStr) => {
+    if (tabStr.includes('bank-accounts') || tabStr.includes('banking')) return 'bank-accounts';
+    if (tabStr.includes('chart-of-accounts')) return 'chart-of-accounts';
+    if (tabStr.includes('investor')) return 'investor-master';
     if (tabStr.includes('interest-details')) return 'interest-details';
     if (tabStr.includes('customer-details')) return 'customer-details';
     if (tabStr.includes('org-hierarchy')) return 'org-hierarchy';
@@ -1640,6 +1776,10 @@ export default function App() {
           branches={branchesList}
           selectedBranch={selectedBranch}
           tenant={tenant}
+          chartOfAccounts={ledgerAccounts}
+          bankAccounts={bankAccounts}
+          initialApplicationTerms={estimationTermsForNewLoan}
+          onClearInitialApplicationTerms={() => setEstimationTermsForNewLoan(null)}
           onCreateBorrower={handleCreateBorrower}
           onQuickAction={handleQuickAction}
           onApproveApplication={handleApproveApplication}
@@ -1648,18 +1788,20 @@ export default function App() {
           onApproveLoanClosure={handleApproveLoanClosure}
           onRejectLoanClosure={handleRejectLoanClosure}
           onDisburseApprovedLoan={handleDisburseApprovedLoan}
+          onCollectLoan={(loan) => setSelectedLoanForCollection(loan)}
         />
       )}
 
-      {/* Investor Capital */}
-      {activeTab === 'investor-capital' && (
-        <InvestorCapitalView
-          investors={investors}
-          branchesList={branchesList}
-          selectedBranch={selectedBranch}
-          onCreateInvestor={handleCreateInvestor}
-          onUpdateInvestor={handleUpdateInvestor}
-          onDeleteInvestor={handleDeleteInvestor}
+      {/* Loan Estimator & Quotation View */}
+      {(activeTab.includes('estimation') || activeTab === 'estimation') && (
+        <EstimationView
+          loanSchemes={loanSchemes}
+          tenant={tenant}
+          onCreateLoanScheme={handleCreateLoanScheme}
+          onApplyLoan={(estimateTerms) => {
+            setEstimationTermsForNewLoan(estimateTerms);
+            setActiveTabState('loan-management/loans-register');
+          }}
         />
       )}
 
@@ -1669,8 +1811,10 @@ export default function App() {
           fixedDeposits={fixedDeposits}
           borrowers={borrowers}
           tenant={tenant}
+          user={user}
           branchesList={branchesList}
           selectedBranch={selectedBranch}
+          journalEntries={ledgerEntries}
           onCreateFd={handleCreateFixedDeposit}
           onMatureFd={handleMatureFixedDeposit}
           onPrematureCloseFd={handlePrematureCloseFixedDeposit}
@@ -1683,8 +1827,11 @@ export default function App() {
         <RecurringDepositsView
           recurringDeposits={recurringDeposits}
           borrowers={borrowers}
+          tenant={tenant}
           branchesList={branchesList}
           selectedBranch={selectedBranch}
+          bankAccounts={bankAccounts}
+          journalEntries={ledgerEntries}
           onCreateRd={handleCreateRecurringDeposit}
           onCollectInstallment={handleCollectRdInstallment}
           onMatureRd={handleMatureRecurringDeposit}
@@ -1699,6 +1846,7 @@ export default function App() {
           loans={loans}
           borrowers={borrowers}
           loanSchemes={loanSchemes}
+          employees={employees}
           user={user}
           tenant={tenant}
           branchesList={branchesList}
@@ -1715,7 +1863,14 @@ export default function App() {
 
       {/* Finance & Accounting — each menu item is its own standalone page */}
       {(activeTab.includes('general-ledger') || activeTab === 'finance' || activeTab === 'finance-accounting') && (
-        <GeneralLedgerView chartOfAccounts={ledgerAccounts} journalEntries={ledgerEntries} branchesList={branchesList} selectedBranch={selectedBranch} />
+        <GeneralLedgerView
+          chartOfAccounts={ledgerAccounts}
+          journalEntries={ledgerEntries}
+          branchesList={branchesList}
+          selectedBranch={selectedBranch}
+          onCreateOpeningBalance={handleCreateManualVoucher}
+          tenant={tenant}
+        />
       )}
       {(activeTab.includes('loan-ledger')) && (
         <LoanLedgerView loans={loans} collections={collections} branchesList={branchesList} selectedBranch={selectedBranch} />
@@ -1729,6 +1884,19 @@ export default function App() {
       {(activeTab.includes('auto-vouchers')) && (
         <AutoVouchersView journalEntries={ledgerEntries} branchesList={branchesList} chartOfAccounts={ledgerAccounts} tenant={tenant} selectedBranch={selectedBranch} />
       )}
+      {(activeTab === 'branch-expenses' || activeTab.includes('finance/expenses')) && (
+        <BranchExpenseTrackerView
+          expenseCategories={expenseCategories}
+          expenseVouchers={expenseVouchers}
+          journalEntries={ledgerEntries}
+          branchesList={branchesList}
+          employees={employees}
+          selectedBranch={selectedBranch}
+          user={user}
+          expenseAllocationRequests={expenseAllocationRequests}
+          onCreateExpenseVoucher={handleCreateManualVoucher}
+        />
+      )}
       {(activeTab.includes('manual-vouchers')) && (
         <ManualVouchersView
           journalEntries={ledgerEntries}
@@ -1736,20 +1904,23 @@ export default function App() {
           branchesList={branchesList}
           employees={employees}
           expenseCategories={expenseCategories}
+          bankAccounts={bankAccounts}
           tenant={tenant}
           selectedBranch={selectedBranch}
           onCreateManualVoucher={handleCreateManualVoucher}
+          onRevertVoucher={handleRevertVoucher}
         />
       )}
       {(activeTab.includes('eod-process')) && (
         <EODProcessView
           branchesList={branchesList}
           selectedBranch={selectedBranch}
-          journalEntries={journalEntries}
-          chartOfAccounts={chartOfAccounts}
+          journalEntries={ledgerEntries}
+          chartOfAccounts={ledgerAccounts}
           eodRecords={eodRecords}
           eodDenominationSettings={eodDenominationSettings}
           user={user}
+          onCreateOpeningBalance={handleCreateManualVoucher}
           onCloseEodDay={handleCloseEodDay}
           onUpdateEodRecord={handleUpdateEodRecord}
           onResolveEodVariance={handleResolveEodVariance}
@@ -1775,29 +1946,32 @@ export default function App() {
 
       {/* Reports Module — each report is a standalone read-only page */}
       {(activeTab.includes('reports/loan-portfolio')) && (
-        <LoanPortfolioReportView loans={loans} branchesList={branchesList} journalEntries={journalEntries} tenant={tenant} user={user} selectedBranch={selectedBranch} />
+        <LoanPortfolioReportView loans={loans} borrowers={borrowers} receipts={collections} branchesList={branchesList} journalEntries={ledgerEntries} tenant={tenant} user={user} selectedBranch={selectedBranch} />
       )}
       {(activeTab.includes('reports/collections')) && (
-        <CollectionsReportView collections={collections} loans={loans} branchesList={branchesList} journalEntries={journalEntries} tenant={tenant} user={user} selectedBranch={selectedBranch} />
+        <CollectionsReportView collections={collections} loans={loans} branchesList={branchesList} journalEntries={ledgerEntries} tenant={tenant} user={user} selectedBranch={selectedBranch} />
       )}
       {(activeTab.includes('reports/investor-capital')) && (
         <InvestorCapitalReportView investors={investors} tenant={tenant} user={user} />
       )}
       {(activeTab.includes('reports/fixed-deposits')) && (
-        <FixedDepositReportView fixedDeposits={fixedDeposits} borrowers={borrowers} tenant={tenant} user={user} />
+        <FixedDepositReportView fixedDeposits={fixedDeposits} borrowers={borrowers} journalEntries={ledgerEntries} tenant={tenant} user={user} />
       )}
       {(activeTab.includes('reports/recurring-deposits')) && (
-        <RecurringDepositReportView recurringDeposits={recurringDeposits} borrowers={borrowers} tenant={tenant} user={user} />
+        <RecurringDepositReportView recurringDeposits={recurringDeposits} borrowers={borrowers} journalEntries={ledgerEntries} tenant={tenant} user={user} />
       )}
       {(activeTab.includes('reports/financial-statements')) && (
-        <FinancialStatementsReportView chartOfAccounts={chartOfAccounts} journalEntries={journalEntries} branchesList={branchesList} tenant={tenant} user={user} selectedBranch={selectedBranch} />
+        <FinancialStatementsReportView chartOfAccounts={ledgerAccounts} journalEntries={ledgerEntries} branchesList={branchesList} tenant={tenant} user={user} selectedBranch={selectedBranch} />
       )}
       {(activeTab.includes('reports/staff-performance')) && (
-        <StaffPerformanceReportView employees={employees} loans={loans} collections={collections} branchesList={branchesList} journalEntries={journalEntries} tenant={tenant} user={user} selectedBranch={selectedBranch} />
+        <StaffPerformanceReportView employees={employees} loans={loans} collections={collections} branchesList={branchesList} journalEntries={ledgerEntries} tenant={tenant} user={user} selectedBranch={selectedBranch} />
+      )}
+      {(activeTab.includes('reports/expenses') || activeTab.includes('reports/expense')) && (
+        <ExpenseReportView expenseCategories={expenseCategories} expenseVouchers={expenseVouchers} branchesList={branchesList} employees={employees} tenant={tenant} user={user} selectedBranch={selectedBranch} />
       )}
 
       {/* Master Settings Module */}
-      {(activeTab.startsWith('master-settings') || activeTab.startsWith('settings') || activeTab === 'employees') && !activeTab.includes('customer-details') && (
+      {(activeTab.startsWith('master-settings') || activeTab.startsWith('settings') || activeTab === 'employees' || activeTab === 'investor-capital') && !activeTab.includes('customer-details') && (
           <MasterSettingsView
             initialTab={getSettingsSubTab(activeTab)}
             tenant={tenant}
@@ -1835,6 +2009,35 @@ export default function App() {
             onDeleteExpenseCategory={handleDeleteExpenseCategory}
             expenseAllocationRequests={expenseAllocationRequests}
             onAddExpenseFunds={handleAddExpenseFunds}
+            chartOfAccounts={ledgerAccounts}
+            onCreateAccount={async (payload) => {
+              const res = await api.post('/finance/ledger/accounts', payload);
+              const created = res.data?.data;
+              if (created) {
+                setLedgerAccounts(prev => [...prev, normalizeLedgerAccount(created)]);
+              }
+              return created;
+            }}
+            onUpdateAccount={async (code, payload) => {
+              const res = await api.put(`/finance/ledger/accounts/${code}`, payload);
+              const updated = res.data?.data;
+              if (updated) {
+                setLedgerAccounts(prev => prev.map(a => (a.account_code === code || a.code === code) ? normalizeLedgerAccount(updated) : a));
+              }
+              return updated;
+            }}
+            onDeleteAccount={async (code) => {
+              await api.delete(`/finance/ledger/accounts/${code}`);
+              setLedgerAccounts(prev => prev.filter(a => (a.account_code !== code && a.code !== code)));
+            }}
+            bankAccounts={bankAccounts}
+            onCreateBankAccount={handleCreateBankAccount}
+            onUpdateBankAccount={handleUpdateBankAccount}
+            onDeleteBankAccount={handleDeleteBankAccount}
+            investors={investors}
+            onCreateInvestor={handleCreateInvestor}
+            onUpdateInvestor={handleUpdateInvestor}
+            onDeleteInvestor={handleDeleteInvestor}
           />
       )}
 
@@ -1844,6 +2047,7 @@ export default function App() {
         onClose={() => setSelectedLoanForCollection(null)}
         loan={selectedLoanForCollection}
         borrowers={borrowers}
+        employees={employees}
         allLoans={loans}
         branchesList={branchesList}
         currentUserName={user?.name}

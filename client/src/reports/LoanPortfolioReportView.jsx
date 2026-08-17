@@ -1,9 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { FileText, Search, ChevronLeft, ChevronRight, Download, Printer, FileDown } from 'lucide-react';
+import { FileText, Search, ChevronLeft, ChevronRight, Download, Printer, FileDown, History } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import { exportToCsv } from '../utils/csvExport';
 import ReportPreviewModal from '../components/ReportPreviewModal';
 import { refTimeMap } from '../utils/accounting';
+import DropdownSelect from '../components/DropdownSelect';
+import PrintablePaymentHistorySheet from '../finance/loan/PrintablePaymentHistorySheet';
 
 const STATUS_KEY = {
   ACTIVE: 'fin.status_active',
@@ -17,11 +19,18 @@ function fmtTime(iso) {
   return new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
-export default function LoanPortfolioReportView({ loans = [], branchesList = [], journalEntries = [], tenant, user, selectedBranch = 'ALL' }) {
+export default function LoanPortfolioReportView({ loans = [], borrowers = [], receipts = [], branchesList = [], journalEntries = [], tenant, user, selectedBranch = 'ALL' }) {
   const { t } = useLanguage();
-  const [branch, setBranch] = useState('');
+  // Individual loan's full transaction/payment history — the report table
+  // itself only ever showed one summary row per loan; this opens the same
+  // printable statement sheet used elsewhere in the app (Loan Detail's
+  // Export PDF, Loans register's History pill) for whichever specific loan
+  // was clicked, so this report can drill into one account, not just the
+  // whole portfolio at once.
+  const [historyLoan, setHistoryLoan] = useState(null);
+  const [branch, setBranch] = useState(() => (selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL'));
   useEffect(() => {
-    if (selectedBranch && selectedBranch !== 'ALL') setBranch(selectedBranch);
+    setBranch(selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL');
   }, [selectedBranch]);
   const hasBranchSelected = branch !== '';
   const [status, setStatus] = useState('ALL');
@@ -152,21 +161,32 @@ export default function LoanPortfolioReportView({ loans = [], branchesList = [],
       <div className="fin-filterbar">
         <div className="fin-field">
           <label>{t('fin.branch_label')}</label>
-          <select className="fin-select" value={branch} onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
-            <option value="">{t('fin.select_branch_placeholder')}</option>
-            <option value="ALL">{t('fin.all_branches')}</option>
-            {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-          </select>
+          <DropdownSelect
+            value={branch}
+            onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }}
+            disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
+            buttonStyle={{ height: 36, minWidth: 160 }}
+            options={[
+              { value: '', label: t('fin.select_branch_placeholder') || '— Select Branch —' },
+              { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
+              ...branchesList.map(b => ({ value: b.name, label: b.name }))
+            ]}
+          />
         </div>
         <div className="fin-field">
           <label>{t('col.status')}</label>
-          <select className="fin-select" value={status} onChange={(e) => { setStatus(e.target.value); setCurrentPage(1); }}>
-            <option value="ALL">{t('fin.all_statuses')}</option>
-            <option value="ACTIVE">{t('fin.status_active')}</option>
-            <option value="OVERDUE">{t('fin.status_overdue')}</option>
-            <option value="CLOSED">{t('fin.status_closed')}</option>
-            <option value="PENDING">{t('fin.status_pending')}</option>
-          </select>
+          <DropdownSelect
+            value={status}
+            onChange={(e) => { setStatus(e.target.value); setCurrentPage(1); }}
+            buttonStyle={{ height: 36, minWidth: 140 }}
+            options={[
+              { value: 'ALL', label: t('fin.all_statuses') || 'All Statuses' },
+              { value: 'ACTIVE', label: t('fin.status_active') || 'Active' },
+              { value: 'OVERDUE', label: t('fin.status_overdue') || 'Overdue' },
+              { value: 'CLOSED', label: t('fin.status_closed') || 'Closed' },
+              { value: 'PENDING', label: t('fin.status_pending') || 'Pending' }
+            ]}
+          />
         </div>
         <div className="fin-field" style={{ minWidth: 160 }}>
           <label>{t('fin.find_transactions_placeholder')}</label>
@@ -199,11 +219,12 @@ export default function LoanPortfolioReportView({ loans = [], branchesList = [],
               <th>{t('fin.last_payment_label')}</th>
               <th className="num">{t('fin.days_overdue_label')}</th>
               <th>{t('col.status')}</th>
+              <th style={{ textAlign: 'right' }}>Details</th>
             </tr>
           </thead>
           <tbody>
             {pagedLoans.length === 0 ? (
-              <tr><td colSpan="18" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>{hasBranchSelected ? t('fin.no_results_hint') : t('fin.select_branch_hint')}</td></tr>
+              <tr><td colSpan="19" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>{hasBranchSelected ? t('fin.no_results_hint') : t('fin.select_branch_hint')}</td></tr>
             ) : pagedLoans.map(l => (
               <tr key={l.id}>
                 <td className="code">{l.loan_account_no}</td>
@@ -228,6 +249,16 @@ export default function LoanPortfolioReportView({ loans = [], branchesList = [],
                     {STATUS_KEY[l.status] ? t(STATUS_KEY[l.status]) : l.status}
                   </span>
                 </td>
+                <td style={{ textAlign: 'right' }}>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryLoan(l)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#334155', borderRadius: 6, padding: '4px 9px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    <History style={{ width: 11, height: 11 }} />
+                    <span>Details</span>
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -251,6 +282,16 @@ export default function LoanPortfolioReportView({ loans = [], branchesList = [],
       </div>
 
       {showPreview && <ReportPreviewModal {...previewProps} onClose={() => setShowPreview(false)} />}
+
+      {historyLoan && (
+        <PrintablePaymentHistorySheet
+          loan={historyLoan}
+          borrower={borrowers.find(b => b.id === historyLoan.borrower_id || b.phone === historyLoan.phone) || {}}
+          receipts={receipts}
+          tenant={tenant}
+          onClose={() => setHistoryLoan(null)}
+        />
+      )}
     </div>
   );
 }

@@ -18,14 +18,16 @@ export async function listInvestorsHandler(request, reply) {
 
 export async function createInvestorHandler(request, reply) {
   try {
-    const data = await investorService.createInvestor(request.tenantDb, request.body);
+    const companyCode = request.tenantCode || request.user?.companyCode || 'default';
+    const data = await investorService.createInvestor(request.tenantDb, request.body, companyCode);
     return reply.code(201).send({ success: true, data });
   } catch (err) { return fail(reply, err); }
 }
 
 export async function updateInvestorHandler(request, reply) {
   try {
-    const data = await investorService.updateInvestor(request.tenantDb, request.params.id, request.body);
+    const companyCode = request.tenantCode || request.user?.companyCode || 'default';
+    const data = await investorService.updateInvestor(request.tenantDb, request.params.id, request.body, companyCode);
     return reply.send({ success: true, data });
   } catch (err) { return fail(reply, err); }
 }

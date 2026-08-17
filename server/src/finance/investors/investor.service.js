@@ -1,5 +1,6 @@
 import { assertValidPhone, assertValidEmail } from '../../shared/validators/contact.js';
 import { assertMaxFileSize } from '../../shared/validators/fileSize.js';
+import { saveBase64File } from '../../shared/utils/fileStorage.js';
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
@@ -47,7 +48,7 @@ function assertValidCapital(payload) {
   }
 }
 
-export async function createInvestor(db, payload) {
+export async function createInvestor(db, payload, companyCode = 'default') {
   if (!payload.name?.trim() || !payload.phone?.trim()) {
     const err = new Error('Investor Name and Phone are required.');
     err.statusCode = 400;
@@ -59,6 +60,10 @@ export async function createInvestor(db, payload) {
   assertValidCapital(payload);
   assertMaxFileSize(payload.photo, MAX_PHOTO_BYTES, 'Investor photo');
   const normalized = normalizePayload(payload);
+
+  if (normalized.photo) {
+    normalized.photo = await saveBase64File(normalized.photo, companyCode, 'investors', 'inv_profile');
+  }
 
   // investor_code is derived from MAX(id), which is racy under concurrent
   // double-submits — retry once on the unique-constraint collision rather than
@@ -84,7 +89,7 @@ export async function createInvestor(db, payload) {
   }
 }
 
-export async function updateInvestor(db, id, payload) {
+export async function updateInvestor(db, id, payload, companyCode = 'default') {
   const [existing] = await db.query('SELECT id FROM investors WHERE id = ?', [id]);
   if (!existing.length) {
     const err = new Error('Investor not found.');
@@ -102,6 +107,11 @@ export async function updateInvestor(db, id, payload) {
   assertValidCapital(payload);
   assertMaxFileSize(payload.photo, MAX_PHOTO_BYTES, 'Investor photo');
   const normalized = normalizePayload(payload);
+
+  if (normalized.photo) {
+    normalized.photo = await saveBase64File(normalized.photo, companyCode, 'investors', 'inv_profile');
+  }
+
   await db.execute(
     `UPDATE investors SET name=?, phone=?, email=?, address=?, city=?, state=?, pincode=?,
       nominee_name=?, nominee_phone=?,

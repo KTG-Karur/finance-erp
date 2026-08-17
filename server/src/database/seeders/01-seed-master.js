@@ -1,6 +1,8 @@
 /**
  * Sequelize Seeder: Master Database
- * Seeds initial company record ('ALPHA') with db_name 'finance_db_alpha' and superadmin account.
+ * Seeds subscription plans and the global superadmin account only.
+ * Tenant companies are added via tenant provisioning (TenantProvisioner),
+ * never seeded here — that path also handles its own tenants.
  */
 
 export async function up(queryInterface, Sequelize) {
@@ -41,36 +43,6 @@ export async function up(queryInterface, Sequelize) {
     }
   ], {});
 
-  // Seed Companies
-  await queryInterface.bulkInsert('companies', [
-    {
-      id: 1,
-      name: 'Alpha Financial Services Private Limited',
-      company_code: 'ALPHA',
-      db_name: 'finance_erp',
-      plan_tier: 'ENTERPRISE',
-      gstin: '33AAAAA0000A1Z5',
-      pan: 'AAAAA0000A',
-      address: 'No. 123, Main Road, Near Bus Stand, Karur, Tamil Nadu - 639001',
-      phone: '+91 4324 234567',
-      is_active: true,
-      created_at: new Date()
-    }
-  ], {});
-
-  // Seed Subscriptions
-  await queryInterface.bulkInsert('subscriptions', [
-    {
-      id: 1,
-      company_id: 1,
-      plan_id: 3,
-      status: 'ACTIVE',
-      start_date: new Date(),
-      auto_renew: true,
-      created_at: new Date()
-    }
-  ], {});
-
   // Seed Master Users
   await queryInterface.bulkInsert('master_users', [
     {
@@ -87,7 +59,5 @@ export async function up(queryInterface, Sequelize) {
 
 export async function down(queryInterface) {
   await queryInterface.bulkDelete('master_users', { email: 'superadmin@erp.com' }, {});
-  await queryInterface.bulkDelete('subscriptions', { company_id: 1 }, {});
-  await queryInterface.bulkDelete('companies', { company_code: 'ALPHA' }, {});
   await queryInterface.bulkDelete('plans', { id: [1, 2, 3] }, {});
 }

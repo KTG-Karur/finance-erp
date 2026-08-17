@@ -31,7 +31,21 @@ export async function companyLookupHandler(request, reply) {
   }
 }
 
+// Compute seconds until midnight (23:59:59) of the subscription end date.
+// If no subscription date is set, fall back to 24 hours.
+function getTokenExpiry(subscriptionEndDate) {
+  if (!subscriptionEndDate) return '24h';
+  const midnight = new Date(subscriptionEndDate);
+  midnight.setHours(23, 59, 59, 999);
+  const diffSeconds = Math.floor((midnight.getTime() - Date.now()) / 1000);
+  // If already expired (negative), return a very short TTL so the token is
+  // immediately invalid — the login handler above already blocks this case,
+  // but this is a defensive second layer.
+  return diffSeconds > 0 ? diffSeconds : 1;
+}
+
 function issueFullToken(request, userData, branch) {
+  const expiresIn = getTokenExpiry(userData.subscriptionEndDate);
   return request.server.jwt.sign({
     userId: userData.userId,
     companyId: userData.companyId,
@@ -51,7 +65,7 @@ function issueFullToken(request, userData, branch) {
     branchId: branch?.id || null,
     branchName: branch?.name || null,
     subCompanyId: branch?.sub_company_id || null
-  });
+  }, { expiresIn });
 }
 
 // Tenant Login via Company Code (POST /api/v1/auth/tenant/login)
@@ -145,10 +159,25 @@ export async function superAdminLoginHandler(request, reply) {
   }
 }
 
-// Super Admin Provision Company (POST /api/v1/auth/superadmin/companies)
 export async function provisionCompanyHandler(request, reply) {
   try {
-    const { company_code, name, admin_email, admin_password, plan_id, plan_code } = request.body || {};
+    const {
+      company_code,
+      name,
+      admin_email,
+      admin_password,
+      company_email,
+      company_phone,
+      phone,
+      address,
+      logo,
+      plan_id,
+      plan_code,
+      status,
+      trial_days,
+      billing_cycle,
+      custom_expiry_date
+    } = request.body || {};
 
     if (!company_code || !name) {
       return reply.code(400).send({ error: 'Bad Request', message: 'Company Code and Company Name are required.' });
@@ -160,8 +189,17 @@ export async function provisionCompanyHandler(request, reply) {
       name,
       admin_email,
       admin_password,
+      company_email,
+      company_phone: company_phone || phone,
+      phone: phone || company_phone,
+      address,
+      logo,
       plan_id,
-      plan_code
+      plan_code,
+      status: status || 'TRIAL',
+      trial_days: Number(trial_days) || 15,
+      billing_cycle: billing_cycle || '3_MONTHS',
+      custom_expiry_date
     });
 
     await authService.insertSuperAdminAuditLog(request.server.masterDb, {
@@ -228,8 +266,8 @@ export async function updatePlanHandler(request, reply) {
 // List All Tenant Companies (GET /api/v1/auth/superadmin/companies)
 export async function listCompaniesHandler(request, reply) {
   try {
-    const data = await authService.listCompanies(request.server.masterDb);
-    return reply.send({ success: true, data });
+    const { companies, summary } = await authService.listCompanies(request.server.masterDb);
+    return reply.send({ success: true, data: companies, summary });
   } catch (err) {
     return reply.code(500).send({ error: 'Server Error', message: err.message });
   }
@@ -259,13 +297,30 @@ export async function updateCompanyStatusHandler(request, reply) {
 // Update a Tenant's Company Profile, Branch Limit / Module Allocation (PATCH /api/v1/auth/superadmin/companies/:id/access)
 export async function updateCompanyAccessHandler(request, reply) {
   try {
-    const { name, phone, address, max_branches, allowed_modules } = request.body || {};
-    await authService.updateCompanyAccess(request.server.masterDb, request.params.id, { name, phone, address, max_branches, allowed_modules });
+    const { name, phone, address, max_branches, allowed_modules, expiry_date, subscription_status, plan_tier } = request.body || {};
+    await authService.updateCompanyAccess(request.server.masterDb, request.params.id, {
+      name,
+      phone,
+      address,
+      max_branches,
+      allowed_modules,
+      expiry_date,
+      subscription_status,
+      plan_tier
+    });
     await authService.insertSuperAdminAuditLog(request.server.masterDb, {
       superadminId: request.user?.userId,
       targetTenantId: request.params.id,
       action: 'TENANT_ACCESS_UPDATED',
-      details: { name: name ?? null, phone: phone ?? null, max_branches: max_branches ?? null, allowed_modules: allowed_modules ?? null },
+      details: {
+        name: name ?? null,
+        phone: phone ?? null,
+        max_branches: max_branches ?? null,
+        allowed_modules: allowed_modules ?? null,
+        expiry_date: expiry_date ?? null,
+        subscription_status: subscription_status ?? null,
+        plan_tier: plan_tier ?? null
+      },
       ipAddress: request.ip
     });
     return reply.send({ success: true, message: 'Tenant company profile and access settings updated successfully.' });
@@ -321,6 +376,7 @@ export async function getOwnCompanyProfileHandler(request, reply) {
 export async function updateOwnCompanyProfileHandler(request, reply) {
   try {
     const { name, gstin, pan, address, phone, logo, theme_color } = request.body || {};
+    const companyCode = request.tenantCode || request.user?.companyCode || 'default';
     assertValidGstin(gstin);
     assertValidPan(pan);
     const data = await authService.updateOwnCompanyProfile(request.server.masterDb, request.companyId, {
@@ -328,7 +384,7 @@ export async function updateOwnCompanyProfileHandler(request, reply) {
       gstin: gstin ? String(gstin).trim().toUpperCase() : gstin,
       pan: pan ? String(pan).trim().toUpperCase() : pan,
       address, phone, logo, theme_color
-    });
+    }, companyCode);
     return reply.send({ success: true, data });
   } catch (err) {
     return reply.code(err.statusCode || 500).send({ error: 'Server Error', message: err.message });
@@ -340,4 +396,127 @@ export async function getCurrentUserHandler(request, reply) {
     success: true,
     user: request.user
   });
+}
+
+// ── SuperAdmin Subscriptions Handlers ───────────────────────────────────────
+
+export async function listSubscriptionsHandler(request, reply) {
+  try {
+    const data = await authService.listSubscriptions(request.server.masterDb);
+    return reply.send({ success: true, data });
+  } catch (err) {
+    return reply.code(500).send({ error: 'Server Error', message: err.message });
+  }
+}
+
+export async function createSubscriptionHandler(request, reply) {
+  try {
+    const { company_id, plan_id, status, start_date, end_date, auto_renew } = request.body || {};
+    if (!company_id || !plan_id) {
+      return reply.code(400).send({ error: 'Bad Request', message: 'Company and Plan are required.' });
+    }
+    const data = await authService.createSubscription(request.server.masterDb, {
+      company_id, plan_id, status, start_date, end_date, auto_renew
+    });
+    return reply.status(201).send({ success: true, data });
+  } catch (err) {
+    return reply.code(500).send({ error: 'Server Error', message: err.message });
+  }
+}
+
+export async function updateSubscriptionHandler(request, reply) {
+  try {
+    const { id } = request.params;
+    const { plan_id, status, start_date, end_date, auto_renew } = request.body || {};
+    const data = await authService.updateSubscription(request.server.masterDb, id, {
+      plan_id, status, start_date, end_date, auto_renew
+    });
+    return reply.send({ success: true, data });
+  } catch (err) {
+    return reply.code(err.statusCode || 500).send({ error: 'Server Error', message: err.message });
+  }
+}
+
+export async function extendSubscriptionHandler(request, reply) {
+  try {
+    const { id } = request.params;
+    const { days, status } = request.body || {};
+    const data = await authService.extendSubscription(request.server.masterDb, id, {
+      days: days || 30,
+      status: status || 'ACTIVE'
+    });
+    return reply.send({ success: true, data });
+  } catch (err) {
+    return reply.code(err.statusCode || 500).send({ error: 'Server Error', message: err.message });
+  }
+}
+
+export async function renewSubscriptionHandler(request, reply) {
+  try {
+    const { id } = request.params;
+    const { plan_id, duration_cycle, custom_expiry_date } = request.body || {};
+    const data = await authService.renewSubscription(request.server.masterDb, id, {
+      plan_id,
+      duration_cycle: duration_cycle || '3_MONTHS',
+      custom_expiry_date: custom_expiry_date || null
+    });
+    await authService.insertSuperAdminAuditLog(request.server.masterDb, {
+      superadminId: request.user?.userId,
+      targetTenantId: data.company_id,
+      action: 'SUBSCRIPTION_MANUALLY_RENEWED',
+      details: { subscriptionId: id, planId: data.plan_id, newExpiry: data.end_date, duration: duration_cycle },
+      ipAddress: request.ip
+    });
+    return reply.send({ success: true, data, message: data.message });
+  } catch (err) {
+    return reply.code(err.statusCode || 500).send({ error: 'Server Error', message: err.message });
+  }
+}
+
+export async function flushPoolsHandler(request, reply) {
+  try {
+    const result = typeof request.server.flushTenantDbPools === 'function'
+      ? await request.server.flushTenantDbPools()
+      : { flushedCount: 0, closedDatabases: [] };
+
+    await authService.insertSuperAdminAuditLog(request.server.masterDb, {
+      superadminId: request.user?.userId,
+      targetTenantId: null,
+      action: 'DATABASE_POOLS_FLUSHED',
+      details: result,
+      ipAddress: request.ip
+    });
+
+    return reply.send({
+      success: true,
+      message: `Successfully flushed ${result.flushedCount} dynamic tenant database connection pool(s). Fresh connections will be allocated on demand.`,
+      data: result
+    });
+  } catch (err) {
+    return reply.code(500).send({ error: 'Server Error', message: err.message });
+  }
+}
+
+export async function changeSuperAdminPasswordHandler(request, reply) {
+  try {
+    const { currentPassword, newPassword } = request.body || {};
+    const superadminId = request.user?.userId;
+
+    const result = await authService.changeSuperAdminPassword(request.server.masterDb, superadminId, {
+      currentPassword,
+      newPassword
+    });
+
+    await authService.insertSuperAdminAuditLog(request.server.masterDb, {
+      superadminId,
+      targetTenantId: null,
+      action: 'SUPERADMIN_PASSWORD_CHANGED',
+      details: { email: request.user?.email },
+      ipAddress: request.ip
+    });
+
+    return reply.send({ success: true, message: result.message });
+  } catch (err) {
+    return reply.code(err.statusCode || 500).send({ error: 'Error', message: err.message });
+  }
 }

@@ -2,6 +2,7 @@ export function generateEmiSchedule({
   principal,
   monthlyInterestRate,
   tenureMonths,
+  tenureDays,
   repaymentFrequency = 'DAILY',
   interestCalculation = 'CONSTANT_FLAT',
   startDate
@@ -9,7 +10,11 @@ export function generateEmiSchedule({
   const P = parseFloat(principal) || 0;
   const monthlyRate = parseFloat(monthlyInterestRate) || 0;
   const months = parseFloat(tenureMonths) || 1;
-  const totalDays = Math.max(Math.round(months * 30), 1);
+  // Prefer the exact day count when the caller has one (e.g. a loan's real
+  // tenure_days) — deriving days from tenureMonths*30 only ever matches when
+  // the tenure happens to be a clean multiple of 30, otherwise it silently
+  // rounds the schedule (and total interest) up to the next month boundary.
+  const totalDays = tenureDays ? Math.max(Math.round(parseFloat(tenureDays)), 1) : Math.max(Math.round(months * 30), 1);
 
   let periodsCount;
   let ratePerPeriod;
@@ -38,14 +43,19 @@ export function generateEmiSchedule({
       : Math.ceil(P / periodsCount);
 
     let balance = P;
+    let cumPrincipal = 0;
     for (let i = 1; i <= periodsCount; i++) {
-      const interest = Math.round(balance * r);
-      let principalPortion = emi - interest;
-      if (i === periodsCount || principalPortion > balance) {
-        principalPortion = balance;
+      const isLast = (i === periodsCount);
+      let interest = Math.round(balance * r * 100) / 100;
+      let principalPortion = Math.round((emi - interest) * 100) / 100;
+      
+      if (isLast || principalPortion > balance) {
+        principalPortion = Math.max(0, Math.round((P - cumPrincipal) * 100) / 100);
       }
-      principalPortion = Math.max(0, Math.round(principalPortion));
-      balance = Math.max(0, balance - principalPortion);
+      
+      principalPortion = Math.max(0, principalPortion);
+      cumPrincipal = Math.round((cumPrincipal + principalPortion) * 100) / 100;
+      balance = Math.max(0, Math.round((P - cumPrincipal) * 100) / 100);
 
       const dueDate = new Date(base);
       dueDate.setDate(dueDate.getDate() + i * periodDays);
@@ -55,31 +65,31 @@ export function generateEmiSchedule({
         due_date: dueDate.toISOString().slice(0, 10),
         principal: principalPortion,
         interest,
-        emi: principalPortion + interest,
+        emi: Math.round((principalPortion + interest) * 100) / 100,
+        balance,
         principal_paid: 0,
         interest_paid: 0
       });
     }
   } else {
-    // CONSTANT_FLAT
-    const totalInterest = Math.round(P * (monthlyRate / 100) * months);
-    const totalPayable = P + totalInterest;
-    const emi = Math.ceil(totalPayable / periodsCount);
-    const principalPerPeriod = Math.floor(P / periodsCount);
-    const interestPerPeriod = emi - principalPerPeriod;
+    // CONSTANT_FLAT — computed off the exact day count, not the (possibly
+    // rounded-up) month count, so the total matches the loan's real tenure.
+    const totalInterest = Math.round(P * (monthlyRate / 100 / 30) * totalDays * 100) / 100;
+    const totalPayable = Math.round((P + totalInterest) * 100) / 100;
+    const emi = Math.round((totalPayable / periodsCount) * 100) / 100;
+    const basePrincipalPerPeriod = Math.round((P / periodsCount) * 100) / 100;
+    const baseInterestPerPeriod = Math.round((totalInterest / periodsCount) * 100) / 100;
 
     let cumP = 0;
     let cumI = 0;
     for (let i = 1; i <= periodsCount; i++) {
-      let pP = principalPerPeriod;
-      let iP = interestPerPeriod;
+      const isLast = (i === periodsCount);
+      let pP = isLast ? Math.max(0, Math.round((P - cumP) * 100) / 100) : basePrincipalPerPeriod;
+      let iP = isLast ? Math.max(0, Math.round((totalInterest - cumI) * 100) / 100) : baseInterestPerPeriod;
 
-      if (i === periodsCount) {
-        pP = P - cumP;
-        iP = totalInterest - cumI;
-      }
-      cumP += pP;
-      cumI += iP;
+      cumP = Math.round((cumP + pP) * 100) / 100;
+      cumI = Math.round((cumI + iP) * 100) / 100;
+      const balance = Math.max(0, Math.round((P - cumP) * 100) / 100);
 
       const dueDate = new Date(base);
       dueDate.setDate(dueDate.getDate() + i * periodDays);
@@ -89,7 +99,8 @@ export function generateEmiSchedule({
         due_date: dueDate.toISOString().slice(0, 10),
         principal: pP,
         interest: iP,
-        emi: pP + iP,
+        emi: Math.round((pP + iP) * 100) / 100,
+        balance,
         principal_paid: 0,
         interest_paid: 0
       });

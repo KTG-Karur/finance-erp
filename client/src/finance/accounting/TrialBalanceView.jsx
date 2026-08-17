@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Scale } from 'lucide-react';
+import { Scale, AlertTriangle } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import { computeAccountBalances, computeTrialBalance, filterEntriesUpTo, filterEntriesByBranch } from '../../utils/accounting';
+import DropdownSelect from '../../components/DropdownSelect';
+import SharedDatePicker from '../../components/common/SharedDatePicker';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -21,9 +23,9 @@ export default function TrialBalanceView({ chartOfAccounts = [], journalEntries 
   const { t } = useLanguage();
   const [asOfDate, setAsOfDate] = useState(todayStr());
   const [applied, setApplied] = useState(todayStr());
-  const [branch, setBranch] = useState('');
+  const [branch, setBranch] = useState(() => (selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL'));
   useEffect(() => {
-    if (selectedBranch && selectedBranch !== 'ALL') setBranch(selectedBranch);
+    setBranch(selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL');
   }, [selectedBranch]);
   const [hideZeroBalances, setHideZeroBalances] = useState(true);
   const hasBranchSelected = branch !== '';
@@ -44,19 +46,20 @@ export default function TrialBalanceView({ chartOfAccounts = [], journalEntries 
   }, [allTrialBalance, hideZeroBalances]);
 
   const totals = allTrialBalance.reduce((acc, r) => ({ debit: acc.debit + r.debit, credit: acc.credit + r.credit }), { debit: 0, credit: 0 });
-  const isBalanced = Math.round((totals.debit - totals.credit) * 100) === 0;
+  const difference = Math.abs(totals.debit - totals.credit);
+  const isBalanced = Math.round(difference * 100) === 0;
 
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
   return (
     <div className="fin-page">
       {/* ── Executive Header: Left Title/Subtitle & Right Financial Info Summary ── */}
-      <div className="fin-header-card" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '20px 24px', borderRadius: 12 }}>
+      <div className="fin-header-card" style={{ background: '#FFFFFF', border: `1px solid ${isBalanced ? '#E2E8F0' : '#FECACA'}`, padding: '20px 24px', borderRadius: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           {/* Left Title & Description */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--brand-primary-light, #F0FDF4)', border: '1px solid #BBF7D0', color: 'var(--brand-primary-hover, #15803D)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Scale style={{ width: 20, height: 20 }} />
+            <div style={{ width: 38, height: 38, borderRadius: 10, background: isBalanced ? 'var(--brand-primary-light, #F0FDF4)' : '#FEF2F2', border: `1px solid ${isBalanced ? '#BBF7D0' : '#FECACA'}`, color: isBalanced ? 'var(--brand-primary-hover, #15803D)' : '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {isBalanced ? <Scale style={{ width: 20, height: 20 }} /> : <AlertTriangle style={{ width: 20, height: 20 }} />}
             </div>
             <div>
               <h1 style={{ fontSize: '1.15rem', fontWeight: 600, color: '#0F172A', margin: 0 }}>{t('fin.trial_balance_title')}</h1>
@@ -68,38 +71,72 @@ export default function TrialBalanceView({ chartOfAccounts = [], journalEntries 
           <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontSize: '0.7rem', fontWeight: 500, color: '#64748B', textTransform: 'uppercase' }}>Total Debit</span>
-              <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--brand-primary-hover, #0E5327)' }}>₹{fmt(totals.debit)}</span>
+              <span style={{ fontSize: '1.1rem', fontWeight: 600, color: '#0F172A' }}>₹{fmt(totals.debit)}</span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontSize: '0.7rem', fontWeight: 500, color: '#64748B', textTransform: 'uppercase' }}>Total Credit</span>
-              <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--color-danger-hover, #B91C1C)' }}>₹{fmt(totals.credit)}</span>
+              <span style={{ fontSize: '1.1rem', fontWeight: 600, color: '#0F172A' }}>₹{fmt(totals.credit)}</span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontSize: '0.7rem', fontWeight: 500, color: '#64748B', textTransform: 'uppercase' }}>Reconciliation Status</span>
-              <span style={{ fontSize: '0.85rem', fontWeight: 500, color: isBalanced ? 'var(--brand-primary-hover, #0E5327)' : 'var(--color-warning, #D97706)' }}>
-                {isBalanced ? t('fin.balanced_badge') : `Off by ₹${fmt(Math.abs(totals.debit - totals.credit))}`}
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: isBalanced ? 'var(--brand-primary-hover, #0E5327)' : '#DC2626' }}>
+                {isBalanced ? t('fin.balanced_badge') : `Mismatch Off by ₹${fmt(difference)}`}
               </span>
             </div>
           </div>
         </div>
       </div>
 
+      {/* ── Mismatch Highlight Warning Banner ── */}
+      {!isBalanced && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '12px 16px',
+          margin: '12px 0',
+          borderRadius: 8,
+          background: '#FEF2F2',
+          border: '1px solid #FECACA',
+          color: '#991B1B',
+          fontSize: '0.82rem',
+          fontWeight: 600,
+          boxShadow: '0 2px 4px rgba(220, 38, 38, 0.08)'
+        }}>
+          <AlertTriangle style={{ width: 18, height: 18, flexShrink: 0, color: '#DC2626' }} />
+          <span>
+            <strong>Trial Balance Mismatch Detected ({branch === 'ALL' ? 'All Branches' : `Branch: ${branch}`}):</strong> Total Debit (₹{fmt(totals.debit)}) does not match Total Credit (₹{fmt(totals.credit)}). Discrepancy amount: <strong>₹{fmt(difference)}</strong>.
+          </span>
+        </div>
+      )}
+
       {/* ── Search & Filter Controls Bar ── */}
       <form className="fin-filterbar" onSubmit={handleSearch} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
           <div className="fin-field">
             <label>{t('fin.branch_label')}</label>
-            <select className="fin-select" value={branch} onChange={(e) => setBranch(e.target.value)} disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}>
-              <option value="">{t('fin.select_branch_placeholder')}</option>
-              <option value="ALL">{t('fin.all_branches')}</option>
-              {branchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-            </select>
+            <DropdownSelect
+              value={branch}
+              onChange={(e) => setBranch(e.target.value)}
+              disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
+              buttonStyle={{ height: 36, minWidth: 160 }}
+              options={[
+                { value: '', label: t('fin.select_branch_placeholder') || '— Select Branch —' },
+                { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
+                ...branchesList.map(b => ({ value: b.name, label: b.name }))
+              ]}
+            />
           </div>
           <div className="fin-field">
             <label>{t('fin.as_of_label')}</label>
-            <input type="date" className="fin-input" value={asOfDate} max={todayStr()} onChange={(e) => setAsOfDate(e.target.value)} />
+            <SharedDatePicker
+              value={asOfDate}
+              max={todayStr()}
+              onChange={(e) => setAsOfDate(e.target.value)}
+              buttonStyle={{ height: 36, minWidth: 140 }}
+            />
           </div>
           <button type="submit" className="fin-search-btn" style={{ marginTop: 22 }}>{t('fin.search_btn')}</button>
         </div>
@@ -157,10 +194,12 @@ export default function TrialBalanceView({ chartOfAccounts = [], journalEntries 
                 );
               })
             )}
-            <tr className="fin-row-total">
-              <td colSpan="2" style={{ fontWeight: 600 }}>{t('fin.total_row')}</td>
-              <td className="num" style={{ fontWeight: 600, color: 'var(--brand-primary-hover, #0E5327)' }}>₹{fmt(totals.debit)}</td>
-              <td className="num" style={{ fontWeight: 600, color: 'var(--color-danger-hover, #B91C1C)' }}>₹{fmt(totals.credit)}</td>
+            <tr className="fin-row-total" style={{ background: isBalanced ? undefined : '#FEF2F2', borderTop: isBalanced ? undefined : '2px solid #FCA5A5' }}>
+              <td colSpan="2" style={{ fontWeight: 600, color: isBalanced ? undefined : '#991B1B' }}>
+                {t('fin.total_row')} {!isBalanced && '(MISMATCH DETECTED)'}
+              </td>
+              <td className="num" style={{ fontWeight: 700, color: isBalanced ? '#0F172A' : '#DC2626' }}>₹{fmt(totals.debit)}</td>
+              <td className="num" style={{ fontWeight: 700, color: isBalanced ? '#0F172A' : '#DC2626' }}>₹{fmt(totals.credit)}</td>
             </tr>
           </tbody>
         </table>

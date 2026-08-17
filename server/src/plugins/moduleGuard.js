@@ -85,6 +85,35 @@ function moduleGuardAny(checks) {
 // tenantGuard as request.companyAllowedModules). Even a tenant's own Company
 // Admin is subject to this — only SUPER_ADMIN bypasses it, since they're the one
 // managing the restriction, not subject to it.
+const MODULE_ALIASES = {
+  'ORG': ['ORG', 'ORGANIZATION', 'SETTINGS'],
+  'ORGANIZATION': ['ORG', 'ORGANIZATION', 'SETTINGS'],
+  'EMPLOYEES': ['EMPLOYEES', 'STAFF', 'USERS', 'ORG', 'ORGANIZATION'],
+  'STAFF': ['EMPLOYEES', 'STAFF', 'USERS'],
+  'RBAC': ['RBAC', 'PERMISSIONS', 'ROLES', 'EMPLOYEES'],
+  'LOAN_SCHEMES': ['LOAN_SCHEMES', 'SCHEMES', 'LOANS'],
+  'ACCOUNTING': ['ACCOUNTING', 'GENERAL_LEDGER', 'LEDGER'],
+  'GENERAL_LEDGER': ['ACCOUNTING', 'GENERAL_LEDGER', 'LEDGER'],
+  'LOAN_LEDGER': ['LOAN_LEDGER', 'LEDGER', 'LOANS'],
+  'CUSTOMER_LEDGER': ['CUSTOMER_LEDGER', 'LEDGER', 'BORROWERS'],
+  'LEDGER': ['ACCOUNTING', 'GENERAL_LEDGER', 'LEDGER'],
+  'TRIAL_BALANCE': ['TRIAL_BALANCE', 'LEDGER', 'ACCOUNTING'],
+  'EOD_PROCESS': ['EOD_PROCESS', 'FINANCIALS', 'LEDGER'],
+  'VOUCHERS': ['VOUCHERS', 'AUTO_VOUCHERS', 'MANUAL_VOUCHERS', 'LEDGER'],
+  'AUTO_VOUCHERS': ['AUTO_VOUCHERS', 'VOUCHERS', 'LEDGER'],
+  'MANUAL_VOUCHERS': ['MANUAL_VOUCHERS', 'VOUCHERS', 'LEDGER'],
+  'EXPENSE_ALLOCATION': ['EXPENSE_ALLOCATION', 'EXPENSES'],
+  'EXPENSES': ['EXPENSE_ALLOCATION', 'EXPENSES'],
+  'BORROWERS': ['BORROWERS', 'LOANS', 'CUSTOMERS'],
+  'CUSTOMERS': ['BORROWERS', 'LOANS', 'CUSTOMERS'],
+  'LOANS': ['LOANS', 'BORROWERS'],
+  'COLLECTIONS': ['COLLECTIONS', 'LOANS'],
+  'FIXED_DEPOSITS': ['FIXED_DEPOSITS', 'DEPOSITS', 'LOANS'],
+  'RECURRING_DEPOSITS': ['RECURRING_DEPOSITS', 'DEPOSITS', 'LOANS'],
+  'INVESTORS': ['INVESTORS', 'ORGANIZATION', 'GENERAL_LEDGER'],
+  'DASHBOARD': ['DASHBOARD', 'WORKSPACE']
+};
+
 function requireTenantModule(moduleKey) {
   return async function (request, reply) {
     if (request.user?.role === 'SUPER_ADMIN') return;
@@ -92,7 +121,15 @@ function requireTenantModule(moduleKey) {
     const allowed = request.companyAllowedModules;
     if (allowed == null) return; // unrestricted tenant (default)
 
-    if (!allowed.includes(moduleKey)) {
+    const normalizedKey = String(moduleKey || '').trim().toUpperCase();
+    const normalizedAllowed = Array.isArray(allowed)
+      ? allowed.map(m => String(m || '').trim().toUpperCase())
+      : [];
+
+    const candidateKeys = MODULE_ALIASES[normalizedKey] || [normalizedKey];
+    const hasAccess = candidateKeys.some(k => normalizedAllowed.includes(k));
+
+    if (!hasAccess) {
       return reply.code(403).send({
         error: 'Module Not Allocated',
         message: `Your organization's plan does not include the '${moduleKey}' module. Contact your account administrator.`

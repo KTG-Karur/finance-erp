@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Wallet,
   Users,
@@ -21,7 +21,6 @@ import {
   UserCog,
   Shield,
   Building2,
-  Bell,
   Search,
   MapPin,
   Languages,
@@ -30,7 +29,10 @@ import {
   Calculator,
   FileBarChart2,
   TrendingUp,
+  TrendingDown,
   Repeat,
+  Landmark,
+  Lock,
 } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import ThemeCustomizerDrawer from '../components/ThemeCustomizerDrawer';
@@ -39,7 +41,18 @@ function getInitials(name = '') {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 }
 
-export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSignOut, children, branchesList = [], selectedBranch = 'ALL', onChangeBranch, onSaveTheme }) {
+export default function AppLayout({
+  activeTab,
+  setActiveTab,
+  tenant,
+  user,
+  onSignOut,
+  children,
+  branchesList = [],
+  selectedBranch = 'ALL',
+  onChangeBranch,
+  onSaveTheme
+}) {
   const { language, setLanguage, t } = useLanguage();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarSearch, setSidebarSearch] = useState('');
@@ -112,20 +125,67 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
   const sq = sidebarSearch.toLowerCase().trim();
   const match = (title) => !sq || title.toLowerCase().includes(sq);
 
-  // SuperAdmin per-tenant "page allocation" — user.allowedModules is null for an
-  // unrestricted tenant (default), or an explicit array of module keys otherwise
-  // (see client/src/auth/SuperAdminPortal.jsx's MODULE_KEYS / server's
-  // requireTenantModule guard, which enforces the same list server-side for
-  // modules that have real backends). This is a coarser gate than the sidebar
-  // search filter above — combine with `match(...)`, never replace it.
-  const allowed = (moduleKey) => !user?.allowedModules || user.allowedModules.includes(moduleKey);
+  // SuperAdmin per-tenant "page allocation" — read live tenant.allowed_modules or fallback to user.allowedModules
+  const effectiveAllowedModules = tenant?.allowed_modules !== undefined 
+    ? tenant.allowed_modules 
+    : (user?.allowedModules ?? null);
 
-  const hasWorkspaceMatches = match('Dashboard') && allowed('dashboard');
-  const hasLoanMatches = (match('Loans') || match('Active Loans') || match('Loan Applications') || match('Closed Loans') || match('Collections') || match('Investor Capital') || match('Fixed Deposits') || match('Recurring Deposits') || match('Customer Directory'))
-    && (allowed('loans') || allowed('collections') || allowed('investors') || allowed('fixed_deposits') || allowed('recurring_deposits') || allowed('borrowers'));
-  const hasFinanceMatches = (match('Ledger') || match('General Ledger') || match('Loan Ledger') || match('Customer Ledger') || match('Trial Balance') || match('Vouchers') || match('Auto Vouchers') || match('Manual Vouchers') || match('Day-End Closing')) && (allowed('accounting') || allowed('ledger') || allowed('vouchers') || allowed('trial_balance') || allowed('eod_process'));
-  const hasReportsMatches = (match('Reports') || match('Loan Portfolio') || match('Collections Report') || match('Borrower') || match('KYC') || match('Investor Capital Report') || match('Fixed Deposits Report') || match('Recurring Deposits Report') || match('Financial Statements') || match('Staff Performance')) && allowed('reports');
-  const hasSettingsMatches = (match('Master Settings') || match('Loan Scheme Master') || match('Organization & Company') || match('Expense Allocation') || match('Staff Directory') || match('RBAC Matrix')) && (allowed('org') || allowed('employees') || allowed('rbac') || allowed('loan_schemes') || allowed('expense_allocation'));
+  const allowed = (moduleKey) => !effectiveAllowedModules || effectiveAllowedModules.includes(moduleKey);
+
+  // Employee-level granular RBAC permission check (reads user.permissions loaded on login)
+  const can = (moduleName, action = 'VIEW') => {
+    if (!user || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN' || user.role === 'COMPANY_ADMIN') {
+      return true;
+    }
+    if (!user.permissions || !Array.isArray(user.permissions)) {
+      return true;
+    }
+    const found = user.permissions.find(
+      p => String(p.module).toUpperCase() === String(moduleName).toUpperCase() &&
+           String(p.action).toUpperCase() === String(action).toUpperCase()
+    );
+    return found ? Boolean(found.allowed) : true;
+  };
+
+  // Branch permissions (RBAC)
+  const canSwitchBranch = can('ORG', 'SWITCH_BRANCH');
+  const canViewAllBranches = can('ORG', 'VIEW_ALL_BRANCHES');
+
+  // Available branches list based on user's RBAC permissions
+  const availableBranches = useMemo(() => {
+    const list = [];
+    if (canViewAllBranches) {
+      list.push('ALL');
+    }
+    if (!canSwitchBranch) {
+      // If user cannot switch branches, lock down to assigned branch
+      const assigned = user?.branch || user?.branch_name || user?.branchName || selectedBranch || branchesList[0]?.name || 'Main Branch';
+      if (!list.includes(assigned)) {
+        list.push(assigned);
+      }
+      return list;
+    }
+    // If can switch branches, include all operational branches
+    (branchesList || []).forEach(b => {
+      if (b?.name && !list.includes(b.name)) list.push(b.name);
+    });
+    return list;
+  }, [canSwitchBranch, canViewAllBranches, branchesList, user, selectedBranch]);
+
+  // If user cannot view all branches and currently on 'ALL', auto switch to assigned branch
+  useEffect(() => {
+    if (!canViewAllBranches && selectedBranch === 'ALL') {
+      const fallback = user?.branch || user?.branch_name || user?.branchName || branchesList[0]?.name || 'Main Branch';
+      onChangeBranch?.(fallback);
+    }
+  }, [canViewAllBranches, selectedBranch, user, branchesList, onChangeBranch]);
+
+  const hasWorkspaceMatches = match('Dashboard') && allowed('dashboard') && can('DASHBOARD', 'VIEW');
+  const hasLoanMatches = (match('Loans') || match('Active Loans') || match('Loan Applications') || match('Closed Loans') || match('Collections') || match('Fixed Deposits') || match('Recurring Deposits') || match('Customer Directory'))
+    && ((allowed('loans') && can('LOANS', 'VIEW')) || (allowed('collections') && can('COLLECTIONS', 'VIEW')) || (allowed('fixed_deposits') && can('FIXED_DEPOSITS', 'VIEW')) || (allowed('recurring_deposits') && can('RECURRING_DEPOSITS', 'VIEW')) || (allowed('borrowers') && can('BORROWERS', 'VIEW')));
+  const hasFinanceMatches = (match('Ledger') || match('General Ledger') || match('Loan Ledger') || match('Customer Ledger') || match('Trial Balance') || match('Vouchers') || match('Auto Vouchers') || match('Manual Vouchers') || match('Day-End Closing')) && (allowed('accounting') || allowed('ledger') || allowed('vouchers') || allowed('trial_balance') || allowed('eod_process')) && can('LEDGER', 'VIEW');
+  const hasReportsMatches = (match('Reports') || match('Loan Portfolio') || match('Collections Report') || match('Borrower') || match('KYC') || match('Investor Capital Report') || match('Fixed Deposits Report') || match('Recurring Deposits Report') || match('Financial Statements') || match('Staff Performance')) && allowed('reports') && can('REPORTS', 'VIEW');
+  const hasSettingsMatches = (match('Master Settings') || match('Loan Scheme Master') || match('Organization & Company') || match('Expense Allocation') || match('Staff Directory') || match('RBAC Matrix') || match('Investor') || match('Investors') || match('Investor Master') || match('Investor Capital') || match('Chart of Accounts') || match('Bank Accounts') || match('Estimation') || match('Calculator') || match('Quotation') || match('Loan Estimator')) && (allowed('org') || allowed('employees') || allowed('rbac') || allowed('loan_schemes') || allowed('expense_allocation') || allowed('investors') || allowed('loans')) && (can('ORG', 'VIEW') || can('EMPLOYEES', 'VIEW') || can('SCHEMES', 'VIEW') || can('INVESTORS', 'VIEW') || can('LOANS', 'VIEW'));
 
   const hasAnyMatches = hasWorkspaceMatches || hasLoanMatches || hasFinanceMatches || hasReportsMatches || hasSettingsMatches;
 
@@ -197,21 +257,33 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
             <div ref={branchDropdownRef} className="sidebar__branch">
               <button
                 type="button"
-                className={`sidebar__branch-btn${selectedBranch !== 'ALL' ? ' sidebar__branch-btn--locked' : ''}`}
-                onClick={() => setBranchDropdownOpen(v => !v)}
+                className={`sidebar__branch-btn${selectedBranch !== 'ALL' ? ' sidebar__branch-btn--locked' : ''}${(!canSwitchBranch && !canViewAllBranches) ? ' sidebar__branch-btn--disabled' : ''}`}
+                onClick={() => {
+                  if (canSwitchBranch || canViewAllBranches) {
+                    setBranchDropdownOpen(v => !v);
+                  }
+                }}
+                title={(!canSwitchBranch && !canViewAllBranches) ? 'Branch locked by security policy' : 'Switch Active Branch'}
+                style={(!canSwitchBranch && !canViewAllBranches) ? { cursor: 'default', opacity: 0.9 } : {}}
               >
                 <span className="sidebar__branch-left">
-                  <MapPin className="sidebar__branch-icon" />
+                  {(!canSwitchBranch && !canViewAllBranches) ? (
+                    <Lock className="sidebar__branch-icon" style={{ width: 13, height: 13, color: '#94A3B8' }} />
+                  ) : (
+                    <MapPin className="sidebar__branch-icon" />
+                  )}
                   <span className="sidebar__branch-label">
                     {selectedBranch === 'ALL' ? 'All Branches' : selectedBranch}
                   </span>
                 </span>
-                <ChevronDown className="sidebar__branch-chevron" />
+                {(canSwitchBranch || canViewAllBranches) && (
+                  <ChevronDown className="sidebar__branch-chevron" />
+                )}
               </button>
 
-              {branchDropdownOpen && (
+              {branchDropdownOpen && (canSwitchBranch || canViewAllBranches) && (
                 <div className="sidebar__branch-dropdown">
-                  {['ALL', ...branchesList.map(b => b.name)].map((name) => {
+                  {availableBranches.map((name) => {
                     const isAll = name === 'ALL';
                     const isCurrent = selectedBranch === name;
                     return (
@@ -271,10 +343,10 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                     {!mini && <div className="sidebar__section-label">{t('section.finance_operations')}</div>}
                     <nav className="sidebar__nav">
 
-                      {(match('Loans') || match('Active Loans') || match('Closed Loans') || match('Loan Applications') || match('Loan Register') || match('Loans Register')) && allowed('loans') && (
+                      {(match('Loans') || match('Active Loans') || match('Closed Loans') || match('Loan Applications') || match('Loan Register') || match('Loans Register')) && allowed('loans') && can('LOANS', 'VIEW') && (
                         <button id="nav-active-loans"
                           className={itemCls(isLoan('active-loans') || isLoan('closed-loans') || isLoan('loans-register') || isLoan('loan-applications'))}
-                          onClick={() => setActiveTab('loan-management/active-loans')}
+                          onClick={() => setActiveTab('loan-management/loans-register')}
                           title={t('nav.loans')}
                         >
                           <FileText className="sidebar__item-icon" />
@@ -282,7 +354,7 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                         </button>
                       )}
 
-                      {match('Collections') && allowed('loans') && (
+                      {match('Collections') && allowed('loans') && can('COLLECTIONS', 'VIEW') && (
                         <button id="nav-collections"
                           className={itemCls(isLoan('collections'))}
                           onClick={() => setActiveTab('loan-management/collections')}
@@ -293,19 +365,7 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                         </button>
                       )}
 
-                      {match('Investor Capital') && allowed('investors') && (
-                        <button
-                          id="nav-investor-capital"
-                          className={itemCls(activeTab === 'investor-capital')}
-                          onClick={() => setActiveTab('investor-capital')}
-                          title={t('nav.investor_capital')}
-                        >
-                          <Wallet className="sidebar__item-icon" />
-                          {!mini && <span className="sidebar__label">{t('nav.investor_capital')}</span>}
-                        </button>
-                      )}
-
-                      {match('Fixed Deposits') && allowed('fixed_deposits') && (
+                      {match('Fixed Deposits') && allowed('fixed_deposits') && can('FIXED_DEPOSITS', 'VIEW') && (
                         <button
                           id="nav-fixed-deposits"
                           className={itemCls(activeTab === 'fixed-deposits')}
@@ -317,7 +377,7 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                         </button>
                       )}
 
-                      {match('Recurring Deposits') && allowed('recurring_deposits') && (
+                      {match('Recurring Deposits') && allowed('recurring_deposits') && can('RECURRING_DEPOSITS', 'VIEW') && (
                         <button
                           id="nav-recurring-deposits"
                           className={itemCls(activeTab === 'recurring-deposits')}
@@ -329,7 +389,7 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                         </button>
                       )}
 
-                      {match('Customer Directory') && allowed('borrowers') && (
+                      {match('Customer Directory') && allowed('borrowers') && can('BORROWERS', 'VIEW') && (
                         <button
                           id="nav-customer-details"
                           className={itemCls(activeTab === 'customer-details' || isSet('customer-details') || isFin('customer-details'))}
@@ -421,6 +481,16 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                               <span className="sidebar__label">{t('nav.eod_process')}</span>
                             </button>
                           )}
+
+                          <button
+                            id="nav-branch-expenses"
+                            className={itemCls(activeTab === 'branch-expenses' || activeTab === 'finance/expenses')}
+                            onClick={() => setActiveTab('branch-expenses')}
+                            title="Branch Expenses"
+                          >
+                            <Wallet className="sidebar__item-icon" />
+                            <span className="sidebar__label">Expenses</span>
+                          </button>
 
                           {(match('Vouchers') || match('Auto Vouchers') || match('Manual Vouchers')) && (
                             <>
@@ -611,6 +681,15 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                                   <span>{t('nav.staff_performance_report')}</span>
                                 </button>
                               )}
+                              {match('Expense Report') && (
+                                <button id="nav-expenses-report"
+                                  className={subCls(isReport('expenses') || isReport('expense'))}
+                                  onClick={() => setActiveTab('reports/expenses')}
+                                >
+                                  <TrendingDown className="sidebar__sub-icon" />
+                                  <span>{t('nav.expense_report') || 'Expense Report'}</span>
+                                </button>
+                              )}
                             </div>
                           )}
                         </>
@@ -666,6 +745,13 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                           >
                             <UserCog className="sidebar__item-icon" />
                           </button>
+                          <button
+                            className={itemCls(isReport('expenses') || isReport('expense'))}
+                            onClick={() => setActiveTab('reports/expenses')}
+                            title={t('nav.expense_report') || 'Expense Report'}
+                          >
+                            <TrendingDown className="sidebar__item-icon" />
+                          </button>
                         </>
                       )}
                     </nav>
@@ -712,7 +798,7 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                                   <span>{t('nav.staff_directory')}</span>
                                 </button>
                               )}
-                              {match('RBAC Matrix') && allowed('rbac') && (
+                              {match('RBAC Matrix') && allowed('rbac') && (user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'COMPANY_ADMIN') && (
                                 <button id="nav-rbac"
                                   className={subCls(isSet('rbac-matrix'))}
                                   onClick={() => setActiveTab('master-settings/rbac-matrix')}
@@ -730,6 +816,15 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                                   <span>{t('nav.loan_scheme_master')}</span>
                                 </button>
                               )}
+                              {(match('Estimation') || match('Calculator') || match('Quotation') || match('Loan Estimator')) && allowed('loans') && can('LOANS', 'VIEW') && (
+                                <button id="nav-estimation"
+                                  className={subCls(isSet('estimation'))}
+                                  onClick={() => setActiveTab('master-settings/estimation')}
+                                >
+                                  <Calculator className="sidebar__sub-icon" />
+                                  <span>{t('nav.estimation')}</span>
+                                </button>
+                              )}
                               {match('Expense Allocation') && allowed('expense_allocation') && (
                                 <button id="nav-accounting-masters"
                                   className={subCls(isSet('accounting-masters'))}
@@ -739,6 +834,29 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                                   <span>{t('nav.expense_allocation')}</span>
                                 </button>
                               )}
+                              {(match('Investor') || match('Investors') || match('Investor Master') || match('Investor Capital')) && allowed('investors') && (
+                                <button id="nav-investor-master"
+                                  className={subCls(isSet('investor-master') || isSet('investors') || isSet('investor-capital') || activeTab === 'investor-capital')}
+                                  onClick={() => setActiveTab('master-settings/investor-master')}
+                                >
+                                  <Wallet className="sidebar__sub-icon" />
+                                  <span>{t('nav.investor_master')}</span>
+                                </button>
+                              )}
+                              <button id="nav-chart-of-accounts"
+                                className={subCls(isSet('chart-of-accounts'))}
+                                onClick={() => setActiveTab('master-settings/chart-of-accounts')}
+                              >
+                                <BookOpen className="sidebar__sub-icon" />
+                                <span>Chart of Accounts</span>
+                              </button>
+                              <button id="nav-bank-accounts"
+                                className={subCls(isSet('bank-accounts') || isSet('banking-master'))}
+                                onClick={() => setActiveTab('master-settings/bank-accounts')}
+                              >
+                                <Landmark className="sidebar__sub-icon" />
+                                <span>Bank Accounts</span>
+                              </button>
                             </div>
                           )}
                         </>
@@ -781,6 +899,15 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                               <Percent className="sidebar__item-icon" />
                             </button>
                           )}
+                          {allowed('loans') && can('LOANS', 'VIEW') && (
+                            <button
+                              className={itemCls(isSet('estimation'))}
+                              onClick={() => setActiveTab('master-settings/estimation')}
+                              title={t('nav.estimation')}
+                            >
+                              <Calculator className="sidebar__item-icon" />
+                            </button>
+                          )}
                           {allowed('expense_allocation') && (
                             <button
                               className={itemCls(isSet('accounting-masters'))}
@@ -790,6 +917,22 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                               <Wallet className="sidebar__item-icon" />
                             </button>
                           )}
+                          {allowed('investors') && (
+                            <button
+                              className={itemCls(isSet('investor-master') || isSet('investors') || isSet('investor-capital') || activeTab === 'investor-capital')}
+                              onClick={() => setActiveTab('master-settings/investor-master')}
+                              title={t('nav.investor_master')}
+                            >
+                              <Wallet className="sidebar__item-icon" />
+                            </button>
+                          )}
+                          <button
+                            className={itemCls(isSet('bank-accounts') || isSet('banking-master'))}
+                            onClick={() => setActiveTab('master-settings/bank-accounts')}
+                            title="Bank Accounts"
+                          >
+                            <Landmark className="sidebar__item-icon" />
+                          </button>
                         </>
                       )}
                     </nav>
@@ -859,10 +1002,6 @@ export default function AppLayout({ activeTab, setActiveTab, tenant, user, onSig
                   தமிழ்
                 </button>
               </div>
-
-              <button className="app-header__notification-btn" title={t('topbar.notifications')}>
-                <Bell style={{ width: 16, height: 16 }} />
-              </button>
 
               <button
                 id="user-menu-btn"

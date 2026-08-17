@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import PrintableCustomerApplicationForm from './PrintableCustomerApplicationForm';
 import { useLanguage } from '../../i18n/LanguageContext';
+import SharedDropdown from '../../components/common/SharedDropdown';
+import SharedDatePicker from '../../components/common/SharedDatePicker';
 
 const EMPTY_FORM = {
   full_name: '',
@@ -62,6 +64,8 @@ function useDocCategories() {
     { id: 'PAN_CARD', name: t('cf.doc.pan_card'), req: true, type: 'PAN_CARD' },
     { id: 'BANK_PASSBOOK', name: t('cf.doc.bank_passbook'), req: true, type: 'BANK_PASSBOOK' },
     { id: 'ADDRESS_PROOF', name: t('cf.doc.address_proof'), req: false, type: 'ADDRESS_PROOF' },
+    { id: 'NOMINEE_AADHAAR', name: t('cf.doc.nominee_aadhaar', 'Nominee Aadhaar / ID Proof'), req: false, type: 'NOMINEE_PROOF' },
+    { id: 'GUARANTOR_ID', name: t('cf.doc.guarantor_id', 'Guarantor ID Proof'), req: false, type: 'GUARANTOR_PROOF' },
     { id: 'OTHER', name: t('cf.doc.other'), req: false, type: 'OTHER' }
   ];
 }
@@ -450,12 +454,11 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
 
             <div className="form-group">
               <label>{t('cp.dob')}</label>
-              <input
-                type="date"
+              <SharedDatePicker
                 value={form.dob}
                 onChange={(e) => setField('dob', e.target.value)}
-                onBlur={() => handleBlur('dob')}
-                className={`input-control ${err('dob') ? 'input-control--error' : ''}`}
+                buttonStyle={{ height: 42 }}
+                className={err('dob') ? 'input-control--error' : ''}
               />
               {err('dob') && <span className="field-error">{errors.dob}</span>}
             </div>
@@ -465,11 +468,15 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
           <div className="form-row form-row--3">
             <div className="form-group">
               <label>{t('cp.gender')}</label>
-              <select value={form.gender} onChange={(e) => setField('gender', e.target.value)} className="input-control">
-                <option value="MALE">{t('cf.male')}</option>
-                <option value="FEMALE">{t('cf.female')}</option>
-                <option value="OTHER">{t('cf.other')}</option>
-              </select>
+              <SharedDropdown
+                value={form.gender}
+                onChange={(e) => setField('gender', e.target.value)}
+                options={[
+                  { value: 'MALE', label: t('cf.male') },
+                  { value: 'FEMALE', label: t('cf.female') },
+                  { value: 'OTHER', label: t('cf.other') }
+                ]}
+              />
             </div>
 
             <div className="form-group">
@@ -516,12 +523,12 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
 
             <div className="form-group">
               <label>{t('cf.assigned_branch')}</label>
-              <select value={form.branch} onChange={(e) => setField('branch', e.target.value)} className="input-control">
-                <option value="">{t('cf.select_branch')}</option>
-                {branches.map(b => (
-                  <option key={b.id} value={b.name}>{b.name}</option>
-                ))}
-              </select>
+              <SharedDropdown
+                value={form.branch}
+                onChange={(e) => setField('branch', e.target.value)}
+                placeholder={t('cf.select_branch') || '— Select Branch —'}
+                options={branches.map(b => ({ value: b.name, label: b.name }))}
+              />
             </div>
 
             <div className="form-group">
@@ -621,18 +628,17 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
           <div className="form-row" style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', padding: 14, borderRadius: 12, marginBottom: 16 }}>
             <div className="form-group">
               <label style={{ color: 'var(--brand-primary, #15803D)', fontWeight: 700 }}>{t('cf.primary_id_type')}</label>
-              <select
+              <SharedDropdown
                 value={form.id_proof_type}
                 onChange={(e) => setField('id_proof_type', e.target.value)}
-                className="input-control"
-                style={{ fontWeight: 600, borderColor: 'var(--brand-primary, #10B981)' }}
-              >
-                <option value="AADHAAR">{t('cf.aadhaar_card')}</option>
-                <option value="PAN_CARD">{t('cf.doc.pan_card')}</option>
-                <option value="VOTER_ID">{t('cf.voter_id_card')}</option>
-                <option value="PASSPORT">{t('cf.passport')}</option>
-                <option value="DRIVING_LICENSE">{t('cf.driving_license')}</option>
-              </select>
+                options={[
+                  { value: 'AADHAAR', label: t('cf.aadhaar_card') },
+                  { value: 'PAN_CARD', label: t('cf.doc.pan_card') },
+                  { value: 'VOTER_ID', label: t('cf.voter_id_card') },
+                  { value: 'PASSPORT', label: t('cf.passport') },
+                  { value: 'DRIVING_LICENSE', label: t('cf.driving_license') }
+                ]}
+              />
             </div>
 
             {/* Dynamic Number Input based on selected ID */}

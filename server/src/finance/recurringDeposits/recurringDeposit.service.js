@@ -161,7 +161,7 @@ async function getRdOr404(db, id) {
   return rows[0];
 }
 
-export async function collectRdInstallment(db, id, monthNo, paymentMode = 'CASH', createdBy) {
+export async function collectRdInstallment(db, id, monthNo, paymentMode = 'CASH', createdBy, extra = {}) {
   const rd = await getRdOr404(db, id);
   if (rd.status !== 'ACTIVE') {
     const err = new Error(`This recurring deposit is already ${rd.status}.`);
@@ -195,9 +195,15 @@ export async function collectRdInstallment(db, id, monthNo, paymentMode = 'CASH'
     const paidDate = new Date().toISOString().slice(0, 10);
     const amount = Number(installment.amount);
 
+    let description = `Recurring deposit installment collected — ${rd.rd_account_no} (${rd.customer_name}) — month ${monthNo}`;
+    if (extra.bank_name) {
+      const bankTag = `[Bank: ${extra.bank_name}${extra.bank_account_number ? ' A/C ...' + String(extra.bank_account_number).slice(-4) : ''}${extra.ifsc_code ? ' IFSC: ' + extra.ifsc_code : ''}]`;
+      description += ` ${bankTag}`;
+    }
+
     const voucher = await insertVoucherOnConnection(conn, {
       entry_date: paidDate,
-      description: `Recurring deposit installment collected — ${rd.rd_account_no} (${rd.customer_name}) — month ${monthNo}`,
+      description,
       voucher_type: 'RECEIPT',
       is_auto: true,
       ref_type: 'RD_INSTALLMENT',
@@ -259,23 +265,40 @@ export async function matureRecurringDeposit(db, id, createdBy) {
       throw err;
     }
 
-    const lines = [{ account_code: RD_LIABILITY_ACCOUNT, account_name: 'Recurring Deposit Liability', debit: collected, credit: 0 }];
+    // A journal line with both debit and credit at zero isn't a valid
+    // accounting entry — "clear ₹0 of liability" is not a debit or a credit,
+    // it's nothing. Only include a line for an account when there's an
+    // actual, non-zero amount moving through it; an RD matured with zero
+    // installments ever collected has nothing to reverse in the liability
+    // account and, since interest is only ever owed on money actually paid
+    // in, nothing to post as interest either.
+    const lines = [];
+    if (collected > 0) {
+      lines.push({ account_code: RD_LIABILITY_ACCOUNT, account_name: 'Recurring Deposit Liability', debit: collected, credit: 0 });
+    }
     if (interestPortion > 0) {
       lines.push({ account_code: RD_INTEREST_EXPENSE_ACCOUNT, account_name: 'Recurring Deposit Interest Expense', debit: interestPortion, credit: 0 });
     }
-    lines.push({ account_code: cashOrBankAccount(rd.payment_mode), debit: 0, credit: maturityValue });
+    if (maturityValue > 0) {
+      lines.push({ account_code: cashOrBankAccount(rd.payment_mode), debit: 0, credit: maturityValue });
+    }
 
-    await insertVoucherOnConnection(conn, {
-      entry_date: new Date().toISOString().slice(0, 10),
-      description: `Recurring deposit matured — ${rd.rd_account_no} (${rd.customer_name})`,
-      voucher_type: 'PAYMENT',
-      is_auto: true,
-      ref_type: 'RD_MATURITY',
-      ref_id: rd.id,
-      branch: rd.branch || null,
-      created_by: createdBy || null,
-      lines
-    });
+    // Only post a voucher when money is actually moving. A maturity with
+    // zero ever collected has zero payout and zero liability to clear —
+    // nothing for the ledger to record — so it's a status-only transition.
+    if (lines.length > 0) {
+      await insertVoucherOnConnection(conn, {
+        entry_date: new Date().toISOString().slice(0, 10),
+        description: `Recurring deposit matured — ${rd.rd_account_no} (${rd.customer_name})`,
+        voucher_type: 'PAYMENT',
+        is_auto: true,
+        ref_type: 'RD_MATURITY',
+        ref_id: rd.id,
+        branch: rd.branch || null,
+        created_by: createdBy || null,
+        lines
+      });
+    }
 
     await conn.commit();
     const [rows] = await conn.query('SELECT * FROM recurring_deposits WHERE id = ?', [id]);
@@ -332,25 +355,37 @@ export async function prematureCloseRecurringDeposit(db, id, payoutAmount, creat
       throw err;
     }
 
-    const lines = [{ account_code: RD_LIABILITY_ACCOUNT, account_name: 'Recurring Deposit Liability', debit: collected, credit: 0 }];
+    // Same reasoning as matureRecurringDeposit above — a zero-amount line
+    // isn't a valid accounting entry, so each line is only included when
+    // there's an actual non-zero amount to post. Closing an RD with nothing
+    // ever collected (e.g. cancelling a booking made in error) and a zero
+    // payout has nothing at all to record — a pure status change.
+    const lines = [];
+    if (collected > 0) {
+      lines.push({ account_code: RD_LIABILITY_ACCOUNT, account_name: 'Recurring Deposit Liability', debit: collected, credit: 0 });
+    }
     if (interestPortion > 0) {
       lines.push({ account_code: RD_INTEREST_EXPENSE_ACCOUNT, account_name: 'Recurring Deposit Interest Expense', debit: interestPortion, credit: 0 });
     } else if (interestPortion < 0) {
       lines.push({ account_code: RD_INTEREST_EXPENSE_ACCOUNT, account_name: 'Recurring Deposit Interest Expense', debit: 0, credit: -interestPortion });
     }
-    lines.push({ account_code: cashOrBankAccount(rd.payment_mode), debit: 0, credit: payout });
+    if (payout > 0) {
+      lines.push({ account_code: cashOrBankAccount(rd.payment_mode), debit: 0, credit: payout });
+    }
 
-    await insertVoucherOnConnection(conn, {
-      entry_date: new Date().toISOString().slice(0, 10),
-      description: `Recurring deposit premature closure — ${rd.rd_account_no} (${rd.customer_name})`,
-      voucher_type: 'PAYMENT',
-      is_auto: true,
-      ref_type: 'RD_PREMATURE_CLOSE',
-      ref_id: rd.id,
-      branch: rd.branch || null,
-      created_by: createdBy || null,
-      lines
-    });
+    if (lines.length > 0) {
+      await insertVoucherOnConnection(conn, {
+        entry_date: new Date().toISOString().slice(0, 10),
+        description: `Recurring deposit premature closure — ${rd.rd_account_no} (${rd.customer_name})`,
+        voucher_type: 'PAYMENT',
+        is_auto: true,
+        ref_type: 'RD_PREMATURE_CLOSE',
+        ref_id: rd.id,
+        branch: rd.branch || null,
+        created_by: createdBy || null,
+        lines
+      });
+    }
 
     await conn.commit();
     const [rows] = await conn.query('SELECT * FROM recurring_deposits WHERE id = ?', [id]);

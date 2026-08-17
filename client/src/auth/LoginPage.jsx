@@ -4,11 +4,12 @@ import {
   ArrowLeft, CheckCircle2, Eye, EyeOff, Check, User, ChevronDown, ShieldCheck
 } from 'lucide-react';
 import api from '../api/client';
+import SharedDropdown from '../components/common/SharedDropdown';
 
 export default function LoginPage({ company, module, onLoginSuccess, onBackToModules }) {
   const [loginContext, setLoginContext] = useState('COMPANY_ADMIN'); // 'COMPANY_ADMIN' or a branch id (string)
-  const [email, setEmail] = useState('admin@alpha.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -232,33 +233,18 @@ export default function LoginPage({ company, module, onLoginSuccess, onBackToMod
               {/* Login As: Company Admin or a specific Branch */}
               <div className="saas-input-group">
                 <label htmlFor="login-context">Login As</label>
-                <div className="saas-input-wrap">
-                  <ShieldCheck className="saas-icon" />
-                  <select
-                    id="login-context"
-                    value={loginContext}
-                    onChange={(e) => setLoginContext(e.target.value)}
-                    style={{
-                      width: '100%',
-                      height: 38,
-                      background: 'transparent',
-                      border: 'none',
-                      outline: 'none',
-                      color: '#0F172A',
-                      fontSize: '0.8125rem',
-                      fontFamily: 'inherit',
-                      appearance: 'none',
-                      cursor: 'pointer',
-                      padding: '6px 28px 6px 36px'
-                    }}
-                  >
-                    <option value="COMPANY_ADMIN">Company Admin</option>
-                    {company.branches.map(b => (
-                      <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
-                    ))}
-                  </select>
-                  <ChevronDown style={{ width: 14, height: 14, color: '#64748B', pointerEvents: 'none', position: 'absolute', right: 12 }} />
-                </div>
+                <SharedDropdown
+                  value={loginContext}
+                  onChange={(e) => setLoginContext(e.target.value)}
+                  buttonStyle={{ height: 42, fontSize: '0.85rem' }}
+                  options={[
+                    { value: 'COMPANY_ADMIN', label: 'Company Admin' },
+                    ...company.branches.map(b => ({
+                      value: b.id,
+                      label: `${b.name} (${b.code})`
+                    }))
+                  ]}
+                />
                 <p style={{ fontSize: '0.7rem', color: '#94A3B8', margin: '4px 0 0 2px' }}>
                   {loginContext === 'COMPANY_ADMIN'
                     ? 'Signing in as the company-wide administrator.'

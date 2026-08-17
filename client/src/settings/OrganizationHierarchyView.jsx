@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building2, MapPin, Plus, Trash2, Pencil, X, AlertTriangle, Loader2, Save, CheckCircle2, Camera, Trash } from 'lucide-react';
+import { Building2, MapPin, Plus, Trash2, Pencil, X, AlertTriangle, Loader2, Save, CheckCircle2, Camera, Trash, Crown, Clock, Calendar, ShieldCheck } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import { theme } from '../styles/theme.js';
 
@@ -119,6 +119,7 @@ function BranchModal({ isOpen, initialData, onClose, onSubmit }) {
 }
 
 export default function OrganizationHierarchyView({
+  tenant,
   branches = [], loading, error,
   onCreateBranch, onUpdateBranch, onDeleteBranch,
   companyForm, setCompanyForm, onSaveCompany, savedSuccess, companySaveError, companySaving
@@ -375,6 +376,84 @@ export default function OrganizationHierarchyView({
               </div>
             </div>
           )}
+
+          {/* ── Subscription & Plan Overview Card ── */}
+          <div className="loans-table-card" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#FEF3C7', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Crown style={{ width: 18, height: 18 }} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>
+                    Subscription & License Details
+                  </h3>
+                  <p style={{ fontSize: '0.74rem', color: '#64748B', margin: '2px 0 0 0' }}>
+                    Active ERP plan, validity schedule, and allocated branch limits
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <span style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '4px 12px',
+                  borderRadius: 14,
+                  backgroundColor: (tenant?.subscription_status || 'ACTIVE') === 'ACTIVE' ? '#DCFCE7' : (tenant?.subscription_status === 'TRIAL' ? '#FEF3C7' : '#FEE2E2'),
+                  color: (tenant?.subscription_status || 'ACTIVE') === 'ACTIVE' ? '#15803D' : (tenant?.subscription_status === 'TRIAL' ? '#B45309' : '#DC2626'),
+                  border: `1px solid ${(tenant?.subscription_status || 'ACTIVE') === 'ACTIVE' ? '#BBF7D0' : (tenant?.subscription_status === 'TRIAL' ? '#FDE68A' : '#FECACA')}`
+                }}>
+                  {tenant?.subscription_status || 'ACTIVE'}
+                </span>
+              </div>
+            </div>
+
+            {/* 3-Column Stat Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
+              {/* Plan Name */}
+              <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '12px 16px' }}>
+                <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <ShieldCheck style={{ width: 14, height: 14, color: 'var(--brand-primary, #15803D)' }} />
+                  <span>Current Plan</span>
+                </div>
+                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A' }}>
+                  {tenant?.plan_name || tenant?.plan_tier || 'Standard Plan'}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: 2 }}>
+                  Tier: <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{tenant?.plan_code || tenant?.plan_tier || 'STANDARD'}</span>
+                </div>
+              </div>
+
+              {/* Remaining Days */}
+              <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '12px 16px' }}>
+                <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <Clock style={{ width: 14, height: 14, color: '#2563EB' }} />
+                  <span>Remaining Days</span>
+                </div>
+                <div style={{ fontSize: '1rem', fontWeight: 800, color: (tenant?.remaining_days !== null && tenant?.remaining_days !== undefined && tenant?.remaining_days <= 10) ? '#DC2626' : '#0F172A' }}>
+                  {tenant?.remaining_days !== null && tenant?.remaining_days !== undefined ? `${tenant.remaining_days} Days` : '365 Days'}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: 2 }}>
+                  {tenant?.subscription_end_date ? `Valid till ${new Date(tenant.subscription_end_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}` : 'Annual Active Cycle'}
+                </div>
+              </div>
+
+              {/* Branch Allocation Limit */}
+              <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '12px 16px' }}>
+                <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <MapPin style={{ width: 14, height: 14, color: '#7C3AED' }} />
+                  <span>Branch Allocation</span>
+                </div>
+                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A' }}>
+                  {branches.length} <span style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 500 }}>/ {tenant?.max_branches ? `${tenant.max_branches} max` : 'Unlimited'}</span>
+                </div>
+                <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: 2 }}>
+                  {tenant?.max_branches ? `${Math.max(0, tenant.max_branches - branches.length)} branch slot(s) remaining` : 'Unlimited physical branches'}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
       </div>

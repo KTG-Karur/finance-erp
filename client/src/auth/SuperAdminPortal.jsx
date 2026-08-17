@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
+  CreditCard,
+  Calendar,
+  Clock,
+  Edit3,
+  CalendarCheck,
+  Check,
   Building2,
   Crown,
   Plus,
@@ -21,13 +27,22 @@ import {
   PanelLeftOpen,
   Server,
   RefreshCw,
+  RotateCw,
+  Sparkles,
+  Info,
   Sliders,
   Terminal,
   ChevronRight,
   ChevronLeft,
   KeyRound,
+  Lock,
+  Camera,
+  Trash,
   AlertTriangle
 } from 'lucide-react';
+import { useLanguage } from '../i18n/LanguageContext.jsx';
+import SharedDropdown from '../components/common/SharedDropdown';
+import SharedDatePicker from '../components/common/SharedDatePicker';
 import api from '../api/client';
 
 // Menu tree structure: single entries for standalone menus, nested checkboxes only for menus with real submenus
@@ -43,7 +58,6 @@ const MODULE_MENU_TREE = [
     menus: [
       { key: 'loans', label: 'Loans' },
       { key: 'collections', label: 'Collections' },
-      { key: 'investors', label: 'Investor Capital' },
       { key: 'fixed_deposits', label: 'Fixed Deposits' },
       { key: 'recurring_deposits', label: 'Recurring Deposits' },
       { key: 'borrowers', label: 'Customer Directory' }
@@ -98,6 +112,7 @@ const MODULE_MENU_TREE = [
       { key: 'employees', label: 'Staff Directory' },
       { key: 'rbac', label: 'RBAC Matrix' },
       { key: 'loan_schemes', label: 'Loan Scheme Master' },
+      { key: 'investors', label: 'Investor Master' },
       { key: 'expense_allocation', label: 'Expense Allocation' }
     ]
   }
@@ -123,7 +138,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-  const [form, setForm] = useState({ name: '', company_code: '', company_email: '', company_phone: '', admin_email: '', admin_password: '', plan_code: 'STANDARD' });
+  const [form, setForm] = useState({ name: '', company_code: '', company_email: '', company_phone: '', admin_email: '', admin_password: '', logo: '', plan_code: 'STANDARD', status: 'TRIAL', trial_days: '15', billing_cycle: '3_MONTHS', custom_expiry_date: '' });
   const [planForm, setPlanForm] = useState({ name: '', code: '', max_branches: '5', monthly_price: '2999', six_month_price: '14999', yearly_price: '29990', allowed_modules: null });
 
   const openCreatePlanModal = () => {
@@ -176,6 +191,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
   const [accessForm, setAccessForm] = useState({ max_branches: '', allowed_modules: null });
   const [accessSaving, setAccessSaving] = useState(false);
   const [accessError, setAccessError] = useState('');
+  const [accessSuccessMsg, setAccessSuccessMsg] = useState('');
   const [resetPasswordInput, setResetPasswordInput] = useState('');
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
   const [resetPasswordMsg, setResetPasswordMsg] = useState('');
@@ -203,12 +219,17 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
     }
   };
 
+  const [registrySummary, setRegistrySummary] = useState({ total_storage_formatted: '0 B', total_storage_bytes: 0 });
+
   const fetchTenants = async () => {
     setTenantsLoading(true);
     setTenantsError('');
     try {
       const res = await api.get('/auth/superadmin/companies');
       setTenants(res.data?.data || []);
+      if (res.data?.summary) {
+        setRegistrySummary(res.data.summary);
+      }
     } catch (err) {
       setTenantsError(err?.response?.data?.message || 'Unable to load tenant registry.');
     } finally {
@@ -237,7 +258,215 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
     }
   };
 
-  const renderCategorizedMenuTree = (allowedModules, toggleKey) => {
+  // Subscriptions State
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
+  const [subStatusFilter, setSubStatusFilter] = useState('ALL');
+  const [subPlanFilter, setSubPlanFilter] = useState('ALL');
+  const [isExtendModalOpen, setIsExtendModalOpen] = useState(false);
+  const [isEditSubModalOpen, setIsEditSubModalOpen] = useState(false);
+  const [isRenewModalOpen, setIsRenewModalOpen] = useState(false);
+  const [selectedSub, setSelectedSub] = useState(null);
+  const [extendDays, setExtendDays] = useState('30');
+  const [extendSubLoading, setExtendSubLoading] = useState(false);
+  const [renewForm, setRenewForm] = useState({
+    plan_id: '',
+    duration_cycle: '3_MONTHS',
+    custom_expiry_date: ''
+  });
+  const [renewLoading, setRenewLoading] = useState(false);
+  const [editSubForm, setEditSubForm] = useState({
+    plan_id: '',
+    status: 'ACTIVE',
+    start_date: '',
+    end_date: '',
+    auto_renew: false
+  });
+  const [editSubLoading, setEditSubLoading] = useState(false);
+
+  const activePaidSubs = subscriptions.filter(s => s.status === 'ACTIVE' && !s.is_expired);
+  const computedTotalRevenue = subscriptions.reduce((sum, sub) => {
+    if (sub.status === 'TRIAL' || sub.status === 'CANCELLED') return sum;
+    const mPrice = Number(sub.monthly_price) || (sub.plan_code === 'ENTERPRISE' ? 9999 : sub.plan_code === 'STARTER' ? 1999 : 2999);
+    const yPrice = sub.yearly_price ? Number(sub.yearly_price) : mPrice * 10;
+    const hPrice = sub.six_month_price ? Number(sub.six_month_price) : mPrice * 5.5;
+
+    let termDays = 90;
+    if (sub.start_date && sub.end_date) {
+      const diff = (new Date(sub.end_date) - new Date(sub.start_date)) / (1000 * 60 * 60 * 24);
+      if (diff > 0) termDays = Math.round(diff);
+    }
+
+    if (termDays >= 300) {
+      return sum + yPrice;
+    } else if (termDays >= 150) {
+      return sum + Math.round(hPrice);
+    } else if (termDays >= 60) {
+      return sum + (mPrice * 3);
+    } else {
+      return sum + mPrice;
+    }
+  }, 0) || (Number(registrySummary.total_revenue) || 0);
+
+  const fetchSubscriptions = async () => {
+    setSubscriptionsLoading(true);
+    try {
+      const res = await api.get('/auth/superadmin/subscriptions');
+      setSubscriptions(res.data?.data || []);
+    } catch (err) {
+      console.warn('Failed to fetch subscriptions:', err?.message);
+    } finally {
+      setSubscriptionsLoading(false);
+    }
+  };
+
+  const handleExtendSubscription = async (sub, customDays) => {
+    const targetSub = sub || selectedSub;
+    if (!targetSub) return;
+    const days = customDays || extendDays;
+    setExtendSubLoading(true);
+    try {
+      await api.patch(`/auth/superadmin/subscriptions/${targetSub.id}/extend`, {
+        days: Number(days),
+        status: 'ACTIVE'
+      });
+      setIsExtendModalOpen(false);
+      setSelectedSub(null);
+      await Promise.all([fetchSubscriptions(), fetchTenants()]);
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Failed to extend subscription.');
+    } finally {
+      setExtendSubLoading(false);
+    }
+  };
+
+  const openExtendModal = (sub) => {
+    setSelectedSub(sub);
+    setExtendDays('30');
+    setIsExtendModalOpen(true);
+  };
+
+  const [flushLoading, setFlushLoading] = useState(false);
+  const [flushMsg, setFlushMsg] = useState('');
+
+  const handleFlushPools = async () => {
+    setFlushLoading(true);
+    setFlushMsg('');
+    try {
+      const res = await api.post('/auth/superadmin/pools/flush');
+      setFlushMsg(res.data?.message || 'Database pools flushed successfully.');
+      await Promise.all([fetchTenants(), fetchAuditLogs()]);
+      setTimeout(() => setFlushMsg(''), 4000);
+    } catch (err) {
+      setFlushMsg('Failed to flush database pools: ' + (err?.response?.data?.message || err.message));
+      setTimeout(() => setFlushMsg(''), 4000);
+    } finally {
+      setFlushLoading(false);
+    }
+  };
+
+  const [saPasswordForm, setSaPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [saPasswordLoading, setSaPasswordLoading] = useState(false);
+  const [saPasswordMsg, setSaPasswordMsg] = useState({ type: '', text: '' });
+
+  const handleChangeSuperAdminPassword = async (e) => {
+    e.preventDefault();
+    if (saPasswordForm.newPassword !== saPasswordForm.confirmPassword) {
+      setSaPasswordMsg({ type: 'error', text: 'New passwords do not match.' });
+      return;
+    }
+    if (saPasswordForm.newPassword.length < 6) {
+      setSaPasswordMsg({ type: 'error', text: 'New password must be at least 6 characters long.' });
+      return;
+    }
+    setSaPasswordLoading(true);
+    setSaPasswordMsg({ type: '', text: '' });
+    try {
+      const res = await api.patch('/auth/superadmin/change-password', {
+        currentPassword: saPasswordForm.currentPassword,
+        newPassword: saPasswordForm.newPassword
+      });
+      setSaPasswordMsg({ type: 'success', text: res.data?.message || 'Super Admin password updated successfully!' });
+      setSaPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setTimeout(() => setSaPasswordMsg({ type: '', text: '' }), 5000);
+    } catch (err) {
+      setSaPasswordMsg({ type: 'error', text: err?.response?.data?.message || 'Failed to update password.' });
+    } finally {
+      setSaPasswordLoading(false);
+    }
+  };
+
+  const openRenewModal = (sub) => {
+    setSelectedSub(sub);
+    setRenewForm({
+      plan_id: String(sub.plan_id || plans[0]?.id || ''),
+      duration_cycle: '3_MONTHS',
+      custom_expiry_date: ''
+    });
+    setIsRenewModalOpen(true);
+  };
+
+  const handleConfirmRenew = async (e) => {
+    if (e) e.preventDefault();
+    if (!selectedSub) return;
+    setRenewLoading(true);
+    try {
+      await api.post(`/auth/superadmin/subscriptions/${selectedSub.id}/renew`, {
+        plan_id: Number(renewForm.plan_id) || undefined,
+        duration_cycle: renewForm.duration_cycle,
+        custom_expiry_date: renewForm.custom_expiry_date || null
+      });
+      setIsRenewModalOpen(false);
+      setSelectedSub(null);
+      await Promise.all([fetchSubscriptions(), fetchTenants()]);
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Failed to renew subscription.');
+    } finally {
+      setRenewLoading(false);
+    }
+  };
+
+  const openEditSubModal = (sub) => {
+    setSelectedSub(sub);
+    setEditSubForm({
+      plan_id: String(sub.plan_id || ''),
+      status: sub.status || 'ACTIVE',
+      start_date: sub.start_date ? String(sub.start_date).slice(0, 10) : '',
+      end_date: sub.end_date ? String(sub.end_date).slice(0, 10) : '',
+      auto_renew: Boolean(sub.auto_renew)
+    });
+    setIsEditSubModalOpen(true);
+  };
+
+  const handleSaveEditSub = async (e) => {
+    if (e) e.preventDefault();
+    if (!selectedSub) return;
+    setEditSubLoading(true);
+    try {
+      await api.put(`/auth/superadmin/subscriptions/${selectedSub.id}`, {
+        plan_id: Number(editSubForm.plan_id) || undefined,
+        status: editSubForm.status,
+        start_date: editSubForm.start_date || null,
+        end_date: editSubForm.end_date || null,
+        auto_renew: editSubForm.auto_renew
+      });
+      setIsEditSubModalOpen(false);
+      setSelectedSub(null);
+      await Promise.all([fetchSubscriptions(), fetchTenants()]);
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Failed to update subscription.');
+    } finally {
+      setEditSubLoading(false);
+    }
+  };
+
+  const renderCategorizedMenuTree = (allowedModules, toggleKey, basePlanModules = undefined) => {
+    const isPlanAllowed = (k) => {
+      if (basePlanModules === undefined) return null;
+      if (basePlanModules === null) return true;
+      return Array.isArray(basePlanModules) && basePlanModules.includes(k);
+    };
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {MODULE_MENU_TREE.map(sec => (
@@ -252,8 +481,23 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                 const allSubKeys = hasSubmenus ? menu.submenus.map(s => s.key) : [];
                 const parentChecked = allowedModules == null || (allowedModules.includes(menu.key) || (hasSubmenus && allSubKeys.every(k => allowedModules.includes(k))));
 
+                const planPerm = isPlanAllowed(menu.key);
+                let overrideStatus = null;
+                if (planPerm !== null) {
+                  if (parentChecked && !planPerm) {
+                    overrideStatus = 'GRANTED';
+                  } else if (!parentChecked && planPerm) {
+                    overrideStatus = 'REVOKED';
+                  }
+                }
+
                 return (
-                  <div key={menu.key} style={{ padding: '8px 12px', borderRadius: 6, backgroundColor: parentChecked ? 'var(--brand-primary-light, #F0FDF4)' : '#F8FAFC', border: `1px solid ${parentChecked ? 'var(--brand-primary-border, #A3F5C1)' : '#E2E8F0'}` }}>
+                  <div key={menu.key} style={{
+                    padding: '8px 12px',
+                    borderRadius: 6,
+                    backgroundColor: overrideStatus === 'GRANTED' ? '#FFFBEB' : (overrideStatus === 'REVOKED' ? '#FEF2F2' : (parentChecked ? 'var(--brand-primary-light, #F0FDF4)' : '#F8FAFC')),
+                    border: `1px solid ${overrideStatus === 'GRANTED' ? '#FDE68A' : (overrideStatus === 'REVOKED' ? '#FECACA' : (parentChecked ? 'var(--brand-primary-border, #A3F5C1)' : '#E2E8F0'))}`
+                  }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: hasSubmenus ? 6 : 0 }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem', color: parentChecked ? 'var(--brand-primary-text, #075F27)' : '#334155' }}>
                         <input
@@ -264,15 +508,34 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                         />
                         <span>{menu.label}</span>
                       </label>
-                      <span style={{ fontSize: '0.64rem', padding: '2px 8px', borderRadius: 10, background: parentChecked ? '#DCFCE7' : 'var(--color-danger-light, #FEF2F2)', color: parentChecked ? 'var(--brand-primary-hover, #15803D)' : 'var(--color-danger-text, #991B1B)', border: `1px solid ${parentChecked ? '#86EFAC' : 'var(--color-danger-border, #FECACA)'}`, fontWeight: 700 }}>
-                        {parentChecked ? 'ENABLED' : 'DISABLED'}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {overrideStatus === 'GRANTED' && (
+                          <span style={{ fontSize: '0.62rem', padding: '2px 7px', borderRadius: 8, background: '#FEF3C7', color: '#B45309', border: '1px solid #FDE68A', fontWeight: 700 }}>
+                            ⚡ OVERRIDE (GRANTED)
+                          </span>
+                        )}
+                        {overrideStatus === 'REVOKED' && (
+                          <span style={{ fontSize: '0.62rem', padding: '2px 7px', borderRadius: 8, background: '#FEE2E2', color: '#DC2626', border: '1px solid #FECACA', fontWeight: 700 }}>
+                            ⚡ OVERRIDE (BLOCKED)
+                          </span>
+                        )}
+                        <span style={{ fontSize: '0.64rem', padding: '2px 8px', borderRadius: 10, background: parentChecked ? '#DCFCE7' : 'var(--color-danger-light, #FEF2F2)', color: parentChecked ? 'var(--brand-primary-hover, #15803D)' : 'var(--color-danger-text, #991B1B)', border: `1px solid ${parentChecked ? '#86EFAC' : 'var(--color-danger-border, #FECACA)'}`, fontWeight: 700 }}>
+                          {parentChecked ? 'ENABLED' : 'DISABLED'}
+                        </span>
+                      </div>
                     </div>
 
                     {hasSubmenus && (
                       <div style={{ paddingLeft: 23, display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 6, borderTop: '1px dashed #E2E8F0' }}>
                         {menu.submenus.map(sub => {
                           const subChecked = allowedModules == null || allowedModules.includes(sub.key) || allowedModules.includes(menu.key);
+                          const subPlanPerm = isPlanAllowed(sub.key);
+                          let subOverride = null;
+                          if (subPlanPerm !== null) {
+                            if (subChecked && !subPlanPerm) subOverride = 'GRANTED';
+                            else if (!subChecked && subPlanPerm) subOverride = 'REVOKED';
+                          }
+
                           return (
                             <label key={sub.key} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.75rem', color: subChecked ? 'var(--brand-primary-hover, #0E5327)' : '#64748B', fontWeight: 500 }}>
                               <input
@@ -282,9 +545,21 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                                 style={{ accentColor: 'var(--brand-primary, #15803D)', width: 14, height: 14 }}
                               />
                               <span>↳ {sub.label}</span>
-                              <span style={{ fontSize: '0.62rem', color: subChecked ? 'var(--brand-primary, #15803D)' : '#94A3B8', marginLeft: 'auto', fontWeight: 600 }}>
-                                {subChecked ? 'Accessible' : 'Restricted'}
-                              </span>
+                              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                {subOverride === 'GRANTED' && (
+                                  <span style={{ fontSize: '0.58rem', padding: '1px 6px', borderRadius: 6, background: '#FEF3C7', color: '#B45309', border: '1px solid #FDE68A', fontWeight: 700 }}>
+                                    ⚡ OVERRIDE
+                                  </span>
+                                )}
+                                {subOverride === 'REVOKED' && (
+                                  <span style={{ fontSize: '0.58rem', padding: '1px 6px', borderRadius: 6, background: '#FEE2E2', color: '#DC2626', border: '1px solid #FECACA', fontWeight: 700 }}>
+                                    ⚡ BLOCKED
+                                  </span>
+                                )}
+                                <span style={{ fontSize: '0.62rem', color: subChecked ? 'var(--brand-primary, #15803D)' : '#94A3B8', fontWeight: 600 }}>
+                                  {subChecked ? 'Accessible' : 'Restricted'}
+                                </span>
+                              </div>
                             </label>
                           );
                         })}
@@ -303,10 +578,12 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
   useEffect(() => {
     fetchTenants();
     fetchPlans();
+    fetchSubscriptions();
     fetchAuditLogs();
   }, []);
 
   useEffect(() => {
+    if (activeNav === 'subscriptions' || activeNav === 'dashboard') fetchSubscriptions();
     if (activeNav === 'plans') fetchPlans();
     if (activeNav === 'audit' || activeNav === 'dashboard') fetchAuditLogs();
   }, [activeNav]);
@@ -317,6 +594,22 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
     (t.company_code && t.company_code.toLowerCase().includes(searchQuery.toLowerCase())) ||
     t.db_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const filteredSubscriptions = subscriptions.filter(s => {
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = !searchQuery ||
+      (s.company_name && s.company_name.toLowerCase().includes(q)) ||
+      (s.company_code && s.company_code.toLowerCase().includes(q)) ||
+      (s.plan_name && s.plan_name.toLowerCase().includes(q)) ||
+      (s.plan_code && s.plan_code.toLowerCase().includes(q));
+
+    const matchesStatus = subStatusFilter === 'ALL' ||
+      (subStatusFilter === 'EXPIRING' ? s.is_expiring_soon : s.status === subStatusFilter);
+
+    const matchesPlan = subPlanFilter === 'ALL' || (s.plan_code === subPlanFilter || String(s.plan_id) === subPlanFilter);
+
+    return matchesSearch && matchesStatus && matchesPlan;
+  });
 
   const [statusUpdatingId, setStatusUpdatingId] = useState(null);
 
@@ -336,12 +629,89 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
 
   const openAccessModal = (tenant) => {
     setAccessTarget(tenant);
+
+    // Resolve plan code
+    let planCode = 'STANDARD';
+    const rawPlan = tenant.subscription_plan_name || tenant.plan_tier || 'STANDARD';
+    const match = plans.find(p => p.code.toUpperCase() === String(rawPlan).toUpperCase() || p.name.toUpperCase() === String(rawPlan).toUpperCase());
+    if (match) {
+      planCode = match.code;
+    } else if (String(rawPlan).toUpperCase().includes('ENTERPRISE')) {
+      planCode = 'ENTERPRISE';
+    } else if (String(rawPlan).toUpperCase().includes('STARTER')) {
+      planCode = 'STARTER';
+    } else {
+      planCode = 'STANDARD';
+    }
+
+    const expiry = tenant.subscription_end_date 
+      ? String(tenant.subscription_end_date).slice(0, 10) 
+      : (tenant.end_date ? String(tenant.end_date).slice(0, 10) : '');
+
+    let initialModules = tenant.allowed_modules ?? null;
+    if (!initialModules && match && Array.isArray(match.allowed_modules) && match.allowed_modules.length > 0) {
+      initialModules = match.allowed_modules;
+    }
+
     setAccessForm({
-      max_branches: tenant.max_branches ?? '',
-      allowed_modules: tenant.allowed_modules ?? null
+      name: tenant.name || '',
+      phone: tenant.phone || '',
+      address: tenant.address || '',
+      logo: tenant.logo || null,
+      max_branches: tenant.max_branches ?? (match?.max_branches ?? ''),
+      allowed_modules: initialModules,
+      expiry_date: expiry,
+      subscription_status: (tenant.subscription_status || (tenant.is_active ? 'ACTIVE' : 'TRIAL')).toUpperCase(),
+      plan_tier: planCode
     });
     setAccessError('');
+    setAccessSuccessMsg('');
     setActiveNav('access-editor');
+  };
+
+  const handlePlanTierChange = (val) => {
+    const rawCode = val?.target ? val.target.value : val;
+    const codeUpper = String(rawCode || '').toUpperCase();
+    const matchedPlan = plans.find(p => p.code.toUpperCase() === codeUpper || p.name.toUpperCase() === codeUpper);
+
+    if (matchedPlan) {
+      const planModules = Array.isArray(matchedPlan.allowed_modules) && matchedPlan.allowed_modules.length > 0
+        ? matchedPlan.allowed_modules
+        : MODULE_KEYS.map(m => m.key);
+
+      setAccessForm(prev => ({
+        ...prev,
+        plan_tier: matchedPlan.code,
+        max_branches: matchedPlan.max_branches ?? '',
+        allowed_modules: planModules
+      }));
+      setAccessSuccessMsg(`Switched to ${matchedPlan.name}: applied default plan modules and branch allocation.`);
+      setTimeout(() => setAccessSuccessMsg(''), 4000);
+    } else {
+      setAccessForm(prev => ({
+        ...prev,
+        plan_tier: codeUpper
+      }));
+    }
+  };
+
+  const handleAccessLogoChange = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setAccessError('Please select a valid PNG, JPG, or SVG image.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setAccessError('Logo image must be smaller than 5MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setAccessForm(prev => ({ ...prev, logo: event.target.result }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const toggleModuleKey = (key) => {
@@ -357,21 +727,69 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
   const handleSaveAccess = async () => {
     setAccessSaving(true);
     setAccessError('');
+    setAccessSuccessMsg('');
     try {
       const isFullyChecked = accessForm.allowed_modules && MODULE_KEYS.every(m => accessForm.allowed_modules.includes(m.key));
       const payload = {
+        name: accessForm.name,
+        phone: accessForm.phone,
+        address: accessForm.address,
+        logo: accessForm.logo,
         max_branches: accessForm.max_branches === '' ? null : Number(accessForm.max_branches),
-        allowed_modules: isFullyChecked ? null : accessForm.allowed_modules
+        allowed_modules: isFullyChecked ? null : accessForm.allowed_modules,
+        expiry_date: accessForm.expiry_date || null,
+        subscription_status: accessForm.subscription_status,
+        plan_tier: accessForm.plan_tier
       };
-      const res = await api.patch(`/auth/superadmin/companies/${accessTarget.id}/access`, payload);
-      setTenants(prev => prev.map(t => (t.id === accessTarget.id ? { ...t, max_branches: payload.max_branches, allowed_modules: payload.allowed_modules } : t)));
-      setAccessTarget(null);
-      setActiveNav('registry');
+      await api.patch(`/auth/superadmin/companies/${accessTarget.id}/access`, payload);
+      setAccessSuccessMsg('Company details and settings saved successfully.');
+      await Promise.all([fetchTenants(), fetchSubscriptions()]);
+      setTimeout(() => {
+        setAccessTarget(null);
+        setActiveNav('registry');
+        setAccessSuccessMsg('');
+      }, 1200);
     } catch (err) {
-      setAccessError(err?.response?.data?.message || 'Unable to update access settings.');
+      setAccessError(err?.response?.data?.message || 'Unable to update company details and access settings.');
     } finally {
       setAccessSaving(false);
     }
+  };
+
+  const generateCompanyCodeFromName = (companyName) => {
+    const raw = (companyName || '').trim();
+    if (!raw) {
+      const prefixes = ['APEX', 'NOVA', 'PRIME', 'ZENITH', 'EQUITY', 'CAPITAL', 'VANTAGE', 'CREST'];
+      const p = prefixes[Math.floor(Math.random() * prefixes.length)];
+      const num = Math.floor(10 + Math.random() * 90);
+      return `${p}${num}`;
+    }
+
+    const stopWords = /^(PVT|LTD|LLC|LIMITED|PRIVATE|AND|THE|CO|COMPANY|INC|CORP|ENTERPRISES|HOLDINGS|GROUP|FINANCIAL|FINANCE|SERVICES|CREDIT)$/i;
+    const cleanTokens = raw
+      .replace(/[^a-zA-Z0-9\s]/g, '')
+      .split(/\s+/)
+      .filter(w => Boolean(w));
+
+    const significantWords = cleanTokens.filter(w => !stopWords.test(w));
+    const wordsToUse = significantWords.length > 0 ? significantWords : cleanTokens;
+
+    let base = '';
+    if (wordsToUse.length === 1) {
+      base = wordsToUse[0].slice(0, 5).toUpperCase();
+    } else if (wordsToUse.length === 2) {
+      base = (wordsToUse[0].slice(0, 4) + wordsToUse[1].slice(0, 3)).toUpperCase();
+    } else {
+      const initials = wordsToUse.map(w => w[0]).join('').toUpperCase();
+      base = (initials.length >= 3 ? initials.slice(0, 4) : (wordsToUse[0].slice(0, 3) + wordsToUse[1].slice(0, 2))).toUpperCase();
+    }
+
+    if (base.length < 3) {
+      base = (raw.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4) || 'FIN').toUpperCase();
+    }
+
+    const suffix = Math.floor(10 + Math.random() * 90);
+    return `${base}${suffix}`;
   };
 
   const handleProvisionSubmit = async (e) => {
@@ -388,14 +806,21 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
         name: form.name,
         admin_email: form.admin_email,
         admin_password: form.admin_password || 'admin123',
-        plan_code: form.plan_code || 'STANDARD'
+        company_email: form.company_email,
+        company_phone: form.company_phone,
+        logo: form.logo || null,
+        plan_code: form.plan_code || 'STANDARD',
+        status: form.status || 'TRIAL',
+        trial_days: Number(form.trial_days) || 15,
+        billing_cycle: form.billing_cycle || '3_MONTHS',
+        custom_expiry_date: form.custom_expiry_date || null
       });
 
-      await fetchTenants();
+      await Promise.all([fetchTenants(), fetchSubscriptions()]);
       setSuccessMsg(res.data?.message || `Tenant '${form.name}' provisioned successfully.`);
       setTimeout(() => {
         setIsProvisionModalOpen(false);
-        setForm({ name: '', company_code: '', company_email: '', company_phone: '', admin_email: '', admin_password: '', plan_code: 'STANDARD' });
+        setForm({ name: '', company_code: '', company_email: '', company_phone: '', admin_email: '', admin_password: '', logo: '', plan_code: 'STANDARD', status: 'TRIAL', trial_days: '15', billing_cycle: '3_MONTHS', custom_expiry_date: '' });
         setSuccessMsg('');
       }, 1500);
     } catch (err) {
@@ -542,11 +967,20 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
 
               <button
                 type="button"
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', backgroundColor: activeNav === 'subscriptions' ? 'rgba(var(--brand-primary-rgb), 0.25)' : 'transparent', color: activeNav === 'subscriptions' ? '#FFFFFF' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 500, fontSize: '0.82rem' }}
+                onClick={() => setActiveNav('subscriptions')}
+              >
+                <CreditCard style={{ width: 16, height: 16 }} />
+                {!mini && <span className="sidebar__label">Company Subscriptions</span>}
+              </button>
+
+              <button
+                type="button"
                 style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: 'none', backgroundColor: activeNav === 'plans' || activeNav === 'plan-editor' ? 'rgba(var(--brand-primary-rgb), 0.25)' : 'transparent', color: activeNav === 'plans' || activeNav === 'plan-editor' ? '#FFFFFF' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 500, fontSize: '0.82rem' }}
                 onClick={() => setActiveNav('plans')}
               >
                 <Crown style={{ width: 16, height: 16 }} />
-                {!mini && <span className="sidebar__label">Plans & Subscriptions</span>}
+                {!mini && <span className="sidebar__label">Subscription Plans</span>}
               </button>
 
               <button
@@ -653,9 +1087,13 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
 
                   <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
                     <div>
-                      <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Revenue</span>
-                      <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>₹3,31,000</div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--brand-primary, #15803D)', marginTop: 2, fontWeight: 600 }}>Active Subscriptions</div>
+                      <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Subscription Revenue</span>
+                      <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>
+                        ₹{computedTotalRevenue.toLocaleString('en-IN')}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--brand-primary, #15803D)', marginTop: 2, fontWeight: 600 }}>
+                        {activePaidSubs.length} Active Paid {activePaidSubs.length === 1 ? 'Subscription' : 'Subscriptions'}
+                      </div>
                     </div>
                     <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#FEF3C7', color: 'var(--color-warning, #D97706)', border: '1px solid var(--color-warning-border, #FDE68A)' }}>
                       <Crown style={{ width: 22, height: 22 }} />
@@ -675,7 +1113,10 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                   <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
                     <div>
                       <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Storage Usage</span>
-                      <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>2.12 GB</div>
+                      <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>
+                        {registrySummary.total_storage_formatted || '0 B'}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--brand-primary, #15803D)', marginTop: 2, fontWeight: 600 }}>Total uploads disk size</div>
                     </div>
                     <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#E0F2FE', color: 'var(--color-info-hover, #0284C7)', border: '1px solid var(--color-info-border, #BAE6FD)' }}>
                       <Database style={{ width: 22, height: 22 }} />
@@ -709,6 +1150,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                           <th style={{ padding: '10px 14px' }}>DOMAIN / CODE</th>
                           <th style={{ padding: '10px 14px' }}>PLAN</th>
                           <th style={{ padding: '10px 14px' }}>USERS</th>
+                          <th style={{ padding: '10px 14px' }}>STORAGE</th>
                           <th style={{ padding: '10px 14px' }}>STATUS</th>
                           <th style={{ padding: '10px 14px' }}>CREATED ON</th>
                           <th style={{ padding: '10px 14px', textAlign: 'right' }}>ACTION</th>
@@ -716,9 +1158,9 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                       </thead>
                       <tbody>
                         {tenantsLoading ? (
-                          <tr><td colSpan="8" style={{ textAlign: 'center', padding: 24, color: '#64748B' }}>Loading companies...</td></tr>
+                          <tr><td colSpan="9" style={{ textAlign: 'center', padding: 24, color: '#64748B' }}>Loading companies...</td></tr>
                         ) : tenants.length === 0 ? (
-                          <tr><td colSpan="8" style={{ textAlign: 'center', padding: 24, color: '#94A3B8' }}>No tenant companies registered yet.</td></tr>
+                          <tr><td colSpan="9" style={{ textAlign: 'center', padding: 24, color: '#94A3B8' }}>No tenant companies registered yet.</td></tr>
                         ) : tenants.slice(0, 5).map((t, idx) => (
                           <tr key={t.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
                             <td style={{ padding: '12px 14px', color: '#64748B' }}>{idx + 1}</td>
@@ -730,9 +1172,17 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                               </span>
                             </td>
                             <td style={{ padding: '12px 14px', color: '#475569' }}>{t.users_count || 1}</td>
+                            <td style={{ padding: '12px 14px', fontFamily: 'SF Mono, Consolas, monospace', color: '#475569', fontSize: '0.76rem' }}>{t.storage_formatted || '0 B'}</td>
                             <td style={{ padding: '12px 14px' }}>
-                              <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: 10, background: t.is_active ? '#DCFCE7' : 'var(--color-danger-light, #FEF2F2)', color: t.is_active ? 'var(--brand-primary-text, #075F27)' : 'var(--color-danger-text, #991B1B)', fontWeight: 600 }}>
-                                {t.is_active ? 'Active' : 'Trial'}
+                              <span style={{
+                                fontSize: '0.68rem',
+                                padding: '2px 8px',
+                                borderRadius: 10,
+                                background: t.subscription_status === 'ACTIVE' ? '#DCFCE7' : t.subscription_status === 'TRIAL' ? '#FEF3C7' : 'var(--color-danger-light, #FEF2F2)',
+                                color: t.subscription_status === 'ACTIVE' ? 'var(--brand-primary-text, #075F27)' : t.subscription_status === 'TRIAL' ? '#B45309' : 'var(--color-danger-text, #991B1B)',
+                                fontWeight: 700
+                              }}>
+                                {t.subscription_status || (t.is_active ? 'ACTIVE' : 'TRIAL')}
                               </span>
                             </td>
                             <td style={{ padding: '12px 14px', color: '#64748B' }}>{new Date(t.created_at || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
@@ -786,15 +1236,16 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                         <th style={{ padding: '12px 16px' }}>DATABASE</th>
                         <th style={{ padding: '12px 16px' }}>PLAN</th>
                         <th style={{ padding: '12px 16px' }}>USERS</th>
-                        <th style={{ padding: '12px 16px' }}>STATUS</th>
+                        <th style={{ padding: '12px 16px' }}>STORAGE</th>
+                        <th style={{ padding: '12px 16px' }}>SUB STATUS</th>
                         <th style={{ padding: '12px 16px', textAlign: 'right' }}>ACTIONS</th>
                       </tr>
                     </thead>
                     <tbody>
                       {tenantsLoading ? (
-                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: 24, color: '#64748B' }}>Loading registry...</td></tr>
+                        <tr><td colSpan="8" style={{ textAlign: 'center', padding: 24, color: '#64748B' }}>Loading registry...</td></tr>
                       ) : filteredTenants.length === 0 ? (
-                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: 24, color: '#94A3B8' }}>No companies found.</td></tr>
+                        <tr><td colSpan="8" style={{ textAlign: 'center', padding: 24, color: '#94A3B8' }}>No companies found.</td></tr>
                       ) : filteredTenants.map(t => (
                         <tr key={t.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
                           <td style={{ padding: '14px 16px', fontWeight: 700, color: '#0F172A' }}>{t.name}</td>
@@ -806,9 +1257,17 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                             </span>
                           </td>
                           <td style={{ padding: '14px 16px', color: '#475569' }}>{t.users_count || 1}</td>
+                          <td style={{ padding: '14px 16px', fontFamily: 'SF Mono, Consolas, monospace', color: '#475569', fontSize: '0.78rem' }}>{t.storage_formatted || '0 B'}</td>
                           <td style={{ padding: '14px 16px' }}>
-                            <span style={{ fontSize: '0.7rem', padding: '3px 10px', borderRadius: 12, backgroundColor: t.is_active ? '#DCFCE7' : 'var(--color-danger-light, #FEF2F2)', color: t.is_active ? 'var(--brand-primary-text, #075F27)' : 'var(--color-danger-text, #991B1B)', fontWeight: 600 }}>
-                              {t.is_active ? 'Active' : 'Suspended'}
+                            <span style={{
+                              fontSize: '0.7rem',
+                              padding: '3px 10px',
+                              borderRadius: 12,
+                              backgroundColor: t.subscription_status === 'ACTIVE' ? '#DCFCE7' : t.subscription_status === 'TRIAL' ? '#FEF3C7' : 'var(--color-danger-light, #FEF2F2)',
+                              color: t.subscription_status === 'ACTIVE' ? 'var(--brand-primary-text, #075F27)' : t.subscription_status === 'TRIAL' ? '#B45309' : 'var(--color-danger-text, #991B1B)',
+                              fontWeight: 700
+                            }}>
+                              {t.subscription_status || (t.is_active ? 'ACTIVE' : 'TRIAL')}
                             </span>
                           </td>
                           <td style={{ padding: '14px 16px', textAlign: 'right' }}>
@@ -838,6 +1297,254 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+
+            {/* ── Company Subscriptions Lifecycle View ──────────────── */}
+            {activeNav === 'subscriptions' && (
+              <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 20, boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
+                
+                {/* Header Banner */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+                  <div>
+                    <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <CreditCard style={{ width: 22, height: 22, color: 'var(--brand-primary, #15803D)' }} />
+                      <span>Company Subscriptions</span>
+                    </h1>
+                    <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '4px 0 0 0' }}>
+                      Monitor live tenant company subscriptions, active trials, automated renewal cycles, and expiration dates.
+                    </p>
+                  </div>
+                  <button
+                    onClick={fetchSubscriptions}
+                    disabled={subscriptionsLoading}
+                    style={{ padding: '8px 16px', backgroundColor: '#F1F5F9', border: '1px solid #CBD5E1', color: '#0F172A', fontWeight: 600, fontSize: '0.8rem', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+                  >
+                    <RefreshCw style={{ width: 14, height: 14 }} className={subscriptionsLoading ? 'spin' : ''} />
+                    <span>{subscriptionsLoading ? 'Refreshing...' : 'Refresh Status'}</span>
+                  </button>
+                </div>
+
+                {/* 5 KPI Stat Cards Strip */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, fontVariantNumeric: 'tabular-nums' }}>
+                  <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <span style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>Total Subscriptions</span>
+                      <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>{subscriptions.length}</div>
+                    </div>
+                    <div style={{ padding: 8, borderRadius: 8, backgroundColor: '#F1F5F9', color: '#0F172A' }}>
+                      <CreditCard style={{ width: 20, height: 20 }} />
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <span style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>Active Paid</span>
+                      <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--brand-primary-text, #075F27)', marginTop: 4 }}>
+                        {subscriptions.filter(s => s.status === 'ACTIVE' && !s.is_expired).length}
+                      </div>
+                    </div>
+                    <div style={{ padding: 8, borderRadius: 8, backgroundColor: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #10B981)' }}>
+                      <CheckCircle style={{ width: 20, height: 20 }} />
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <span style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>Active Trial</span>
+                      <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#B45309', marginTop: 4 }}>
+                        {subscriptions.filter(s => s.status === 'TRIAL').length}
+                      </div>
+                    </div>
+                    <div style={{ padding: 8, borderRadius: 8, backgroundColor: '#FEF3C7', color: '#D97706' }}>
+                      <Clock style={{ width: 20, height: 20 }} />
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <span style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>Expiring Soon</span>
+                      <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#C2410C', marginTop: 4 }}>
+                        {subscriptions.filter(s => s.is_expiring_soon).length}
+                      </div>
+                    </div>
+                    <div style={{ padding: 8, borderRadius: 8, backgroundColor: '#FFEDD5', color: '#EA580C' }}>
+                      <AlertTriangle style={{ width: 20, height: 20 }} />
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <span style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>Expired / Inactive</span>
+                      <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--color-danger-text, #991B1B)', marginTop: 4 }}>
+                        {subscriptions.filter(s => s.is_expired || s.status === 'EXPIRED' || s.status === 'CANCELLED').length}
+                      </div>
+                    </div>
+                    <div style={{ padding: 8, borderRadius: 8, backgroundColor: 'var(--color-danger-light, #FEF2F2)', color: 'var(--color-danger, #DC2626)' }}>
+                      <Power style={{ width: 20, height: 20 }} />
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <span style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>Total Sub Revenue</span>
+                      <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--brand-primary, #15803D)', marginTop: 4 }}>
+                        ₹{computedTotalRevenue.toLocaleString('en-IN')}
+                      </div>
+                    </div>
+                    <div style={{ padding: 8, borderRadius: 8, backgroundColor: '#FEF3C7', color: '#D97706' }}>
+                      <Crown style={{ width: 20, height: 20 }} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Filter Toolbar using SharedDropdown */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', backgroundColor: '#F8FAFC', padding: '12px 16px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
+                  <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
+                    <Search style={{ width: 14, height: 14, color: '#94A3B8', position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search company, code, plan..."
+                      style={{ width: '100%', height: 36, backgroundColor: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 6, paddingLeft: 30, paddingRight: 10, fontSize: '0.8rem', color: '#0F172A', outline: 'none' }}
+                    />
+                  </div>
+
+                  <div style={{ width: 180 }}>
+                    <SharedDropdown
+                      value={subStatusFilter}
+                      onChange={(val) => setSubStatusFilter(val)}
+                      options={[
+                        { value: 'ALL', label: 'All Statuses' },
+                        { value: 'ACTIVE', label: 'Active Only' },
+                        { value: 'TRIAL', label: 'Trial Only' },
+                        { value: 'EXPIRING', label: 'Expiring Soon' },
+                        { value: 'EXPIRED', label: 'Expired' },
+                        { value: 'CANCELLED', label: 'Cancelled' }
+                      ]}
+                      placeholder="Filter Status"
+                    />
+                  </div>
+
+                  <div style={{ width: 180 }}>
+                    <SharedDropdown
+                      value={subPlanFilter}
+                      onChange={(val) => setSubPlanFilter(val)}
+                      options={[
+                        { value: 'ALL', label: 'All Plans' },
+                        ...plans.map(p => ({ value: p.code, label: `${p.name} (${p.code})` }))
+                      ]}
+                      placeholder="Filter Plan"
+                    />
+                  </div>
+                </div>
+
+                {/* Subscriptions Table */}
+                <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        <th style={{ padding: '12px 16px' }}>COMPANY</th>
+                        <th style={{ padding: '12px 16px' }}>PLAN TIER</th>
+                        <th style={{ padding: '12px 16px' }}>STATUS</th>
+                        <th style={{ padding: '12px 16px' }}>START DATE</th>
+                        <th style={{ padding: '12px 16px' }}>EXPIRY DATE</th>
+                        <th style={{ padding: '12px 16px' }}>TIME REMAINING</th>
+                        <th style={{ padding: '12px 16px' }}>RENEWAL TYPE</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'right' }}>ACTIONS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {subscriptionsLoading ? (
+                        <tr><td colSpan="8" style={{ textAlign: 'center', padding: 24, color: '#64748B' }}>Loading subscriptions...</td></tr>
+                      ) : filteredSubscriptions.length === 0 ? (
+                        <tr><td colSpan="8" style={{ textAlign: 'center', padding: 24, color: '#94A3B8' }}>No subscriptions matching criteria.</td></tr>
+                      ) : filteredSubscriptions.map(sub => {
+                        const statusBadge = (() => {
+                          if (sub.is_expired) {
+                            return <span style={{ fontSize: '0.7rem', padding: '3px 10px', borderRadius: 12, backgroundColor: 'var(--color-danger-light, #FEF2F2)', color: 'var(--color-danger-text, #991B1B)', fontWeight: 700 }}>EXPIRED</span>;
+                          }
+                          if (sub.status === 'TRIAL') {
+                            return <span style={{ fontSize: '0.7rem', padding: '3px 10px', borderRadius: 12, backgroundColor: '#FEF3C7', color: '#B45309', fontWeight: 700 }}>TRIAL</span>;
+                          }
+                          if (sub.status === 'ACTIVE') {
+                            return <span style={{ fontSize: '0.7rem', padding: '3px 10px', borderRadius: 12, backgroundColor: '#DCFCE7', color: 'var(--brand-primary-text, #075F27)', fontWeight: 700 }}>ACTIVE</span>;
+                          }
+                          if (sub.status === 'CANCELLED') {
+                            return <span style={{ fontSize: '0.7rem', padding: '3px 10px', borderRadius: 12, backgroundColor: '#F1F5F9', color: '#64748B', fontWeight: 700 }}>CANCELLED</span>;
+                          }
+                          return <span style={{ fontSize: '0.7rem', padding: '3px 10px', borderRadius: 12, backgroundColor: '#F1F5F9', color: '#64748B', fontWeight: 700 }}>{sub.status}</span>;
+                        })();
+
+                        const daysBadge = (() => {
+                          if (sub.days_remaining === null) {
+                            return <span style={{ fontSize: '0.74rem', color: '#64748B' }}>Ongoing</span>;
+                          }
+                          if (sub.days_remaining <= 0) {
+                            return <span style={{ fontSize: '0.72rem', color: 'var(--color-danger, #DC2626)', fontWeight: 700, padding: '2px 8px', backgroundColor: 'var(--color-danger-light, #FEF2F2)', borderRadius: 10 }}>Expired {Math.abs(sub.days_remaining)}d ago</span>;
+                          }
+                          if (sub.days_remaining <= 15) {
+                            return <span style={{ fontSize: '0.72rem', color: '#EA580C', fontWeight: 700, padding: '2px 8px', backgroundColor: '#FFEDD5', borderRadius: 10 }}>⚠️ {sub.days_remaining} days left</span>;
+                          }
+                          return <span style={{ fontSize: '0.72rem', color: 'var(--brand-primary-text, #075F27)', fontWeight: 600, padding: '2px 8px', backgroundColor: '#DCFCE7', borderRadius: 10 }}>{sub.days_remaining} days left</span>;
+                        })();
+
+                        return (
+                          <tr key={sub.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                            <td style={{ padding: '14px 16px' }}>
+                              <div style={{ fontWeight: 700, color: '#0F172A' }}>{sub.company_name}</div>
+                              <div style={{ fontSize: '0.72rem', fontFamily: 'SF Mono, Consolas, monospace', color: 'var(--brand-primary, #15803D)' }}>{sub.company_code}</div>
+                            </td>
+                            <td style={{ padding: '14px 16px' }}>
+                              <span style={{ fontSize: '0.7rem', padding: '3px 10px', borderRadius: 12, backgroundColor: '#F3E8FF', color: '#7E22CE', fontWeight: 700 }}>
+                                {sub.plan_name || sub.plan_code || 'Enterprise'}
+                              </span>
+                              {sub.monthly_price && (
+                                <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: 2 }}>₹{Number(sub.monthly_price).toLocaleString('en-IN')}/mo</div>
+                              )}
+                            </td>
+                            <td style={{ padding: '14px 16px' }}>{statusBadge}</td>
+                            <td style={{ padding: '14px 16px', color: '#64748B' }}>
+                              {sub.start_date ? new Date(sub.start_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                            </td>
+                            <td style={{ padding: '14px 16px', color: '#64748B' }}>
+                              {sub.end_date ? new Date(sub.end_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Ongoing'}
+                            </td>
+                            <td style={{ padding: '14px 16px' }}>{daysBadge}</td>
+                            <td style={{ padding: '14px 16px' }}>
+                              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', backgroundColor: '#F8FAFC', padding: '3px 8px', borderRadius: 6, border: '1px solid #E2E8F0' }}>
+                                Manual Renewal
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                              <button
+                                onClick={() => openRenewModal(sub)}
+                                style={{ padding: '6px 12px', backgroundColor: 'var(--brand-primary, #15803D)', border: 'none', color: '#FFFFFF', borderRadius: 6, fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer', marginRight: 6, display: 'inline-flex', alignItems: 'center', gap: 4, boxShadow: '0 2px 4px rgba(var(--brand-primary-rgb), 0.25)' }}
+                              >
+                                <RotateCw style={{ width: 12, height: 12 }} />
+                                <span>Renew</span>
+                              </button>
+                              <button
+                                onClick={() => openExtendModal(sub)}
+                                style={{ padding: '6px 10px', backgroundColor: '#F1F5F9', border: '1px solid #CBD5E1', color: '#0F172A', borderRadius: 6, fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer', marginRight: 6 }}
+                              >
+                                Extend
+                              </button>
+                              <button
+                                onClick={() => openEditSubModal(sub)}
+                                style={{ padding: '6px 10px', backgroundColor: '#FFFFFF', border: '1px solid #CBD5E1', color: '#0F172A', borderRadius: 6, fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer' }}
+                              >
+                                Edit
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
               </div>
             )}
 
@@ -991,9 +1698,19 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                 {/* Company Header Banner Card (Ref Image 3) */}
                 <div style={{ backgroundColor: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 12, padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <div style={{ width: 52, height: 52, borderRadius: 12, backgroundColor: 'var(--brand-primary, #10B981)', color: '#FFFFFF', fontSize: '1.2rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {accessTarget.name.slice(0, 2).toUpperCase()}
-                    </div>
+                    {(accessForm.logo || accessTarget.logo) ? (
+                      <div style={{ width: 56, height: 56, borderRadius: 12, backgroundColor: '#FFFFFF', border: '1px solid #C7D2FE', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 4, flexShrink: 0 }}>
+                        <img
+                          src={accessForm.logo || accessTarget.logo}
+                          alt={accessTarget.name}
+                          style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                        />
+                      </div>
+                    ) : (
+                      <div style={{ width: 52, height: 52, borderRadius: 12, backgroundColor: 'var(--brand-primary, #10B981)', color: '#FFFFFF', fontSize: '1.2rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {accessTarget.name.slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
                     <div>
                       <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>{accessTarget.name}</h1>
                       <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: 4, display: 'flex', gap: 12, fontFamily: 'SF Mono, monospace' }}>
@@ -1007,11 +1724,32 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                   </div>
 
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: 12, backgroundColor: '#FEF3C7', color: 'var(--color-warning, #D97706)', fontWeight: 700 }}>Trial</span>
-                    <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: 12, backgroundColor: '#F3E8FF', color: '#7E22CE', fontWeight: 700 }}>Enterprise</span>
-                    <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: 12, backgroundColor: '#DCFCE7', color: 'var(--brand-primary-hover, #15803D)', fontWeight: 700 }}>Mobile</span>
+                    <span style={{
+                      fontSize: '0.7rem',
+                      padding: '4px 10px',
+                      borderRadius: 12,
+                      backgroundColor: accessTarget.subscription_status === 'ACTIVE' ? '#DCFCE7' : accessTarget.subscription_status === 'TRIAL' ? '#FEF3C7' : 'var(--color-danger-light, #FEF2F2)',
+                      color: accessTarget.subscription_status === 'ACTIVE' ? 'var(--brand-primary-text, #075F27)' : accessTarget.subscription_status === 'TRIAL' ? '#B45309' : 'var(--color-danger-text, #991B1B)',
+                      fontWeight: 700
+                    }}>
+                      {accessTarget.subscription_status || 'TRIAL'}
+                    </span>
+                    <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: 12, backgroundColor: '#F3E8FF', color: '#7E22CE', fontWeight: 700 }}>
+                      {accessTarget.subscription_plan_name || accessTarget.plan_tier || 'Enterprise'}
+                    </span>
                   </div>
                 </div>
+
+                {accessError && (
+                  <div style={{ padding: '12px 16px', backgroundColor: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger-text, #991B1B)', borderRadius: 8, fontSize: '0.82rem', fontWeight: 600 }}>
+                    {accessError}
+                  </div>
+                )}
+                {accessSuccessMsg && (
+                  <div style={{ padding: '12px 16px', backgroundColor: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary-text, #075F27)', borderRadius: 8, fontSize: '0.82rem', fontWeight: 600 }}>
+                    {accessSuccessMsg}
+                  </div>
+                )}
 
                 {/* 2-Column Grid Workspace (Ref Images 3 & 4) */}
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
@@ -1026,56 +1764,363 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                         <span>Company Details</span>
                       </h2>
 
+                      {/* Company Logo Row */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14, paddingBottom: 6, borderBottom: '1px dashed #E2E8F0' }}>
+                        <div style={{ width: 60, height: 60, flexShrink: 0 }}>
+                          {(accessForm.logo || accessTarget.logo) ? (
+                            <div style={{ width: 60, height: 60, borderRadius: 10, border: '1px solid #CBD5E1', backgroundColor: '#F8FAFC', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                              <img
+                                src={accessForm.logo || accessTarget.logo}
+                                alt="Company logo"
+                                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                              />
+                            </div>
+                          ) : (
+                            <div style={{
+                              width: 60, height: 60, borderRadius: 10, background: '#F1F5F9', border: '1px solid #CBD5E1',
+                              color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}>
+                              <Building2 style={{ width: 26, height: 26 }} />
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <label style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', fontWeight: 600,
+                            color: '#334155', border: '1px solid #CBD5E1', background: '#FFF', borderRadius: 7,
+                            padding: '6px 12px', cursor: 'pointer', width: 'fit-content'
+                          }}>
+                            <Camera style={{ width: 13, height: 13 }} />
+                            {(accessForm.logo || accessTarget.logo) ? 'Change Logo' : 'Upload Logo'}
+                            <input type="file" accept="image/*" onChange={handleAccessLogoChange} style={{ display: 'none' }} />
+                          </label>
+                          {(accessForm.logo || accessTarget.logo) && (
+                            <button
+                              type="button"
+                              onClick={() => setAccessForm(prev => ({ ...prev, logo: null }))}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.72rem', fontWeight: 500,
+                                color: 'var(--color-danger, #DC2626)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: 'fit-content'
+                              }}
+                            >
+                              <Trash style={{ width: 11, height: 11 }} />
+                              <span>Remove Logo</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                         <div>
                           <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Company name</label>
-                          <input type="text" value={accessTarget.name} onChange={(e) => setAccessTarget({ ...accessTarget, name: e.target.value })} style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                          <input
+                            type="text"
+                            value={accessForm.name}
+                            onChange={(e) => setAccessForm(prev => ({ ...prev, name: e.target.value }))}
+                            style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}
+                          />
                         </div>
                         <div>
                           <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Company code</label>
-                          <input type="text" readOnly value={accessTarget.company_code} style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', backgroundColor: '#F8FAFC', fontFamily: 'SF Mono, monospace' }} />
+                          <input
+                            type="text"
+                            readOnly
+                            value={accessTarget.company_code}
+                            style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', backgroundColor: '#F8FAFC', fontFamily: 'SF Mono, monospace' }}
+                          />
                         </div>
                       </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                         <div>
                           <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Contact email</label>
-                          <input type="email" defaultValue="md@laskhmikadatcfham.in" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                          <input
+                            type="email"
+                            defaultValue={accessTarget.phone ? `admin@${accessTarget.company_code.toLowerCase()}.com` : "admin@erp.com"}
+                            style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}
+                          />
                         </div>
                         <div>
                           <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Contact phone</label>
-                          <input type="text" defaultValue="9080274281" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                          <input
+                            type="text"
+                            value={accessForm.phone}
+                            onChange={(e) => setAccessForm(prev => ({ ...prev, phone: e.target.value }))}
+                            placeholder="Phone number"
+                            style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}
+                          />
                         </div>
                       </div>
 
-                      <div>
-                        <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Expiry Date (optional)</label>
-                        <input type="text" defaultValue="26-08-2026" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                      {/* Branch Allocation / Extension Section */}
+                      <div style={{ borderTop: '1px dashed #CBD5E1', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--brand-primary, #15803D)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Branch Allocation & Extension Limit
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 16, alignItems: 'center' }}>
+                          <div>
+                            <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>
+                              Max Branches Allowed
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={accessForm.max_branches}
+                              onChange={(e) => setAccessForm(prev => ({ ...prev, max_branches: e.target.value }))}
+                              placeholder="Blank for Unlimited"
+                              style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}
+                            />
+                            <span style={{ fontSize: '0.7rem', color: '#64748B', marginTop: 4, display: 'block' }}>
+                              {accessForm.max_branches === '' || accessForm.max_branches === null ? 'Unlimited branches allowed' : `Capped at ${accessForm.max_branches} branch(es)`}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 6 }}>Quick Extend Branches:</span>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              {[
+                                { label: '+1 Branch', add: 1 },
+                                { label: '+2 Branches', add: 2 },
+                                { label: '+5 Branches', add: 5 },
+                                { label: '+10 Branches', add: 10 },
+                                { label: 'Set Unlimited', setVal: '' }
+                              ].map((preset, idx) => (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => {
+                                    if (preset.setVal !== undefined) {
+                                      setAccessForm(prev => ({ ...prev, max_branches: preset.setVal }));
+                                    } else {
+                                      setAccessForm(prev => {
+                                        const current = Number(prev.max_branches) || 1;
+                                        return { ...prev, max_branches: String(current + preset.add) };
+                                      });
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '5px 10px',
+                                    borderRadius: 6,
+                                    border: '1px solid #CBD5E1',
+                                    backgroundColor: '#F8FAFC',
+                                    fontSize: '0.73rem',
+                                    fontWeight: 600,
+                                    color: 'var(--brand-primary, #15803D)',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  {preset.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Subscription Status & Expiry Date Section */}
+                      <div style={{ borderTop: '1px dashed #CBD5E1', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        <div style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--brand-primary, #15803D)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Subscription & Expiry Settings
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: 14 }}>
+                          <div>
+                            <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Subscription Status</label>
+                            <SharedDropdown
+                              value={accessForm.subscription_status}
+                              onChange={(e) => {
+                                const val = e?.target ? e.target.value : e;
+                                setAccessForm(prev => ({ ...prev, subscription_status: String(val || '').toUpperCase() }));
+                              }}
+                              options={[
+                                { value: 'ACTIVE', label: 'Active (Paid)' },
+                                { value: 'TRIAL', label: 'Trial Account' },
+                                { value: 'EXPIRED', label: 'Expired / Suspended' },
+                                { value: 'CANCELLED', label: 'Cancelled' }
+                              ]}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Plan Tier</label>
+                            <SharedDropdown
+                              value={accessForm.plan_tier}
+                              onChange={handlePlanTierChange}
+                              options={plans && plans.length > 0 ? plans.map(p => ({ value: p.code, label: `${p.name} (${p.code})` })) : [
+                                { value: 'ENTERPRISE', label: 'Enterprise Plan' },
+                                { value: 'STANDARD', label: 'Standard Plan' },
+                                { value: 'STARTER', label: 'Starter Plan' }
+                              ]}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>
+                              Subscription Expiry Date
+                            </label>
+                            <SharedDatePicker
+                              value={accessForm.expiry_date || ''}
+                              onChange={(e) => {
+                                const val = e?.target ? e.target.value : e;
+                                setAccessForm(prev => ({ ...prev, expiry_date: String(val || '') }));
+                              }}
+                              placeholder="YYYY-MM-DD"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Quick Presets to adjust Expiry Date from Today */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', paddingTop: 4 }}>
+                          <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>Quick Set Duration:</span>
+                          {[
+                            { label: '+15 Days (Trial)', days: 15 },
+                            { label: '+3 Months (Quarterly)', days: 90 },
+                            { label: '+6 Months (Half-Yearly)', days: 180 },
+                            { label: '+1 Year (Annual)', days: 365 }
+                          ].map(preset => (
+                            <button
+                              key={preset.days}
+                              type="button"
+                              onClick={() => {
+                                const d = new Date();
+                                d.setDate(d.getDate() + preset.days);
+                                const iso = d.toISOString().slice(0, 10);
+                                setAccessForm(prev => ({ ...prev, expiry_date: iso }));
+                              }}
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: 6,
+                                border: '1px solid #CBD5E1',
+                                backgroundColor: '#F8FAFC',
+                                fontSize: '0.74rem',
+                                fontWeight: 600,
+                                color: '#334155',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Direct Save Button inside Card */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid #F1F5F9' }}>
+                          <button
+                            type="button"
+                            onClick={handleSaveAccess}
+                            disabled={accessSaving}
+                            style={{
+                              background: 'var(--brand-primary, #15803D)',
+                              color: '#FFFFFF',
+                              border: 'none',
+                              borderRadius: 8,
+                              padding: '9px 20px',
+                              fontSize: '0.82rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.25)'
+                            }}
+                          >
+                            {accessSaving ? 'Saving...' : 'Save Company Details'}
+                          </button>
+                        </div>
                       </div>
                     </div>
 
                     {/* Custom Features (Overrides) Card (Ref Image 4) */}
-                    <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <ShieldCheck style={{ width: 18, height: 18, color: 'var(--brand-primary, #15803D)' }} />
-                          <span>Custom Features (Overrides)</span>
-                        </h2>
-                        <div style={{ display: 'flex', gap: 10 }}>
-                          <button type="button" onClick={selectAllAccessModules} style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Select All</button>
-                          <button type="button" onClick={deselectAllAccessModules} style={{ background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Deselect All</button>
+                    {(() => {
+                      const matchedPlan = plans.find(p => p.code.toUpperCase() === String(accessForm.plan_tier || '').toUpperCase() || p.name.toUpperCase() === String(accessForm.plan_tier || '').toUpperCase());
+                      let overrideCount = 0;
+                      if (matchedPlan) {
+                        const planAllowed = matchedPlan.allowed_modules;
+                        MODULE_KEYS.forEach(m => {
+                          const isPlan = planAllowed === null ? true : (Array.isArray(planAllowed) && planAllowed.includes(m.key));
+                          const isCur = accessForm.allowed_modules === null ? true : (Array.isArray(accessForm.allowed_modules) && accessForm.allowed_modules.includes(m.key));
+                          if (isPlan !== isCur) overrideCount++;
+                        });
+                      }
+
+                      return (
+                        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                              <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <ShieldCheck style={{ width: 18, height: 18, color: 'var(--brand-primary, #15803D)' }} />
+                                <span>Custom Features (Overrides)</span>
+                              </h2>
+                              <p style={{ fontSize: '0.74rem', color: '#64748B', margin: '2px 0 0 0' }}>
+                                Modules marked with <strong>⚡ OVERRIDE</strong> deviate from the base {matchedPlan?.name || 'subscription'} plan
+                              </p>
+                            </div>
+                            <div style={{ display: 'flex', gap: 10 }}>
+                              <button type="button" onClick={selectAllAccessModules} style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Select All</button>
+                              <button type="button" onClick={deselectAllAccessModules} style={{ background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Deselect All</button>
+                            </div>
+                          </div>
+
+                          {/* Override Status Summary Bar */}
+                          {matchedPlan && (
+                            <div style={{
+                              padding: '10px 14px',
+                              borderRadius: 8,
+                              fontSize: '0.78rem',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              backgroundColor: overrideCount > 0 ? '#FFFBEB' : '#F0FDF4',
+                              border: `1px solid ${overrideCount > 0 ? '#FDE68A' : '#BBF7D0'}`,
+                              color: overrideCount > 0 ? '#92400E' : '#166534'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <Sparkles style={{ width: 16, height: 16, color: overrideCount > 0 ? '#D97706' : '#16A34A' }} />
+                                <span>
+                                  {overrideCount > 0 
+                                    ? <strong>⚡ {overrideCount} Custom Feature Override(s) Active against {matchedPlan.name}</strong>
+                                    : <strong>✓ Active permissions strictly match {matchedPlan.name} Plan Defaults</strong>}
+                                </span>
+                              </div>
+
+                              {overrideCount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const planModules = Array.isArray(matchedPlan.allowed_modules) && matchedPlan.allowed_modules.length > 0
+                                      ? matchedPlan.allowed_modules
+                                      : MODULE_KEYS.map(m => m.key);
+                                    setAccessForm(prev => ({
+                                      ...prev,
+                                      allowed_modules: planModules
+                                    }));
+                                  }}
+                                  style={{
+                                    padding: '4px 10px',
+                                    backgroundColor: '#FFFFFF',
+                                    border: '1px solid #D97706',
+                                    color: '#B45309',
+                                    borderRadius: 6,
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  Reset to Plan Defaults
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          {renderCategorizedMenuTree(accessForm.allowed_modules, toggleModuleKey, matchedPlan ? matchedPlan.allowed_modules : null)}
+
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 16, borderTop: '1px solid #E2E8F0' }}>
+                            <button type="button" onClick={() => { setAccessTarget(null); setActiveNav('registry'); }} style={{ background: '#F1F5F9', color: '#475569', border: '1px solid #CBD5E1', borderRadius: 8, padding: '10px 20px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                            <button type="button" onClick={handleSaveAccess} disabled={accessSaving} style={{ background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.25)' }}>
+                              {accessSaving ? 'Saving...' : 'Save changes'}
+                            </button>
+                          </div>
                         </div>
-                      </div>
-
-                      {renderCategorizedMenuTree(accessForm.allowed_modules, toggleModuleKey, true)}
-
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 16, borderTop: '1px solid #E2E8F0' }}>
-                        <button type="button" onClick={() => { setAccessTarget(null); setActiveNav('registry'); }} style={{ background: '#F1F5F9', color: '#475569', border: '1px solid #CBD5E1', borderRadius: 8, padding: '10px 20px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-                        <button type="button" onClick={handleSaveAccess} disabled={accessSaving} style={{ background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.25)' }}>
-                          {accessSaving ? 'Saving...' : 'Save changes'}
-                        </button>
-                      </div>
-                    </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Right Column: Current Subscription & Quick Stats */}
@@ -1091,27 +2136,30 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: '0.82rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
                           <span style={{ color: '#64748B' }}>Plan</span>
-                          <strong style={{ color: '#0F172A' }}>Enterprise</strong>
+                          <strong style={{ color: '#0F172A' }}>{accessTarget.subscription_plan_name || accessTarget.plan_tier || 'Enterprise'}</strong>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
-                          <span style={{ color: '#64748B' }}>Type</span>
-                          <strong style={{ color: '#0F172A' }}>Trial</strong>
+                          <span style={{ color: '#64748B' }}>Subscription Status</span>
+                          <span style={{
+                            fontSize: '0.72rem',
+                            padding: '2px 8px',
+                            borderRadius: 10,
+                            backgroundColor: accessTarget.subscription_status === 'ACTIVE' ? '#DCFCE7' : accessTarget.subscription_status === 'TRIAL' ? '#FEF3C7' : 'var(--color-danger-light, #FEF2F2)',
+                            color: accessTarget.subscription_status === 'ACTIVE' ? 'var(--brand-primary-text, #075F27)' : accessTarget.subscription_status === 'TRIAL' ? '#B45309' : 'var(--color-danger-text, #991B1B)',
+                            fontWeight: 700
+                          }}>
+                            {accessTarget.subscription_status || 'TRIAL'}
+                          </span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
-                          <span style={{ color: '#64748B' }}>Amount</span>
-                          <strong style={{ color: '#0F172A' }}>₹0</strong>
+                          <span style={{ color: '#64748B' }}>Renewal Mode</span>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', backgroundColor: '#F8FAFC', padding: '2px 8px', borderRadius: 6, border: '1px solid #E2E8F0' }}>
+                            Manual Renewal (Admin Required)
+                          </span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
-                          <span style={{ color: '#64748B' }}>Status</span>
-                          <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: 10, backgroundColor: '#DCFCE7', color: 'var(--brand-primary-hover, #15803D)', fontWeight: 700 }}>Active</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
-                          <span style={{ color: '#64748B' }}>End Date</span>
-                          <strong style={{ color: '#0F172A' }}>26 Aug 2026</strong>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: '#64748B' }}>Expires</span>
-                          <strong style={{ color: '#0F172A' }}>26 Aug 2026</strong>
+                          <span style={{ color: '#64748B' }}>Expiry Date</span>
+                          <strong style={{ color: '#0F172A' }}>{accessTarget.subscription_end_date ? new Date(accessTarget.subscription_end_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Ongoing'}</strong>
                         </div>
                       </div>
                     </div>
@@ -1163,6 +2211,10 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                           <strong style={{ color: '#0F172A' }}>{accessTarget.users_count || 1}</strong>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#64748B' }}>Storage Used</span>
+                          <strong style={{ fontFamily: 'SF Mono, monospace', color: 'var(--brand-primary, #15803D)' }}>{accessTarget.storage_formatted || '0 B'}</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                           <span style={{ color: '#64748B' }}>Database</span>
                           <strong style={{ fontFamily: 'SF Mono, monospace', color: 'var(--brand-primary, #15803D)' }}>{accessTarget.db_name}</strong>
                         </div>
@@ -1185,16 +2237,27 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
             {/* ── Connection Pools Telemetry View ───────────────────── */}
             {activeNav === 'pools' && (
               <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
                   <div>
                     <h2 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#0F172A', margin: 0 }}>MySQL Connection Pool Factory</h2>
                     <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '4px 0 0 0' }}>Dynamic tenant database connection cache (`mysql2/promise` pool factory)</p>
                   </div>
-                  <button style={{ padding: '6px 14px', backgroundColor: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary-text, #075F27)', borderRadius: 8, fontSize: '0.78rem', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                    <RefreshCw style={{ width: 14, height: 14 }} />
-                    <span>Flush Cache</span>
+                  <button
+                    onClick={handleFlushPools}
+                    disabled={flushLoading}
+                    style={{ padding: '8px 16px', backgroundColor: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary-text, #075F27)', borderRadius: 8, fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+                  >
+                    <RefreshCw style={{ width: 14, height: 14 }} className={flushLoading ? 'spin' : ''} />
+                    <span>{flushLoading ? 'Flushing Pools...' : 'Flush Cache'}</span>
                   </button>
                 </div>
+
+                {flushMsg && (
+                  <div style={{ padding: '10px 14px', borderRadius: 8, backgroundColor: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary-text, #075F27)', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <CheckCircle style={{ width: 16, height: 16 }} />
+                    <span>{flushMsg}</span>
+                  </div>
+                )}
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 8 }}>
                   {filteredTenants.map(t => (
@@ -1207,6 +2270,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                       </div>
                       <div style={{ fontSize: '0.76rem', color: '#64748B', fontFamily: 'SF Mono, Consolas, monospace' }}>
                         <div>Database: {t.db_name}</div>
+                        <div style={{ marginTop: 4 }}>Storage: <strong style={{ color: '#0F172A' }}>{t.storage_formatted || '0 B'}</strong></div>
                         <div style={{ marginTop: 4 }}>Plan: {t.plan_tier || 'STANDARD'}</div>
                       </div>
                     </div>
@@ -1254,20 +2318,107 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
 
             {/* ── System Settings View ──────────────────────────────── */}
             {activeNav === 'settings' && (
-              <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div>
-                  <h2 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#0F172A', margin: 0 }}>Master System Configuration</h2>
-                  <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '4px 0 0 0' }}>Global database settings and master pool thresholds</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {/* Super Admin Security Card */}
+                <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div>
+                    <h2 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <KeyRound style={{ width: 18, height: 18, color: 'var(--brand-primary, #15803D)' }} />
+                      <span>Super Admin Security & Password</span>
+                    </h2>
+                    <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '4px 0 0 0' }}>Update the master credential used to access this Super Admin Portal</p>
+                  </div>
+
+                  {saPasswordMsg.text && (
+                    <div style={{
+                      padding: '10px 14px',
+                      borderRadius: 8,
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      backgroundColor: saPasswordMsg.type === 'success' ? 'var(--brand-primary-light, #F0FEF5)' : 'var(--color-danger-light, #FEF2F2)',
+                      color: saPasswordMsg.type === 'success' ? 'var(--brand-primary-text, #075F27)' : 'var(--color-danger-text, #991B1B)',
+                      border: `1px solid ${saPasswordMsg.type === 'success' ? 'var(--brand-primary-border, #A3F5C1)' : 'var(--color-danger-border, #FECACA)'}`
+                    }}>
+                      {saPasswordMsg.text}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleChangeSuperAdminPassword} style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 500 }}>
+                    <div>
+                      <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Current Password (optional if fresh session)</label>
+                      <input
+                        type="password"
+                        value={saPasswordForm.currentPassword}
+                        onChange={(e) => setSaPasswordForm(prev => ({ ...prev, currentPassword: e.target.value }))}
+                        placeholder="••••••••••••"
+                        style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}
+                      />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <div>
+                        <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>New Password *</label>
+                        <input
+                          type="password"
+                          required
+                          value={saPasswordForm.newPassword}
+                          onChange={(e) => setSaPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                          placeholder="At least 6 characters"
+                          style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Confirm New Password *</label>
+                        <input
+                          type="password"
+                          required
+                          value={saPasswordForm.confirmPassword}
+                          onChange={(e) => setSaPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                          placeholder="Re-type new password"
+                          style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <button
+                        type="submit"
+                        disabled={saPasswordLoading || !saPasswordForm.newPassword}
+                        style={{
+                          padding: '9px 18px',
+                          backgroundColor: 'var(--brand-primary, #15803D)',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          borderRadius: 8,
+                          fontSize: '0.8rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6
+                        }}
+                      >
+                        <Lock style={{ width: 14, height: 14 }} />
+                        <span>{saPasswordLoading ? 'Updating Password...' : 'Change Super Admin Password'}</span>
+                      </button>
+                    </div>
+                  </form>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, maxWidth: 640 }}>
+                {/* Master Config Card */}
+                <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
                   <div>
-                    <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>Max Pool Connections per Tenant</label>
-                    <input type="number" defaultValue={20} style={{ width: '100%', height: 36, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.8rem' }} />
+                    <h2 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#0F172A', margin: 0 }}>Master System Configuration</h2>
+                    <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '4px 0 0 0' }}>Global database settings and master pool thresholds</p>
                   </div>
-                  <div>
-                    <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>JWT Master Token Secret Expiry</label>
-                    <input type="text" defaultValue="24h" style={{ width: '100%', height: 36, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.8rem' }} />
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, maxWidth: 640 }}>
+                    <div>
+                      <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>Max Pool Connections per Tenant</label>
+                      <input type="number" defaultValue={20} style={{ width: '100%', height: 36, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.8rem' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>JWT Master Token Secret Expiry</label>
+                      <input type="text" defaultValue="24h" style={{ width: '100%', height: 36, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.8rem' }} />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1302,63 +2453,244 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
 
               <div>
                 <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Company Name *</label>
-                <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. LAKSHMI KADATCHAM FINANCE" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                <input
+                  type="text"
+                  required
+                  value={form.name}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    setForm(prev => ({
+                      ...prev,
+                      name,
+                      company_code: (!prev.company_code || prev.company_code.startsWith('APEX') || prev.company_code.startsWith('FIN')) ? generateCompanyCodeFromName(name) : prev.company_code
+                    }));
+                  }}
+                  placeholder="e.g. Apex Global Financial Services Ltd."
+                  style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}
+                />
               </div>
 
               <div>
-                <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Company Code (Short ID) *</label>
-                <input type="text" required value={form.company_code} onChange={(e) => setForm({ ...form, company_code: e.target.value.toUpperCase() })} placeholder="e.g. LKFI" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', fontFamily: 'SF Mono, monospace' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600 }}>Company Code (Short ID) *</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const code = generateCompanyCodeFromName(form.name);
+                      setForm(prev => ({ ...prev, company_code: code }));
+                    }}
+                    style={{
+                      background: 'var(--brand-primary-light, #F0FEF5)',
+                      border: '1px solid var(--brand-primary-border, #A3F5C1)',
+                      color: 'var(--brand-primary, #15803D)',
+                      padding: '3px 9px',
+                      borderRadius: 6,
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                  >
+                    <Sparkles style={{ width: 12, height: 12 }} />
+                    <span>Generate Code</span>
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  required
+                  value={form.company_code}
+                  onChange={(e) => setForm({ ...form, company_code: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '') })}
+                  placeholder="e.g. APEXFIN01"
+                  style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', fontFamily: 'SF Mono, monospace', textTransform: 'uppercase' }}
+                />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Plan Tier *</label>
-                  <select value={form.plan_code} onChange={(e) => setForm({ ...form, plan_code: e.target.value })} style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}>
-                    <option value="ENTERPRISE">Enterprise Plan</option>
-                    <option value="STANDARD">Standard Plan</option>
-                    <option value="STARTER">Starter Plan</option>
-                  </select>
+                  <SharedDropdown
+                    value={form.plan_code}
+                    onChange={(e) => {
+                      const val = e?.target ? e.target.value : e;
+                      setForm(prev => ({ ...prev, plan_code: String(val || '').toUpperCase() }));
+                    }}
+                    options={plans && plans.length > 0 ? plans.map(p => ({ value: p.code, label: `${p.name} (${p.code})` })) : [
+                      { value: 'ENTERPRISE', label: 'Enterprise Plan' },
+                      { value: 'STANDARD', label: 'Standard Plan' },
+                      { value: 'STARTER', label: 'Starter Plan' }
+                    ]}
+                  />
                 </div>
                 <div>
                   <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Status *</label>
-                  <select defaultValue="Trial" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}>
-                    <option value="Trial">Trial</option>
-                    <option value="Active">Active</option>
-                    <option value="Suspended">Suspended</option>
-                  </select>
+                  <SharedDropdown
+                    value={form.status}
+                    onChange={(e) => {
+                      const val = e?.target ? e.target.value : e;
+                      setForm(prev => ({ ...prev, status: String(val || '').toUpperCase() }));
+                    }}
+                    options={[
+                      { value: 'TRIAL', label: 'Trial' },
+                      { value: 'ACTIVE', label: 'Active' },
+                      { value: 'SUSPENDED', label: 'Suspended' }
+                    ]}
+                  />
                 </div>
               </div>
 
-              <div>
-                <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Trial Duration *</label>
-                <select defaultValue="15 Days" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}>
-                  <option value="15 Days">15 Days</option>
-                  <option value="30 Days">30 Days</option>
-                  <option value="60 Days">60 Days</option>
-                </select>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {form.status === 'TRIAL' ? (
+                  <div>
+                    <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Trial Duration *</label>
+                    <SharedDropdown
+                      value={form.trial_days}
+                      onChange={(e) => {
+                        const val = e?.target ? e.target.value : e;
+                        setForm(prev => ({ ...prev, trial_days: String(val || '15'), custom_expiry_date: '' }));
+                      }}
+                      options={[
+                        { value: '15', label: '15 Days Trial' },
+                        { value: '30', label: '30 Days Trial' },
+                        { value: '60', label: '60 Days Trial' },
+                        { value: '90', label: '90 Days Trial' }
+                      ]}
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Plan Duration / Billing Cycle *</label>
+                    <SharedDropdown
+                      value={form.billing_cycle}
+                      onChange={(e) => {
+                        const val = e?.target ? e.target.value : e;
+                        setForm(prev => ({ ...prev, billing_cycle: String(val || '3_MONTHS'), custom_expiry_date: '' }));
+                      }}
+                      options={[
+                        { value: '3_MONTHS', label: '3 Months (Quarterly)' },
+                        { value: '6_MONTHS', label: '6 Months (Half-Yearly)' },
+                        { value: '1_YEAR', label: '1 Year (Annual Billing)' },
+                        { value: '1_MONTH', label: '1 Month (Monthly)' }
+                      ]}
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>
+                    {form.status === 'TRIAL' ? 'Custom Expiry Date (optional)' : 'Subscription Expiry Date (optional)'}
+                  </label>
+                  <SharedDatePicker
+                    value={form.custom_expiry_date || ''}
+                    onChange={(e) => {
+                      const val = e?.target ? e.target.value : e;
+                      setForm(prev => ({ ...prev, custom_expiry_date: String(val || '') }));
+                    }}
+                    placeholder="YYYY-MM-DD"
+                  />
+                </div>
               </div>
 
               <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 14px', fontSize: '0.8rem', color: '#475569', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>Estimated Subscription Price:</span>
-                <strong style={{ color: '#0F172A' }}>₹0 (Free Trial)</strong>
+                <strong style={{ color: '#0F172A' }}>
+                  {form.status === 'TRIAL'
+                    ? `₹0 (Free Trial - ${form.trial_days} Days)`
+                    : (() => {
+                        const matchedPlan = plans.find(p => p.code === form.plan_code);
+                        const mPrice = Number(matchedPlan?.monthly_price) || (form.plan_code === 'ENTERPRISE' ? 9999 : form.plan_code === 'STARTER' ? 1999 : 2999);
+                        if (form.billing_cycle === '1_YEAR') {
+                          const yPrice = matchedPlan?.yearly_price ? Number(matchedPlan.yearly_price) : mPrice * 10;
+                          return `₹${yPrice.toLocaleString('en-IN')} (Annual Billing)`;
+                        }
+                        if (form.billing_cycle === '6_MONTHS') {
+                          const hPrice = matchedPlan?.six_month_price ? Number(matchedPlan.six_month_price) : mPrice * 5.5;
+                          return `₹${Math.round(hPrice).toLocaleString('en-IN')} (6 Months Billing)`;
+                        }
+                        if (form.billing_cycle === '3_MONTHS') {
+                          return `₹${(mPrice * 3).toLocaleString('en-IN')} (3 Months Billing)`;
+                        }
+                        return `₹${mPrice.toLocaleString('en-IN')} / month`;
+                      })()}
+                </strong>
               </div>
 
               <div>
                 <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Company Logo (optional)</label>
-                <button type="button" style={{ padding: '8px 14px', backgroundColor: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: '0.78rem', fontWeight: 600, color: '#334155', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Plus style={{ width: 14, height: 14 }} />
-                  <span>Choose Logo</span>
-                </button>
+                <input
+                  type="file"
+                  id="provision_logo_file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 5 * 1024 * 1024) {
+                      alert('Logo file must be smaller than 5MB.');
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      setForm(prev => ({ ...prev, logo: reader.result }));
+                    };
+                    reader.readAsDataURL(file);
+                  }}
+                />
+                {form.logo ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 8, backgroundColor: '#F8FAFC' }}>
+                    <img src={form.logo} alt="Company Logo Preview" style={{ width: 42, height: 42, objectFit: 'contain', borderRadius: 6, border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF' }} />
+                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', display: 'block' }}>Logo Attached</span>
+                      <span style={{ fontSize: '0.7rem', color: '#64748B' }}>Will be saved to uploads/{form.company_code || 'CODE'}/company-info/</span>
+                    </div>
+                    <label
+                      htmlFor="provision_logo_file"
+                      style={{ padding: '5px 10px', backgroundColor: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: '0.72rem', fontWeight: 600, color: '#334155', cursor: 'pointer' }}
+                    >
+                      Change
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setForm(prev => ({ ...prev, logo: '' }))}
+                      style={{ padding: '5px 10px', backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 6, fontSize: '0.72rem', fontWeight: 600, color: '#DC2626', cursor: 'pointer' }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <label
+                    htmlFor="provision_logo_file"
+                    style={{
+                      padding: '10px 16px',
+                      backgroundColor: '#FFFFFF',
+                      border: '1px dashed #94A3B8',
+                      borderRadius: 8,
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      color: '#475569',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <Plus style={{ width: 15, height: 15, color: 'var(--brand-primary, #15803D)' }} />
+                    <span>Upload Company Logo (PNG, JPG, SVG, max 5MB)</span>
+                  </label>
+                )}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Company Contact Email *</label>
-                  <input type="email" required value={form.company_email} onChange={(e) => setForm({ ...form, company_email: e.target.value })} placeholder="contact@company.com" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                  <input type="email" required value={form.company_email} onChange={(e) => setForm({ ...form, company_email: e.target.value })} placeholder="contact@apexfinance.in" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
                 </div>
                 <div>
                   <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Company Phone</label>
-                  <input type="text" value={form.company_phone} onChange={(e) => setForm({ ...form, company_phone: e.target.value.replace(/\D/g, '').slice(0, 10) })} placeholder="9080274281" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                  <input type="text" value={form.company_phone} onChange={(e) => setForm({ ...form, company_phone: e.target.value.replace(/\D/g, '').slice(0, 10) })} placeholder="9876543210" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
                 </div>
               </div>
 
@@ -1367,11 +2699,11 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
                     <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Admin Username / Login Email *</label>
-                    <input type="email" required value={form.admin_email} onChange={(e) => setForm({ ...form, admin_email: e.target.value })} placeholder="admin@company.com" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                    <input type="email" required value={form.admin_email} onChange={(e) => setForm({ ...form, admin_email: e.target.value })} placeholder="admin@apexfinance.in" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
                   </div>
                   <div>
                     <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Admin Password *</label>
-                    <input type="password" required value={form.admin_password} onChange={(e) => setForm({ ...form, admin_password: e.target.value })} placeholder="••••••••" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                    <input type="password" required value={form.admin_password} onChange={(e) => setForm({ ...form, admin_password: e.target.value })} placeholder="••••••••••••" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
                   </div>
                 </div>
               </div>
@@ -1387,8 +2719,321 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
         </div>
       )}
 
+      {/* ── Extend Subscription Modal ─────────────────────────────── */}
+      {isExtendModalOpen && selectedSub && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(3px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: 12, width: '100%', maxWidth: 440, padding: 24, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <CalendarCheck style={{ width: 20, height: 20, color: 'var(--brand-primary, #15803D)' }} />
+                <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: '#0F172A' }}>Extend Subscription</h2>
+              </div>
+              <button onClick={() => setIsExtendModalOpen(false)} style={{ background: 'transparent', border: 'none', color: '#94A3B8', cursor: 'pointer' }}>
+                <X style={{ width: 18, height: 18 }} />
+              </button>
+            </div>
 
+            <div style={{ backgroundColor: '#F8FAFC', padding: '12px 14px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: '0.8rem' }}>
+              <div style={{ fontWeight: 700, color: '#0F172A' }}>{selectedSub.company_name} ({selectedSub.company_code})</div>
+              <div style={{ color: '#64748B', marginTop: 4 }}>
+                Current Plan: <strong>{selectedSub.plan_name || selectedSub.plan_code}</strong> | Status: <strong>{selectedSub.status}</strong>
+              </div>
+              <div style={{ color: '#64748B', marginTop: 2 }}>
+                Current Expiry: <strong>{selectedSub.end_date ? new Date(selectedSub.end_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Ongoing'}</strong>
+              </div>
+            </div>
 
+            <div>
+              <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 8 }}>Plan Duration Extension Presets</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {[
+                  { label: '+3 Months (Quarterly)', days: '90' },
+                  { label: '+6 Months (Half-Yearly)', days: '180' },
+                  { label: '+1 Year (Annual)', days: '365' },
+                  { label: '+1 Month (30 Days)', days: '30' }
+                ].map(preset => (
+                  <button
+                    key={preset.days}
+                    type="button"
+                    onClick={() => setExtendDays(preset.days)}
+                    style={{ padding: '8px 12px', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600, border: extendDays === preset.days ? '2px solid var(--brand-primary, #15803D)' : '1px solid #CBD5E1', backgroundColor: extendDays === preset.days ? 'var(--brand-primary-light, #F0FEF5)' : '#FFFFFF', color: extendDays === preset.days ? 'var(--brand-primary-text, #075F27)' : '#334155', cursor: 'pointer' }}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Custom Days</label>
+              <input
+                type="number"
+                min="1"
+                value={extendDays}
+                onChange={(e) => setExtendDays(e.target.value)}
+                style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={() => setIsExtendModalOpen(false)}
+                style={{ padding: '9px 16px', backgroundColor: '#F1F5F9', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: '0.82rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleExtendSubscription(selectedSub, extendDays)}
+                disabled={extendSubLoading || !extendDays}
+                style={{ padding: '9px 20px', backgroundColor: 'var(--brand-primary, #15803D)', border: 'none', borderRadius: 8, fontSize: '0.82rem', fontWeight: 600, color: '#FFFFFF', cursor: 'pointer', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.25)' }}
+              >
+                {extendSubLoading ? 'Extending...' : `Confirm +${extendDays} Days`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Subscription Lifecycle Modal ──────────────────────── */}
+      {isEditSubModalOpen && selectedSub && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(3px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: 12, width: '100%', maxWidth: 480, padding: 24, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Edit3 style={{ width: 20, height: 20, color: 'var(--brand-primary, #15803D)' }} />
+                <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: '#0F172A' }}>Edit Subscription Details</h2>
+              </div>
+              <button onClick={() => setIsEditSubModalOpen(false)} style={{ background: 'transparent', border: 'none', color: '#94A3B8', cursor: 'pointer' }}>
+                <X style={{ width: 18, height: 18 }} />
+              </button>
+            </div>
+
+            <div style={{ backgroundColor: '#F8FAFC', padding: '10px 14px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: '0.8rem', fontWeight: 700, color: '#0F172A' }}>
+              {selectedSub.company_name} ({selectedSub.company_code})
+            </div>
+
+            <form onSubmit={handleSaveEditSub} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Plan Tier *</label>
+                <SharedDropdown
+                  value={editSubForm.plan_id}
+                  onChange={(e) => {
+                    const val = e?.target ? e.target.value : e;
+                    setEditSubForm(prev => ({ ...prev, plan_id: String(val || '') }));
+                  }}
+                  options={plans.map(p => ({ value: String(p.id), label: `${p.name} (${p.code}) — ₹${p.monthly_price}/mo` }))}
+                  placeholder="Select Plan"
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Subscription Status *</label>
+                <SharedDropdown
+                  value={editSubForm.status}
+                  onChange={(e) => {
+                    const val = e?.target ? e.target.value : e;
+                    setEditSubForm(prev => ({ ...prev, status: String(val || '').toUpperCase() }));
+                  }}
+                  options={[
+                    { value: 'ACTIVE', label: 'ACTIVE (Paid / In Service)' },
+                    { value: 'TRIAL', label: 'TRIAL (Evaluation Period)' },
+                    { value: 'EXPIRED', label: 'EXPIRED (Suspended Due to Non-Payment)' },
+                    { value: 'CANCELLED', label: 'CANCELLED (Terminated Account)' }
+                  ]}
+                  placeholder="Select Status"
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Start Date</label>
+                  <SharedDatePicker
+                    value={editSubForm.start_date || ''}
+                    onChange={(e) => {
+                      const val = e?.target ? e.target.value : e;
+                      setEditSubForm(prev => ({ ...prev, start_date: String(val || '') }));
+                    }}
+                    placeholder="YYYY-MM-DD"
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Expiry Date</label>
+                  <SharedDatePicker
+                    value={editSubForm.end_date || ''}
+                    onChange={(e) => {
+                      const val = e?.target ? e.target.value : e;
+                      setEditSubForm(prev => ({ ...prev, end_date: String(val || '') }));
+                    }}
+                    placeholder="YYYY-MM-DD"
+                  />
+                </div>
+              </div>
+
+              <div style={{ backgroundColor: '#F8FAFC', padding: '10px 14px', borderRadius: 8, border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Info style={{ width: 16, height: 16, color: '#64748B' }} />
+                <span style={{ fontSize: '0.78rem', color: '#475569', fontWeight: 600 }}>
+                  Renewal Mode: <strong>Manual Renewal</strong> (Super Admin action required upon expiry).
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsEditSubModalOpen(false)}
+                  style={{ padding: '9px 16px', backgroundColor: '#F1F5F9', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: '0.82rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSubLoading}
+                  style={{ padding: '9px 20px', backgroundColor: 'var(--brand-primary, #15803D)', border: 'none', borderRadius: 8, fontSize: '0.82rem', fontWeight: 600, color: '#FFFFFF', cursor: 'pointer', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.25)' }}
+                >
+                  {editSubLoading ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Manual Renew Subscription Modal ───────────────────────── */}
+      {isRenewModalOpen && selectedSub && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(3px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: 12, width: '100%', maxWidth: 500, padding: 24, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <RotateCw style={{ width: 20, height: 20, color: 'var(--brand-primary, #15803D)' }} />
+                <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: '#0F172A' }}>Manual Renew Subscription</h2>
+              </div>
+              <button onClick={() => setIsRenewModalOpen(false)} style={{ background: 'transparent', border: 'none', color: '#94A3B8', cursor: 'pointer' }}>
+                <X style={{ width: 18, height: 18 }} />
+              </button>
+            </div>
+
+            <div style={{ backgroundColor: '#F8FAFC', padding: '10px 14px', borderRadius: 8, border: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <span style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0F172A' }}>{selectedSub.company_name}</span>
+                <span style={{ fontSize: '0.74rem', color: 'var(--brand-primary, #15803D)', marginLeft: 8, fontFamily: 'SF Mono, monospace' }}>({selectedSub.company_code})</span>
+              </div>
+              <span style={{
+                fontSize: '0.7rem',
+                padding: '2px 8px',
+                borderRadius: 10,
+                backgroundColor: selectedSub.is_expired ? 'var(--color-danger-light, #FEF2F2)' : '#DCFCE7',
+                color: selectedSub.is_expired ? 'var(--color-danger-text, #991B1B)' : 'var(--brand-primary-text, #075F27)',
+                fontWeight: 700
+              }}>
+                {selectedSub.is_expired ? 'Expired' : selectedSub.status || 'Active'}
+              </span>
+            </div>
+
+            <form onSubmit={handleConfirmRenew} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Select Renewal Plan Tier *</label>
+                <SharedDropdown
+                  value={renewForm.plan_id}
+                  onChange={(e) => {
+                    const val = e?.target ? e.target.value : e;
+                    setRenewForm(prev => ({ ...prev, plan_id: String(val || '') }));
+                  }}
+                  options={plans.map(p => ({ value: String(p.id), label: `${p.name} (${p.code}) — ₹${p.monthly_price}/mo` }))}
+                  placeholder="Select Plan"
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Renewal Duration / Billing Cycle *</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {[
+                    { label: '3 Months (Quarterly)', val: '3_MONTHS' },
+                    { label: '6 Months (Half-Yearly)', val: '6_MONTHS' },
+                    { label: '1 Year (Annual)', val: '1_YEAR' },
+                    { label: '1 Month (Monthly)', val: '1_MONTH' }
+                  ].map(c => (
+                    <button
+                      key={c.val}
+                      type="button"
+                      onClick={() => setRenewForm(prev => ({ ...prev, duration_cycle: c.val, custom_expiry_date: '' }))}
+                      style={{
+                        padding: '9px 12px',
+                        borderRadius: 8,
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        border: renewForm.duration_cycle === c.val && !renewForm.custom_expiry_date ? '2px solid var(--brand-primary, #15803D)' : '1px solid #CBD5E1',
+                        backgroundColor: renewForm.duration_cycle === c.val && !renewForm.custom_expiry_date ? 'var(--brand-primary-light, #F0FEF5)' : '#FFFFFF',
+                        color: renewForm.duration_cycle === c.val && !renewForm.custom_expiry_date ? 'var(--brand-primary-text, #075F27)' : '#334155',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Or Specific Custom Expiry Date (optional)</label>
+                <SharedDatePicker
+                  value={renewForm.custom_expiry_date || ''}
+                  onChange={(e) => {
+                    const val = e?.target ? e.target.value : e;
+                    setRenewForm(prev => ({ ...prev, custom_expiry_date: String(val || '') }));
+                  }}
+                  placeholder="YYYY-MM-DD"
+                />
+              </div>
+
+              {/* Price Calculation Card */}
+              <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>Calculated Renewal Fee:</span>
+                <strong style={{ fontSize: '0.92rem', color: 'var(--brand-primary, #15803D)', fontWeight: 800 }}>
+                  {(() => {
+                    const matchedPlan = plans.find(p => String(p.id) === String(renewForm.plan_id)) || plans[0];
+                    const mPrice = Number(matchedPlan?.monthly_price) || 2999;
+                    if (renewForm.duration_cycle === '1_YEAR') {
+                      const yPrice = matchedPlan?.yearly_price ? Number(matchedPlan.yearly_price) : mPrice * 10;
+                      return `₹${yPrice.toLocaleString('en-IN')} (1 Year)`;
+                    }
+                    if (renewForm.duration_cycle === '6_MONTHS') {
+                      const hPrice = matchedPlan?.six_month_price ? Number(matchedPlan.six_month_price) : mPrice * 5.5;
+                      return `₹${Math.round(hPrice).toLocaleString('en-IN')} (6 Months)`;
+                    }
+                    if (renewForm.duration_cycle === '3_MONTHS') {
+                      return `₹${(mPrice * 3).toLocaleString('en-IN')} (3 Months)`;
+                    }
+                    return `₹${mPrice.toLocaleString('en-IN')} (1 Month)`;
+                  })()}
+                </strong>
+              </div>
+
+              <div style={{ backgroundColor: '#FEF3C7', padding: '8px 12px', borderRadius: 6, border: '1px solid #FDE68A', fontSize: '0.74rem', color: '#92400E' }}>
+                ℹ️ Manual Renewal: No recurring auto-charges will be scheduled. The subscription will remain active until the expiration date.
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsRenewModalOpen(false)}
+                  style={{ padding: '9px 16px', backgroundColor: '#F1F5F9', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: '0.82rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={renewLoading}
+                  style={{ padding: '9px 22px', backgroundColor: 'var(--brand-primary, #15803D)', border: 'none', borderRadius: 8, fontSize: '0.82rem', fontWeight: 700, color: '#FFFFFF', cursor: 'pointer', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.25)', display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <RotateCw style={{ width: 14, height: 14 }} />
+                  <span>{renewLoading ? 'Renewing...' : 'Confirm Manual Renewal'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

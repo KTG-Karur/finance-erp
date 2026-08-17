@@ -25,3 +25,7 @@ description: Building Vite React UI modules, SCSS BEM styling, high-density ERP 
 3. **State & Async Operations**:
    - Manage loading and error states explicitly on forms and data grids.
    - Use central API service helper in `client/src/api/` with Axios interceptors for JWT injection.
+4. **Canonical Shared Form Components**:
+   - All dropdowns and select elements must use `SharedDropdown` (`components/common/SharedDropdown.jsx`).
+   - All date and calendar selectors must use `SharedDatePicker` (`components/common/SharedDatePicker.jsx`).
+   - Never introduce raw `<select>` or `<input type="date">` in any page, modal, or filter bar.
