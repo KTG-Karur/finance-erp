@@ -19,19 +19,30 @@ import {
   Filter,
   Lock,
   Camera,
-  MapPin
+  MapPin,
+  Calendar,
+  Sparkles,
+  Receipt
 } from 'lucide-react';
 import CustomerProfileModal from '../borrowers/CustomerProfileModal';
 import { useLanguage } from '../../i18n/LanguageContext';
-import { calculatePaymentAllocation } from '../../utils/loanCalculations';
+import {
+  resolveInterestPaidUpto,
+  calculateInterestForDateRange,
+  daysBetween
+} from '../../utils/loanCalculations';
 import SharedDropdown from '../../components/common/SharedDropdown';
 import SharedDatePicker from '../../components/common/SharedDatePicker';
+import { uploadFile } from '../../api/upload';
+import api from '../../api/client';
+import VoucherReceiptModal from '../../components/VoucherReceiptModal';
 
 export default function NewCollectionEntryPage({
   loans = [],
   borrowers = [],
   collections = [],
   loanSchemes = [],
+  tenant,
   onBack,
   onRecordCollection,
   selectedBranch = 'ALL'
@@ -79,36 +90,63 @@ export default function NewCollectionEntryPage({
         .sort((a, b) => new Date(b.collection_date) - new Date(a.collection_date))
     : [];
 
-  // Collection Entry Form State — amount stays blank until a loan is selected.
-  const [amountPaid, setAmountPaid] = useState('');
+  // Interest Paid Upto & Date Range Setup
+  const curInterestPaidUpto = resolveInterestPaidUpto(targetLoan);
+  // Next day after last paid date is the minimum selectable date
+  const minInterestUptoDate = (() => {
+    if (!curInterestPaidUpto) return null;
+    const d = new Date(curInterestPaidUpto);
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  const [interestUptoDate, setInterestUptoDate] = useState(() => {
+    return new Date().toISOString().slice(0, 10);
+  });
+
+  // Manual Breakdown Entry States
+  const [manualPrincipal, setManualPrincipal] = useState('');
+  const [manualInterest, setManualInterest] = useState('');
+  const [additionalCharges, setAdditionalCharges] = useState('');
+  const [shortfallAction, setShortfallAction] = useState('CARRY_FORWARD'); // 'CARRY_FORWARD' | 'WAIVE'
+
+  // General Collection Form State
   const [paymentMode, setPaymentMode] = useState('CASH'); // 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CHEQUE'
+  const [bankAccountId, setBankAccountId] = useState('');
+  const [bankAccounts, setBankAccounts] = useState([]);
   const [txnRef, setTxnRef] = useState('');
+
+  useEffect(() => {
+    api.get('/finance/bank-accounts')
+      .then(res => {
+        if (res.data?.success && Array.isArray(res.data?.data)) {
+          const activeBanks = res.data.data.filter(b => b.is_active !== false);
+          setBankAccounts(activeBanks);
+          if (activeBanks.length > 0) {
+            setBankAccountId(String(activeBanks[0].id));
+          }
+        }
+      })
+      .catch(err => console.warn('Could not load bank accounts:', err));
+  }, []);
   const [collectorName, setCollectorName] = useState('K. Ramesh (Field Officer)');
   const [collectionDate, setCollectionDate] = useState(new Date().toISOString().slice(0, 10));
   const [remarks, setRemarks] = useState('');
   const [posting, setPosting] = useState(false);
   const [selectedCustomerForProfile, setSelectedCustomerForProfile] = useState(null);
-  const [penaltyWaived, setPenaltyWaived] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [lastReceipt, setLastReceipt] = useState(null);
   const [showReceiptPrint, setShowReceiptPrint] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showTickAnimation, setShowTickAnimation] = useState(false);
 
-  // Proof-of-payment photo (cash handover / UPI / cheque screenshot) — optional,
-  // stored as a data URI on the receipt for the field-collection audit trail.
+  // Proof-of-payment photo
   const [proofImage, setProofImage] = useState(null);
 
-  // GPS stamp for doorstep collections — captured once per page visit; never
-  // blocks posting if the browser denies it or geolocation isn't available.
+  // GPS stamp for doorstep collections
   const [geoLocation, setGeoLocation] = useState(null); // { lat, lng, accuracy }
-  const [geoStatus, setGeoStatus] = useState('idle'); // idle | locating | granted | denied | unavailable | insecure | timeout
+  const [geoStatus, setGeoStatus] = useState('idle');
 
-  // The browser's own getCurrentPosition callback only ever fires ONE of these
-  // three error codes — PERMISSION_DENIED(1) / POSITION_UNAVAILABLE(2) /
-  // TIMEOUT(3) — and mapping every one of them to "denied" (the earlier bug
-  // here) is exactly what made an allowed-but-GPS-less desktop browser show
-  // "Location denied" when it had actually just failed to get a fix in time.
   const requestLocation = () => {
     if (!navigator.geolocation) { setGeoStatus('unavailable'); return; }
     if (!window.isSecureContext) { setGeoStatus('insecure'); return; }
@@ -124,17 +162,14 @@ export default function NewCollectionEntryPage({
         else if (err.code === err.TIMEOUT) setGeoStatus('timeout');
         else setGeoStatus('unavailable');
       },
-      // Network/Wi-Fi based location (enableHighAccuracy: false) resolves far
-      // more reliably than GPS on a desktop/laptop with no GPS hardware.
       { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
     );
   };
 
   useEffect(() => { requestLocation(); }, []);
 
-  const handleProofChange = (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
+  const handleProofChange = async (e) => {
+    const file = e.target.files && e.target.files[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       setSubmitError('Please upload an image file (JPG or PNG).');
@@ -145,17 +180,70 @@ export default function NewCollectionEntryPage({
       return;
     }
     setSubmitError('');
-    const reader = new FileReader();
-    reader.onload = () => setProofImage(reader.result);
-    reader.readAsDataURL(file);
+    try {
+      const res = await uploadFile(file, { subfolder: 'collections', category: 'receipt_proof', prefix: 'receipt_proof' });
+      if (res?.url) {
+        setProofImage(res.url);
+      }
+    } catch {
+      setSubmitError('Failed to upload proof image.');
+    }
   };
 
-  // Fill in the default EMI amount only once a loan is actually selected.
+  const isEmiLoan = targetLoan?.formula_type === 'CUSTOM'
+    ? targetLoan?.accrual_mode === 'SCHEDULED'
+    : targetLoan?.repayment_method === 'EMI';
+
+  // Fill in suggested amounts once a loan is selected
   useEffect(() => {
-    setAmountPaid(targetLoan && !isLoanCompleted ? (targetLoan.installment_amount || '') : '');
-    setPenaltyWaived(false);
+    if (!targetLoan || isLoanCompleted) {
+      setManualPrincipal('');
+      setManualInterest('');
+      setAdditionalCharges('');
+      setShortfallAction('CARRY_FORWARD');
+      setSubmitError('');
+      return;
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const resolvedMin = minInterestUptoDate;
+    let initialDate = todayStr;
+    if (resolvedMin && todayStr < resolvedMin) {
+      initialDate = resolvedMin;
+    }
+    setInterestUptoDate(initialDate);
+
+    const suggInterest = calculateInterestForDateRange({
+      loan: targetLoan,
+      fromDate: curInterestPaidUpto,
+      toDate: initialDate
+    });
+
+    if (isEmiLoan) {
+      const emiAmt = parseFloat(targetLoan.installment_amount) || 0;
+      const suggPrin = Math.max(0, Math.min(pendingBal, emiAmt - suggInterest));
+      setManualInterest(String(suggInterest));
+      setManualPrincipal(String(suggPrin));
+    } else {
+      setManualInterest(String(suggInterest));
+      setManualPrincipal('0');
+    }
+    setAdditionalCharges('');
+    setShortfallAction('CARRY_FORWARD');
     setSubmitError('');
   }, [selectedLoanId]);
+
+  // When staff changes interestUptoDate, recompute suggested interest
+  const handleInterestUptoDateChange = (newDate) => {
+    setInterestUptoDate(newDate);
+    if (!targetLoan) return;
+    const suggInterest = calculateInterestForDateRange({
+      loan: targetLoan,
+      fromDate: curInterestPaidUpto,
+      toDate: newDate
+    });
+    setManualInterest(String(suggInterest));
+  };
 
   // Every branch that appears on at least one loan.
   const branchOptions = Array.from(new Set(activeLoans.map(l => l.branch).filter(Boolean))).sort();
@@ -183,75 +271,27 @@ export default function NewCollectionEntryPage({
 
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
-  const numericAmt = parseFloat(amountPaid) || 0;
-  // A custom-formula loan doesn't carry a meaningful repayment_method (custom schemes
-  // have no EMI/Interest-Only value to derive from) — whether it's schedule-based is
-  // its own accrual_mode instead. Every non-custom loan keeps the original check.
-  const isEmiLoan = targetLoan?.formula_type === 'CUSTOM'
-    ? targetLoan?.accrual_mode === 'SCHEDULED'
-    : targetLoan?.repayment_method === 'EMI';
-
-  // Dispatches to the loan's configured Repayment Method (EMI / Interest Only) x
-  // Interest Calculation (Constant / Flexible) strategy. Interest always comes out
-  // first and only the remainder reduces principal.
-  const allocation = calculatePaymentAllocation({
+  const interestBreakdown = calculateInterestForDateRange({
     loan: targetLoan,
-    paymentAmount: numericAmt,
-    paymentDate: collectionDate
+    fromDate: curInterestPaidUpto,
+    toDate: interestUptoDate,
+    includeArrears: true
   });
-  const interestPortion = allocation.interestPortion;
-  const principalPortion = allocation.principalPortion;
-  const updatedPendingBal = Math.max(0, allocation.newPendingPrincipal);
-  const daysSinceLastPayment = allocation.daysSinceLastPayment;
-  const progressPercent = Math.min(100, Math.max(0, Math.round(((collectedAmt + principalPortion) / (principalAmt || 1)) * 100)));
-  const lastPaymentDate = targetLoan?.last_payment_date || targetLoan?.loan_date || null;
 
-  // The full amount that would completely settle this loan right now — interest
-  // due plus outstanding principal (Interest-Only), or every remaining unpaid
-  // rupee across the schedule (EMI). The amount field is capped here so an
-  // overpayment simply isn't possible to enter.
-  const maxPayableAmount = targetLoan
-    ? (isEmiLoan
-        ? (targetLoan.repayment_schedule || []).reduce((s, r) => s + Math.max(0, r.emi - (r.principal_paid || 0) - (r.interest_paid || 0)), 0)
-        : Math.max(0, pendingBal + (allocation.interestDue || 0)))
-    : 0;
-
-  const handleAmountChange = (e) => {
-    const raw = e.target.value;
-    if (raw === '') { setAmountPaid(''); return; }
-    const val = Math.max(0, parseFloat(raw) || 0);
-    setAmountPaid(maxPayableAmount > 0 ? Math.min(val, maxPayableAmount) : 0);
-  };
-
-  // Interest-Only loans: full interest owed for the missed days vs. what today's
-  // amount actually covers.
-  const interestShortfall = Math.max(0, (allocation.interestDue || 0) - interestPortion);
-
-  // EMI loans: any schedule period whose due date has passed and isn't fully paid.
-  const overdueEmiPeriods = (targetLoan?.repayment_schedule || []).filter(row =>
-    row.due_date < collectionDate && (row.principal_paid < row.principal || row.interest_paid < row.interest)
-  );
-  const overdueEmiPrincipal = overdueEmiPeriods.reduce((s, r) => s + (r.principal - (r.principal_paid || 0)), 0);
-  const overdueEmiInterest = overdueEmiPeriods.reduce((s, r) => s + (r.interest - (r.interest_paid || 0)), 0);
-
-  const repaymentMethodLabel = targetLoan ? (isEmiLoan ? 'EMI' : 'Interest Only') : '';
-  const interestCalcLabel = targetLoan
-    ? (targetLoan.formula_type === 'CUSTOM' ? 'Custom' : (targetLoan.interest_calculation === 'CONSTANT_FLAT' ? 'Flat' : 'Flexible'))
-    : '';
-  const repaymentTypeLabel = targetLoan ? `${repaymentMethodLabel} · ${interestCalcLabel}` : '';
-  const installmentFieldLabel = isEmiLoan ? 'Fixed EMI' : 'Suggested Collection';
-
-  // Late fee: 2-day grace period, then a small suggested charge (waivable).
-  const gracePeriodDays = 2;
-  const overdueDaysForPenalty = Math.max(0, (daysSinceLastPayment || 0) - gracePeriodDays);
-  const suggestedPenalty = (targetLoan && !isLoanCompleted && overdueDaysForPenalty > 0 && dailyEmi > 0)
-    ? Math.min(Math.round(dailyEmi * 0.1 * overdueDaysForPenalty), dailyEmi * 5)
-    : 0;
-  const penaltyAmount = penaltyWaived ? 0 : suggestedPenalty;
-  const totalToCollect = numericAmt + penaltyAmount;
-
+  const numericPrincipal = Math.max(0, parseFloat(manualPrincipal) || 0);
+  const numericInterest = Math.max(0, parseFloat(manualInterest) || 0);
+  const numericAdditional = Math.max(0, parseFloat(additionalCharges) || 0);
+  const totalAmountToCollect = Math.round((numericPrincipal + numericInterest + numericAdditional) * 100) / 100;
+  const updatedPendingBal = Math.max(0, pendingBal - numericPrincipal);
+  const interestDays = daysBetween(curInterestPaidUpto, interestUptoDate);
+  const progressPercent = Math.min(100, Math.max(0, Math.round(((collectedAmt + numericPrincipal) / (principalAmt || 1)) * 100)));
   const paidToday = targetLoan ? loanHistory.some(h => h.collection_date === collectionDate) : false;
   const willCloseLoan = targetLoan && !isLoanCompleted && pendingBal > 0 && updatedPendingBal <= 0;
+
+  // Shortfall & Arrears
+  const interestShortfallAmount = Math.max(0, Math.round((interestBreakdown.totalSuggestedInterest - numericInterest) * 100) / 100);
+  const hasShortfall = interestShortfallAmount > 0;
+  const newPendingArrears = shortfallAction === 'CARRY_FORWARD' ? interestShortfallAmount : 0;
 
   const getModeLabel = (mode) => {
     switch (mode) {
@@ -264,7 +304,11 @@ export default function NewCollectionEntryPage({
   };
 
   const handleInitiatePayment = () => {
-    if (!targetLoan || isLoanCompleted || numericAmt <= 0) return;
+    if (!targetLoan || isLoanCompleted || totalAmountToCollect <= 0) return;
+    if (numericPrincipal > pendingBal + 0.01) {
+      setSubmitError(`Principal amount (₹${fmt(numericPrincipal)}) cannot exceed outstanding principal balance (₹${fmt(pendingBal)}).`);
+      return;
+    }
     setSubmitError('');
     setShowConfirmModal(true);
   };
@@ -281,17 +325,28 @@ export default function NewCollectionEntryPage({
         loan_account_no: targetLoan.loan_account_no,
         borrower_name: targetLoan.borrower_name,
         branch: targetLoan.branch,
-        amount: numericAmt,
-        principal_portion: principalPortion,
-        interest_portion: interestPortion,
+        amount: totalAmountToCollect,
+        principal_portion: numericPrincipal,
+        principal_paid: numericPrincipal,
+        interest_portion: numericInterest,
+        interest_paid: numericInterest,
+        penalty: numericAdditional,
+        penalty_portion: numericAdditional,
+        interest_from_date: curInterestPaidUpto,
+        interest_paid_upto: interestUptoDate,
+        interest_days: interestDays,
+        interest_shortfall_action: shortfallAction,
+        interest_shortfall: shortfallAction === 'CARRY_FORWARD' ? interestShortfallAmount : 0,
+        interest_waiver: shortfallAction === 'WAIVE' ? interestShortfallAmount : 0,
+        new_pending_interest_arrears: newPendingArrears,
         new_principal_balance: updatedPendingBal,
         payment_mode: paymentMode,
+        bank_account_id: paymentMode !== 'CASH' && bankAccountId ? Number(bankAccountId) : (paymentMode !== 'CASH' && bankAccounts[0]?.id ? Number(bankAccounts[0].id) : null),
+        settlement_account_code: paymentMode !== 'CASH' ? (bankAccounts.find(b => String(b.id) === String(bankAccountId))?.ledger_account_code || bankAccounts[0]?.ledger_account_code || '1002') : null,
         reference_no: txnRef.trim(),
         collector_name: collectorName,
         collection_date: collectionDate,
         payment_date: collectionDate,
-        updated_schedule: allocation.updatedSchedule,
-        penalty: penaltyAmount,
         notes: `${remarks}${modeNote}`,
         proof_image: proofImage,
         latitude: geoLocation?.lat ?? null,
@@ -304,7 +359,6 @@ export default function NewCollectionEntryPage({
 
       setTxnRef('');
       setRemarks('');
-      setPenaltyWaived(false);
       setProofImage(null);
     } catch (err) {
       console.error('Failed to post collection:', err);
@@ -363,7 +417,7 @@ export default function NewCollectionEntryPage({
       </div>
 
       {/* ── Two-Column Layout ──────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 20, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: 20, alignItems: 'start' }}>
 
         {/* ── LEFT: Search + Profile ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -575,66 +629,206 @@ export default function NewCollectionEntryPage({
           ) : (
             <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 18, padding: 24, boxShadow: '0 4px 20px rgba(0, 0, 0, 0.03)' }}>
 
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>
-                  {t('nce.collection_amount_rs')}
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: 14, top: 10, fontSize: '1.05rem', color: 'var(--brand-primary, #15803D)', fontWeight: 500 }}>₹</span>
-                  <input
-                    type="number"
-                    value={amountPaid}
-                    onChange={handleAmountChange}
-                    max={maxPayableAmount}
-                    min={0}
-                    placeholder="0.00"
-                    style={{ width: '100%', height: 44, padding: '0 14px 0 32px', borderRadius: 10, border: '1px solid var(--brand-primary-border, #A3F5C1)', background: 'var(--brand-primary-light, #F0FDF4)', fontSize: '1.1rem', fontWeight: 500, color: 'var(--brand-primary, #15803D)', boxSizing: 'border-box' }}
-                    required
-                  />
-                </div>
-                <span style={{ fontSize: '0.68rem', color: '#94A3B8', display: 'block', marginTop: 4 }}>
-                  Max ₹{fmt(maxPayableAmount)} clears this loan in full
-                </span>
-              </div>
-
-              {/* Compact allocation summary */}
-              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: 14, marginBottom: 16, display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: 10 }}>
-                <div>
-                  <span style={{ fontSize: '0.64rem', color: '#64748B', display: 'block' }}>{t('nce.principal_portion')}</span>
-                  <span style={{ fontSize: '0.95rem', color: '#0F172A', fontWeight: 500 }}>₹{fmt(principalPortion)}</span>
-                </div>
-                <div>
-                  <span style={{ fontSize: '0.64rem', color: '#64748B', display: 'block' }}>{t('nce.interest_component')}{daysSinceLastPayment !== null ? ` (${daysSinceLastPayment}d)` : ''}</span>
-                  <span style={{ fontSize: '0.95rem', color: '#7C3AED', fontWeight: 500 }}>₹{fmt(interestPortion)}</span>
-                </div>
-                <div style={{ borderLeft: '1px solid #E2E8F0', paddingLeft: 10 }}>
-                  <span style={{ fontSize: '0.64rem', color: 'var(--brand-primary-hover, #0E5327)', display: 'block' }}>{t('nce.updated_pending_balance')}</span>
-                  <span style={{ fontSize: '1rem', color: updatedPendingBal > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)', fontWeight: 500 }}>₹{fmt(updatedPendingBal)}</span>
-                </div>
-              </div>
-
-              {(interestShortfall > 0 || overdueEmiPeriods.length > 0 || willCloseLoan) && (
-                <div style={{ fontSize: '0.74rem', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {interestShortfall > 0 && (
-                    <span style={{ color: 'var(--color-danger-text, #991B1B)' }}>⚠ ₹{fmt(interestShortfall)} interest still due after this payment</span>
-                  )}
-                  {overdueEmiPeriods.length > 0 && (
-                    <span style={{ color: 'var(--color-danger-text, #991B1B)' }}>⚠ {overdueEmiPeriods.length} overdue installment{overdueEmiPeriods.length === 1 ? '' : 's'} (₹{fmt(overdueEmiPrincipal + overdueEmiInterest)} owed)</span>
-                  )}
-                  {willCloseLoan && (
-                    <span style={{ color: 'var(--brand-primary-hover, #0E5327)' }}>✓ This clears the loan — it will be sent to Admin for closure approval</span>
-                  )}
-                </div>
-              )}
-
-              {suggestedPenalty > 0 && (
-                <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem', color: '#9A3412', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '8px 12px', marginBottom: 16, cursor: 'pointer' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <input type="checkbox" checked={penaltyWaived} onChange={(e) => setPenaltyWaived(e.target.checked)} />
-                    Waive suggested late fee
+              {/* ── 1. Interest Period & Date Selection ── */}
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 14, padding: '14px 16px', marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Calendar style={{ width: 15, height: 15, color: 'var(--brand-primary, #15803D)' }} />
+                    <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#0F172A' }}>
+                      Interest Paid Up To Date
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.7rem', color: '#64748B', background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '2px 8px', borderRadius: 12 }}>
+                    Last settled: <strong>{curInterestPaidUpto ? new Date(curInterestPaidUpto).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Disbursal'}</strong>
                   </span>
-                  <strong style={{ textDecoration: penaltyWaived ? 'line-through' : 'none', color: penaltyWaived ? '#94A3B8' : '#C2410C' }}>₹{fmt(suggestedPenalty)}</strong>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center' }}>
+                  <div>
+                    <SharedDatePicker
+                      value={interestUptoDate}
+                      min={minInterestUptoDate}
+                      onChange={(e, val) => handleInterestUptoDateChange(val || e.target.value)}
+                      buttonStyle={{ height: 40, background: '#FFFFFF', border: '1px solid #CBD5E1' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--brand-primary, #15803D)', background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', padding: '4px 10px', borderRadius: 8 }}>
+                      {interestDays} Day{interestDays === 1 ? '' : 's'}
+                    </span>
+                    <span style={{ fontSize: '0.62rem', color: '#94A3B8', marginTop: 2 }}>
+                      {targetLoan.monthly_interest_rate || 0}% / mo
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── 2. Component Breakdown (Manual Entry) ── */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 8 }}>
+                  Collection Breakdown (Manual Entry)
                 </label>
+
+                {/* Past Arrears Notification Banner */}
+                {interestBreakdown.pastArrears > 0 && (
+                  <div style={{ background: '#FAF5FF', border: '1px solid #E9D5FF', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: '0.74rem', color: '#6B21A8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                    <span>Past Unpaid Interest Arrears: <strong>₹{fmt(interestBreakdown.pastArrears)}</strong></span>
+                    <span>Current Accrued ({interestDays}d): <strong>₹{fmt(interestBreakdown.periodInterest)}</strong></span>
+                  </div>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                  
+                  {/* Principal Input */}
+                  <div>
+                    <span style={{ fontSize: '0.68rem', color: '#334155', fontWeight: 500, display: 'block', marginBottom: 4 }}>
+                      Principal (₹)
+                    </span>
+                    <input
+                      type="number"
+                      value={manualPrincipal}
+                      onChange={(e) => setManualPrincipal(e.target.value)}
+                      min={0}
+                      max={pendingBal}
+                      placeholder="0.00"
+                      style={{
+                        width: '100%',
+                        height: 42,
+                        padding: '0 10px',
+                        borderRadius: 9,
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.95rem',
+                        fontWeight: 600,
+                        color: '#0F172A',
+                        background: '#FFFFFF',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    <span style={{ fontSize: '0.62rem', color: '#64748B', display: 'block', marginTop: 3 }}>
+                      Bal: ₹{fmt(pendingBal)}
+                    </span>
+                  </div>
+
+                  {/* Interest Input */}
+                  <div>
+                    <span style={{ fontSize: '0.68rem', color: '#6B21A8', fontWeight: 500, display: 'block', marginBottom: 4 }}>
+                      Interest (₹)
+                    </span>
+                    <input
+                      type="number"
+                      value={manualInterest}
+                      onChange={(e) => setManualInterest(e.target.value)}
+                      min={0}
+                      placeholder="0.00"
+                      style={{
+                        width: '100%',
+                        height: 42,
+                        padding: '0 10px',
+                        borderRadius: 9,
+                        border: '1px solid #DDD6FE',
+                        fontSize: '0.95rem',
+                        fontWeight: 600,
+                        color: '#7C3AED',
+                        background: '#FAF5FF',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    <span style={{ fontSize: '0.62rem', color: '#7C3AED', display: 'block', marginTop: 3 }}>
+                      Sugg: ₹{fmt(interestBreakdown.totalSuggestedInterest)}
+                    </span>
+                  </div>
+
+                  {/* Additional Charges / Penalty Input */}
+                  <div>
+                    <span style={{ fontSize: '0.68rem', color: '#C2410C', fontWeight: 500, display: 'block', marginBottom: 4 }}>
+                      Additional / Fees (₹)
+                    </span>
+                    <input
+                      type="number"
+                      value={additionalCharges}
+                      onChange={(e) => setAdditionalCharges(e.target.value)}
+                      min={0}
+                      placeholder="0.00"
+                      style={{
+                        width: '100%',
+                        height: 42,
+                        padding: '0 10px',
+                        borderRadius: 9,
+                        border: '1px solid #FED7AA',
+                        fontSize: '0.95rem',
+                        fontWeight: 600,
+                        color: '#C2410C',
+                        background: '#FFF7ED',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    <span style={{ fontSize: '0.62rem', color: '#9A3412', display: 'block', marginTop: 3 }}>
+                      Late/Other fees
+                    </span>
+                  </div>
+                </div>
+
+                {/* Shortfall Resolution Card (Option 4 with Option 1 as default) */}
+                {hasShortfall && (
+                  <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '10px 12px', marginTop: 10, fontSize: '0.75rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 4 }}>
+                      <span style={{ fontWeight: 700, color: '#92400E' }}>
+                        Interest Difference: ₹{fmt(interestShortfallAmount)}
+                      </span>
+                      <span style={{ fontSize: '0.68rem', color: '#B45309' }}>
+                        Suggested ₹{fmt(interestBreakdown.totalSuggestedInterest)} vs Entered ₹{fmt(numericInterest)}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: '#78350F', fontWeight: shortfallAction === 'CARRY_FORWARD' ? 600 : 400 }}>
+                        <input
+                          type="radio"
+                          name="shortfall_action_nce"
+                          checked={shortfallAction === 'CARRY_FORWARD'}
+                          onChange={() => setShortfallAction('CARRY_FORWARD')}
+                        />
+                        <span>Carry forward ₹{fmt(interestShortfallAmount)} as pending interest arrears (Default)</span>
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: '#78350F', fontWeight: shortfallAction === 'WAIVE' ? 600 : 400 }}>
+                        <input
+                          type="radio"
+                          name="shortfall_action_nce"
+                          checked={shortfallAction === 'WAIVE'}
+                          onChange={() => setShortfallAction('WAIVE')}
+                        />
+                        <span>Waive / discount ₹{fmt(interestShortfallAmount)} as concession (Submit for Manager Waiver Approval)</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ── 3. Total Received Banner ── */}
+              <div style={{ background: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)', border: '1px solid var(--brand-primary-border, #A3F5C1)', borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                <div>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--brand-primary-hover, #0E5327)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block' }}>
+                    Total Collection Amount
+                  </span>
+                  <span style={{ fontSize: '1.25rem', color: 'var(--brand-primary, #15803D)', fontWeight: 700, marginTop: 1, display: 'block' }}>
+                    ₹{fmt(totalAmountToCollect)}
+                  </span>
+                </div>
+
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '0.64rem', color: '#64748B', display: 'block' }}>
+                    New Principal Balance
+                  </span>
+                  <span style={{ fontSize: '1.05rem', color: updatedPendingBal > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)', fontWeight: 700 }}>
+                    ₹{fmt(updatedPendingBal)}
+                  </span>
+                </div>
+              </div>
+
+              {willCloseLoan && (
+                <div style={{ fontSize: '0.74rem', marginBottom: 16, color: 'var(--brand-primary-hover, #0E5327)', background: '#F0FEF5', border: '1px solid #A3F5C1', borderRadius: 8, padding: '8px 12px' }}>
+                  ✓ This collection clears the principal in full — the loan will be submitted for closure review.
+                </div>
               )}
 
               <div style={{ marginBottom: 16 }}>
@@ -666,18 +860,34 @@ export default function NewCollectionEntryPage({
               </div>
 
               {paymentMode !== 'CASH' && (
-                <div style={{ marginBottom: 16 }}>
-                  <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 5 }}>
-                    {paymentMode === 'UPI' ? t('nce.ref_upi') : paymentMode === 'CHEQUE' ? t('nce.ref_cheque') : t('nce.ref_bank_transfer')}
-                  </label>
-                  <input
-                    type="text"
-                    value={txnRef}
-                    onChange={(e) => setTxnRef(e.target.value)}
-                    placeholder="Reference number"
-                    style={{ width: '100%', height: 40, padding: '0 12px', borderRadius: 9, border: '1px solid #CBD5E1', fontSize: '0.82rem', color: '#0F172A', boxSizing: 'border-box' }}
-                    required
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                  <div>
+                    <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 5 }}>
+                      Receiving Bank Account *
+                    </label>
+                    <SharedDropdown
+                      value={bankAccountId ? String(bankAccountId) : (bankAccounts[0]?.id ? String(bankAccounts[0].id) : '')}
+                      onChange={(e) => setBankAccountId(e.target.value)}
+                      options={bankAccounts.map(b => ({
+                        value: String(b.id),
+                        label: `${b.bank_name} (${b.account_number ? '...' + String(b.account_number).slice(-4) : b.account_name})`
+                      }))}
+                      buttonStyle={{ height: 40, fontSize: '0.82rem', borderRadius: 9 }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 5 }}>
+                      {paymentMode === 'UPI' ? t('nce.ref_upi') : paymentMode === 'CHEQUE' ? t('nce.ref_cheque') : t('nce.ref_bank_transfer')} *
+                    </label>
+                    <input
+                      type="text"
+                      value={txnRef}
+                      onChange={(e) => setTxnRef(e.target.value)}
+                      placeholder="Reference number"
+                      style={{ width: '100%', height: 40, padding: '0 12px', borderRadius: 9, border: '1px solid #CBD5E1', fontSize: '0.82rem', color: '#0F172A', boxSizing: 'border-box' }}
+                      required
+                    />
+                  </div>
                 </div>
               )}
 
@@ -784,8 +994,8 @@ export default function NewCollectionEntryPage({
                 <button
                   type="button"
                   onClick={handleInitiatePayment}
-                  disabled={posting || numericAmt <= 0}
-                  style={{ background: (posting || numericAmt <= 0) ? '#94A3B8' : 'var(--brand-primary, #15803D)', border: 'none', borderRadius: 10, padding: '10px 28px', fontSize: '0.86rem', fontWeight: 500, color: '#FFFFFF', cursor: (posting || numericAmt <= 0) ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                  disabled={posting || totalAmountToCollect <= 0}
+                  style={{ background: (posting || totalAmountToCollect <= 0) ? '#94A3B8' : 'var(--brand-primary, #15803D)', border: 'none', borderRadius: 10, padding: '10px 28px', fontSize: '0.86rem', fontWeight: 500, color: '#FFFFFF', cursor: (posting || totalAmountToCollect <= 0) ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}
                 >
                   <Send style={{ width: 15, height: 15 }} />
                   <span>{posting ? t('nce.posting_payment') : t('nce.post_collection_payment')}</span>
@@ -830,10 +1040,64 @@ export default function NewCollectionEntryPage({
                   {loanHistory.map(rec => (
                     <tr key={rec.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
                       <td style={{ padding: '7px 8px', color: '#334155' }}>{rec.collection_date}</td>
-                      <td style={{ padding: '7px 8px', color: 'var(--color-info, #2563EB)', fontFamily: 'monospace' }}>{rec.voucher_no}</td>
+                      <td style={{ padding: '7px 8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLastReceipt({
+                              voucher_no: rec.voucher_no,
+                              date: rec.collection_date,
+                              branch: rec.branch || targetLoan.branch,
+                              borrower_name: targetLoan.borrower_name,
+                              phone: targetLoan.phone,
+                              loan_account_no: targetLoan.loan_account_no,
+                              payment_mode: rec.payment_mode,
+                              reference_no: rec.reference_no,
+                              amount: rec.amount,
+                              principal_paid: rec.principal_paid ?? rec.principal_portion ?? rec.principalPaid ?? 0,
+                              interest_paid: rec.interest_paid ?? rec.interest_portion ?? rec.interestPaid ?? 0,
+                              penalty: rec.penalty ?? rec.penalty_portion ?? 0,
+                              interest_from_date: rec.interest_from_date,
+                              interest_paid_upto: rec.interest_paid_upto,
+                              interest_days: rec.interest_days,
+                              interest_shortfall: rec.interest_shortfall,
+                              interest_waiver: rec.interest_waiver,
+                              pending_balance: rec.new_principal_balance,
+                              collector_name: rec.collector_name
+                            });
+                            setShowReceiptPrint(true);
+                          }}
+                          style={{
+                            background: '#F1F5F9',
+                            border: '1px solid #CBD5E1',
+                            borderRadius: 6,
+                            padding: '3px 8px',
+                            fontSize: '0.74rem',
+                            fontWeight: 600,
+                            color: 'var(--color-info, #2563EB)',
+                            fontFamily: 'monospace',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4
+                          }}
+                          title="Click to view and print official voucher"
+                        >
+                          <Receipt style={{ width: 12, height: 12 }} />
+                          <span>{rec.voucher_no}</span>
+                        </button>
+                      </td>
                       <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 600, color: '#0F172A' }}>₹{fmt(rec.amount)}</td>
                       <td style={{ padding: '7px 8px', textAlign: 'right', color: '#0F172A' }}>₹{fmt(rec.principal_paid ?? rec.principal_portion ?? rec.principalPaid ?? 0)}</td>
-                      <td style={{ padding: '7px 8px', textAlign: 'right', color: '#7C3AED' }}>₹{fmt(rec.interest_paid ?? rec.interest_portion ?? rec.interestPaid ?? 0)}</td>
+                      <td style={{ padding: '7px 8px', textAlign: 'right' }}>
+                        <div style={{ color: '#7C3AED', fontWeight: 600 }}>₹{fmt(rec.interest_paid ?? rec.interest_portion ?? rec.interestPaid ?? 0)}</div>
+                        {(rec.interest_paid_upto || rec.interest_from_date) && (
+                          <div style={{ fontSize: '0.65rem', color: '#64748B', whiteSpace: 'nowrap' }}>
+                            {rec.interest_from_date ? `${rec.interest_from_date} → ${rec.interest_paid_upto}` : `Up to ${rec.interest_paid_upto}`}
+                            {rec.interest_days !== null && rec.interest_days !== undefined ? ` (${rec.interest_days}d)` : ''}
+                          </div>
+                        )}
+                      </td>
                       <td style={{ padding: '7px 8px', color: '#334155' }}>{getModeLabel(rec.payment_mode)}</td>
                     </tr>
                   ))}
@@ -864,19 +1128,29 @@ export default function NewCollectionEntryPage({
               </div>
               <div style={{ height: 1, background: '#E2E8F0' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem' }}>
-                <span style={{ color: 'var(--brand-primary-hover, #0E5327)', fontWeight: 500 }}>{t('nce.collection_amount_label')}</span>
-                <span style={{ color: 'var(--brand-primary, #15803D)', fontWeight: 500 }}>₹{fmt(numericAmt)}</span>
+                <span style={{ color: 'var(--brand-primary-hover, #0E5327)', fontWeight: 600 }}>{t('nce.collection_amount_label')}</span>
+                <span style={{ color: 'var(--brand-primary, #15803D)', fontWeight: 700 }}>₹{fmt(totalAmountToCollect)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: '#64748B' }}>
-                <span>Principal ₹{fmt(principalPortion)} • Interest ₹{fmt(interestPortion)}</span>
+                <span>Principal ₹{fmt(numericPrincipal)} • Interest ₹{fmt(numericInterest)}</span>
                 <span>New Bal ₹{fmt(updatedPendingBal)}</span>
               </div>
-              {penaltyAmount > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.86rem', paddingTop: 6, borderTop: '1px dashed #E2E8F0' }}>
-                  <span style={{ color: '#0F172A', fontWeight: 600 }}>Total (incl. ₹{fmt(penaltyAmount)} late fee)</span>
-                  <span style={{ color: '#0F172A', fontWeight: 600 }}>₹{fmt(totalToCollect)}</span>
+              {numericAdditional > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: '#C2410C' }}>
+                  <span>Additional / Fees:</span>
+                  <span>₹{fmt(numericAdditional)}</span>
                 </div>
               )}
+              {hasShortfall && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#92400E', background: '#FFFBEB', padding: '4px 8px', borderRadius: 6 }}>
+                  <span>Shortfall Resolution:</span>
+                  <strong>{shortfallAction === 'CARRY_FORWARD' ? `Carry Forward ₹${fmt(interestShortfallAmount)}` : `Waived ₹${fmt(interestShortfallAmount)}`}</strong>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#7C3AED', paddingTop: 4, borderTop: '1px dashed #E2E8F0' }}>
+                <span>Interest Covered Up To:</span>
+                <strong>{interestUptoDate} ({interestDays}d)</strong>
+              </div>
             </div>
 
             {paidToday && (
@@ -933,60 +1207,19 @@ export default function NewCollectionEntryPage({
         </div>
       )}
 
-      {/* ── Printable Receipt — portaled straight to <body> so the print
-          stylesheet (which hides #root and shows only this overlay) can
-          actually find it; nested inside #root it would print blank. ──── */}
-      {showReceiptPrint && lastReceipt && createPortal(
-        <div className="paper-receipt-printable-overlay" style={{ position: 'fixed', inset: 0, zIndex: 9999999, background: 'rgba(0, 0, 0, 0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div className="paper-receipt-document" style={{ background: '#FFFFFF', color: '#000000', borderRadius: 2, width: 320, maxWidth: '100%', maxHeight: '94vh', overflowY: 'auto', border: '1px solid #000000', fontFamily: '"Courier New", Courier, monospace', padding: '20px 16px', boxSizing: 'border-box', position: 'relative', fontSize: '0.78rem', lineHeight: 1.45 }}>
-            <button type="button" className="no-print" onClick={() => setShowReceiptPrint(false)} style={{ position: 'absolute', right: 12, top: 12, background: '#FFFFFF', border: '1px solid #000000', color: '#000000', width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-              <X style={{ width: 12, height: 12 }} />
-            </button>
-
-            <div style={{ textAlign: 'center', borderBottom: '1px dashed #000000', paddingBottom: 10, marginBottom: 10 }}>
-              <div style={{ fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase' }}>{targetLoan?.branch || 'Branch'} Finance Office</div>
-              <div style={{ marginTop: 6, fontWeight: 700, border: '1px solid #000000', display: 'inline-block', padding: '2px 8px', fontSize: '0.7rem' }}>PAYMENT COLLECTION RECEIPT</div>
-            </div>
-
-            <div style={{ borderBottom: '1px dashed #000000', paddingBottom: 8, marginBottom: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Voucher No:</span><strong>{lastReceipt.voucher_no}</strong></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Date:</span><span>{lastReceipt.collection_date || collectionDate}</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Account No:</span><strong>{targetLoan?.loan_account_no}</strong></div>
-            </div>
-
-            <div style={{ borderBottom: '1px dashed #000000', paddingBottom: 8, marginBottom: 8 }}>
-              <div>Borrower: <strong>{borrowerName}</strong></div>
-              <div>Mobile  : <span>{phoneNo}</span></div>
-              <div>Mode    : <span>{getModeLabel(lastReceipt.payment_mode)} {lastReceipt.reference_no ? `(${lastReceipt.reference_no})` : ''}</span></div>
-            </div>
-
-            <div style={{ borderBottom: '1px dashed #000000', paddingBottom: 10, marginBottom: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', fontWeight: 700, padding: '4px 0', borderBottom: '1px solid #000000' }}><span>RECEIVED:</span><span>Rs. {fmt(lastReceipt.amount)}</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}><span>Principal:</span><span>Rs. {fmt(lastReceipt.principal_paid ?? lastReceipt.principal_portion ?? lastReceipt.principalPaid ?? 0)}</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}><span>Interest:</span><span>Rs. {fmt(lastReceipt.interest_paid ?? lastReceipt.interest_portion ?? lastReceipt.interestPaid ?? 0)}</span></div>
-              {lastReceipt.penalty > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}><span>Late Fee:</span><span>Rs. {fmt(lastReceipt.penalty)}</span></div>
-              )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontWeight: 700 }}><span>Pending Balance:</span><span>Rs. {fmt(Math.max(0, lastReceipt.newPrincipalBalance ?? lastReceipt.new_principal_balance))}</span></div>
-            </div>
-
-            <div style={{ textAlign: 'center', fontSize: '0.68rem' }}>
-              <div>Collector: <strong>{lastReceipt.collector_name || collectorName}</strong></div>
-              <div style={{ margin: '8px 0 4px 0', borderTop: '1px dashed #000000', paddingTop: 6 }}>*** THANK YOU - PAID SUCCESSFULLY ***</div>
-            </div>
-
-            <div className="no-print" style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16, paddingTop: 12, borderTop: '1px solid #000000', fontFamily: 'InterVariable, Inter, -apple-system, sans-serif' }}>
-              <button type="button" onClick={() => window.print()} style={{ border: '1.5px solid #000000', background: '#000000', color: '#FFFFFF', padding: '8px 16px', borderRadius: 4, fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <Printer style={{ width: 14, height: 14 }} />
-                <span>Print</span>
-              </button>
-              <button type="button" onClick={() => setShowReceiptPrint(false)} style={{ border: '1px solid #000000', background: '#FFFFFF', color: '#000000', padding: '8px 14px', borderRadius: 4, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
+      {showReceiptPrint && lastReceipt && (
+        <VoucherReceiptModal
+          company={tenant}
+          voucher={{
+            ...lastReceipt,
+            borrower_name: lastReceipt.borrower_name || borrowerName,
+            phone: lastReceipt.phone || phoneNo,
+            loan_account_no: lastReceipt.loan_account_no || targetLoan?.loan_account_no,
+            branch: lastReceipt.branch || targetLoan?.branch
+          }}
+          typeLabel="COLLECTION RECEIPT"
+          onClose={() => setShowReceiptPrint(false)}
+        />
       )}
 
       {/* Customer Profile Modal */}

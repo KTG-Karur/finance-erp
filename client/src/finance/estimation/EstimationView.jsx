@@ -771,47 +771,66 @@ export default function EstimationView({
         {/* Right Column: Output Metrics, Visual Charts, and Schedule Table */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
 
-          {/* 4 Top KPI Cards — always visible regardless of tab, since these are
-              the headline numbers someone glances at first */}
+          {/* 4 Top KPI Cards — styled according to design system tokens */}
           <div className="estimation-page__kpi-grid">
-            <div className="estimation-page__kpi-card estimation-page__kpi-card--primary">
-              <span className="estimation-page__kpi-card-label">Net Disbursed Amount</span>
-              <span className="estimation-page__kpi-card-value" style={{ color: 'var(--brand-primary, #15803D)' }}>
-                {fmt(estimateResult.netDisbursed)}
-              </span>
-              <span className="estimation-page__kpi-card-subtext">
-                After {fmt(estimateResult.totalDeductions)} deductions
-              </span>
+            <div className="estimation-page__kpi-card" style={{ '--kpi-accent': 'var(--brand-primary, #15803D)' }}>
+              <div className="estimation-page__kpi-card-top">
+                <span className="estimation-page__kpi-card-label">Net Disbursed</span>
+                <div className="estimation-page__kpi-card-icon" style={{ background: '#F0FEF5', color: '#15803D' }}>
+                  <Banknote style={{ width: 16, height: 16 }} />
+                </div>
+              </div>
+              <div className="estimation-page__kpi-card-value" style={{ color: 'var(--brand-primary, #15803D)' }}>
+                ₹{fmt(estimateResult.netDisbursed)}
+              </div>
+              <div className="estimation-page__kpi-card-subtext">
+                {estimateResult.totalDeductions > 0 ? `After ₹${fmt(estimateResult.totalDeductions)} deductions` : 'Zero upfront deductions'}
+              </div>
             </div>
 
-            <div className="estimation-page__kpi-card estimation-page__kpi-card--info">
-              <span className="estimation-page__kpi-card-label">Installment (EMI)</span>
-              <span className="estimation-page__kpi-card-value" style={{ color: '#2563EB' }}>
-                {fmt(estimateResult.installmentAmount)}
-              </span>
-              <span className="estimation-page__kpi-card-subtext">
-                Per {repaymentFrequency.toLowerCase()} period
-              </span>
+            <div className="estimation-page__kpi-card" style={{ '--kpi-accent': '#2563EB' }}>
+              <div className="estimation-page__kpi-card-top">
+                <span className="estimation-page__kpi-card-label">Installment (EMI)</span>
+                <div className="estimation-page__kpi-card-icon" style={{ background: '#EFF6FF', color: '#2563EB' }}>
+                  <Calendar style={{ width: 16, height: 16 }} />
+                </div>
+              </div>
+              <div className="estimation-page__kpi-card-value" style={{ color: '#2563EB' }}>
+                ₹{fmt(estimateResult.installmentAmount)}
+              </div>
+              <div className="estimation-page__kpi-card-subtext">
+                Per {repaymentFrequency.toLowerCase()} due period
+              </div>
             </div>
 
-            <div className="estimation-page__kpi-card estimation-page__kpi-card--warning">
-              <span className="estimation-page__kpi-card-label">Total Interest Payable</span>
-              <span className="estimation-page__kpi-card-value" style={{ color: '#D97706' }}>
-                {fmt(estimateResult.totalInterest)}
-              </span>
-              <span className="estimation-page__kpi-card-subtext">
-                {effectiveMonthlyRate.toFixed(2)}% / mo over {tenureUnit === 'DAYS' ? `${tenureValue} Days` : `${tenureMonths} Mos`}
-              </span>
+            <div className="estimation-page__kpi-card" style={{ '--kpi-accent': '#D97706' }}>
+              <div className="estimation-page__kpi-card-top">
+                <span className="estimation-page__kpi-card-label">Total Interest</span>
+                <div className="estimation-page__kpi-card-icon" style={{ background: '#FFFBEB', color: '#D97706' }}>
+                  <Percent style={{ width: 16, height: 16 }} />
+                </div>
+              </div>
+              <div className="estimation-page__kpi-card-value" style={{ color: '#D97706' }}>
+                ₹{fmt(estimateResult.totalInterest)}
+              </div>
+              <div className="estimation-page__kpi-card-subtext">
+                {effectiveMonthlyRate.toFixed(2)}% / mo ({tenureUnit === 'DAYS' ? `${tenureValue || 0} Days` : `${tenureMonths || 0} Mos`})
+              </div>
             </div>
 
-            <div className="estimation-page__kpi-card estimation-page__kpi-card--success">
-              <span className="estimation-page__kpi-card-label">Total Repayable</span>
-              <span className="estimation-page__kpi-card-value">
-                {fmt(estimateResult.totalPayable)}
-              </span>
-              <span className="estimation-page__kpi-card-subtext">
-                Effective APR: <strong>{estimateResult.effectiveApr}%</strong>
-              </span>
+            <div className="estimation-page__kpi-card" style={{ '--kpi-accent': '#6366F1' }}>
+              <div className="estimation-page__kpi-card-top">
+                <span className="estimation-page__kpi-card-label">Total Repayable</span>
+                <div className="estimation-page__kpi-card-icon" style={{ background: '#EEF2FF', color: '#6366F1' }}>
+                  <Sparkles style={{ width: 16, height: 16 }} />
+                </div>
+              </div>
+              <div className="estimation-page__kpi-card-value" style={{ color: '#0F172A' }}>
+                ₹{fmt(estimateResult.totalPayable)}
+              </div>
+              <div className="estimation-page__kpi-card-subtext">
+                Effective APR: <strong style={{ color: '#4338CA' }}>{estimateResult.effectiveApr}%</strong>
+              </div>
             </div>
           </div>
 
@@ -1034,71 +1053,82 @@ export default function EstimationView({
               </button>
             </div>
 
-            <form onSubmit={handleSaveScheme} style={{ padding: '20px' }}>
-              {schemeFeedbackMsg && (
-                <div style={{
-                  marginBottom: 14,
-                  padding: '8px 12px',
-                  borderRadius: 6,
-                  fontSize: '0.78rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  background: schemeFeedbackMsg.type === 'success' ? '#F0FEF5' : '#FEF2F2',
-                  color: schemeFeedbackMsg.type === 'success' ? '#075F27' : '#991B1B',
-                  border: schemeFeedbackMsg.type === 'success' ? '1px solid #A3F5C1' : '1px solid #FECACA'
-                }}>
-                  {schemeFeedbackMsg.type === 'success' ? <CheckCircle2 style={{ width: 14, height: 14 }} /> : <X style={{ width: 14, height: 14 }} />}
-                  <span>{schemeFeedbackMsg.text}</span>
-                </div>
-              )}
+            <form onSubmit={handleSaveScheme} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              <div style={{ padding: '20px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
+                {schemeFeedbackMsg && (
+                  <div style={{
+                    marginBottom: 14,
+                    padding: '8px 12px',
+                    borderRadius: 6,
+                    fontSize: '0.78rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: schemeFeedbackMsg.type === 'success' ? '#F0FEF5' : '#FEF2F2',
+                    color: schemeFeedbackMsg.type === 'success' ? '#075F27' : '#991B1B',
+                    border: schemeFeedbackMsg.type === 'success' ? '1px solid #A3F5C1' : '1px solid #FECACA'
+                  }}>
+                    {schemeFeedbackMsg.type === 'success' ? <CheckCircle2 style={{ width: 14, height: 14 }} /> : <X style={{ width: 14, height: 14 }} />}
+                    <span>{schemeFeedbackMsg.text}</span>
+                  </div>
+                )}
 
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Scheme Name</label>
-                <input 
-                  type="text" 
-                  required
-                  value={schemeFormName}
-                  onChange={(e) => setSchemeFormName(e.target.value)}
-                  placeholder="e.g. Daily 100-Day Microfinance Scheme"
-                  style={{ width: '100%', height: 36, padding: '0 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.82rem', fontWeight: 600, color: '#0F172A' }}
-                />
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Scheme Name</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={schemeFormName}
+                    onChange={(e) => setSchemeFormName(e.target.value)}
+                    placeholder="e.g. Daily 100-Day Microfinance Scheme"
+                    style={{ width: '100%', height: 36, padding: '0 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.82rem', fontWeight: 600, color: '#0F172A' }}
+                  />
+                </div>
+
+                {/* Terms Summary Card */}
+                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '12px', marginBottom: 18 }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 8 }}>
+                    Scheme Parameters to Save
+                  </span>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px', fontSize: '0.76rem' }}>
+                    <div>
+                      <span style={{ color: '#64748B', display: 'block', fontSize: '0.68rem' }}>Monthly Rate:</span>
+                      <strong style={{ color: '#15803D' }}>{effectiveMonthlyRate.toFixed(2)}% / month</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748B', display: 'block', fontSize: '0.68rem' }}>Single Day Rate:</span>
+                      <strong>{((effectiveMonthlyRate / 30)).toFixed(3)}% / day</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748B', display: 'block', fontSize: '0.68rem' }}>Repayment Cycle:</span>
+                      <strong style={{ textTransform: 'capitalize' }}>{repaymentFrequency.toLowerCase()}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748B', display: 'block', fontSize: '0.68rem' }}>Calculation Method:</span>
+                      <strong>{repaymentMethod} ({interestCalculation === 'CONSTANT_FLAT' ? 'Flat' : 'Reducing'})</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748B', display: 'block', fontSize: '0.68rem' }}>Default Tenure:</span>
+                      <strong>{tenureUnit === 'DAYS' ? `${tenureValue} Days` : `${tenureMonths} Months`}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748B', display: 'block', fontSize: '0.68rem' }}>Processing Fee:</span>
+                      <strong>{processingFeeType === 'AMOUNT' ? `₹${Number(processingFeeValue || 0).toLocaleString('en-IN')}` : `${processingFeeValue}%`}</strong>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Terms Summary Card */}
-              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '12px', marginBottom: 18 }}>
-                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 8 }}>
-                  Scheme Parameters to Save
-                </span>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px', fontSize: '0.76rem' }}>
-                  <div>
-                    <span style={{ color: '#64748B', display: 'block', fontSize: '0.68rem' }}>Monthly Rate:</span>
-                    <strong style={{ color: '#15803D' }}>{effectiveMonthlyRate.toFixed(2)}% / month</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: '#64748B', display: 'block', fontSize: '0.68rem' }}>Single Day Rate:</span>
-                    <strong>{((effectiveMonthlyRate / 30)).toFixed(3)}% / day</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: '#64748B', display: 'block', fontSize: '0.68rem' }}>Repayment Cycle:</span>
-                    <strong style={{ textTransform: 'capitalize' }}>{repaymentFrequency.toLowerCase()}</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: '#64748B', display: 'block', fontSize: '0.68rem' }}>Calculation Method:</span>
-                    <strong>{repaymentMethod} ({interestCalculation === 'CONSTANT_FLAT' ? 'Flat' : 'Reducing'})</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: '#64748B', display: 'block', fontSize: '0.68rem' }}>Default Tenure:</span>
-                    <strong>{tenureUnit === 'DAYS' ? `${tenureValue} Days` : `${tenureMonths} Months`}</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: '#64748B', display: 'block', fontSize: '0.68rem' }}>Processing Fee:</span>
-                    <strong>{processingFeeType === 'AMOUNT' ? `₹${Number(processingFeeValue || 0).toLocaleString('en-IN')}` : `${processingFeeValue}%`}</strong>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              {/* Pinned Footer */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 10,
+                padding: '14px 20px',
+                borderTop: '1px solid #E2E8F0',
+                background: '#F8FAFC',
+                flexShrink: 0
+              }}>
                 <button
                   type="button"
                   disabled={schemeSaving}

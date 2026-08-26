@@ -33,9 +33,11 @@ import {
   Repeat,
   Landmark,
   Lock,
+  Menu,
+  Palette
 } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
-import ThemeCustomizerDrawer from '../components/ThemeCustomizerDrawer';
+import NotificationCenter from '../components/NotificationCenter';
 
 function getInitials(name = '') {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
@@ -51,9 +53,14 @@ export default function AppLayout({
   branchesList = [],
   selectedBranch = 'ALL',
   onChangeBranch,
-  onSaveTheme
+  onSaveTheme,
+  loans = [],
+  bankAccounts = [],
+  chartOfAccounts = [],
+  onNavigateNotification
 }) {
   const { language, setLanguage, t } = useLanguage();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarSearch, setSidebarSearch] = useState('');
   const [ledgerExpanded, setLedgerExpanded] = useState(false);
@@ -109,14 +116,24 @@ export default function AppLayout({
   const isReport = (key) => activeTab === `reports/${key}` || activeTab === key;
   const isSet = (key) => activeTab === `master-settings/${key}` || activeTab === key;
 
-  const toggleCollapse = () => {
-    if (!sidebarCollapsed) {
-      setLedgerExpanded(false);
-      setVouchersExpanded(false);
-      setReportsExpanded(false);
-      setSettingsExpanded(false);
+  const handleNavClick = (tabKey) => {
+    setActiveTab(tabKey);
+    setMobileSidebarOpen(false);
+  };
+
+  const handleSidebarHeaderAction = () => {
+    if (mobileSidebarOpen || (typeof window !== 'undefined' && window.innerWidth <= 768)) {
+      setMobileSidebarOpen(false);
+      setSidebarCollapsed(false);
+    } else {
+      if (!sidebarCollapsed) {
+        setLedgerExpanded(false);
+        setVouchersExpanded(false);
+        setReportsExpanded(false);
+        setSettingsExpanded(false);
+      }
+      setSidebarCollapsed(prev => !prev);
     }
-    setSidebarCollapsed(prev => !prev);
   };
 
   const mini = sidebarCollapsed;
@@ -195,12 +212,17 @@ export default function AppLayout({
       {/* ── App Body: Sidebar + Content Column ────────────────────── */}
       <div className="app-body">
 
+        {/* ── Mobile Backdrop ── */}
+        {mobileSidebarOpen && (
+          <div className="sidebar-mobile-backdrop" onClick={() => setMobileSidebarOpen(false)} />
+        )}
+
         {/* ── Modern SaaS Sidebar (full height) ───────────────────── */}
-        <aside className={`sidebar${mini ? ' sidebar--mini' : ' sidebar--full'}`}>
+        <aside className={`sidebar${mini ? ' sidebar--mini' : ' sidebar--full'}${mobileSidebarOpen ? ' sidebar--mobile-open' : ''}`}>
 
           {/* ── Sidebar Top Header: Module Name ── */}
-          <div className="sidebar__brand" style={{ justifyContent: mini ? 'center' : 'space-between', padding: mini ? '0 8px' : '0 14px' }}>
-            {!mini && (
+          <div className="sidebar__brand" style={{ justifyContent: (mini && !mobileSidebarOpen) ? 'center' : 'space-between', padding: (mini && !mobileSidebarOpen) ? '0 8px' : '0 14px' }}>
+            {(!mini || mobileSidebarOpen) && (
               <div className="sidebar__brand-text">
                 <span className="sidebar__brand-name" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#FFFFFF', letterSpacing: '-0.01em' }}>
                   Financial ERP System
@@ -210,14 +232,17 @@ export default function AppLayout({
             <button
               id="sidebar-collapse-btn"
               className="sidebar__collapse-btn"
-              onClick={toggleCollapse}
-              title={mini ? t('sidebar.expand') : t('sidebar.collapse')}
-              style={{ margin: mini ? '0 auto' : '0' }}
+              onClick={handleSidebarHeaderAction}
+              title={mobileSidebarOpen ? t('common.close', 'Close Menu') : (mini ? t('sidebar.expand') : t('sidebar.collapse'))}
+              style={{ margin: (mini && !mobileSidebarOpen) ? '0 auto' : '0' }}
             >
-              {mini
-                ? <PanelLeftOpen style={{ width: 15, height: 15 }} />
-                : <PanelLeftClose style={{ width: 15, height: 15 }} />
-              }
+              {mobileSidebarOpen ? (
+                <X style={{ width: 16, height: 16 }} />
+              ) : mini ? (
+                <PanelLeftOpen style={{ width: 15, height: 15 }} />
+              ) : (
+                <PanelLeftClose style={{ width: 15, height: 15 }} />
+              )}
             </button>
           </div>
 
@@ -325,7 +350,7 @@ export default function AppLayout({
                         <button
                           id="nav-dashboard"
                           className={itemCls(activeTab === 'dashboard')}
-                          onClick={() => setActiveTab('dashboard')}
+                          onClick={() => handleNavClick('dashboard')}
                           title={t('nav.dashboard')}
                         >
                           <PieChart className="sidebar__item-icon" />
@@ -346,7 +371,7 @@ export default function AppLayout({
                       {(match('Loans') || match('Active Loans') || match('Closed Loans') || match('Loan Applications') || match('Loan Register') || match('Loans Register')) && allowed('loans') && can('LOANS', 'VIEW') && (
                         <button id="nav-active-loans"
                           className={itemCls(isLoan('active-loans') || isLoan('closed-loans') || isLoan('loans-register') || isLoan('loan-applications'))}
-                          onClick={() => setActiveTab('loan-management/loans-register')}
+                          onClick={() => handleNavClick('loan-management/loans-register')}
                           title={t('nav.loans')}
                         >
                           <FileText className="sidebar__item-icon" />
@@ -357,7 +382,7 @@ export default function AppLayout({
                       {match('Collections') && allowed('loans') && can('COLLECTIONS', 'VIEW') && (
                         <button id="nav-collections"
                           className={itemCls(isLoan('collections'))}
-                          onClick={() => setActiveTab('loan-management/collections')}
+                          onClick={() => handleNavClick('loan-management/collections')}
                           title={t('nav.collections')}
                         >
                           <Banknote className="sidebar__item-icon" />
@@ -369,7 +394,7 @@ export default function AppLayout({
                         <button
                           id="nav-fixed-deposits"
                           className={itemCls(activeTab === 'fixed-deposits')}
-                          onClick={() => setActiveTab('fixed-deposits')}
+                          onClick={() => handleNavClick('fixed-deposits')}
                           title={t('nav.fixed_deposits')}
                         >
                           <Banknote className="sidebar__item-icon" />
@@ -381,7 +406,7 @@ export default function AppLayout({
                         <button
                           id="nav-recurring-deposits"
                           className={itemCls(activeTab === 'recurring-deposits')}
-                          onClick={() => setActiveTab('recurring-deposits')}
+                          onClick={() => handleNavClick('recurring-deposits')}
                           title={t('nav.recurring_deposits')}
                         >
                           <Repeat className="sidebar__item-icon" />
@@ -393,7 +418,7 @@ export default function AppLayout({
                         <button
                           id="nav-customer-details"
                           className={itemCls(activeTab === 'customer-details' || isSet('customer-details') || isFin('customer-details'))}
-                          onClick={() => setActiveTab('customer-details')}
+                          onClick={() => handleNavClick('customer-details')}
                           title={t('nav.customer_directory')}
                         >
                           <Users className="sidebar__item-icon" />
@@ -431,7 +456,7 @@ export default function AppLayout({
                                   {match('General Ledger') && (
                                     <button id="nav-gen-ledger"
                                       className={subCls(isFin('general-ledger'))}
-                                      onClick={() => setActiveTab('finance-accounting/general-ledger')}
+                                      onClick={() => handleNavClick('finance-accounting/general-ledger')}
                                     >
                                       <Layers className="sidebar__sub-icon" />
                                       <span>{t('nav.general_ledger')}</span>
@@ -440,7 +465,7 @@ export default function AppLayout({
                                   {match('Loan Ledger') && (
                                     <button id="nav-loan-ledger"
                                       className={subCls(isFin('loan-ledger'))}
-                                      onClick={() => setActiveTab('finance-accounting/loan-ledger')}
+                                      onClick={() => handleNavClick('finance-accounting/loan-ledger')}
                                     >
                                       <FileText className="sidebar__sub-icon" />
                                       <span>{t('nav.loan_ledger')}</span>
@@ -449,7 +474,7 @@ export default function AppLayout({
                                   {match('Customer Ledger') && (
                                     <button id="nav-customer-ledger"
                                       className={subCls(isFin('customer-ledger'))}
-                                      onClick={() => setActiveTab('finance-accounting/customer-ledger')}
+                                      onClick={() => handleNavClick('finance-accounting/customer-ledger')}
                                     >
                                       <Users className="sidebar__sub-icon" />
                                       <span>{t('nav.customer_ledger')}</span>
@@ -463,7 +488,7 @@ export default function AppLayout({
                           {match('Trial Balance') && (
                             <button id="nav-trial-balance"
                               className={itemCls(isFin('trial-balance'))}
-                              onClick={() => setActiveTab('finance-accounting/trial-balance')}
+                              onClick={() => handleNavClick('finance-accounting/trial-balance')}
                               title={t('nav.trial_balance')}
                             >
                               <Scale className="sidebar__item-icon" />
@@ -474,7 +499,7 @@ export default function AppLayout({
                           {match('Day-End Closing') && (
                             <button id="nav-eod-process"
                               className={itemCls(isFin('eod-process'))}
-                              onClick={() => setActiveTab('finance-accounting/eod-process')}
+                              onClick={() => handleNavClick('finance-accounting/eod-process')}
                               title={t('nav.eod_process')}
                             >
                               <Calculator className="sidebar__item-icon" />
@@ -485,7 +510,7 @@ export default function AppLayout({
                           <button
                             id="nav-branch-expenses"
                             className={itemCls(activeTab === 'branch-expenses' || activeTab === 'finance/expenses')}
-                            onClick={() => setActiveTab('branch-expenses')}
+                            onClick={() => handleNavClick('branch-expenses')}
                             title="Branch Expenses"
                           >
                             <Wallet className="sidebar__item-icon" />
@@ -511,7 +536,7 @@ export default function AppLayout({
                                   {match('Auto Vouchers') && (
                                     <button id="nav-auto-vouchers"
                                       className={subCls(isFin('auto-vouchers'))}
-                                      onClick={() => setActiveTab('finance-accounting/auto-vouchers')}
+                                      onClick={() => handleNavClick('finance-accounting/auto-vouchers')}
                                     >
                                       <CreditCard className="sidebar__sub-icon" />
                                       <span>{t('nav.auto_vouchers')}</span>
@@ -520,7 +545,7 @@ export default function AppLayout({
                                   {match('Manual Vouchers') && (
                                     <button id="nav-manual-vouchers"
                                       className={subCls(isFin('manual-vouchers'))}
-                                      onClick={() => setActiveTab('finance-accounting/manual-vouchers')}
+                                      onClick={() => handleNavClick('finance-accounting/manual-vouchers')}
                                     >
                                       <PenLine className="sidebar__sub-icon" />
                                       <span>{t('nav.manual_vouchers')}</span>
@@ -536,56 +561,56 @@ export default function AppLayout({
                         <>
                           <button
                             className={itemCls(isFin('general-ledger'))}
-                            onClick={() => setActiveTab('finance-accounting/general-ledger')}
+                            onClick={() => handleNavClick('finance-accounting/general-ledger')}
                             title={t('nav.general_ledger')}
                           >
                             <Layers className="sidebar__item-icon" />
                           </button>
                           <button
                             className={itemCls(isFin('loan-ledger'))}
-                            onClick={() => setActiveTab('finance-accounting/loan-ledger')}
+                            onClick={() => handleNavClick('finance-accounting/loan-ledger')}
                             title={t('nav.loan_ledger')}
                           >
                             <FileText className="sidebar__item-icon" />
                           </button>
                           <button
                             className={itemCls(isFin('customer-ledger'))}
-                            onClick={() => setActiveTab('finance-accounting/customer-ledger')}
+                            onClick={() => handleNavClick('finance-accounting/customer-ledger')}
                             title={t('nav.customer_ledger')}
                           >
                             <Users className="sidebar__item-icon" />
                           </button>
                           <button
                             className={itemCls(isFin('customer-details') || isSet('customer-details'))}
-                            onClick={() => setActiveTab('finance-accounting/customer-details')}
+                            onClick={() => handleNavClick('finance-accounting/customer-details')}
                             title={t('nav.customer_directory')}
                           >
                             <Users className="sidebar__item-icon" />
                           </button>
                           <button
                             className={itemCls(isFin('trial-balance'))}
-                            onClick={() => setActiveTab('finance-accounting/trial-balance')}
+                            onClick={() => handleNavClick('finance-accounting/trial-balance')}
                             title={t('nav.trial_balance')}
                           >
                             <Scale className="sidebar__item-icon" />
                           </button>
                           <button
                             className={itemCls(isFin('eod-process'))}
-                            onClick={() => setActiveTab('finance-accounting/eod-process')}
+                            onClick={() => handleNavClick('finance-accounting/eod-process')}
                             title={t('nav.eod_process')}
                           >
                             <Calculator className="sidebar__item-icon" />
                           </button>
                           <button
                             className={itemCls(isFin('auto-vouchers'))}
-                            onClick={() => setActiveTab('finance-accounting/auto-vouchers')}
+                            onClick={() => handleNavClick('finance-accounting/auto-vouchers')}
                             title={t('nav.auto_vouchers')}
                           >
                             <CreditCard className="sidebar__item-icon" />
                           </button>
                           <button
                             className={itemCls(isFin('manual-vouchers'))}
-                            onClick={() => setActiveTab('finance-accounting/manual-vouchers')}
+                            onClick={() => handleNavClick('finance-accounting/manual-vouchers')}
                             title={t('nav.manual_vouchers')}
                           >
                             <PenLine className="sidebar__item-icon" />
@@ -621,7 +646,7 @@ export default function AppLayout({
                               {match('Loan Portfolio') && (
                                 <button id="nav-loan-portfolio-report"
                                   className={subCls(isReport('loan-portfolio'))}
-                                  onClick={() => setActiveTab('reports/loan-portfolio')}
+                                  onClick={() => handleNavClick('reports/loan-portfolio')}
                                 >
                                   <FileText className="sidebar__sub-icon" />
                                   <span>{t('nav.loan_portfolio_report')}</span>
@@ -630,7 +655,7 @@ export default function AppLayout({
                               {match('Collections Report') && (
                                 <button id="nav-collections-report"
                                   className={subCls(isReport('collections'))}
-                                  onClick={() => setActiveTab('reports/collections')}
+                                  onClick={() => handleNavClick('reports/collections')}
                                 >
                                   <Banknote className="sidebar__sub-icon" />
                                   <span>{t('nav.collections_report')}</span>
@@ -639,7 +664,7 @@ export default function AppLayout({
                               {match('Investor Capital Report') && (
                                 <button id="nav-investor-capital-report"
                                   className={subCls(isReport('investor-capital'))}
-                                  onClick={() => setActiveTab('reports/investor-capital')}
+                                  onClick={() => handleNavClick('reports/investor-capital')}
                                 >
                                   <Wallet className="sidebar__sub-icon" />
                                   <span>{t('nav.investor_capital_report')}</span>
@@ -648,7 +673,7 @@ export default function AppLayout({
                               {match('Fixed Deposits Report') && (
                                 <button id="nav-fixed-deposit-report"
                                   className={subCls(isReport('fixed-deposits'))}
-                                  onClick={() => setActiveTab('reports/fixed-deposits')}
+                                  onClick={() => handleNavClick('reports/fixed-deposits')}
                                 >
                                   <Banknote className="sidebar__sub-icon" />
                                   <span>{t('nav.fixed_deposit_report')}</span>
@@ -657,7 +682,7 @@ export default function AppLayout({
                               {match('Recurring Deposits Report') && (
                                 <button id="nav-recurring-deposit-report"
                                   className={subCls(isReport('recurring-deposits'))}
-                                  onClick={() => setActiveTab('reports/recurring-deposits')}
+                                  onClick={() => handleNavClick('reports/recurring-deposits')}
                                 >
                                   <Repeat className="sidebar__sub-icon" />
                                   <span>{t('nav.recurring_deposit_report')}</span>
@@ -666,7 +691,7 @@ export default function AppLayout({
                               {match('Financial Statements') && (
                                 <button id="nav-financial-statements-report"
                                   className={subCls(isReport('financial-statements'))}
-                                  onClick={() => setActiveTab('reports/financial-statements')}
+                                  onClick={() => handleNavClick('reports/financial-statements')}
                                 >
                                   <TrendingUp className="sidebar__sub-icon" />
                                   <span>{t('nav.financial_statements_report')}</span>
@@ -675,7 +700,7 @@ export default function AppLayout({
                               {match('Staff Performance') && (
                                 <button id="nav-staff-performance-report"
                                   className={subCls(isReport('staff-performance'))}
-                                  onClick={() => setActiveTab('reports/staff-performance')}
+                                  onClick={() => handleNavClick('reports/staff-performance')}
                                 >
                                   <UserCog className="sidebar__sub-icon" />
                                   <span>{t('nav.staff_performance_report')}</span>
@@ -684,7 +709,7 @@ export default function AppLayout({
                               {match('Expense Report') && (
                                 <button id="nav-expenses-report"
                                   className={subCls(isReport('expenses') || isReport('expense'))}
-                                  onClick={() => setActiveTab('reports/expenses')}
+                                  onClick={() => handleNavClick('reports/expenses')}
                                 >
                                   <TrendingDown className="sidebar__sub-icon" />
                                   <span>{t('nav.expense_report') || 'Expense Report'}</span>
@@ -698,56 +723,56 @@ export default function AppLayout({
                         <>
                           <button
                             className={itemCls(isReport('loan-portfolio'))}
-                            onClick={() => setActiveTab('reports/loan-portfolio')}
+                            onClick={() => handleNavClick('reports/loan-portfolio')}
                             title={t('nav.loan_portfolio_report')}
                           >
                             <FileText className="sidebar__item-icon" />
                           </button>
                           <button
                             className={itemCls(isReport('collections'))}
-                            onClick={() => setActiveTab('reports/collections')}
+                            onClick={() => handleNavClick('reports/collections')}
                             title={t('nav.collections_report')}
                           >
                             <Banknote className="sidebar__item-icon" />
                           </button>
                           <button
                             className={itemCls(isReport('investor-capital'))}
-                            onClick={() => setActiveTab('reports/investor-capital')}
+                            onClick={() => handleNavClick('reports/investor-capital')}
                             title={t('nav.investor_capital_report')}
                           >
                             <Wallet className="sidebar__item-icon" />
                           </button>
                           <button
                             className={itemCls(isReport('fixed-deposits'))}
-                            onClick={() => setActiveTab('reports/fixed-deposits')}
+                            onClick={() => handleNavClick('reports/fixed-deposits')}
                             title={t('nav.fixed_deposit_report')}
                           >
                             <Banknote className="sidebar__item-icon" />
                           </button>
                           <button
                             className={itemCls(isReport('recurring-deposits'))}
-                            onClick={() => setActiveTab('reports/recurring-deposits')}
+                            onClick={() => handleNavClick('reports/recurring-deposits')}
                             title={t('nav.recurring_deposit_report')}
                           >
                             <Repeat className="sidebar__item-icon" />
                           </button>
                           <button
                             className={itemCls(isReport('financial-statements'))}
-                            onClick={() => setActiveTab('reports/financial-statements')}
+                            onClick={() => handleNavClick('reports/financial-statements')}
                             title={t('nav.financial_statements_report')}
                           >
                             <TrendingUp className="sidebar__item-icon" />
                           </button>
                           <button
                             className={itemCls(isReport('staff-performance'))}
-                            onClick={() => setActiveTab('reports/staff-performance')}
+                            onClick={() => handleNavClick('reports/staff-performance')}
                             title={t('nav.staff_performance_report')}
                           >
                             <UserCog className="sidebar__item-icon" />
                           </button>
                           <button
                             className={itemCls(isReport('expenses') || isReport('expense'))}
-                            onClick={() => setActiveTab('reports/expenses')}
+                            onClick={() => handleNavClick('reports/expenses')}
                             title={t('nav.expense_report') || 'Expense Report'}
                           >
                             <TrendingDown className="sidebar__item-icon" />
@@ -783,7 +808,7 @@ export default function AppLayout({
                               {match('Organization & Company') && allowed('org') && (
                                 <button id="nav-org-hierarchy"
                                   className={subCls(isSet('org-hierarchy') || isSet('company-info'))}
-                                  onClick={() => setActiveTab('master-settings/org-hierarchy')}
+                                  onClick={() => handleNavClick('master-settings/org-hierarchy')}
                                 >
                                   <Building2 className="sidebar__sub-icon" />
                                   <span>{t('nav.org_company')}</span>
@@ -792,7 +817,7 @@ export default function AppLayout({
                               {match('Staff Directory') && allowed('employees') && (
                                 <button id="nav-staff"
                                   className={subCls(isSet('staff-directory') || activeTab === 'employees')}
-                                  onClick={() => setActiveTab('master-settings/staff-directory')}
+                                  onClick={() => handleNavClick('master-settings/staff-directory')}
                                 >
                                   <UserCog className="sidebar__sub-icon" />
                                   <span>{t('nav.staff_directory')}</span>
@@ -801,7 +826,7 @@ export default function AppLayout({
                               {match('RBAC Matrix') && allowed('rbac') && (user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'COMPANY_ADMIN') && (
                                 <button id="nav-rbac"
                                   className={subCls(isSet('rbac-matrix'))}
-                                  onClick={() => setActiveTab('master-settings/rbac-matrix')}
+                                  onClick={() => handleNavClick('master-settings/rbac-matrix')}
                                 >
                                   <Shield className="sidebar__sub-icon" />
                                   <span>{t('nav.rbac_matrix')}</span>
@@ -810,7 +835,7 @@ export default function AppLayout({
                               {match('Loan Scheme Master') && allowed('loan_schemes') && (
                                 <button id="nav-interest-details"
                                   className={subCls(isSet('interest-details') || isSet('interest-master'))}
-                                  onClick={() => setActiveTab('master-settings/interest-details')}
+                                  onClick={() => handleNavClick('master-settings/interest-details')}
                                 >
                                   <Percent className="sidebar__sub-icon" />
                                   <span>{t('nav.loan_scheme_master')}</span>
@@ -819,7 +844,7 @@ export default function AppLayout({
                               {(match('Estimation') || match('Calculator') || match('Quotation') || match('Loan Estimator')) && allowed('loans') && can('LOANS', 'VIEW') && (
                                 <button id="nav-estimation"
                                   className={subCls(isSet('estimation'))}
-                                  onClick={() => setActiveTab('master-settings/estimation')}
+                                  onClick={() => handleNavClick('master-settings/estimation')}
                                 >
                                   <Calculator className="sidebar__sub-icon" />
                                   <span>{t('nav.estimation')}</span>
@@ -828,7 +853,7 @@ export default function AppLayout({
                               {match('Expense Allocation') && allowed('expense_allocation') && (
                                 <button id="nav-accounting-masters"
                                   className={subCls(isSet('accounting-masters'))}
-                                  onClick={() => setActiveTab('master-settings/accounting-masters')}
+                                  onClick={() => handleNavClick('master-settings/accounting-masters')}
                                 >
                                   <Wallet className="sidebar__sub-icon" />
                                   <span>{t('nav.expense_allocation')}</span>
@@ -837,7 +862,7 @@ export default function AppLayout({
                               {(match('Investor') || match('Investors') || match('Investor Master') || match('Investor Capital')) && allowed('investors') && (
                                 <button id="nav-investor-master"
                                   className={subCls(isSet('investor-master') || isSet('investors') || isSet('investor-capital') || activeTab === 'investor-capital')}
-                                  onClick={() => setActiveTab('master-settings/investor-master')}
+                                  onClick={() => handleNavClick('master-settings/investor-master')}
                                 >
                                   <Wallet className="sidebar__sub-icon" />
                                   <span>{t('nav.investor_master')}</span>
@@ -845,17 +870,31 @@ export default function AppLayout({
                               )}
                               <button id="nav-chart-of-accounts"
                                 className={subCls(isSet('chart-of-accounts'))}
-                                onClick={() => setActiveTab('master-settings/chart-of-accounts')}
+                                onClick={() => handleNavClick('master-settings/chart-of-accounts')}
                               >
                                 <BookOpen className="sidebar__sub-icon" />
                                 <span>Chart of Accounts</span>
                               </button>
                               <button id="nav-bank-accounts"
                                 className={subCls(isSet('bank-accounts') || isSet('banking-master'))}
-                                onClick={() => setActiveTab('master-settings/bank-accounts')}
+                                onClick={() => handleNavClick('master-settings/bank-accounts')}
                               >
                                 <Landmark className="sidebar__sub-icon" />
                                 <span>Bank Accounts</span>
+                              </button>
+                              <button id="nav-brand-theme"
+                                className={subCls(isSet('brand-theme') || isSet('theme'))}
+                                onClick={() => handleNavClick('master-settings/brand-theme')}
+                              >
+                                <Palette className="sidebar__sub-icon" />
+                                <span>Brand Theme</span>
+                              </button>
+                              <button id="nav-drafts-archive"
+                                className={subCls(isSet('drafts-archive') || isSet('drafts') || isSet('trash'))}
+                                onClick={() => handleNavClick('master-settings/drafts-archive')}
+                              >
+                                <Archive className="sidebar__sub-icon" />
+                                <span>Drafts & Deleted</span>
                               </button>
                             </div>
                           )}
@@ -866,7 +905,7 @@ export default function AppLayout({
                           {allowed('org') && (
                             <button
                               className={itemCls(isSet('org-hierarchy') || isSet('company-info'))}
-                              onClick={() => setActiveTab('master-settings/org-hierarchy')}
+                              onClick={() => handleNavClick('master-settings/org-hierarchy')}
                               title={t('nav.org_company')}
                             >
                               <Building2 className="sidebar__item-icon" />
@@ -875,7 +914,7 @@ export default function AppLayout({
                           {allowed('employees') && (
                             <button
                               className={itemCls(isSet('staff-directory') || activeTab === 'employees')}
-                              onClick={() => setActiveTab('master-settings/staff-directory')}
+                              onClick={() => handleNavClick('master-settings/staff-directory')}
                               title={t('nav.staff_directory')}
                             >
                               <UserCog className="sidebar__item-icon" />
@@ -884,7 +923,7 @@ export default function AppLayout({
                           {allowed('rbac') && (
                             <button
                               className={itemCls(isSet('rbac-matrix'))}
-                              onClick={() => setActiveTab('master-settings/rbac-matrix')}
+                              onClick={() => handleNavClick('master-settings/rbac-matrix')}
                               title={t('nav.rbac_matrix')}
                             >
                               <Shield className="sidebar__item-icon" />
@@ -893,7 +932,7 @@ export default function AppLayout({
                           {allowed('loan_schemes') && (
                             <button
                               className={itemCls(isSet('interest-master'))}
-                              onClick={() => setActiveTab('master-settings/interest-master')}
+                              onClick={() => handleNavClick('master-settings/interest-master')}
                               title={t('nav.loan_scheme_master')}
                             >
                               <Percent className="sidebar__item-icon" />
@@ -902,7 +941,7 @@ export default function AppLayout({
                           {allowed('loans') && can('LOANS', 'VIEW') && (
                             <button
                               className={itemCls(isSet('estimation'))}
-                              onClick={() => setActiveTab('master-settings/estimation')}
+                              onClick={() => handleNavClick('master-settings/estimation')}
                               title={t('nav.estimation')}
                             >
                               <Calculator className="sidebar__item-icon" />
@@ -911,7 +950,7 @@ export default function AppLayout({
                           {allowed('expense_allocation') && (
                             <button
                               className={itemCls(isSet('accounting-masters'))}
-                              onClick={() => setActiveTab('master-settings/accounting-masters')}
+                              onClick={() => handleNavClick('master-settings/accounting-masters')}
                               title={t('nav.expense_allocation')}
                             >
                               <Wallet className="sidebar__item-icon" />
@@ -920,7 +959,7 @@ export default function AppLayout({
                           {allowed('investors') && (
                             <button
                               className={itemCls(isSet('investor-master') || isSet('investors') || isSet('investor-capital') || activeTab === 'investor-capital')}
-                              onClick={() => setActiveTab('master-settings/investor-master')}
+                              onClick={() => handleNavClick('master-settings/investor-master')}
                               title={t('nav.investor_master')}
                             >
                               <Wallet className="sidebar__item-icon" />
@@ -928,10 +967,24 @@ export default function AppLayout({
                           )}
                           <button
                             className={itemCls(isSet('bank-accounts') || isSet('banking-master'))}
-                            onClick={() => setActiveTab('master-settings/bank-accounts')}
+                            onClick={() => handleNavClick('master-settings/bank-accounts')}
                             title="Bank Accounts"
                           >
                             <Landmark className="sidebar__item-icon" />
+                          </button>
+                          <button
+                            className={itemCls(isSet('brand-theme') || isSet('theme'))}
+                            onClick={() => handleNavClick('master-settings/brand-theme')}
+                            title="Brand Theme"
+                          >
+                            <Palette className="sidebar__item-icon" />
+                          </button>
+                          <button
+                            className={itemCls(isSet('drafts-archive') || isSet('drafts') || isSet('trash'))}
+                            onClick={() => handleNavClick('master-settings/drafts-archive')}
+                            title="Drafts & Deleted Archive"
+                          >
+                            <Archive className="sidebar__item-icon" />
                           </button>
                         </>
                       )}
@@ -963,20 +1016,53 @@ export default function AppLayout({
           {/* ── Topbar (scoped to right of sidebar) ─────────────── */}
           <header className="app-header">
             <div className="app-header__left">
+              {/* Mobile Hamburger Toggle */}
+              <button
+                type="button"
+                className="app-header__menu-btn"
+                onClick={() => {
+                  setSidebarCollapsed(false);
+                  setMobileSidebarOpen(v => !v);
+                }}
+                aria-label="Toggle Navigation"
+                title="Toggle Menu"
+              >
+                <Menu style={{ width: 18, height: 18 }} />
+              </button>
+
               {/* Plain Text Company Name on Far Left Edge of Topbar */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
                 {tenant?.logo ? (
                   <img
+                    key={tenant.logo}
                     src={tenant.logo}
                     alt=""
-                    style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', boxShadow: '0 2px 4px rgba(15, 23, 42, 0.15)' }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      if (e.currentTarget.nextElementSibling) {
+                        e.currentTarget.nextElementSibling.style.display = 'flex';
+                      }
+                    }}
+                    style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, boxShadow: '0 2px 4px rgba(15, 23, 42, 0.15)' }}
                   />
-                ) : (
-                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'linear-gradient(135deg, var(--brand-primary, #15803D) 0%, var(--brand-primary-hover, #0E5327) 100%)', color: '#FFFFFF', fontSize: '0.65rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(var(--brand-primary-rgb), 0.2)' }}>
-                    {getInitials(tenant?.name || 'Company')}
-                  </div>
-                )}
-                <span style={{ fontSize: '0.85rem', fontWeight: 500, color: '#1E293B', letterSpacing: '-0.01em' }}>
+                ) : null}
+                <div style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  flexShrink: 0,
+                  background: 'linear-gradient(135deg, var(--brand-primary, #15803D) 0%, var(--brand-primary-hover, #0E5327) 100%)',
+                  color: '#FFFFFF',
+                  fontSize: '0.65rem',
+                  fontWeight: 600,
+                  display: tenant?.logo ? 'none' : 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 2px 4px rgba(var(--brand-primary-rgb), 0.2)'
+                }}>
+                  {getInitials(tenant?.name || 'Company')}
+                </div>
+                <span style={{ fontSize: '0.85rem', fontWeight: 500, color: '#1E293B', letterSpacing: '-0.01em', maxWidth: 'min(150px, 35vw)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {tenant?.name || 'Company'}
                 </span>
               </div>
@@ -1002,6 +1088,18 @@ export default function AppLayout({
                   தமிழ்
                 </button>
               </div>
+
+              {/* Notification Center */}
+              <NotificationCenter
+                loans={loans}
+                bankAccounts={bankAccounts}
+                chartOfAccounts={chartOfAccounts}
+                onNavigate={(route) => {
+                  if (onNavigateNotification) onNavigateNotification(route);
+                  else handleNavClick(route);
+                  setMobileSidebarOpen(false);
+                }}
+              />
 
               <button
                 id="user-menu-btn"
@@ -1187,9 +1285,6 @@ export default function AppLayout({
           </div>
         </div>
       )}
-
-      {/* ── Dynamic Floating Theme Customizer Drawer ─────────────────── */}
-      <ThemeCustomizerDrawer tenant={tenant} user={user} onSaveTheme={onSaveTheme} />
     </div>
   );
 }

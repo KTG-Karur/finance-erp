@@ -754,13 +754,13 @@ export default function DashboardOverviewView({
       </div>
 
       {/* ── 4. Executive Visual Widgets: Cash Flow Liquidity Meter & Overdue Risk Matrix ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif' }}>
+      <div className="db-executive-grid">
 
         {/* COMPONENT 1: Cash Flow & Counter Liquidity Meter */}
-        <div className="db-card" style={{ padding: 20 }}>
-          <div className="db-card__header" style={{ padding: 0, paddingBottom: 14, marginBottom: 16, borderBottom: '1px solid #E2E8F0' }}>
+        <div className="db-card" style={{ padding: '16px 18px' }}>
+          <div className="db-card__header" style={{ padding: 0, paddingBottom: 12, marginBottom: 14, borderBottom: '1px solid #E2E8F0' }}>
             <div>
-              <div className="db-card__title" style={{ fontSize: '0.94rem', fontWeight: 500, color: '#0F172A' }}>
+              <div className="db-card__title" style={{ fontSize: '0.94rem', fontWeight: 600, color: '#0F172A' }}>
                 {t('dash.cashflow_title')}
               </div>
               <div className="db-card__subtitle" style={{ fontSize: '0.74rem', color: '#64748B' }}>
@@ -769,54 +769,54 @@ export default function DashboardOverviewView({
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 18 }}>
-            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: 14 }}>
+          <div className="db-liquidity-grid">
+            <div className="db-liquidity-card">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <Wallet style={{ width: 15, height: 15, color: 'var(--brand-primary, #15803D)' }} />
-                <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 400 }}>{t('dash.counter_liquid_cash')}</span>
+                <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 500 }}>{t('dash.counter_liquid_cash')}</span>
               </div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#0F172A', fontVariantNumeric: 'tabular-nums' }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0F172A', fontVariantNumeric: 'tabular-nums' }}>
                 ₹{fmt(cashCollections || todaysCollection)}
               </div>
-              <span style={{ fontSize: '0.68rem', color: 'var(--brand-primary, #15803D)', fontWeight: 400, marginTop: 4, display: 'block' }}>
+              <span style={{ fontSize: '0.68rem', color: 'var(--brand-primary, #15803D)', fontWeight: 500, marginTop: 4, display: 'block' }}>
                 {t('dash.ready_for_disbursals')}
               </span>
             </div>
 
-            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: 14 }}>
+            <div className="db-liquidity-card">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <Building2 style={{ width: 15, height: 15, color: 'var(--color-info, #2563EB)' }} />
-                <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 400 }}>{t('dash.bank_account_balance')}</span>
+                <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 500 }}>{t('dash.bank_account_balance')}</span>
               </div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#0F172A', fontVariantNumeric: 'tabular-nums' }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0F172A', fontVariantNumeric: 'tabular-nums' }}>
                 ₹{fmt(upiCollections + (totalDisbursedPrincipal * 0.15))}
               </div>
-              <span style={{ fontSize: '0.68rem', color: 'var(--color-info, #2563EB)', fontWeight: 400, marginTop: 4, display: 'block' }}>
+              <span style={{ fontSize: '0.68rem', color: 'var(--color-info, #2563EB)', fontWeight: 500, marginTop: 4, display: 'block' }}>
                 {t('dash.hdfc_operating_ac')}
               </span>
             </div>
           </div>
 
           {/* Inflow vs Outflow Net Meter */}
-          <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: '0.75rem' }}>
-              <span style={{ color: 'var(--brand-primary-hover, #0E5327)', fontWeight: 500 }}>{t('dash.inflow_collections')}: ₹{fmt(totalCollectedPrincipal)}</span>
-              <span style={{ color: 'var(--color-danger-text, #991B1B)', fontWeight: 500 }}>{t('dash.outflow_disbursals')}: ₹{fmt(totalDisbursedPrincipal)}</span>
+          <div className="db-liquidity-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: '0.75rem', flexWrap: 'wrap', gap: 4 }}>
+              <span style={{ color: 'var(--brand-primary-hover, #0E5327)', fontWeight: 600 }}>{t('dash.inflow_collections')}: ₹{fmt(totalCollectedPrincipal)}</span>
+              <span style={{ color: 'var(--color-danger-text, #991B1B)', fontWeight: 600 }}>{t('dash.outflow_disbursals')}: ₹{fmt(totalDisbursedPrincipal)}</span>
             </div>
             <div style={{ height: 8, background: 'var(--color-danger-light, #FEF2F2)', borderRadius: 10, overflow: 'hidden', display: 'flex' }}>
               <div style={{ width: `${Math.min(100, Math.max(10, (totalCollectedPrincipal / (totalDisbursedPrincipal || 1)) * 100))}%`, height: '100%', background: 'var(--brand-primary, #15803D)', borderRadius: 10 }} />
             </div>
             <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', marginTop: 6 }}>
-              {t('dash.net_daily_cashflow')} <strong style={{ color: 'var(--brand-primary, #15803D)', fontWeight: 500 }}>₹{fmt(Math.abs(totalCollectedPrincipal - totalDisbursedPrincipal))} {t('dash.positive_growth')}</strong>
+              {t('dash.net_daily_cashflow')} <strong style={{ color: 'var(--brand-primary, #15803D)', fontWeight: 600 }}>₹{fmt(Math.abs(totalCollectedPrincipal - totalDisbursedPrincipal))} {t('dash.positive_growth')}</strong>
             </span>
           </div>
         </div>
 
         {/* COMPONENT 2: Overdue Risk & Default Aging Bucket Matrix */}
-        <div className="db-card" style={{ padding: 20 }}>
-          <div className="db-card__header" style={{ padding: 0, paddingBottom: 14, marginBottom: 16, borderBottom: '1px solid #E2E8F0' }}>
+        <div className="db-card" style={{ padding: '16px 18px' }}>
+          <div className="db-card__header" style={{ padding: 0, paddingBottom: 12, marginBottom: 14, borderBottom: '1px solid #E2E8F0' }}>
             <div>
-              <div className="db-card__title" style={{ fontSize: '0.94rem', fontWeight: 500, color: '#0F172A' }}>
+              <div className="db-card__title" style={{ fontSize: '0.94rem', fontWeight: 600, color: '#0F172A' }}>
                 {t('dash.overdue_matrix_title')}
               </div>
               <div className="db-card__subtitle" style={{ fontSize: '0.74rem', color: '#64748B' }}>
@@ -825,54 +825,54 @@ export default function DashboardOverviewView({
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="db-risk-matrix-grid">
 
             {/* Tile 1: On-time Active */}
-            <div style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', borderRadius: 10, padding: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ fontSize: '0.72rem', color: 'var(--brand-primary-hover, #0E5327)', fontWeight: 500 }}>{t('dash.on_time_payments')}</span>
-                <span style={{ fontSize: '0.7rem', background: '#FFFFFF', padding: '2px 8px', borderRadius: 12, color: 'var(--brand-primary-hover, #0E5327)', fontWeight: 500 }}>{activeLoans.length} Loans</span>
+            <div className="db-risk-tile db-risk-tile--active">
+              <div className="db-risk-tile__header">
+                <span className="db-risk-tile__title" style={{ color: 'var(--brand-primary-hover, #0E5327)' }}>{t('dash.on_time_payments')}</span>
+                <span className="db-risk-tile__badge" style={{ color: 'var(--brand-primary-hover, #0E5327)' }}>{activeLoans.length} Loans</span>
               </div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--brand-primary-hover, #0E5327)', fontVariantNumeric: 'tabular-nums' }}>
+              <div className="db-risk-tile__value" style={{ color: 'var(--brand-primary-hover, #0E5327)' }}>
                 ₹{fmt(activeLoans.reduce((s, l) => s + (parseFloat(l.principal_amount) || 0), 0))}
               </div>
-              <span style={{ fontSize: '0.66rem', color: 'var(--brand-primary, #15803D)', display: 'block', marginTop: 2 }}>{t('dash.healthy_portfolio')}</span>
+              <span className="db-risk-tile__sub" style={{ color: 'var(--brand-primary, #15803D)' }}>{t('dash.healthy_portfolio')}</span>
             </div>
 
             {/* Tile 2: 1-7 Days Delay */}
-            <div style={{ background: 'var(--color-warning-light, #FFFBEB)', border: '1px solid var(--color-warning-border, #FDE68A)', borderRadius: 10, padding: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ fontSize: '0.72rem', color: 'var(--color-warning-text, #92400E)', fontWeight: 500 }}>{t('dash.days_delayed_1_7')}</span>
-                <span style={{ fontSize: '0.7rem', background: '#FFFFFF', padding: '2px 8px', borderRadius: 12, color: 'var(--color-warning-text, #92400E)', fontWeight: 500 }}>{Math.ceil(overdueLoans.length * 0.6)} Loans</span>
+            <div className="db-risk-tile db-risk-tile--warning-mild">
+              <div className="db-risk-tile__header">
+                <span className="db-risk-tile__title" style={{ color: 'var(--color-warning-text, #92400E)' }}>{t('dash.days_delayed_1_7')}</span>
+                <span className="db-risk-tile__badge" style={{ color: 'var(--color-warning-text, #92400E)' }}>{Math.ceil(overdueLoans.length * 0.6)} Loans</span>
               </div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--color-warning-text, #92400E)', fontVariantNumeric: 'tabular-nums' }}>
+              <div className="db-risk-tile__value" style={{ color: 'var(--color-warning-text, #92400E)' }}>
                 ₹{fmt(overdueLoans.reduce((s, l) => s + (parseFloat(l.pending_amount) || 0), 0) * 0.5)}
               </div>
-              <span style={{ fontSize: '0.66rem', color: 'var(--color-warning-hover, #B45309)', display: 'block', marginTop: 2 }}>{t('dash.mild_overdue_followup')}</span>
+              <span className="db-risk-tile__sub" style={{ color: 'var(--color-warning-hover, #B45309)' }}>{t('dash.mild_overdue_followup')}</span>
             </div>
 
             {/* Tile 3: 8-30 Days Delay */}
-            <div style={{ background: '#FFF7ED', border: '1px solid #FFEDD5', borderRadius: 10, padding: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ fontSize: '0.72rem', color: '#C2410C', fontWeight: 500 }}>{t('dash.days_delayed_8_30')}</span>
-                <span style={{ fontSize: '0.7rem', background: '#FFFFFF', padding: '2px 8px', borderRadius: 12, color: '#C2410C', fontWeight: 500 }}>{Math.floor(overdueLoans.length * 0.3)} Loans</span>
+            <div className="db-risk-tile db-risk-tile--warning-mod">
+              <div className="db-risk-tile__header">
+                <span className="db-risk-tile__title" style={{ color: '#C2410C' }}>{t('dash.days_delayed_8_30')}</span>
+                <span className="db-risk-tile__badge" style={{ color: '#C2410C' }}>{Math.floor(overdueLoans.length * 0.3)} Loans</span>
               </div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: '#C2410C', fontVariantNumeric: 'tabular-nums' }}>
+              <div className="db-risk-tile__value" style={{ color: '#C2410C' }}>
                 ₹{fmt(overdueLoans.reduce((s, l) => s + (parseFloat(l.pending_amount) || 0), 0) * 0.3)}
               </div>
-              <span style={{ fontSize: '0.66rem', color: '#EA580C', display: 'block', marginTop: 2 }}>{t('dash.attention_required')}</span>
+              <span className="db-risk-tile__sub" style={{ color: '#EA580C' }}>{t('dash.attention_required')}</span>
             </div>
 
             {/* Tile 4: 30+ Days Default NPA */}
-            <div style={{ background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', borderRadius: 10, padding: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ fontSize: '0.72rem', color: 'var(--color-danger-text, #991B1B)', fontWeight: 500 }}>{t('dash.days_default_npa')}</span>
-                <span style={{ fontSize: '0.7rem', background: '#FFFFFF', padding: '2px 8px', borderRadius: 12, color: 'var(--color-danger-text, #991B1B)', fontWeight: 500 }}>{Math.floor(overdueLoans.length * 0.1)} Loans</span>
+            <div className="db-risk-tile db-risk-tile--danger-npa">
+              <div className="db-risk-tile__header">
+                <span className="db-risk-tile__title" style={{ color: 'var(--color-danger-text, #991B1B)' }}>{t('dash.days_default_npa')}</span>
+                <span className="db-risk-tile__badge" style={{ color: 'var(--color-danger-text, #991B1B)' }}>{Math.floor(overdueLoans.length * 0.1)} Loans</span>
               </div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--color-danger-text, #991B1B)', fontVariantNumeric: 'tabular-nums' }}>
+              <div className="db-risk-tile__value" style={{ color: 'var(--color-danger-text, #991B1B)' }}>
                 ₹{fmt(overdueLoans.reduce((s, l) => s + (parseFloat(l.pending_amount) || 0), 0) * 0.2)}
               </div>
-              <span style={{ fontSize: '0.66rem', color: 'var(--color-danger, #DC2626)', display: 'block', marginTop: 2 }}>{t('dash.critical_recovery_action')}</span>
+              <span className="db-risk-tile__sub" style={{ color: 'var(--color-danger, #DC2626)' }}>{t('dash.critical_recovery_action')}</span>
             </div>
 
           </div>

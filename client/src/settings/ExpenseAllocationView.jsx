@@ -498,7 +498,7 @@ export default function ExpenseAllocationView({
           </div>
         </div>
         <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={() => setCreateModalOpen(true)} style={{ background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '9px 16px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <button onClick={() => setCreateModalOpen(true)} style={{ background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '9px 16px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
             <Plus style={{ width: 15, height: 15 }} /><span>{t('exp.new_account')}</span>
           </button>
         </div>
@@ -509,8 +509,8 @@ export default function ExpenseAllocationView({
           <Wallet style={{ width: 16, height: 16, color: 'var(--brand-primary, #15803D)' }} />
           <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#0F172A' }}>Expense Accounts</span>
         </div>
-        <div className="table-responsive">
-          <table>
+        <div className="fin-table-scroll">
+          <table style={{ minWidth: 640 }}>
             <thead>
               <tr>
                 <th style={{ width: 50, textAlign: 'center' }}>{t('col.sno')}</th>
@@ -552,28 +552,44 @@ export default function ExpenseAllocationView({
                   </td>
                   <td style={{ textAlign: 'right', fontWeight: 600, color: c.balance > 0 ? 'var(--brand-primary, #15803D)' : 'var(--color-danger, #DC2626)' }}>₹{fmt(c.balance)}</td>
                   <td style={{ textAlign: 'right', color: '#64748B' }}>₹{fmt(c.allocated_total)}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap', width: 230 }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, flexShrink: 0 }}>
                       <button
+                        type="button"
                         onClick={() => setFundAccount(c)}
                         title="Add Funds"
                         style={{
-                          border: '1px solid var(--color-warning-border, #FDE68A)', background: 'var(--color-warning-light, #FFFBEB)', color: 'var(--color-warning, #D97706)', borderRadius: 7,
-                          padding: '6px 12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
-                          fontSize: '0.76rem', fontWeight: 600
+                          border: '1px solid var(--color-warning-border, #FDE68A)', background: 'var(--color-warning-light, #FFFBEB)', color: 'var(--color-warning, #D97706)', borderRadius: 6,
+                          height: 30, padding: '0 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5,
+                          fontSize: '0.74rem', fontWeight: 600, flexShrink: 0
                         }}
                       >
-                        <ArrowUpCircle style={{ width: 16, height: 16 }} />
+                        <ArrowUpCircle style={{ width: 14, height: 14, flexShrink: 0 }} />
                         <span>Add Funds</span>
                       </button>
-                      <button onClick={() => setHistoryAccount(c)} title="View History" style={{ border: '1px solid #E2E8F0', background: '#FFFFFF', color: '#334155', borderRadius: 7, padding: '6px', cursor: 'pointer', display: 'inline-flex' }}>
-                        <History style={{ width: 16, height: 16 }} />
+                      <button
+                        type="button"
+                        onClick={() => setHistoryAccount(c)}
+                        title="View History"
+                        style={{ width: 30, height: 30, flexShrink: 0, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#334155', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
+                      >
+                        <History style={{ width: 14, height: 14, flexShrink: 0 }} />
                       </button>
-                      <button onClick={() => setRenameAccount(c)} title="Rename" style={{ border: '1px solid #E2E8F0', background: '#FFFFFF', color: '#334155', borderRadius: 7, padding: '6px', cursor: 'pointer', display: 'inline-flex' }}>
-                        <Pencil style={{ width: 16, height: 16 }} />
+                      <button
+                        type="button"
+                        onClick={() => setRenameAccount(c)}
+                        title="Rename"
+                        style={{ width: 30, height: 30, flexShrink: 0, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#334155', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
+                      >
+                        <Pencil style={{ width: 14, height: 14, flexShrink: 0 }} />
                       </button>
-                      <button onClick={() => { setDeleteTarget(c); setDeleteError(''); }} title="Delete" style={{ border: 'none', background: 'var(--color-danger-light, #FEE2E2)', color: 'var(--color-danger, #DC2626)', borderRadius: 7, padding: '6px', cursor: 'pointer', display: 'inline-flex' }}>
-                        <Trash2 style={{ width: 16, height: 16 }} />
+                      <button
+                        type="button"
+                        onClick={() => { setDeleteTarget(c); setDeleteError(''); }}
+                        title="Delete"
+                        style={{ width: 30, height: 30, flexShrink: 0, border: '1px solid #FECACA', background: 'var(--color-danger-light, #FEE2E2)', color: 'var(--color-danger, #DC2626)', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
+                      >
+                        <Trash2 style={{ width: 14, height: 14, flexShrink: 0 }} />
                       </button>
                     </div>
                   </td>

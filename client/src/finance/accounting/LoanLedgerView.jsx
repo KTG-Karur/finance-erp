@@ -40,12 +40,18 @@ export default function LoanLedgerView({ loans = [], collections = [], branchesL
     const loanCollections = collections
       .filter(c => c.loan_id === selectedLoan.id)
       .slice()
-      .sort((a, b) => (a.collection_date < b.collection_date ? -1 : a.collection_date > b.collection_date ? 1 : 0));
+      .sort((a, b) => {
+        const timeA = new Date(a.created_at || `${a.collection_date}T00:00:00`).getTime() || 0;
+        const timeB = new Date(b.created_at || `${b.collection_date}T00:00:00`).getTime() || 0;
+        if (a.collection_date !== b.collection_date) return a.collection_date < b.collection_date ? -1 : 1;
+        return timeA - timeB;
+      });
 
     let running = selectedLoan.principal_amount;
     const out = [{
       id: `disbursal-${selectedLoan.id}`,
       date: selectedLoan.loan_date,
+      created_at: selectedLoan.created_at,
       type: 'DISBURSAL',
       voucher_no: '—',
       principal: selectedLoan.principal_amount,
@@ -62,6 +68,7 @@ export default function LoanLedgerView({ loans = [], collections = [], branchesL
       out.push({
         id: c.id,
         date: c.collection_date,
+        created_at: c.created_at,
         type: 'COLLECTION',
         voucher_no: c.voucher_no || '—',
         principal: pPaid,
@@ -170,7 +177,7 @@ export default function LoanLedgerView({ loans = [], collections = [], branchesL
         <table className="fin-grid-table">
           <thead>
             <tr>
-              <th>{t('col.date')}</th>
+              <th>{t('col.date_time') || 'Date & Time'}</th>
               <th>{t('fin.voucher_type_col')}</th>
               <th>{t('col.voucher_no')}</th>
               <th className="num">{t('col.principal')}</th>
@@ -185,7 +192,14 @@ export default function LoanLedgerView({ loans = [], collections = [], branchesL
               <tr><td colSpan="8" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>{!hasBranchSelected ? t('fin.select_branch_hint') : t('fin.no_results_hint')}</td></tr>
             ) : rows.map(row => (
               <tr key={row.id}>
-                <td>{row.date}</td>
+                <td>
+                  <div style={{ fontWeight: 600, color: '#0F172A' }}>{row.date}</div>
+                  {row.created_at && (
+                    <div style={{ fontSize: '0.68rem', color: '#64748B' }}>
+                      {new Date(row.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                    </div>
+                  )}
+                </td>
                 <td><span className="fin-tag">{row.type === 'DISBURSAL' ? t('fin.ref_disbursal') : t('fin.ref_collection')}</span></td>
                 <td className="code">{row.voucher_no}</td>
                 <td className="num">{row.principal ? `₹${fmt(row.principal)}` : '—'}</td>

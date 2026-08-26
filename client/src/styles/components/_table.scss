@@ -16,12 +16,22 @@
   flex-shrink: 0;
   flex-wrap: wrap;
 
+  @include respond-to(md) {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
   &__left {
     display: flex;
     align-items: center;
     gap: $space-2;
     flex: 1;
     min-width: 0;
+
+    @include respond-to(md) {
+      width: 100%;
+      flex-wrap: wrap;
+    }
   }
 
   &__right {
@@ -29,6 +39,12 @@
     align-items: center;
     gap: $space-2;
     flex-shrink: 0;
+
+    @include respond-to(md) {
+      width: 100%;
+      justify-content: flex-start;
+      flex-wrap: wrap;
+    }
   }
 
   &__title {
@@ -56,6 +72,11 @@
   position: relative;
   width: 240px;
 
+  @include respond-to(md) {
+    width: 100%;
+    min-width: 100%;
+  }
+
   .search-icon {
     position: absolute;
     left: 10px;
@@ -70,9 +91,12 @@
   input {
     padding-left: 32px;
     padding-right: $space-2;
-    height: 32px;
+    height: 36px;
+    width: 100%;
     background: $neutral-50;
     border-color: $border-default;
+    border-radius: $radius-md;
+    font-size: $text-base;
 
     &:focus { background: $surface-white; }
   }
@@ -80,7 +104,7 @@
 
 // ── Filter Select ─────────────────────────────────────────────
 .filter-select {
-  height: 32px;
+  height: 36px;
   padding: 0 $space-3;
   background: $neutral-50;
   border: 1px solid $border-default;
@@ -90,6 +114,11 @@
   color: $text-secondary;
   cursor: pointer;
   transition: border-color $duration-fast $ease-out;
+
+  @include respond-to(md) {
+    flex: 1;
+    min-width: 140px;
+  }
 
   &:focus {
     outline: none;
@@ -108,6 +137,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  width: 100%;
 }
 
 // ── Table Scroll Wrapper ──────────────────────────────────────
@@ -115,6 +145,8 @@
   overflow-x: auto;
   overflow-y: auto;
   flex: 1;
+  width: 100%;
+  -webkit-overflow-scrolling: touch;
   @include thin-scrollbar;
 }
 
@@ -323,6 +355,16 @@
   font-size: $text-sm;
   color: $text-muted;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: $space-2;
+
+  @include respond-to(sm) {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 10px 12px;
+    gap: 8px;
+    text-align: center;
+  }
 }
 
 // ── Toolbar Search Compat ──────────────────────────────────────

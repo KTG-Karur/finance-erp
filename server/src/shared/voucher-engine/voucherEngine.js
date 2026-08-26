@@ -38,6 +38,35 @@ export async function createDisbursalVoucher(conn, {
   const modeText = isBank ? (paymentMode === 'CHEQUE' ? 'Cheque' : 'Bank Transfer') : 'Cash';
   const dedText = totalDeductions > 0 ? ` (Gross: ₹${grossPrincipal.toLocaleString('en-IN')}, Net Disbursed: ₹${netDisbursed.toLocaleString('en-IN')})` : '';
 
+  // Source Account Available Balance Check (Liquidity Guard)
+  const [accRows] = await conn.query(
+    `SELECT account_code, account_name, account_type, balance FROM chart_of_accounts WHERE account_code = ?`,
+    [creditCode]
+  );
+  if (accRows.length > 0) {
+    const openingBal = parseFloat(accRows[0].balance || 0);
+    const isDebitNormal = accRows[0].account_type === 'ASSET' || accRows[0].account_type === 'EXPENSE';
+    
+    const [jlRows] = await conn.query(
+      `SELECT COALESCE(SUM(debit), 0) as total_debit, COALESCE(SUM(credit), 0) as total_credit
+       FROM journal_lines
+       WHERE account_code = ?`,
+      [creditCode]
+    );
+    const totalDebit = parseFloat(jlRows[0]?.total_debit || 0);
+    const totalCredit = parseFloat(jlRows[0]?.total_credit || 0);
+    const availableBalance = Math.round((isDebitNormal ? (openingBal + totalDebit - totalCredit) : (openingBal + totalCredit - totalDebit)) * 100) / 100;
+
+    if (availableBalance < netDisbursed) {
+      const displayAccountName = accRows[0].account_name || creditName;
+      const err = new Error(
+        `Insufficient funds in ${displayAccountName} (${creditCode}). Available balance: ₹${availableBalance.toLocaleString('en-IN')}, required net disbursal: ₹${netDisbursed.toLocaleString('en-IN')}. Disbursal rejected — loan remains in the pending stage.`
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+  }
+
   const lines = [
     { account_code: '1100', account_name: 'Loan Receivables Portfolio', debit: grossPrincipal, credit: 0, description: 'Loan Principal Receivable' },
     { account_code: creditCode, account_name: creditName, debit: 0, credit: netDisbursed, description: `${modeText} Net Disbursal${refText}` }
@@ -68,32 +97,30 @@ export async function createDisbursalVoucher(conn, {
   return { entryId: result.id, voucherNo: result.voucher_no, totalAmount: grossPrincipal, netDisbursed };
 }
 
-export async function createCollectionVoucher(conn, { collectionId, receiptNo, borrowerName, amount, principalPaid, interestPaid, penaltyPaid, entryDate, branch, createdBy, paymentMode = 'CASH' }) {
+export async function createCollectionVoucher(conn, { 
+  collectionId, 
+  receiptNo, 
+  borrowerName, 
+  amount, 
+  principalPaid, 
+  interestPaid, 
+  penaltyPaid, 
+  entryDate, 
+  branch, 
+  createdBy, 
+  paymentMode = 'CASH',
+  settlementAccountCode,
+  settlementAccountName
+}) {
   const totalAmount = parseFloat(amount);
   const pPaid = parseFloat(principalPaid) || 0;
   const iPaid = parseFloat(interestPaid) || 0;
   const penPaid = parseFloat(penaltyPaid) || 0;
 
-  // This used to hardcode account 1001 (Cash in Hand) for every collection
-  // regardless of how it was actually received — a UPI/Bank Transfer/Cheque
-  // payment never touched a vault, but was posted as if it had, inflating
-  // Cash in Hand (and therefore Day-End Closing's "Expected Closing Cash")
-  // by the full amount of every non-cash collection ever recorded. Routes to
-  // Bank (1002) for non-cash modes instead, matching how createDisbursalVoucher
-  // already branches on payment mode just above.
   const isBank = (paymentMode || '').toUpperCase() !== 'CASH';
-  const debitCode = isBank ? '1002' : '1001';
-  const debitName = isBank ? 'Bank Account' : 'Cash in Hand';
+  const debitCode = settlementAccountCode || (isBank ? '1002' : '1001');
+  const debitName = settlementAccountName || (isBank ? (paymentMode === 'UPI' ? 'Bank Account (UPI)' : 'Bank Account') : 'Cash in Hand');
 
-  // Cash/Bank received (debit) must equal principal + interest + penalty (credits) —
-  // omitting penalty here used to leave the voucher short by exactly the
-  // penalty amount, which insertVoucherOnConnection's balance check below
-  // would reject outright, failing the whole collection whenever a penalty
-  // was collected. Each credit line is only included when its amount is
-  // actually positive — a payment fully absorbed by interest (principalPaid
-  // === 0, a real, common case for a small/partial payment) would otherwise
-  // emit a Loan Receivables line with both debit and credit at zero, which
-  // insertVoucherOnConnection now correctly rejects as a meaningless line.
   const lines = [
     { account_code: debitCode, account_name: debitName, debit: totalAmount, credit: 0, description: `${isBank ? paymentMode : 'Cash'} Received` }
   ];
@@ -119,14 +146,29 @@ export async function createCollectionVoucher(conn, { collectionId, receiptNo, b
     lines
   });
 
-  return { entryId: result.id, voucherNo: result.voucher_no, totalAmount };
+  return { entryId: result.id, voucherNo: result.voucher_no, totalAmount, settlementAccountCode: debitCode };
 }
 
 // Mirror image of createCollectionVoucher — used when a collection is reverted
 // or a cheque bounces (see collection.service.js). Reverses exactly the lines
 // the original voucher posted: cash goes back out, receivable/interest income
 // go back up/down.
-export async function createCollectionReversalVoucher(conn, { collectionId, receiptNo, borrowerName, amount, principalPaid, interestPaid, penaltyPaid, entryDate, narration, branch, createdBy, paymentMode = 'CASH' }) {
+export async function createCollectionReversalVoucher(conn, { 
+  collectionId, 
+  receiptNo, 
+  borrowerName, 
+  amount, 
+  principalPaid, 
+  interestPaid, 
+  penaltyPaid, 
+  entryDate, 
+  narration, 
+  branch, 
+  createdBy, 
+  paymentMode = 'CASH',
+  settlementAccountCode,
+  settlementAccountName
+}) {
   const totalAmount = parseFloat(amount);
   const pPaid = parseFloat(principalPaid) || 0;
   const iPaid = parseFloat(interestPaid) || 0;
@@ -142,13 +184,14 @@ export async function createCollectionReversalVoucher(conn, { collectionId, rece
   if (penPaid > 0) {
     lines.push({ account_code: '4002', account_name: 'Loan Penalty / Overdue Fee Income', debit: penPaid, credit: 0, description: 'Penalty Income Reversed' });
   }
-  // Must reverse whichever account the original collection actually debited —
-  // a reversal always has to mirror-image the specific voucher it's undoing,
-  // not assume everything was cash (see createCollectionVoucher above).
+  
   const isBank = (paymentMode || '').toUpperCase() !== 'CASH';
+  const creditCode = settlementAccountCode || (isBank ? '1002' : '1001');
+  const creditName = settlementAccountName || (isBank ? (paymentMode === 'UPI' ? 'Bank Account (UPI)' : 'Bank Account') : 'Cash in Hand');
+
   lines.push({
-    account_code: isBank ? '1002' : '1001',
-    account_name: isBank ? 'Bank Account' : 'Cash in Hand',
+    account_code: creditCode,
+    account_name: creditName,
     debit: 0,
     credit: totalAmount,
     description: `${isBank ? paymentMode : 'Cash'} Reversed`
@@ -183,6 +226,8 @@ export async function createPreclosureVoucher(conn, {
   branch,
   createdBy,
   paymentMode = 'CASH',
+  sourceAccountCode,
+  sourceAccountName,
   transactionRef = ''
 }) {
   const tot = parseFloat(totalAmount) || 0;
@@ -195,8 +240,8 @@ export async function createPreclosureVoucher(conn, {
                  (paymentMode || '').toUpperCase().includes('ONLINE') ||
                  (paymentMode || '').toUpperCase().includes('UPI') ||
                  (paymentMode || '').toUpperCase().includes('CHEQUE');
-  const debitCode = isBank ? '1002' : '1001';
-  const debitName = isBank ? 'Bank Account' : 'Cash in Hand';
+  const debitCode = sourceAccountCode || (isBank ? '1002' : '1001');
+  const debitName = sourceAccountName || (isBank ? 'Bank Account' : 'Cash in Hand');
   const refText = transactionRef ? ` [Ref: ${transactionRef}]` : '';
 
   const lines = [

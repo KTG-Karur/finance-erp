@@ -35,7 +35,12 @@ export default function PrintableLoanApplicationSheet({
     window.print();
   };
 
-  const appNo = applicationData.loan_account_no || `APP/${new Date().getFullYear()}/${Math.floor(10000 + Math.random() * 90000)}`;
+  const [stableDraftAppNo] = useState(() => {
+    const year = new Date().getFullYear();
+    return `APP-${year}-0001`;
+  });
+
+  const appNo = applicationData.loan_account_no || applicationData.application_no || stableDraftAppNo;
   const appDate = applicationData.loan_date || new Date().toLocaleDateString('en-IN', {
     day: '2-digit',
     month: '2-digit',
@@ -44,10 +49,15 @@ export default function PrintableLoanApplicationSheet({
 
   const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
 
+  const guarantor = typeof applicationData.guarantor === 'string'
+    ? (() => { try { return JSON.parse(applicationData.guarantor); } catch { return { name: applicationData.guarantor }; } })()
+    : (applicationData.guarantor || null);
+
   const { nominee, security } = applicationData;
 
-  // Gather all uploaded document files from nominee / security sections
+  // Gather all uploaded document files from guarantor / nominee / security sections
   const uploadedFiles = [
+    ...(guarantor?.files || []),
     ...(nominee?.files || []),
     ...(security?.details?.files || [])
   ];
@@ -57,33 +67,35 @@ export default function PrintableLoanApplicationSheet({
 
       {/* Floating Action Controls for Preview Sheet (Hidden when Printing) */}
       <div className="printable-form-floating-btns">
-        <button type="button" onClick={onClose} className="btn-close" title="Close Preview">
-          <ArrowLeft style={{ width: 15, height: 15 }} />
-          <span>Back to List</span>
-        </button>
-
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button type="button" onClick={handlePrint} className="btn-close" style={{ background: '#FFFFFF', color: '#0F172A' }}>
-            <Printer style={{ width: 15, height: 15, color: 'var(--color-info, #2563EB)' }} />
-            <span>Print Form / Save PDF</span>
+        <div className="top-action-row">
+          <button type="button" onClick={onClose} className="btn-close" title="Close Preview">
+            <ArrowLeft style={{ width: 15, height: 15 }} />
+            <span>Back to Form</span>
           </button>
 
+          <button type="button" onClick={handlePrint} className="btn-close btn-print-sheet">
+            <Printer style={{ width: 15, height: 15, color: 'var(--color-info, #2563EB)' }} />
+            <span>Print Form / PDF</span>
+          </button>
+        </div>
+
+        <div className="primary-action-row">
           {onReject && (
-            <button type="button" disabled={actionBusy} onClick={() => setShowRejectModal(true)} className="btn-close" style={{ background: 'var(--color-danger-light, #FEF2F2)', color: 'var(--color-danger-text, #991B1B)', border: '1px solid var(--color-danger-border, #FECACA)', opacity: actionBusy ? 0.6 : 1, cursor: actionBusy ? 'not-allowed' : 'pointer' }}>
+            <button type="button" disabled={actionBusy} onClick={() => setShowRejectModal(true)} className="btn-reject-app">
               <XCircle style={{ width: 15, height: 15 }} />
               <span>Reject Application</span>
             </button>
           )}
 
           {onApprove && (
-            <button type="button" disabled={actionBusy} onClick={() => setShowApproveModal(true)} className="btn-print" style={{ background: 'var(--brand-primary, #15803D)', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.3)', opacity: actionBusy ? 0.6 : 1, cursor: actionBusy ? 'not-allowed' : 'pointer' }}>
+            <button type="button" disabled={actionBusy} onClick={() => setShowApproveModal(true)} className="btn-approve-app">
               <CheckCircle2 style={{ width: 15, height: 15 }} />
               <span>Approve & Disburse Loan</span>
             </button>
           )}
 
           {onConfirmSubmit && !onApprove && (
-            <button type="button" disabled={submitting} onClick={onConfirmSubmit} className="btn-print" style={{ background: 'var(--brand-primary, #15803D)', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.3)', opacity: submitting ? 0.6 : 1, cursor: submitting ? 'not-allowed' : 'pointer' }}>
+            <button type="button" disabled={submitting} onClick={onConfirmSubmit} className="btn-confirm-app">
               <Send style={{ width: 15, height: 15 }} />
               <span>{submitting ? 'Submitting…' : 'Confirm & Submit Application'}</span>
             </button>
@@ -158,8 +170,8 @@ export default function PrintableLoanApplicationSheet({
                 <td className="field-val" style={{ width: '28%' }}>{borrowerData?.borrower_code || applicationData?.loan_account_no || '—'}</td>
               </tr>
               <tr>
-                <td className="field-lbl">Father / Spouse / Guarantor</td>
-                <td className="field-val">{borrowerData?.father_spouse_name || applicationData?.guarantor || '—'}</td>
+                <td className="field-lbl">Father / Spouse Name</td>
+                <td className="field-val">{borrowerData?.father_spouse_name || '—'}</td>
                 <td className="field-lbl">Mobile Phone</td>
                 <td className="field-val">{borrowerData?.phone || applicationData?.phone || '—'}</td>
               </tr>
@@ -225,10 +237,42 @@ export default function PrintableLoanApplicationSheet({
           </table>
         </div>
 
-        {/* 6. Section C: Nominee Details (If Provided) */}
+        {/* 6. Section C: Mandatory Guarantor Details */}
+        {guarantor && (guarantor.name || guarantor.mobile) && (
+          <div className="bank-section">
+            <div className="section-header-bar">Section C: Mandatory Guarantor Details</div>
+
+            <table className="bank-grid-table">
+              <tbody>
+                <tr>
+                  <td className="field-lbl" style={{ width: '22%' }}>Guarantor Name</td>
+                  <td className="field-val" style={{ width: '28%', fontWeight: 700 }}>{guarantor.name}</td>
+                  <td className="field-lbl" style={{ width: '22%' }}>Relationship</td>
+                  <td className="field-val" style={{ width: '28%' }}>{guarantor.final_relationship || guarantor.relationship || '—'}</td>
+                </tr>
+                <tr>
+                  <td className="field-lbl">Date of Birth (DOB)</td>
+                  <td className="field-val">{guarantor.dob || '—'}</td>
+                  <td className="field-lbl">Mobile Phone</td>
+                  <td className="field-val" style={{ fontWeight: 600 }}>{guarantor.mobile || '—'}</td>
+                </tr>
+                <tr>
+                  <td className="field-lbl">ID Proof Type</td>
+                  <td className="field-val">{guarantor.id_proof_type || 'Aadhaar Card'}</td>
+                  <td className="field-lbl">ID / Aadhaar Number</td>
+                  <td className="field-val" style={{ fontWeight: 600 }}>
+                    {guarantor.id_proof_number || guarantor.aadhaar || '—'}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* 7. Section D: Nominee Details (If Provided) */}
         {nominee && nominee.name && (
           <div className="bank-section">
-            <div className="section-header-bar">Section C: Nominee Required Details</div>
+            <div className="section-header-bar">Section D: Nominee Details</div>
 
             <table className="bank-grid-table">
               <tbody>
@@ -257,10 +301,10 @@ export default function PrintableLoanApplicationSheet({
           </div>
         )}
 
-        {/* 7. Section D: Security & Collateral Document Details */}
+        {/* 8. Section E: Security & Collateral Document Details */}
         {security && security.type && security.type !== 'NONE' && (
           <div className="bank-section">
-            <div className="section-header-bar">Section D: Security & Collateral Document Verification</div>
+            <div className="section-header-bar">Section E: Security & Collateral Document Verification</div>
 
             <table className="bank-grid-table">
               <tbody>
@@ -328,10 +372,10 @@ export default function PrintableLoanApplicationSheet({
           </div>
         )}
 
-        {/* 8. Section E: Uploaded Document & Image Attachments Gallery (Printed & Previewed) */}
+        {/* 9. Section F: Uploaded Document & Image Attachments Gallery (Printed & Previewed) */}
         {uploadedFiles.length > 0 && (
           <div className="bank-section">
-            <div className="section-header-bar">Section E: Uploaded Verification Document & Image Attachments</div>
+            <div className="section-header-bar">Section F: Uploaded Verification Document & Image Attachments</div>
             <div className="printed-attachments-container">
               {uploadedFiles.map((fileObj, idx) => {
                 const isImg = fileObj.type?.startsWith('image/') || fileObj.name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
@@ -353,17 +397,23 @@ export default function PrintableLoanApplicationSheet({
           </div>
         )}
 
-        {/* 9. Terms, Declaration & Signatures Box */}
+        {/* 10. Terms, Declaration & Signatures Box */}
         <div className="bank-declaration-box">
-          <div className="dec-title" style={{ fontSize: '0.88rem', fontWeight: 700 }}>Applicant Declaration & Credit Agreement</div>
+          <div className="dec-title" style={{ fontSize: '0.88rem', fontWeight: 700 }}>Applicant & Guarantor Declaration</div>
           <p className="bank-declaration-text" style={{ marginTop: 4 }}>
-            I hereby declare that all particulars and details furnished in this loan application form are true, correct, and complete to the best of my knowledge and belief. I agree to abide by the rules, interest rates, and repayment terms specified by {companyInfo.name}.
+            We hereby declare that all particulars and details furnished in this loan application form are true, correct, and complete to the best of our knowledge and belief. We agree jointly and severally to abide by the rules, interest rates, and repayment terms specified by {companyInfo.name}.
           </p>
 
           <div className="bank-signatures-container">
             <div className="sig-box">
               <div className="sig-space"></div>
-              <div className="sig-title">Applicant Borrower Signature</div>
+              <div className="sig-title">Applicant Borrower</div>
+              <div className="sig-date">Date: {appDate}</div>
+            </div>
+
+            <div className="sig-box">
+              <div className="sig-space"></div>
+              <div className="sig-title">Guarantor Signature</div>
               <div className="sig-date">Date: {appDate}</div>
             </div>
 
@@ -373,7 +423,7 @@ export default function PrintableLoanApplicationSheet({
 
             <div className="sig-box">
               <div className="sig-space"></div>
-              <div className="sig-title">Sanctioning Manager Signature</div>
+              <div className="sig-title">Sanctioning Manager</div>
               <div className="sig-date">Approved & Sanctioned</div>
             </div>
           </div>
@@ -381,41 +431,51 @@ export default function PrintableLoanApplicationSheet({
 
       </div>
 
-      {/* Approval Confirmation Dialog Overlay */}
-      {showApproveModal && (
-        <div className="saas-modal-backdrop" style={{ zIndex: 100000 }}>
+      {/* Approval Confirmation Dialog Overlay (Portaled to document.body) */}
+      {showApproveModal && createPortal(
+        <div className="saas-modal-backdrop" style={{ zIndex: 100020 }}>
           <div className="saas-modal-card" style={{ maxWidth: 480 }}>
             <div className="saas-modal-header">
               <div className="head-left">
                 <div className="head-icon-badge" style={{ background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #15803D)' }}>
-                  <CheckCircle2 style={{ width: 20, height: 20 }} />
+                  <CheckCircle2 style={{ width: 18, height: 18 }} />
                 </div>
                 <div className="head-titles">
                   <h3>Confirm Loan Approval</h3>
-                  <p>Disburse funds & convert to active loan</p>
+                  <p>Approve credit application and send to Disbursal queue</p>
                 </div>
               </div>
               <button onClick={() => setShowApproveModal(false)} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>
             </div>
-            <div className="saas-modal-body" style={{ padding: 18 }}>
-              <p style={{ fontSize: '0.85rem', color: '#334155', lineHeight: 1.5 }}>
-                Are you sure you want to approve loan application <strong>{appNo}</strong> for <strong>{applicationData.borrower_name || borrowerData.full_name}</strong>?
-                <br /><br />
-                Requested Principal: <strong>₹{fmt(applicationData.principal_amount)}</strong>
-                <br />
-                {applicationData?.repayment_frequency === 'MONTHLY' ? 'Monthly EMI' : applicationData?.repayment_frequency === 'WEEKLY' ? 'Weekly Installment' : 'Daily EMI'}:{' '}
-                <strong>
-                  {applicationData.installment_amount != null
-                    ? `₹${fmt(applicationData.installment_amount)}${applicationData?.repayment_frequency === 'MONTHLY' ? '/month' : applicationData?.repayment_frequency === 'WEEKLY' ? '/week' : '/day'}`
-                    : '—'}
-                </strong>
+            <div className="saas-modal-body">
+              <p style={{ fontSize: '0.85rem', color: '#334155', lineHeight: 1.5, margin: 0 }}>
+                Are you sure you want to approve loan application <strong style={{ color: 'var(--brand-primary, #15803D)' }}>{appNo}</strong> for <strong>{applicationData.borrower_name || borrowerData.full_name}</strong>?
               </p>
+
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.8rem', marginTop: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#64748B' }}>Requested Principal:</span>
+                  <strong style={{ color: '#0F172A', fontSize: '0.92rem' }}>₹{fmt(applicationData.principal_amount)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#64748B' }}>Installment:</span>
+                  <strong style={{ color: 'var(--brand-primary-hover, #0E5327)' }}>
+                    {applicationData.installment_amount != null
+                      ? `₹${fmt(applicationData.installment_amount)}${applicationData?.repayment_frequency === 'MONTHLY' ? ' / month' : applicationData?.repayment_frequency === 'WEEKLY' ? ' / week' : ' / day'}`
+                      : '—'}
+                  </strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#64748B' }}>Branch:</span>
+                  <span style={{ fontWeight: 600, color: '#334155' }}>{applicationData.branch || borrowerData.branch || '—'}</span>
+                </div>
+              </div>
             </div>
             {actionError && (
               <div style={{ padding: '0 18px 10px', fontSize: '0.78rem', color: 'var(--color-danger-text, #991B1B)' }}>{actionError}</div>
             )}
-            <div className="saas-modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button type="button" disabled={actionBusy} onClick={() => setShowApproveModal(false)} style={{ border: '1px solid #CBD5E1', background: '#FFF', color: '#334155', padding: '8px 16px', borderRadius: 8, cursor: actionBusy ? 'not-allowed' : 'pointer', fontSize: '0.78rem' }}>Cancel</button>
+            <div className="saas-modal-footer">
+              <button type="button" disabled={actionBusy} onClick={() => setShowApproveModal(false)} className="btn-cancel">Cancel</button>
               <button
                 type="button"
                 disabled={actionBusy}
@@ -431,23 +491,25 @@ export default function PrintableLoanApplicationSheet({
                     setActionBusy(false);
                   }
                 }}
-                style={{ background: 'var(--brand-primary, #15803D)', color: '#FFF', border: 'none', padding: '8px 18px', borderRadius: 8, cursor: actionBusy ? 'not-allowed' : 'pointer', opacity: actionBusy ? 0.7 : 1, fontSize: '0.78rem', fontWeight: 700 }}
+                className="btn-submit"
               >
-                {actionBusy ? 'Processing…' : 'Confirm & Disburse Loan'}
+                <CheckCircle2 style={{ width: 14, height: 14 }} />
+                <span>{actionBusy ? 'Processing…' : 'Confirm & Approve'}</span>
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* Rejection Confirmation Dialog Overlay */}
-      {showRejectModal && (
-        <div className="saas-modal-backdrop" style={{ zIndex: 100000 }}>
+      {/* Rejection Confirmation Dialog Overlay (Portaled to document.body) */}
+      {showRejectModal && createPortal(
+        <div className="saas-modal-backdrop" style={{ zIndex: 100020 }}>
           <div className="saas-modal-card" style={{ maxWidth: 480 }}>
             <div className="saas-modal-header">
               <div className="head-left">
                 <div className="head-icon-badge" style={{ background: 'var(--color-danger-light, #FEF2F2)', color: 'var(--color-danger, #DC2626)' }}>
-                  <XCircle style={{ width: 20, height: 20 }} />
+                  <XCircle style={{ width: 18, height: 18 }} />
                 </div>
                 <div className="head-titles">
                   <h3>Confirm Application Rejection</h3>
@@ -456,24 +518,28 @@ export default function PrintableLoanApplicationSheet({
               </div>
               <button onClick={() => setShowRejectModal(false)} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>
             </div>
-            <div className="saas-modal-body" style={{ padding: 18 }}>
-              <p style={{ fontSize: '0.85rem', color: 'var(--color-danger-text, #991B1B)', marginBottom: 12 }}>
-                Are you sure you want to reject application <strong>{appNo}</strong> for <strong>{applicationData.borrower_name || borrowerData.full_name}</strong>?
+            <div className="saas-modal-body">
+              <p style={{ fontSize: '0.85rem', color: '#334155', lineHeight: 1.5, margin: 0 }}>
+                Are you sure you want to reject application <strong style={{ color: 'var(--color-danger, #DC2626)' }}>{appNo}</strong> for <strong>{applicationData.borrower_name || borrowerData.full_name}</strong>?
               </p>
-              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-danger-text, #991B1B)', textTransform: 'uppercase' }}>Rejection Reason *</label>
-              <textarea
-                rows={2}
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="e.g. KYC mismatch, insufficient income, high risk score..."
-                style={{ width: '100%', marginTop: 6, padding: '8px 12px', border: '1px solid var(--color-danger-border, #FCA5A5)', borderRadius: 8 }}
-              />
+              <div className="form-group" style={{ marginTop: 12 }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: 4 }}>Rejection Reason *</label>
+                <textarea
+                  rows={3}
+                  required
+                  className="input-control"
+                  style={{ height: 'auto', padding: '8px 12px', resize: 'vertical' }}
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="e.g. KYC mismatch, insufficient income, high risk score..."
+                />
+              </div>
             </div>
             {actionError && (
               <div style={{ padding: '0 18px 10px', fontSize: '0.78rem', color: 'var(--color-danger-text, #991B1B)' }}>{actionError}</div>
             )}
-            <div className="saas-modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button type="button" disabled={actionBusy} onClick={() => setShowRejectModal(false)} style={{ border: '1px solid #CBD5E1', background: '#FFF', color: '#334155', padding: '8px 16px', borderRadius: 8, cursor: actionBusy ? 'not-allowed' : 'pointer', fontSize: '0.78rem' }}>Cancel</button>
+            <div className="saas-modal-footer">
+              <button type="button" disabled={actionBusy} onClick={() => setShowRejectModal(false)} className="btn-cancel">Cancel</button>
               <button
                 type="button"
                 disabled={!rejectReason.trim() || actionBusy}
@@ -489,13 +555,16 @@ export default function PrintableLoanApplicationSheet({
                     setActionBusy(false);
                   }
                 }}
-                style={{ background: 'var(--color-danger, #DC2626)', color: '#FFF', border: 'none', padding: '8px 18px', borderRadius: 8, cursor: (rejectReason.trim() && !actionBusy) ? 'pointer' : 'not-allowed', opacity: (rejectReason.trim() && !actionBusy) ? 1 : 0.5, fontSize: '0.78rem', fontWeight: 700 }}
+                className="btn-submit"
+                style={{ background: 'var(--color-danger, #DC2626)' }}
               >
-                {actionBusy ? 'Processing…' : 'Confirm Rejection'}
+                <XCircle style={{ width: 14, height: 14 }} />
+                <span>{actionBusy ? 'Processing…' : 'Confirm Rejection'}</span>
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

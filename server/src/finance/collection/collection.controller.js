@@ -54,3 +54,31 @@ export async function markChequeBouncedHandler(request, reply) {
     return reply.code(err.statusCode || 500).send({ success: false, message: err.message });
   }
 }
+
+export async function getWaiversHandler(request, reply) {
+  try {
+    const waivers = await CollectionService.getWaivers(request.tenantDb, request.query || {});
+    return reply.send({ success: true, count: waivers.length, data: waivers });
+  } catch (err) {
+    return reply.code(err.statusCode || 500).send({ success: false, message: err.message });
+  }
+}
+
+export async function approveWaiverHandler(request, reply) {
+  try {
+    const result = await CollectionService.approveWaiver(request.tenantDb, request.params.id, request.user);
+    return reply.send({ success: true, message: 'Waiver approved successfully', data: result });
+  } catch (err) {
+    return reply.code(err.statusCode || 500).send({ success: false, message: err.message });
+  }
+}
+
+export async function rejectWaiverHandler(request, reply) {
+  try {
+    const result = await CollectionService.rejectWaiver(request.tenantDb, request.params.id, request.body?.reason, request.user);
+    return reply.send({ success: true, message: 'Waiver rejected successfully', data: result });
+  } catch (err) {
+    return reply.code(err.statusCode || 500).send({ success: false, message: err.message });
+  }
+}
+

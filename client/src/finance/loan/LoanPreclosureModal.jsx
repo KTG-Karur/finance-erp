@@ -22,6 +22,8 @@ export default function LoanPreclosureModal({
 
   const [settlementDate, setSettlementDate] = useState(today);
   const [paymentMode, setPaymentMode] = useState('CASH');
+  const [bankAccountId, setBankAccountId] = useState('');
+  const [bankAccounts, setBankAccounts] = useState([]);
   const [transactionRef, setTransactionRef] = useState('');
   const [foreclosureFee, setForeclosureFee] = useState(0);
   const [notes, setNotes] = useState('');
@@ -31,6 +33,20 @@ export default function LoanPreclosureModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [settledResult, setSettledResult] = useState(null);
+
+  // Fetch company bank accounts
+  useEffect(() => {
+    api.get('/finance/bank-accounts')
+      .then(res => {
+        if (res.data?.success && Array.isArray(res.data?.data)) {
+          setBankAccounts(res.data.data.filter(b => b.is_active !== false));
+          if (res.data.data.length > 0) {
+            setBankAccountId(String(res.data.data[0].id));
+          }
+        }
+      })
+      .catch(err => console.warn('Could not load bank accounts:', err));
+  }, []);
 
   // Fetch live preclosure quote from backend API
   const fetchQuote = async (date) => {
@@ -95,9 +111,12 @@ export default function LoanPreclosureModal({
     setError('');
 
     try {
+      const selectedBank = bankAccounts.find(b => String(b.id) === String(bankAccountId));
       const res = await api.post(`/finance/loans/${loan.id}/preclose`, {
         settlement_date: settlementDate,
         payment_mode: paymentMode,
+        bank_account_id: paymentMode !== 'CASH' && bankAccountId ? Number(bankAccountId) : null,
+        source_account_code: paymentMode !== 'CASH' && selectedBank ? selectedBank.ledger_account_code : null,
         transaction_ref: transactionRef,
         foreclosure_fee: Number(foreclosureFee || 0),
         notes
@@ -349,6 +368,46 @@ export default function LoanPreclosureModal({
                 />
               </div>
             </div>
+
+            {/* Receiving Bank Account Dropdown (for non-cash modes) */}
+            {paymentMode !== 'CASH' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+                    Receiving Bank Account *
+                  </label>
+                  <DropdownSelect
+                    value={bankAccountId}
+                    onChange={(e) => setBankAccountId(e.target.value)}
+                    buttonStyle={{ height: 35 }}
+                    options={bankAccounts.map(b => ({
+                      value: String(b.id),
+                      label: `${b.bank_name} (${b.account_number ? '...' + String(b.account_number).slice(-4) : b.account_name})`
+                    }))}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+                    Reference / UTR / Cheque No
+                  </label>
+                  <input
+                    type="text"
+                    value={transactionRef}
+                    onChange={(e) => setTransactionRef(e.target.value)}
+                    placeholder="e.g. UTR12345678"
+                    style={{
+                      width: '100%',
+                      height: 35,
+                      padding: '0 10px',
+                      borderRadius: 6,
+                      border: '1px solid #CBD5E1',
+                      fontSize: '0.8rem',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Dynamic Payoff Breakdown Card */}
             {loadingQuote ? (

@@ -7,7 +7,9 @@ import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import FixedDepositCertificateModal from '../../components/FixedDepositCertificateModal';
 import PrintableFixedDepositRegister from './PrintableFixedDepositRegister';
 import SharedDropdown from '../../components/common/SharedDropdown';
+import SharedDatePicker from '../../components/common/SharedDatePicker';
 import TransactionHistoryModal from '../../components/TransactionHistoryModal';
+import api from '../../api/client';
 
 const FORM_MAX_WIDTH = 780;
 
@@ -45,6 +47,7 @@ function BookFdScreen({ borrowers, onCancel, onSubmit }) {
     interest_rate: 8.5,
     scheme: 'CUMULATIVE',
     payment_mode: 'CASH',
+    reference: '',
     notes: ''
   });
   const [error, setError] = useState('');
@@ -74,6 +77,7 @@ function BookFdScreen({ borrowers, onCancel, onSubmit }) {
         interest_rate: parseFloat(form.interest_rate),
         scheme: form.scheme,
         payment_mode: form.payment_mode,
+        reference: form.reference || null,
         notes: form.notes,
         booking_date: bookingDate.toISOString().slice(0, 10),
         maturity_date: maturityDate.toISOString().slice(0, 10),
@@ -190,7 +194,20 @@ function BookFdScreen({ borrowers, onCancel, onSubmit }) {
           <div className="cf-pane-title" style={{ paddingBottom: 12 }}>
             <UserCheck style={{ width: 16, height: 16, color: 'var(--brand-primary, #15803D)' }} />
             <div>
-              <h3>{t('fd.section_notes_title')}</h3>
+              <h3>Documents & Reference</h3>
+              <p style={{ fontSize: '0.74rem', color: '#64748B', margin: 0 }}>Record document references, collateral, certificates, or KYC details handed over.</p>
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <label>Reference / Documents Given</label>
+              <input
+                type="text"
+                value={form.reference}
+                onChange={e => setField('reference', e.target.value)}
+                className="input-control"
+                placeholder="e.g. Original FD Bond Certificate, Aadhaar Copy, Security Cheque #..."
+              />
             </div>
           </div>
           <div className="form-row">
@@ -304,12 +321,35 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
   const [historyFd, setHistoryFd] = useState(null);
   const [payInterestFd, setPayInterestFd] = useState(null);
   const [payInterestMode, setPayInterestMode] = useState('CASH');
+  const [payInterestPeriodType, setPayInterestPeriodType] = useState('MONTHLY'); // 'MONTHLY' | 'CUSTOM'
+  const [payInterestFromDate, setPayInterestFromDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [payInterestToDate, setPayInterestToDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [payInterestCustomAmount, setPayInterestCustomAmount] = useState('');
+  const [payInterestDate, setPayInterestDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [payInterestBankId, setPayInterestBankId] = useState('');
+  const [payInterestRefNo, setPayInterestRefNo] = useState('');
+  const [bankAccounts, setBankAccounts] = useState([]);
   const [payInterestLoading, setPayInterestLoading] = useState(false);
   const [payInterestError, setPayInterestError] = useState('');
   const [payInterestResult, setPayInterestResult] = useState(null);
   const [statusTab, setStatusTab] = useState('ACTIVE');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
+
+  // Fetch active company bank accounts
+  useEffect(() => {
+    api.get('/finance/bank-accounts')
+      .then(res => {
+        if (res.data?.success && Array.isArray(res.data?.data)) {
+          const activeBanks = res.data.data.filter(b => b.is_active !== false);
+          setBankAccounts(activeBanks);
+          if (activeBanks.length > 0) {
+            setPayInterestBankId(String(activeBanks[0].id));
+          }
+        }
+      })
+      .catch(err => console.warn('Could not load bank accounts:', err));
+  }, []);
 
   // Branch filter (derived via the linked borrower's branch — FDs don't carry
   // their own branch field) — locked/forced by the sidebar's global control.
@@ -370,7 +410,7 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
   const byTab = branchScopedFds.filter(f => f.status === statusTab);
   const filteredFds = byTab.filter(f => {
     const q = searchQuery.toLowerCase().trim();
-    return !q || f.fd_account_no.toLowerCase().includes(q) || f.customer_name.toLowerCase().includes(q);
+    return !q || f.fd_account_no.toLowerCase().includes(q) || f.customer_name.toLowerCase().includes(q) || (f.reference && f.reference.toLowerCase().includes(q));
   });
   const totalPages = Math.ceil(filteredFds.length / pageSize) || 1;
   const safePage = Math.min(page, totalPages);
@@ -466,6 +506,7 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
               <th style={{ width: 50, textAlign: 'center' }}>{t('col.sno')}</th>
               <th>{t('col.fd_account_no')}</th>
               <th>{t('col.customer')}</th>
+              <th>Documents / Ref</th>
               <th>{t('col.scheme')}</th>
               <th className="num">{t('col.principal')}</th>
               <th style={{ textAlign: 'center' }}>{t('col.tenure')}</th>
@@ -479,12 +520,13 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
           </thead>
           <tbody>
             {pagedFds.length === 0 ? (
-              <tr><td colSpan="12" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>{t('fd.no_fds_yet')}</td></tr>
+              <tr><td colSpan="13" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>{t('fd.no_fds_yet')}</td></tr>
             ) : pagedFds.map((fd, idx) => (
               <tr key={fd.id}>
                 <td style={{ textAlign: 'center', color: '#64748B' }}>{startIndex + idx + 1}</td>
                 <td className="code" style={{ color: 'var(--brand-primary, #15803D)', fontWeight: 600 }}>{fd.fd_account_no}</td>
                 <td>{fd.customer_name}</td>
+                <td style={{ fontSize: '0.74rem', color: '#475569', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={fd.reference || '—'}>{fd.reference || '—'}</td>
                 <td style={{ fontSize: '0.78rem', color: '#64748B' }}>{fd.scheme === 'CUMULATIVE' ? t('fdc.cumulative') : t('fdc.monthly_payout')}</td>
                 <td className="num">₹{fmt(fd.principal_amount)}</td>
                 <td style={{ textAlign: 'center', color: '#64748B' }}>{fd.tenure_months}mo</td>
@@ -500,7 +542,21 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
                     {fd.status === 'ACTIVE' && (
                       <>
                         {fd.scheme === 'MONTHLY_PAYOUT' && (
-                          <ActionPill icon={<Wallet style={{ width: 11, height: 11 }} />} label="Pay Interest" tone="neutral" onClick={() => { setPayInterestFd(fd); setPayInterestMode('CASH'); setPayInterestError(''); setPayInterestResult(null); }} />
+                          <ActionPill icon={<Wallet style={{ width: 11, height: 11 }} />} label="Pay Interest" tone="neutral" onClick={() => {
+                            const todayStr = new Date().toISOString().slice(0, 10);
+                            const bDate = fd.booking_date || todayStr;
+                            setPayInterestFd(fd);
+                            setPayInterestMode('CASH');
+                            setPayInterestPeriodType('MONTHLY');
+                            setPayInterestFromDate(bDate);
+                            setPayInterestToDate(todayStr);
+                            setPayInterestCustomAmount('');
+                            setPayInterestDate(todayStr);
+                            setPayInterestBankId(bankAccounts[0]?.id ? String(bankAccounts[0].id) : '');
+                            setPayInterestRefNo('');
+                            setPayInterestError('');
+                            setPayInterestResult(null);
+                          }} />
                         )}
                         <ActionPill icon={<CheckCircle2 style={{ width: 11, height: 11 }} />} label={t('fd.mark_matured')} tone="good" onClick={() => setConfirmAction({ type: 'MATURE', fd })} />
                         <ActionPill icon={<LogOut style={{ width: 11, height: 11 }} />} label={t('fd.premature_exit')} tone="bad" onClick={() => setConfirmAction({ type: 'PREMATURE', fd })} />
@@ -516,24 +572,55 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
       </div>
 
       {confirmAction && (() => {
-        const isMature = confirmAction.type === 'MATURE';
-        // Preview only — mirrors the server's default (server/src/finance/fixedDeposits/
-        // fixedDeposit.service.js#computeProRatedValue): interest prorated for days
-        // actually held at the FD's contracted rate, not a flat cut of the full
-        // maturity value regardless of tenure elapsed. The server recomputes this
-        // itself when no override is submitted, so this is just what staff see
-        // before confirming.
-        const daysHeld = Math.max(0, Math.round((new Date() - new Date(confirmAction.fd.booking_date)) / (1000 * 60 * 60 * 24)));
         const principal = Number(confirmAction.fd.principal_amount) || 0;
         const rate = Number(confirmAction.fd.interest_rate) || 0;
-        const defaultPenaltyPayout = Math.round(principal + principal * (rate / 100) * (daysHeld / 365));
-        const payoutAmount = isMature
-          ? confirmAction.fd.maturity_value
-          : (customPayoutAmount !== '' ? (parseFloat(customPayoutAmount) || 0) : defaultPenaltyPayout);
+        const tenureMonths = Number(confirmAction.fd.tenure_months) || 12;
+        const monthlyAmount = Math.round(principal * (rate / 100) / 12);
+
+        const isMature = confirmAction.type === 'MATURE';
+        const isMonthlyPayout = confirmAction.fd.scheme === 'MONTHLY_PAYOUT';
+
+        const bookingDateStr = String(confirmAction.fd.booking_date || confirmAction.fd.deposit_date || confirmAction.fd.created_at || '').slice(0, 10);
+        const exitDateStr = new Date().toISOString().slice(0, 10);
+        const daysHeld = Math.max(1, Math.round((new Date(exitDateStr) - new Date(bookingDateStr)) / (1000 * 60 * 60 * 24)));
+
+        const fdPayoutVouchers = (journalEntries || []).filter(e => {
+          const text = (e.narration || e.description || '');
+          const isPayout = e.ref_type === 'FD_INTEREST_PAYOUT' || text.toLowerCase().includes('interest payout');
+          const matchesFd = String(e.ref_id) === String(confirmAction.fd.id) || text.includes(confirmAction.fd.fd_account_no);
+          return isPayout && matchesFd;
+        });
+
+        const monthsPaidCount = fdPayoutVouchers.length;
+        const interestPaidAmount = fdPayoutVouchers.reduce((s, v) => {
+          const lineTotal = (v.lines || []).reduce((sum, l) => sum + (Number(l.debit || 0)), 0);
+          return s + (Number(v.total_amount || lineTotal || v.amount || 0));
+        }, 0) || (monthsPaidCount * monthlyAmount);
+
+        let totalAccruedInterest = 0;
+        let unpaidInterest = 0;
+        let defaultMaturityOrPremature = 0;
+
+        if (isMature) {
+          if (isMonthlyPayout) {
+            totalAccruedInterest = Math.round(principal * (rate / 100) * (tenureMonths / 12));
+            unpaidInterest = Math.max(0, totalAccruedInterest - interestPaidAmount);
+            defaultMaturityOrPremature = principal + unpaidInterest;
+          } else {
+            totalAccruedInterest = Math.round(principal * (rate / 100) * (tenureMonths / 12));
+            defaultMaturityOrPremature = Number(confirmAction.fd.maturity_value) || (principal + totalAccruedInterest);
+          }
+        } else {
+          totalAccruedInterest = Math.round(principal * (rate / 100) * (daysHeld / 365));
+          unpaidInterest = Math.max(0, totalAccruedInterest - interestPaidAmount);
+          defaultMaturityOrPremature = principal + unpaidInterest;
+        }
+
+        const payoutAmount = customPayoutAmount !== '' ? (parseFloat(customPayoutAmount) || 0) : defaultMaturityOrPremature;
         const tone = isMature ? { bg: 'var(--brand-primary-light, #F0FEF5)', border: 'var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', icon: 'var(--brand-primary, #15803D)' } : { bg: 'var(--color-danger-light, #FEF2F2)', border: 'var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)', icon: 'var(--color-danger, #DC2626)' };
         return (
           <div className="saas-modal-backdrop">
-            <div className="saas-modal-card" style={{ maxWidth: 440 }}>
+            <div className="saas-modal-card" style={{ maxWidth: 480 }}>
               <div className="saas-modal-header">
                 <div className="head-left">
                   <div className="head-icon-badge" style={{ background: tone.bg, color: tone.icon }}>
@@ -550,44 +637,79 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
                 {confirmError && (
                   <div className="form-alert form-alert--error"><span>{confirmError}</span></div>
                 )}
-                <div style={{ background: tone.bg, border: `1px solid ${tone.border}`, borderRadius: 12, padding: '16px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ background: tone.bg, border: `1px solid ${tone.border}`, borderRadius: 12, padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                      {isMature ? t('fdc.maturity_value') : 'Final Settlement Amount'}
+                      {isMature ? t('fdc.maturity_value') : 'Final Settlement Payout'}
                     </span>
                     <strong style={{ fontSize: '1.3rem', color: tone.color }}>₹{fmt(payoutAmount)}</strong>
                   </div>
                   {!isMature && (
                     <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase' }}>{t('fdc.maturity_value')}</span>
-                      <span style={{ fontSize: '0.9rem', color: '#94A3B8', textDecoration: 'line-through' }}>₹{fmt(confirmAction.fd.maturity_value)}</span>
+                      <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase' }}>Original Maturity</span>
+                      <span style={{ fontSize: '0.88rem', color: '#94A3B8', textDecoration: 'line-through' }}>₹{fmt(confirmAction.fd.maturity_value || (principal + Math.round(principal * (rate / 100) * (tenureMonths / 12))))}</span>
                     </div>
                   )}
                 </div>
 
+                {/* Step-by-Step Accrual & Payout Breakdown */}
+                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.74rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: 6 }}>
+                    <span style={{ fontWeight: 600, color: '#0F172A' }}>Holding Duration:</span>
+                    <strong style={{ color: '#0F172A', fontFamily: 'monospace', fontSize: '0.74rem' }}>
+                      {bookingDateStr} → {exitDateStr} ({daysHeld} day{daysHeld === 1 ? '' : 's'})
+                    </strong>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                    <span>Principal Deposited:</span>
+                    <strong style={{ color: '#0F172A' }}>₹{fmt(principal)}</strong>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                    <span>Accrued Interest ({daysHeld}d @ {rate}% p.a.):</span>
+                    <strong style={{ color: '#15803D' }}>+ ₹{fmt(totalAccruedInterest)}</strong>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                    <span>Prior Interest Paid to Customer:</span>
+                    <span style={{ color: interestPaidAmount > 0 ? '#DC2626' : '#64748B', fontWeight: 600 }}>
+                      - ₹{fmt(interestPaidAmount)} ({monthsPaidCount} payout{monthsPaidCount === 1 ? '' : 's'})
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#0F172A', paddingTop: 6, borderTop: '1px dashed #CBD5E1', fontWeight: 700 }}>
+                    <span>Net Exit Interest Due:</span>
+                    <span style={{ color: unpaidInterest > 0 ? '#2563EB' : '#64748B' }}>+ ₹{fmt(unpaidInterest)}</span>
+                  </div>
+                </div>
+
                 {!isMature && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#334155' }}>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>
                       Premature Settlement Amount (₹)
                     </label>
                     <input
                       type="number"
-                      placeholder={`Default ₹${fmt(defaultPenaltyPayout)}`}
+                      placeholder={`Calculated: ₹${fmt(defaultMaturityOrPremature)}`}
                       value={customPayoutAmount}
                       onChange={(e) => setCustomPayoutAmount(e.target.value)}
                       style={{
-                        height: 36, padding: '0 12px', borderRadius: 8,
+                        height: 38, padding: '0 12px', borderRadius: 8,
                         border: '1px solid #CBD5E1', fontSize: '0.85rem',
-                        fontWeight: 400, fontFamily: 'inherit', outline: 'none'
+                        fontWeight: 500, fontFamily: 'inherit', outline: 'none'
                       }}
                     />
+                    <span style={{ fontSize: '0.68rem', color: '#64748B' }}>
+                      Leave blank to settle with exact formula amount (₹{fmt(defaultMaturityOrPremature)}).
+                    </span>
                   </div>
                 )}
 
-                <p style={{ fontSize: '0.8rem', color: '#334155', margin: 0, lineHeight: 1.5 }}>
+                <p style={{ fontSize: '0.76rem', color: '#475569', margin: 0, lineHeight: 1.4 }}>
                   {isMature
                     ? t('fd.confirm_matured_desc').replace('{amount}', fmt(payoutAmount))
-                    : `Confirm early settlement of FD #${confirmAction.fd.fd_account_no}. Net payout amount ₹${fmt(payoutAmount)} will be processed.`}
+                    : `Confirming premature settlement for FD #${confirmAction.fd.fd_account_no}. Net disbursement of ₹${fmt(payoutAmount)} will be debited.`}
                 </p>
               </div>
               <div className="saas-modal-footer">
@@ -633,16 +755,23 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
         ).length;
         const upcomingMonthNumber = monthsAlreadyPaid + 1;
         const today = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+        const customDays = Math.max(1, Math.round((new Date(payInterestToDate) - new Date(payInterestFromDate)) / (1000 * 60 * 60 * 24)));
+        const proRatedInterest = Math.round(principal * (rate / 100) * (customDays / 365));
+        const effectiveInterestAmount = payInterestPeriodType === 'MONTHLY'
+          ? monthlyAmount
+          : (payInterestCustomAmount !== '' ? Number(payInterestCustomAmount) : proRatedInterest);
+
         return (
           <div className="saas-modal-backdrop">
-            <div className="saas-modal-card" style={{ maxWidth: 400 }}>
+            <div className="saas-modal-card" style={{ maxWidth: 440 }}>
               <div className="saas-modal-header">
                 <div className="head-left">
                   <div className="head-icon-badge" style={{ background: '#F1F5F9', color: '#334155' }}>
                     <Wallet style={{ width: 18, height: 18 }} />
                   </div>
                   <div className="head-titles">
-                    <h3>Pay Monthly Interest</h3>
+                    <h3>Pay FD Interest</h3>
                     <p>{payInterestFd.fd_account_no} — {payInterestFd.customer_name}</p>
                   </div>
                 </div>
@@ -660,7 +789,7 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
                   <div style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', borderRadius: 12, padding: '16px 18px', textAlign: 'center' }}>
                     <CheckCircle2 style={{ width: 26, height: 26, color: 'var(--brand-primary, #15803D)', marginBottom: 6 }} />
                     <p style={{ margin: 0, fontSize: '0.85rem', color: '#0F172A', fontWeight: 600 }}>
-                      ₹{fmt(payInterestResult.amount)} paid — month {payInterestResult.month_number} of {payInterestResult.tenure_months}
+                      ₹{fmt(payInterestResult.amount)} paid successfully
                     </p>
                     <div style={{ marginTop: 12, textAlign: 'left', background: '#FFFFFF', border: '1px solid var(--brand-primary-border, #A3F5C1)', borderRadius: 8, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.76rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -672,8 +801,10 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
                         <strong style={{ color: '#0F172A' }}>{payInterestResult.entry_date || today}</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#64748B' }}>For month:</span>
-                        <strong style={{ color: '#0F172A' }}>Month {payInterestResult.month_number} of {payInterestResult.tenure_months}</strong>
+                        <span style={{ color: '#64748B' }}>Period:</span>
+                        <strong style={{ color: '#0F172A' }}>
+                          {payInterestPeriodType === 'CUSTOM' ? `${payInterestFromDate} → ${payInterestToDate} (${customDays}d)` : `Month ${payInterestResult.month_number} of ${payInterestResult.tenure_months}`}
+                        </strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#64748B' }}>Voucher No:</span>
@@ -683,37 +814,177 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
                   </div>
                 ) : (
                   <>
-                    <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 16px' }}>
-                      <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>This Month's Interest</span>
-                      <strong style={{ fontSize: '1.2rem', color: '#0F172A' }}>₹{fmt(monthlyAmount)}</strong>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => setPayInterestPeriodType('MONTHLY')}
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: 8,
+                          border: `1px solid ${payInterestPeriodType === 'MONTHLY' ? 'var(--brand-primary-border, #A3F5C1)' : '#E2E8F0'}`,
+                          background: payInterestPeriodType === 'MONTHLY' ? 'var(--brand-primary-light, #F0FEF5)' : '#FFFFFF',
+                          color: payInterestPeriodType === 'MONTHLY' ? 'var(--brand-primary, #15803D)' : '#64748B',
+                          fontSize: '0.76rem',
+                          fontWeight: payInterestPeriodType === 'MONTHLY' ? 600 : 400,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Standard 1 Month
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPayInterestPeriodType('CUSTOM')}
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: 8,
+                          border: `1px solid ${payInterestPeriodType === 'CUSTOM' ? 'var(--brand-primary-border, #A3F5C1)' : '#E2E8F0'}`,
+                          background: payInterestPeriodType === 'CUSTOM' ? 'var(--brand-primary-light, #F0FEF5)' : '#FFFFFF',
+                          color: payInterestPeriodType === 'CUSTOM' ? 'var(--brand-primary, #15803D)' : '#64748B',
+                          fontSize: '0.76rem',
+                          fontWeight: payInterestPeriodType === 'CUSTOM' ? 600 : 400,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Custom Date Range
+                      </button>
                     </div>
-                    <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.76rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#64748B' }}>Paying as:</span>
-                        <strong style={{ color: '#0F172A' }}>{user?.name || '—'}</strong>
+
+                    {payInterestPeriodType === 'CUSTOM' && (
+                      <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569' }}>From Date *</label>
+                            <SharedDatePicker
+                              value={payInterestFromDate}
+                              onChange={(e) => setPayInterestFromDate(e.target.value)}
+                              buttonStyle={{ height: 36, fontSize: '0.78rem' }}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569' }}>To Date *</label>
+                            <SharedDatePicker
+                              value={payInterestToDate}
+                              onChange={(e) => setPayInterestToDate(e.target.value)}
+                              buttonStyle={{ height: 36, fontSize: '0.78rem' }}
+                            />
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.74rem', color: '#64748B', borderTop: '1px dashed #E2E8F0', paddingTop: 8 }}>
+                          <span>Days Elapsed: <strong style={{ color: '#0F172A' }}>{customDays} days</strong></span>
+                          <span>Formula: <strong style={{ color: '#0F172A' }}>{rate}% p.a. pro-rated</strong></span>
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#64748B' }}>Date:</span>
-                        <strong style={{ color: '#0F172A' }}>{today}</strong>
+                    )}
+
+                    {/* Interest & Payout Summary Card */}
+                    <div style={{ background: '#F0FEF5', border: '1px solid #A3F5C1', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <span style={{ fontSize: '0.66rem', color: '#166534', display: 'block', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                            {payInterestPeriodType === 'CUSTOM' ? `System Calculated Interest (${customDays}d)` : `This Month's Interest`}
+                          </span>
+                          <strong style={{ fontSize: '1.2rem', color: '#15803D' }}>
+                            ₹{fmt(payInterestPeriodType === 'CUSTOM' ? proRatedInterest : monthlyAmount)}
+                          </strong>
+                        </div>
+
+                        {payInterestPeriodType === 'CUSTOM' && (
+                          <div style={{ textAlign: 'right' }}>
+                            <label style={{ fontSize: '0.68rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: 3 }}>
+                              Actual Payout Amount (₹)
+                            </label>
+                            <input
+                              type="number"
+                              value={payInterestCustomAmount}
+                              onChange={(e) => setPayInterestCustomAmount(e.target.value)}
+                              placeholder={String(proRatedInterest)}
+                              style={{
+                                width: 110,
+                                height: 34,
+                                padding: '0 10px',
+                                borderRadius: 6,
+                                border: '1px solid #86EFAC',
+                                fontSize: '0.9rem',
+                                fontWeight: 700,
+                                color: '#0F172A',
+                                textAlign: 'right',
+                                outline: 'none',
+                                background: '#FFFFFF'
+                              }}
+                            />
+                          </div>
+                        )}
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#64748B' }}>This will record:</span>
-                        <strong style={{ color: '#0F172A' }}>Month {upcomingMonthNumber} of {payInterestFd.tenure_months}</strong>
+
+                      {payInterestPeriodType === 'CUSTOM' && payInterestCustomAmount !== '' && Number(payInterestCustomAmount) !== proRatedInterest && (
+                        <div style={{ fontSize: '0.68rem', color: '#B45309', background: '#FEF3C7', padding: '4px 8px', borderRadius: 6, display: 'flex', justifyContent: 'space-between' }}>
+                          <span>Manual Payout Override</span>
+                          <span>Diff: ₹{fmt(Number(payInterestCustomAmount) - proRatedInterest)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <label style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155' }}>Payout Date *</label>
+                        <SharedDatePicker
+                          value={payInterestDate}
+                          onChange={(e) => setPayInterestDate(e.target.value)}
+                          buttonStyle={{ height: 38, fontSize: '0.8rem' }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <label style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155' }}>Payment Mode *</label>
+                        <SharedDropdown
+                          value={payInterestMode}
+                          onChange={(e) => setPayInterestMode(e.target.value)}
+                          buttonStyle={{ height: 38, fontSize: '0.8rem' }}
+                          options={[
+                            { value: 'CASH', label: 'Cash in Hand' },
+                            { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
+                            { value: 'UPI', label: 'UPI / QR' },
+                            { value: 'CHEQUE', label: 'Cheque' }
+                          ]}
+                        />
                       </div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#334155' }}>Payment Mode</label>
-                      <SharedDropdown
-                        value={payInterestMode}
-                        onChange={(e) => setPayInterestMode(e.target.value)}
-                        options={[
-                          { value: 'CASH', label: 'Cash' },
-                          { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
-                          { value: 'UPI', label: 'UPI' },
-                          { value: 'CHEQUE', label: 'Cheque' }
-                        ]}
-                      />
-                    </div>
+
+                    {payInterestMode !== 'CASH' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: '#F8FAFC', padding: 12, borderRadius: 8, border: '1px solid #E2E8F0' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <label style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155' }}>Source Bank Account *</label>
+                          <SharedDropdown
+                            value={payInterestBankId ? String(payInterestBankId) : (bankAccounts[0]?.id ? String(bankAccounts[0].id) : '')}
+                            onChange={(e) => setPayInterestBankId(e.target.value)}
+                            options={bankAccounts.map(b => ({
+                              value: String(b.id),
+                              label: `${b.bank_name} (${b.account_number ? '...' + String(b.account_number).slice(-4) : b.account_name})`
+                            }))}
+                            buttonStyle={{ height: 36, fontSize: '0.8rem' }}
+                          />
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <label style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155' }}>Reference / UTR / Cheque No</label>
+                          <input
+                            type="text"
+                            value={payInterestRefNo}
+                            onChange={(e) => setPayInterestRefNo(e.target.value)}
+                            placeholder="e.g. UTR / Ref No"
+                            style={{
+                              height: 36,
+                              padding: '0 10px',
+                              borderRadius: 6,
+                              border: '1px solid #CBD5E1',
+                              fontSize: '0.8rem',
+                              outline: 'none'
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -735,7 +1006,16 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
                       setPayInterestLoading(true);
                       setPayInterestError('');
                       try {
-                        const result = await onPayFdMonthlyInterest(payInterestFd.id, payInterestMode);
+                        const result = await onPayFdMonthlyInterest(payInterestFd.id, {
+                          payment_mode: payInterestMode,
+                          payout_date: payInterestDate,
+                          period_type: payInterestPeriodType,
+                          from_date: payInterestPeriodType === 'CUSTOM' ? payInterestFromDate : null,
+                          to_date: payInterestPeriodType === 'CUSTOM' ? payInterestToDate : null,
+                          interest_amount: effectiveInterestAmount,
+                          bank_account_id: payInterestMode !== 'CASH' && payInterestBankId ? Number(payInterestBankId) : null,
+                          reference_no: payInterestRefNo
+                        });
                         setPayInterestResult(result);
                       } catch (err) {
                         setPayInterestError(err?.response?.data?.message || 'Payout failed. Please try again.');
@@ -758,23 +1038,53 @@ export default function FixedDepositsView({ fixedDeposits = [], borrowers = [], 
         <FixedDepositCertificateModal
           company={tenant}
           fd={certificateFd}
+          journalEntries={journalEntries}
           labels={certificateLabels(certificateFd)}
           onClose={() => setCertificateFd(null)}
         />
       )}
 
-      {historyFd && (
-        <TransactionHistoryModal
-          title="Fixed Deposit Transaction History"
-          accountLabel={`${historyFd.fd_account_no} — ${historyFd.customer_name}`}
-          tenant={tenant}
-          entries={journalEntries.filter(e =>
-            ['FD_BOOKING', 'FD_INTEREST_PAYOUT', 'FD_MATURITY', 'FD_PREMATURE_CLOSE'].includes(e.ref_type) &&
-            String(e.ref_id) === String(historyFd.id)
-          )}
-          onClose={() => setHistoryFd(null)}
-        />
-      )}
+      {historyFd && (() => {
+        const isMonthly = historyFd.scheme === 'MONTHLY_PAYOUT';
+        const principal = Number(historyFd.principal_amount) || 0;
+        const rate = Number(historyFd.interest_rate) || 0;
+        const tenureMonths = Number(historyFd.tenure_months) || 12;
+        const monthlyAmount = Math.round(principal * (rate / 100) / 12);
+        const fullExpectedInterest = Math.round(principal * (rate / 100) * (tenureMonths / 12));
+
+        const fdEntries = journalEntries.filter(e =>
+          ['FD_BOOKING', 'FD_INTEREST_PAYOUT', 'FD_MATURITY', 'FD_PREMATURE_CLOSE'].includes(e.ref_type) &&
+          (String(e.ref_id) === String(historyFd.id) || (e.description && e.description.includes(historyFd.fd_account_no)))
+        );
+
+        const payoutEntries = fdEntries.filter(e => e.ref_type === 'FD_INTEREST_PAYOUT');
+        const monthsPaid = payoutEntries.length;
+        const totalInterestPaid = payoutEntries.reduce((s, v) => s + ((v.lines || []).reduce((sum, l) => sum + (l.debit || 0), 0) || Number(v.total_amount || v.amount || 0)), 0) || (monthsPaid * monthlyAmount);
+        const unpaidInterest = isMonthly ? Math.max(0, fullExpectedInterest - totalInterestPaid) : 0;
+
+        const accountMeta = {
+          principal,
+          rate,
+          tenureMonths,
+          ...(isMonthly ? {
+            monthlyAmount,
+            monthsPaid,
+            totalInterestPaid,
+            unpaidInterest
+          } : {})
+        };
+
+        return (
+          <TransactionHistoryModal
+            title={isMonthly ? "Fixed Deposit Payout & Transaction History" : "Fixed Deposit Transaction History"}
+            accountLabel={`${historyFd.fd_account_no} — ${historyFd.customer_name} (${isMonthly ? 'Monthly Payout' : 'Cumulative'})`}
+            accountMeta={accountMeta}
+            tenant={tenant}
+            entries={fdEntries}
+            onClose={() => setHistoryFd(null)}
+          />
+        );
+      })()}
 
       {printOverallRegister && (
         <PrintableFixedDepositRegister

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Printer, History } from 'lucide-react';
+import { X, Printer, History, Receipt } from 'lucide-react';
+import VoucherReceiptModal from './VoucherReceiptModal';
 
 // Plain-language label for a ledger ref_type — the raw double-entry account
 // names (e.g. "Recurring Deposit Liability" debited, "Cash In Hand" credited)
@@ -24,23 +25,22 @@ const REF_TYPE_LABELS = {
 export default function TransactionHistoryModal({
   title = 'Transaction History',
   accountLabel = '',
+  accountMeta = null,
   entries = [],
   tenant,
   onClose
 }) {
+  const [selectedVoucherForModal, setSelectedVoucherForModal] = useState(null);
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
-  // One row per transaction, not per debit/credit line — the amount is just
-  // the total that moved (debits always equal credits in a balanced voucher,
-  // so either side gives the real transaction amount), and the type is a
-  // plain-language label instead of the underlying account names.
   const sorted = [...entries]
     .map(entry => ({
       ...entry,
-      amount: (entry.lines || []).reduce((sum, l) => sum + (l.debit || 0), 0),
-      typeLabel: REF_TYPE_LABELS[entry.ref_type] || entry.narration || 'Transaction'
+      amount: (entry.lines || []).reduce((sum, l) => sum + (l.debit || 0), 0) || Number(entry.total_amount || 0),
+      typeLabel: REF_TYPE_LABELS[entry.ref_type] || entry.narration || entry.description || 'Transaction',
+      descText: entry.description || entry.narration || ''
     }))
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
+    .sort((a, b) => new Date(a.date || a.entry_date) - new Date(b.date || b.entry_date));
 
   const handlePrint = () => window.print();
 
@@ -84,11 +84,52 @@ export default function TransactionHistoryModal({
           {accountLabel && <p style={{ margin: 0, fontSize: '0.8rem', color: '#333333' }}>{accountLabel}</p>}
         </div>
 
+        {accountMeta && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, marginBottom: 16, background: '#F8FAFC', padding: '10px 12px', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: '0.74rem' }}>
+            {accountMeta.principal !== undefined && (
+              <div>
+                <span style={{ color: '#64748B', display: 'block', fontSize: '0.66rem', textTransform: 'uppercase' }}>Principal</span>
+                <strong style={{ color: '#0F172A', fontSize: '0.88rem' }}>₹{fmt(accountMeta.principal)}</strong>
+              </div>
+            )}
+            {accountMeta.rate !== undefined && (
+              <div>
+                <span style={{ color: '#64748B', display: 'block', fontSize: '0.66rem', textTransform: 'uppercase' }}>Interest Rate</span>
+                <strong style={{ color: '#0F172A', fontSize: '0.88rem' }}>{accountMeta.rate}% p.a.</strong>
+              </div>
+            )}
+            {accountMeta.monthlyAmount !== undefined && (
+              <div>
+                <span style={{ color: '#64748B', display: 'block', fontSize: '0.66rem', textTransform: 'uppercase' }}>Monthly Payout</span>
+                <strong style={{ color: '#2563EB', fontSize: '0.88rem' }}>₹{fmt(accountMeta.monthlyAmount)}</strong>
+              </div>
+            )}
+            {accountMeta.monthsPaid !== undefined && (
+              <div>
+                <span style={{ color: '#64748B', display: 'block', fontSize: '0.66rem', textTransform: 'uppercase' }}>Paid Payouts</span>
+                <strong style={{ color: '#15803D', fontSize: '0.88rem' }}>{accountMeta.monthsPaid} / {accountMeta.tenureMonths || '—'} mo</strong>
+              </div>
+            )}
+            {accountMeta.totalPaidInterest !== undefined && (
+              <div>
+                <span style={{ color: '#64748B', display: 'block', fontSize: '0.66rem', textTransform: 'uppercase' }}>Interest Paid</span>
+                <strong style={{ color: '#15803D', fontSize: '0.88rem' }}>₹{fmt(accountMeta.totalPaidInterest)}</strong>
+              </div>
+            )}
+            {accountMeta.unpaidInterest !== undefined && (
+              <div>
+                <span style={{ color: '#64748B', display: 'block', fontSize: '0.66rem', textTransform: 'uppercase' }}>Pending Interest</span>
+                <strong style={{ color: accountMeta.unpaidInterest > 0 ? '#DC2626' : '#64748B', fontSize: '0.88rem' }}>₹{fmt(accountMeta.unpaidInterest)}</strong>
+              </div>
+            )}
+          </div>
+        )}
+
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
           <thead>
             <tr>
               <th style={thStyle}>Date</th>
-              <th style={thStyle}>Transaction</th>
+              <th style={thStyle}>Transaction Details</th>
               <th style={thStyle}>Receipt / Voucher No</th>
               <th style={{ ...thStyle, textAlign: 'right' }}>Amount (₹)</th>
             </tr>
@@ -98,9 +139,39 @@ export default function TransactionHistoryModal({
               <tr><td colSpan={4} style={{ ...tdStyle, textAlign: 'center', padding: '18px 6px', color: '#666666' }}>No transactions recorded yet.</td></tr>
             ) : sorted.map(entry => (
               <tr key={entry.id}>
-                <td style={tdStyle}>{entry.date}</td>
-                <td style={tdStyle}>{entry.typeLabel}</td>
-                <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{entry.voucher_no}</td>
+                <td style={tdStyle}>{entry.date || entry.entry_date}</td>
+                <td style={tdStyle}>
+                  <strong>{entry.typeLabel}</strong>
+                  {entry.descText && entry.descText !== entry.typeLabel && (
+                    <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: 2 }}>{entry.descText}</div>
+                  )}
+                </td>
+                <td style={{ ...tdStyle }}>
+                  {entry.voucher_no ? (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedVoucherForModal(entry)}
+                      style={{
+                        background: '#F1F5F9',
+                        border: '1px solid #CBD5E1',
+                        borderRadius: 6,
+                        padding: '3px 8px',
+                        fontSize: '0.74rem',
+                        fontWeight: 600,
+                        color: 'var(--brand-primary, #15803D)',
+                        fontFamily: 'monospace',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}
+                      title="Click to view and print official voucher"
+                    >
+                      <Receipt style={{ width: 12, height: 12 }} />
+                      <span>{entry.voucher_no}</span>
+                    </button>
+                  ) : '—'}
+                </td>
                 <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700 }}>{fmt(entry.amount)}</td>
               </tr>
             ))}
@@ -108,9 +179,9 @@ export default function TransactionHistoryModal({
           {sorted.length > 0 && (
             <tfoot>
               <tr>
-                <td colSpan={3} style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, background: '#F8FAFC' }}>Total</td>
+                <td colSpan={3} style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, background: '#F8FAFC' }}>Total Disbursed / Transacted</td>
                 <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, background: '#F8FAFC' }}>
-                  {fmt(sorted.reduce((sum, e) => sum + e.amount, 0))}
+                  ₹{fmt(sorted.reduce((sum, e) => sum + e.amount, 0))}
                 </td>
               </tr>
             </tfoot>
@@ -131,7 +202,19 @@ export default function TransactionHistoryModal({
     </div>
   );
 
-  return createPortal(content, document.body);
+  return (
+    <>
+      {createPortal(content, document.body)}
+      {selectedVoucherForModal && (
+        <VoucherReceiptModal
+          company={tenant}
+          voucher={selectedVoucherForModal}
+          typeLabel={selectedVoucherForModal.typeLabel || 'TRANSACTION VOUCHER'}
+          onClose={() => setSelectedVoucherForModal(null)}
+        />
+      )}
+    </>
+  );
 }
 
 const thStyle = { border: '1px solid #333333', background: '#F1F5F9', padding: '6px 8px', textAlign: 'left', fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase' };

@@ -5,22 +5,20 @@ import { saveBase64File } from '../../shared/utils/fileStorage.js';
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 const GLOBAL_SCOPE_ROLES = ['ADMIN', 'COMPANY_ADMIN', 'SUPER_ADMIN'];
-// Must match the `users.role` ENUM exactly (see the tenant migration) — an
-// out-of-enum value fails at the DB with a raw "Data truncated" error instead
-// of a clean 400, so it's validated here before that query ever runs.
-const VALID_ROLES = ['COMPANY_ADMIN', 'ADMIN', 'COLLECTOR', 'MANAGER', 'STAFF'];
-
 function assertValidRole(role) {
-  if (role !== undefined && role !== null && !VALID_ROLES.includes(role)) {
-    const err = new Error(`Invalid role '${role}'. Must be one of: ${VALID_ROLES.join(', ')}.`);
-    err.statusCode = 400;
-    throw err;
+  if (role !== undefined && role !== null) {
+    const r = String(role).trim();
+    if (!r || r.length > 64) {
+      const err = new Error('Role must be a valid string between 1 and 64 characters.');
+      err.statusCode = 400;
+      throw err;
+    }
   }
 }
 
 export async function getAllEmployees(db, companyId) {
   const [users] = await db.query(
-    'SELECT id, company_id, name, email, phone, photo, role, status FROM users WHERE company_id = ?',
+    'SELECT id, company_id, name, email, phone, photo, role, status FROM users WHERE company_id = ? AND deleted_at IS NULL',
     [companyId]
   );
 
@@ -142,15 +140,13 @@ export async function updateEmployee(db, companyId, userId, payload, companyCode
 }
 
 export async function deleteEmployee(db, companyId, userId) {
-  const [existing] = await db.execute('SELECT id FROM users WHERE id = ? AND company_id = ?', [userId, companyId]);
+  const [existing] = await db.execute('SELECT id FROM users WHERE id = ? AND company_id = ? AND deleted_at IS NULL', [userId, companyId]);
   if (!existing.length) {
     const err = new Error('Employee not found.');
     err.statusCode = 404;
     throw err;
   }
-  await db.execute('DELETE FROM user_branches WHERE user_id = ? AND company_id = ?', [userId, companyId]);
-  await db.execute('DELETE FROM employee_permissions WHERE user_id = ? AND company_id = ?', [userId, companyId]);
-  await db.execute('DELETE FROM users WHERE id = ? AND company_id = ?', [userId, companyId]);
+  await db.execute('UPDATE users SET deleted_at = CURRENT_TIMESTAMP, status = "INACTIVE" WHERE id = ? AND company_id = ? AND deleted_at IS NULL', [userId, companyId]);
 }
 
 export async function updateEmployeePermissions(db, companyId, userId, permissions) {

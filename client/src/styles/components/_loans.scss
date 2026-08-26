@@ -49,6 +49,13 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
   font-family: $font-macos !important;
 
+  @include respond-to(md) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+
   .header-left {
     display: flex;
     align-items: center;
@@ -95,6 +102,12 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
     align-items: center;
     gap: 10px;
 
+    @include respond-to(md) {
+      width: 100%;
+      justify-content: flex-start;
+      flex-wrap: wrap;
+    }
+
     .btn-disburse {
       border: none;
       background: var(--brand-primary, #15803D);
@@ -111,6 +124,11 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
       transition: all 0.15s ease;
       box-shadow: 0 2px 6px rgba(var(--brand-primary-rgb), 0.2);
 
+      @include respond-to(md) {
+        flex: 1;
+        justify-content: center;
+      }
+
       &:hover {
         background: var(--brand-primary-hover, #0E5327);
         box-shadow: 0 4px 10px rgba(var(--brand-primary-rgb), 0.3);
@@ -125,8 +143,13 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
   grid-template-columns: repeat(4, 1fr);
   gap: 14px;
 
-  @media (max-width: 1024px) {
+  @include respond-to(lg) {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  @include respond-to(xs) {
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 }
 
@@ -291,7 +314,10 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
 
   .table-responsive {
     overflow-x: auto;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
     max-height: 580px;
+    @include thin-scrollbar;
   }
 
   table {

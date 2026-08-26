@@ -233,12 +233,12 @@ export async function listPlansHandler(request, reply) {
 // Create Subscription Plan (POST /api/v1/auth/superadmin/plans)
 export async function createPlanHandler(request, reply) {
   try {
-    const { name, code, max_branches, allowed_modules, monthly_price, yearly_price } = request.body || {};
+    const { name, code, max_branches, allowed_modules, monthly_price, six_month_price, yearly_price } = request.body || {};
     if (!name || !code) {
       return reply.code(400).send({ error: 'Bad Request', message: 'Plan Name and Code are required.' });
     }
     const data = await authService.createPlan(request.server.masterDb, {
-      name, code, max_branches, allowed_modules, monthly_price, yearly_price
+      name, code, max_branches, allowed_modules, monthly_price, six_month_price, yearly_price
     });
     return reply.status(201).send({ success: true, message: 'Plan created successfully.', plan: data });
   } catch (err) {
@@ -250,12 +250,12 @@ export async function createPlanHandler(request, reply) {
 export async function updatePlanHandler(request, reply) {
   try {
     const { id } = request.params;
-    const { name, code, max_branches, allowed_modules, monthly_price, yearly_price } = request.body || {};
+    const { name, code, max_branches, allowed_modules, monthly_price, six_month_price, yearly_price } = request.body || {};
     if (!name || !code) {
       return reply.code(400).send({ error: 'Bad Request', message: 'Plan Name and Code are required.' });
     }
     const data = await authService.updatePlan(request.server.masterDb, id, {
-      name, code, max_branches, allowed_modules, monthly_price, yearly_price
+      name, code, max_branches, allowed_modules, monthly_price, six_month_price, yearly_price
     });
     return reply.send({ success: true, message: 'Plan updated successfully.', plan: data });
   } catch (err) {

@@ -119,12 +119,12 @@ export async function createRecurringDeposit(db, payload) {
 
       const [result] = await conn.execute(
         `INSERT INTO recurring_deposits (rd_account_no, borrower_id, customer_name, branch, monthly_installment,
-          tenure_months, interest_rate, payment_mode, notes, booking_date, maturity_date, maturity_value,
+          tenure_months, interest_rate, payment_mode, notes, reference, booking_date, maturity_date, maturity_value,
           collected_amount, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'ACTIVE')`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'ACTIVE')`,
         [accountNo, payload.borrower_id || null, payload.customer_name, payload.branch || null,
           monthlyInstallment, tenureMonths, rate, payload.payment_mode || 'CASH',
-          payload.notes || null, payload.booking_date, payload.maturity_date, maturityValue]
+          payload.notes || null, payload.reference || payload.document_ref || null, payload.booking_date, payload.maturity_date, maturityValue]
       );
       const rdId = result.insertId;
 
@@ -245,6 +245,21 @@ export async function matureRecurringDeposit(db, id, createdBy) {
   if (rd.status !== 'ACTIVE') {
     const err = new Error(`This recurring deposit is already ${rd.status}.`);
     err.statusCode = 409;
+    throw err;
+  }
+
+  const [paidRows] = await db.query(
+    "SELECT COUNT(*) as c FROM recurring_deposit_installments WHERE rd_id = ? AND status = 'PAID'",
+    [id]
+  );
+  const monthsPaid = Number(paidRows[0]?.c) || 0;
+  const isFullyPaid = monthsPaid >= Number(rd.tenure_months);
+
+  if (!isFullyPaid) {
+    const err = new Error(
+      `Cannot mature RD (${monthsPaid}/${rd.tenure_months} installments cleared). All ${rd.tenure_months} installments must be fully paid and cleared before marking as matured.`
+    );
+    err.statusCode = 400;
     throw err;
   }
 

@@ -32,6 +32,7 @@ import {
 } from '../../utils/loanCalculations';
 import SharedDropdown from '../../components/common/SharedDropdown';
 import SharedDatePicker from '../../components/common/SharedDatePicker';
+import { uploadMultipleFiles } from '../../api/upload';
 
 function tp(t, key, vars) {
   let str = t(key);
@@ -42,6 +43,7 @@ function tp(t, key, vars) {
 }
 
 export default function NewLoanApplicationPage({
+  loans = [],
   borrowers = [],
   loanSchemes = [],
   branches = [],
@@ -100,8 +102,43 @@ export default function NewLoanApplicationPage({
     }
   };
 
+  const handleBorrowerSelect = (bId) => {
+    setSelectedBorrowerId(bId);
+    const b = borrowers.find(cust => String(cust.id) === String(bId));
+    if (b) {
+      if (b.guarantor_name && !guarantor.name) {
+        setGuarantor(prev => ({
+          ...prev,
+          name: b.guarantor_name || '',
+          relationship: b.guarantor_relation || 'Father',
+          mobile: b.guarantor_phone || ''
+        }));
+      }
+      if (b.nominee_name && !nominee.name) {
+        setNominee(prev => ({
+          ...prev,
+          name: b.nominee_name || '',
+          relationship: b.nominee_relation || 'Spouse',
+          mobile: b.nominee_phone || ''
+        }));
+      }
+    }
+  };
+
   // Selected Security / Verification Document Choice ('NONE' initially)
   const [selectedDocType, setSelectedDocType] = useState('NONE');
+
+  // Mandatory Guarantor Details State
+  const [guarantor, setGuarantor] = useState({
+    name: '',
+    dob: '',
+    relationship: 'Father',
+    custom_relationship: '',
+    mobile: '',
+    id_proof_type: 'Aadhaar Card',
+    id_proof_number: '',
+    files: [] // Array of { name, url, type }
+  });
 
   // Nominee Details State (Multiple Document Uploads & Previews)
   const [nominee, setNominee] = useState({
@@ -232,24 +269,37 @@ export default function NewLoanApplicationPage({
     setLoanTerms(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleGuarantorChange = (e) => {
+    const { name, value } = e.target;
+    const cleaned = name === 'mobile' ? value.replace(/\D/g, '').slice(0, 10) : value;
+    setGuarantor(prev => ({ ...prev, [name]: cleaned }));
+  };
+
   const handleNomineeChange = (e) => {
     const { name, value } = e.target;
     const cleaned = name === 'mobile' ? value.replace(/\D/g, '').slice(0, 10) : value;
     setNominee(prev => ({ ...prev, [name]: cleaned }));
   };
 
-  // Handle Multiple File Selection & Object URL Creation
-  const handleMultipleFilesUpload = (e, currentFiles, setFilesCallback) => {
+  // Direct Binary Multipart Upload to Server Disk (Zero Base64 in Database)
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+
+  const handleMultipleFilesUpload = async (e, currentFiles, setFilesCallback, subfolder = 'cust-proofs', prefix = 'doc') => {
     const selectedFiles = Array.from(e.target.files || []);
     if (!selectedFiles.length) return;
 
-    const newFileObjs = selectedFiles.map(file => ({
-      name: file.name,
-      url: URL.createObjectURL(file),
-      type: file.type || (file.name.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? 'image/png' : 'application/pdf')
-    }));
-
-    setFilesCallback([...currentFiles, ...newFileObjs]);
+    setUploadingFiles(true);
+    try {
+      const uploadedFileObjs = await uploadMultipleFiles(selectedFiles, { subfolder, prefix });
+      if (Array.isArray(uploadedFileObjs) && uploadedFileObjs.length) {
+        setFilesCallback([...currentFiles, ...uploadedFileObjs]);
+      }
+    } catch (err) {
+      console.error('Error uploading file to server disk:', err);
+    } finally {
+      setUploadingFiles(false);
+      e.target.value = '';
+    }
   };
 
   // Remove Single File Thumbnail from Uploaded List
@@ -293,8 +343,19 @@ export default function NewLoanApplicationPage({
       errors.repayment_frequency = 'Please select installment frequency.';
     }
 
-    if (!loanTerms.purpose.trim()) {
-      errors.purpose = t('nla.err_purpose_required');
+    // ── Mandatory Guarantor Field Validation ──
+    if (!guarantor.name.trim()) errors.guarantor_name = 'Guarantor full name is required.';
+    if (!guarantor.dob) errors.guarantor_dob = 'Guarantor date of birth is required.';
+    if (guarantor.relationship === 'Other' && !guarantor.custom_relationship.trim()) {
+      errors.guarantor_rel_custom = 'Please specify guarantor relationship.';
+    }
+    if (!guarantor.mobile.trim()) {
+      errors.guarantor_mobile = 'Guarantor mobile number is required.';
+    } else if (!/^\d{10}$/.test(guarantor.mobile.trim())) {
+      errors.guarantor_mobile = 'Enter valid 10-digit mobile number.';
+    }
+    if (!guarantor.id_proof_number.trim()) {
+      errors.guarantor_id_proof_number = 'Guarantor ID proof / Aadhaar number is required.';
     }
 
     // Dynamic Verification / Security Field Validation based on selectedDocType
@@ -334,8 +395,26 @@ export default function NewLoanApplicationPage({
       return;
     }
 
+    const year = new Date().getFullYear();
+    let maxSeq = 0;
+    for (const l of loans) {
+      const match = l.loan_account_no && l.loan_account_no.match(/^(?:APP|LN)-\d+-(\d+)$/);
+      if (match && match[1]) {
+        const seq = parseInt(match[1], 10);
+        if (!isNaN(seq) && seq < 1000 && seq > maxSeq) {
+          maxSeq = seq;
+        }
+      }
+    }
+    if (maxSeq === 0) {
+      maxSeq = loans.length;
+    }
+    const nextSeq = String(maxSeq + 1).padStart(4, '0');
+    const assignedAppNo = `APP-${year}-${nextSeq}`;
+
     const payload = {
       mode: 'APPLICATION',
+      loan_account_no: assignedAppNo,
       borrower_id: selectedBorrowerId,
       borrower_name: selectedBorrower?.full_name || 'Applicant',
       phone: selectedBorrower?.phone || '',
@@ -350,6 +429,10 @@ export default function NewLoanApplicationPage({
       installment_amount: creditSummary.installmentAmount,
       total_interest: creditSummary.totalInterest,
       total_payable: creditSummary.totalPayable,
+      guarantor: {
+        ...guarantor,
+        final_relationship: guarantor.relationship === 'Other' ? guarantor.custom_relationship : guarantor.relationship
+      },
       nominee: selectedDocType === 'NOMINEE' ? {
         ...nominee,
         final_relationship: nominee.relationship === 'Other' ? nominee.custom_relationship : nominee.relationship
@@ -459,18 +542,18 @@ export default function NewLoanApplicationPage({
 
             <div className="card-body">
               {customerCreatedMsg && (
-                <div className="form-group-full" style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary-hover, #0E5327)', borderRadius: 8, padding: '8px 12px', fontSize: '0.8rem', fontWeight: 500 }}>
-                  <CheckCircle2 style={{ width: 14, height: 14 }} />
+                <div className="form-msg-success">
+                  <CheckCircle2 style={{ width: 14, height: 14, flexShrink: 0 }} />
                   <span>{customerCreatedMsg}</span>
                 </div>
               )}
               <div className="form-group-full">
                 <label className="req">{t('nla.select_applicant_customer')}</label>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <div style={{ flex: 1 }}>
+                <div className="customer-select-row">
+                  <div className="dropdown-wrap">
                     <SharedDropdown
                       value={selectedBorrowerId}
-                      onChange={(e) => setSelectedBorrowerId(e.target.value)}
+                      onChange={(e) => handleBorrowerSelect(e.target.value)}
                       placeholder={t('nla.select_customer_placeholder')}
                       searchable
                       options={borrowers.map(b => ({
@@ -482,11 +565,7 @@ export default function NewLoanApplicationPage({
                   <button
                     type="button"
                     onClick={() => setShowCreateCustomer(true)}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
-                      border: '1px solid #CBD5E1', background: '#F8FAFC', color: '#334155', borderRadius: 8,
-                      height: 36, padding: '0 14px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer'
-                    }}
+                    className="btn-create-customer"
                   >
                     <UserPlus style={{ width: 15, height: 15 }} />
                     <span>Create New Customer</span>
@@ -498,14 +577,15 @@ export default function NewLoanApplicationPage({
           </div>
 
           {showCreateCustomer && createPortal(
-            <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#FFFFFF', overflowY: 'auto' }}>
+            <div className="customer-form-modal-overlay">
               <CustomerFormPage
                 mode="CREATE"
                 branches={branches}
+                tenant={tenant}
                 onCancel={() => setShowCreateCustomer(false)}
                 onSubmit={async (payload) => {
                   const created = await onCreateBorrower(payload);
-                  setSelectedBorrowerId(String(created.id));
+                  handleBorrowerSelect(String(created.id));
                   setShowCreateCustomer(false);
                   setCustomerCreatedMsg(`${created.full_name} created and selected.`);
                   setTimeout(() => setCustomerCreatedMsg(''), 4000);
@@ -540,7 +620,7 @@ export default function NewLoanApplicationPage({
                   />
                   {formErrors.scheme && <span className="err-txt">{formErrors.scheme}</span>}
                   {selectedScheme && (selectedScheme.min_amount || selectedScheme.max_amount) && (
-                    <span style={{ fontSize: '0.68rem', color: '#94A3B8', display: 'block', marginTop: 4 }}>
+                    <span className="scheme-limits-hint">
                       {t('nla.allowed_prefix')} ₹{fmt(selectedScheme.min_amount || 0)} – ₹{fmt(selectedScheme.max_amount || 0)}
                       {(selectedScheme.min_tenure_months || selectedScheme.max_tenure_months) &&
                         `, ${selectedScheme.min_tenure_months || 0}–${selectedScheme.max_tenure_months || 0} ${t('nla.months_suffix')}`}
@@ -602,14 +682,14 @@ export default function NewLoanApplicationPage({
                 </div>
 
                 <div className="form-group">
-                  <label className="req">{t('nla.loan_purpose')}</label>
+                  <label>{t('nla.loan_purpose')}</label>
                   <input
                     type="text"
                     name="purpose"
                     value={loanTerms.purpose}
                     onChange={handleTermChange}
                     className="input-field"
-                    placeholder="e.g. Business Working Capital"
+                    placeholder="e.g. Business Working Capital (Optional)"
                   />
                   {formErrors.purpose && <span className="err-txt">{formErrors.purpose}</span>}
                 </div>
@@ -618,7 +698,145 @@ export default function NewLoanApplicationPage({
             </div>
           </div>
 
-          {/* Card 3: Verification & Security Document Selection Dropdown (None Initially) */}
+          {/* Card: Mandatory Guarantor Details */}
+          <div className="app-form-card">
+            <div className="card-head">
+              <div className="icon-box icon-box--blue">
+                <Users style={{ width: 16, height: 16 }} />
+              </div>
+              <div className="card-head-title-wrap">
+                <h3>Guarantor Required Details</h3>
+                <span className="badge-mandatory">Mandatory</span>
+              </div>
+            </div>
+
+            <div className="card-body">
+              <div className="form-grid-3col">
+                <div className="form-group">
+                  <label className="req">Guarantor Full Name</label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={guarantor.name}
+                    onChange={handleGuarantorChange}
+                    className="input-field"
+                    placeholder="Guarantor Full Name"
+                  />
+                  {formErrors.guarantor_name && <span className="err-txt">{formErrors.guarantor_name}</span>}
+                </div>
+
+                <div className="form-group">
+                  <label className="req">Date of Birth (DOB)</label>
+                  <SharedDatePicker
+                    name="dob"
+                    value={guarantor.dob}
+                    onChange={handleGuarantorChange}
+                    buttonStyle={{ height: 38 }}
+                  />
+                  {formErrors.guarantor_dob && <span className="err-txt">{formErrors.guarantor_dob}</span>}
+                </div>
+
+                <div className="form-group">
+                  <label className="req">Relationship to Applicant</label>
+                  <SharedDropdown
+                    name="relationship"
+                    value={guarantor.relationship}
+                    onChange={handleGuarantorChange}
+                    options={[
+                      { value: 'Father', label: 'Father' },
+                      { value: 'Mother', label: 'Mother' },
+                      { value: 'Spouse', label: 'Spouse' },
+                      { value: 'Brother', label: 'Brother' },
+                      { value: 'Sister', label: 'Sister' },
+                      { value: 'Son', label: 'Son' },
+                      { value: 'Daughter', label: 'Daughter' },
+                      { value: 'Friend', label: 'Friend' },
+                      { value: 'Relative', label: 'Relative' },
+                      { value: 'Other', label: 'Other' }
+                    ]}
+                  />
+                </div>
+
+                {guarantor.relationship === 'Other' && (
+                  <div className="form-group">
+                    <label className="req">Specify Relationship</label>
+                    <input
+                      type="text"
+                      name="custom_relationship"
+                      value={guarantor.custom_relationship}
+                      onChange={handleGuarantorChange}
+                      className="input-field"
+                      placeholder="Type relationship (e.g. Neighbor, Colleague)"
+                    />
+                    {formErrors.guarantor_rel_custom && <span className="err-txt">{formErrors.guarantor_rel_custom}</span>}
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label className="req">Mobile Phone</label>
+                  <input
+                    type="text"
+                    name="mobile"
+                    value={guarantor.mobile}
+                    onChange={handleGuarantorChange}
+                    className="input-field"
+                    placeholder="10-digit mobile"
+                  />
+                  {formErrors.guarantor_mobile && <span className="err-txt">{formErrors.guarantor_mobile}</span>}
+                </div>
+
+                <div className="form-group">
+                  <label className="req">ID Proof Type</label>
+                  <SharedDropdown
+                    name="id_proof_type"
+                    value={guarantor.id_proof_type}
+                    onChange={handleGuarantorChange}
+                    options={[
+                      { value: 'Aadhaar Card', label: 'Aadhaar Card' },
+                      { value: 'PAN Card', label: 'PAN Card' },
+                      { value: 'Voter ID', label: 'Voter ID' },
+                      { value: 'Driving License', label: 'Driving License' }
+                    ]}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="req">ID Proof / Aadhaar Number</label>
+                  <input
+                    type="text"
+                    name="id_proof_number"
+                    value={guarantor.id_proof_number}
+                    onChange={handleGuarantorChange}
+                    className="input-field"
+                    placeholder="Document / Aadhaar Number"
+                  />
+                  {formErrors.guarantor_id_proof_number && <span className="err-txt">{formErrors.guarantor_id_proof_number}</span>}
+                </div>
+
+                {/* Upload Guarantor ID Documents / Photo */}
+                <div className="form-group form-group--full-width">
+                  <label>Upload Guarantor ID Proof / Photo (Optional)</label>
+                  <div className="upload-controls-wrap">
+                    <label className="btn-upload-file">
+                      <Upload style={{ width: 14, height: 14 }} />
+                      <span>Upload Documents & Images</span>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*,.pdf"
+                        style={{ display: 'none' }}
+                        onChange={(e) => handleMultipleFilesUpload(e, guarantor.files, (newFiles) => setGuarantor(prev => ({ ...prev, files: newFiles })), 'nominee-proofs', 'guarantor')}
+                      />
+                    </label>
+
+                    {renderThumbnailPreviewBox(guarantor.files, (newFiles) => setGuarantor(prev => ({ ...prev, files: newFiles })))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 4: Verification & Security Document Selection Dropdown (None Initially) */}
           <div className="app-form-card">
             <div className="card-head">
               <div className="icon-box icon-box--purple">
@@ -758,10 +976,10 @@ export default function NewLoanApplicationPage({
                     </div>
 
                     {/* Upload Nominee ID Documents (Multiple Image & File Upload Support) */}
-                    <div className="form-group" style={{ gridColumn: 'span 3' }}>
+                    <div className="form-group form-group--full-width">
                       <label>{t('nla.upload_nominee_docs')}</label>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <label className="btn-cancel-app" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', margin: 0, height: 36, width: 'fit-content' }}>
+                      <div className="upload-controls-wrap">
+                        <label className="btn-upload-file">
                           <Upload style={{ width: 14, height: 14 }} />
                           <span>{t('nla.upload_images_documents')}</span>
                           <input
@@ -769,7 +987,7 @@ export default function NewLoanApplicationPage({
                             multiple
                             accept="image/*,.pdf"
                             style={{ display: 'none' }}
-                            onChange={(e) => handleMultipleFilesUpload(e, nominee.files, (newFiles) => setNominee(prev => ({ ...prev, files: newFiles })))}
+                            onChange={(e) => handleMultipleFilesUpload(e, nominee.files, (newFiles) => setNominee(prev => ({ ...prev, files: newFiles })), 'nominee-proofs', 'nominee')}
                           />
                         </label>
 
@@ -845,10 +1063,10 @@ export default function NewLoanApplicationPage({
                     </div>
 
                     {/* Upload Property Document Images (Multiple Allowed) */}
-                    <div className="form-group" style={{ gridColumn: 'span 3' }}>
+                    <div className="form-group form-group--full-width">
                       <label>{t('nla.upload_property_docs')}</label>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <label className="btn-cancel-app" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', margin: 0, height: 36, width: 'fit-content' }}>
+                      <div className="upload-controls-wrap">
+                        <label className="btn-upload-file">
                           <Upload style={{ width: 14, height: 14 }} />
                           <span>{t('nla.upload_property_deeds_images')}</span>
                           <input
@@ -856,7 +1074,7 @@ export default function NewLoanApplicationPage({
                             multiple
                             accept="image/*,.pdf"
                             style={{ display: 'none' }}
-                            onChange={(e) => handleMultipleFilesUpload(e, propertyDetails.files, (newFiles) => setPropertyDetails(prev => ({ ...prev, files: newFiles })))}
+                            onChange={(e) => handleMultipleFilesUpload(e, propertyDetails.files, (newFiles) => setPropertyDetails(prev => ({ ...prev, files: newFiles })), 'cust-proofs', 'property')}
                           />
                         </label>
 
@@ -915,10 +1133,10 @@ export default function NewLoanApplicationPage({
                     </div>
 
                     {/* Upload RC Book Documents (Multiple Allowed) */}
-                    <div className="form-group" style={{ gridColumn: 'span 3' }}>
+                    <div className="form-group form-group--full-width">
                       <label>{t('nla.upload_rc_book_images')}</label>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <label className="btn-cancel-app" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', margin: 0, height: 36, width: 'fit-content' }}>
+                      <div className="upload-controls-wrap">
+                        <label className="btn-upload-file">
                           <Upload style={{ width: 14, height: 14 }} />
                           <span>{t('nla.upload_rc_book_files')}</span>
                           <input
@@ -926,7 +1144,7 @@ export default function NewLoanApplicationPage({
                             multiple
                             accept="image/*,.pdf"
                             style={{ display: 'none' }}
-                            onChange={(e) => handleMultipleFilesUpload(e, vehicleDetails.files, (newFiles) => setVehicleDetails(prev => ({ ...prev, files: newFiles })))}
+                            onChange={(e) => handleMultipleFilesUpload(e, vehicleDetails.files, (newFiles) => setVehicleDetails(prev => ({ ...prev, files: newFiles })), 'cust-proofs', 'vehicle')}
                           />
                         </label>
 
@@ -1006,7 +1224,7 @@ export default function NewLoanApplicationPage({
                   </div>
 
                   <div className="form-grid-2col">
-                    <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                    <div className="form-group form-group--full-width">
                       <label>{t('nla.security_notes_desc')}</label>
                       <input
                         type="text"
@@ -1017,10 +1235,10 @@ export default function NewLoanApplicationPage({
                       />
                     </div>
 
-                    <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                    <div className="form-group form-group--full-width">
                       <label>{t('nla.upload_other_security_docs')}</label>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <label className="btn-cancel-app" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', margin: 0, height: 36, width: 'fit-content' }}>
+                      <div className="upload-controls-wrap">
+                        <label className="btn-upload-file">
                           <Upload style={{ width: 14, height: 14 }} />
                           <span>{t('nla.upload_security_images_files')}</span>
                           <input
@@ -1028,7 +1246,7 @@ export default function NewLoanApplicationPage({
                             multiple
                             accept="image/*,.pdf"
                             style={{ display: 'none' }}
-                            onChange={(e) => handleMultipleFilesUpload(e, othersDetails.files, (newFiles) => setOthersDetails(prev => ({ ...prev, files: newFiles })))}
+                            onChange={(e) => handleMultipleFilesUpload(e, othersDetails.files, (newFiles) => setOthersDetails(prev => ({ ...prev, files: newFiles })), 'cust-proofs', 'security')}
                           />
                         </label>
 
@@ -1041,26 +1259,6 @@ export default function NewLoanApplicationPage({
               )}
 
             </div>
-          </div>
-
-          {/* Form Bottom Action Bar */}
-          <div className="form-actions-bar">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="btn-cancel-app"
-            >
-              {t('btn.cancel')}
-            </button>
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="btn-submit-app"
-            >
-              <Eye style={{ width: 15, height: 15 }} />
-              <span>{t('nla.preview_submit')}</span>
-            </button>
           </div>
 
         </div>
@@ -1148,6 +1346,26 @@ export default function NewLoanApplicationPage({
             </div>
           </div>
 
+        </div>
+
+        {/* Form Bottom Action Bar (Placed at grid level so on mobile it renders after summary preview) */}
+        <div className="form-actions-bar">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="btn-cancel-app"
+          >
+            {t('btn.cancel')}
+          </button>
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="btn-submit-app"
+          >
+            <Eye style={{ width: 15, height: 15 }} />
+            <span>{t('nla.preview_submit')}</span>
+          </button>
         </div>
 
       </form>

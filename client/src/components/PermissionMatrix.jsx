@@ -6,7 +6,7 @@ import {
   UserCog, Percent, Landmark, CheckSquare, Square, RefreshCw,
   SlidersHorizontal, ArrowRight, Eye, Plus, Pencil, Trash2,
   CheckCircle2, AlertCircle, ChevronsDown, ChevronsUp, Folder,
-  FolderOpen
+  FolderOpen, X, ShieldCheck, Archive, RotateCcw
 } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import SharedDropdown from './common/SharedDropdown';
@@ -106,7 +106,8 @@ export const RBAC_MENU_SECTIONS = [
             actions: [
               { action: 'VIEW', label: 'View Collections Register', desc: 'Browse collections log & due installments list', icon: Eye },
               { action: 'COLLECT', label: 'Record Collections', desc: 'Collect cash, UPI, and cheque installment payments', icon: Plus },
-              { action: 'REVERT', label: 'Revert / Correct Collection', desc: 'Revert or edit erroneous payment entries', icon: RefreshCw }
+              { action: 'REVERT', label: 'Revert / Correct Collection', desc: 'Revert or edit erroneous payment entries', icon: RefreshCw },
+              { action: 'WAIVER_APPROVE', label: 'Authorize / Reject Waivers', desc: 'Approve or reject interest shortfall discount concessions', icon: ShieldCheck }
             ]
           }
         ]
@@ -538,6 +539,26 @@ export const RBAC_MENU_SECTIONS = [
             ]
           }
         ]
+      },
+      {
+        id: 'DRAFTS_ARCHIVE',
+        module: 'SETTINGS',
+        title: 'Drafts & Deleted Records Archive',
+        icon: Archive,
+        route: '/master-settings/drafts-archive',
+        description: 'System recycle bin, soft-deleted customer profiles, loan schemes, staff, and one-click data restoration',
+        submenus: [
+          {
+            id: 'drafts_archive_manager',
+            title: 'Drafts & Deleted Records',
+            route: '/master-settings/drafts-archive',
+            description: 'Inspect soft-deleted records and revert or restore them to active status',
+            actions: [
+              { action: 'VIEW', label: 'View Archived Records', desc: 'Inspect deleted and draft records across all modules', icon: Eye },
+              { action: 'RESTORE', label: 'Restore / Revert Records', desc: 'Reactivate soft-deleted entries back to active state', icon: RotateCcw }
+            ]
+          }
+        ]
       }
     ]
   }
@@ -580,33 +601,157 @@ function flagsToRows(flags) {
   });
 }
 
-function useRoles() {
-  const { t } = useLanguage();
-  return [
-    { id: 'ADMIN', name: t('rbac.role.super_admin') || 'System Administrator', desc: 'Full unrestricted system access' },
-    { id: 'MANAGER', name: t('rbac.role.manager') || 'Branch Manager', desc: 'Branch operations, approvals & financial management' },
-    { id: 'COLLECTOR', name: t('rbac.role.collector') || 'Field Collector Agent', desc: 'Daily field collections & borrower receipts' },
-    { id: 'STAFF', name: t('rbac.role.staff') || 'General Staff', desc: 'Data entry, customer inquiries & standard reporting' }
-  ];
+export const DEFAULT_ROLES = [
+  { id: 'ADMIN', name: 'System Administrator', desc: 'Full unrestricted system access', isSystem: true },
+  { id: 'MANAGER', name: 'Branch Manager', desc: 'Branch operations, approvals & financial management', isSystem: true },
+  { id: 'COLLECTOR', name: 'Field Collector Agent', desc: 'Daily field collections & borrower receipts', isSystem: true },
+  { id: 'STAFF', name: 'General Staff', desc: 'Data entry, customer inquiries & standard reporting', isSystem: true }
+];
+
+export const STORAGE_CUSTOM_ROLES_KEY = 'financial_erp_custom_roles';
+
+export function getStoredCustomRoles() {
+  try {
+    const raw = localStorage.getItem(STORAGE_CUSTOM_ROLES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function saveStoredCustomRoles(roles) {
+  try {
+    localStorage.setItem(STORAGE_CUSTOM_ROLES_KEY, JSON.stringify(roles));
+    window.dispatchEvent(new Event('roles-updated'));
+  } catch (e) {
+    console.error('Failed to save custom roles', e);
+  }
+}
+
+export function getBaseRolePreset(roleId) {
+  const all = allAllowed();
+  if (roleId === 'ADMIN') return all;
+
+  if (roleId === 'BLANK') {
+    const blank = {};
+    getAllActionKeys().forEach(k => { blank[k] = false; });
+    return blank;
+  }
+
+  if (roleId === 'COLLECTOR') {
+    const collectorFlags = {};
+    getAllActionKeys().forEach(k => {
+      if (k.startsWith('COLLECTIONS_') || k.startsWith('DASHBOARD_') || k === 'LOANS_VIEW' || k === 'BORROWERS_VIEW') {
+        collectorFlags[k] = true;
+      } else {
+        collectorFlags[k] = false;
+      }
+    });
+    return collectorFlags;
+  }
+
+  if (roleId === 'STAFF') {
+    const staffFlags = {};
+    getAllActionKeys().forEach(k => {
+      if (k.endsWith('_VIEW') || k.endsWith('_CREATE') || k.startsWith('DASHBOARD_') || k.startsWith('BORROWERS_')) {
+        staffFlags[k] = true;
+      } else {
+        staffFlags[k] = false;
+      }
+    });
+    return staffFlags;
+  }
+
+  const managerFlags = {};
+  getAllActionKeys().forEach(k => {
+    if (k.endsWith('_DELETE') || k === 'MASTER_SETTINGS_DELETE') {
+      managerFlags[k] = false;
+    } else {
+      managerFlags[k] = true;
+    }
+  });
+  return managerFlags;
+}
+
+export function getRolePreset(roleId) {
+  try {
+    const saved = localStorage.getItem('rbac_preset_' + roleId);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && typeof parsed === 'object') return { ...allAllowed(), ...parsed };
+    }
+  } catch (e) {}
+  return getBaseRolePreset(roleId);
 }
 
 export default function PermissionMatrix({
   initialRole = 'MANAGER',
   selectedStaffMember = null,
   employees = [],
+  roles = [],
+  onCreateRole,
+  onUpdateRole,
+  onDeleteRole,
   onSaveStaffPermissions
 }) {
   const { t } = useLanguage();
-  const ROLES = useRoles();
+  const [customRoles, setCustomRoles] = useState(getStoredCustomRoles);
+
+  useEffect(() => {
+    const handleRolesUpdated = () => {
+      setCustomRoles(getStoredCustomRoles());
+    };
+    window.addEventListener('roles-updated', handleRolesUpdated);
+    return () => window.removeEventListener('roles-updated', handleRolesUpdated);
+  }, []);
+
+  const ROLES = useMemo(() => {
+    if (roles && roles.length > 0) {
+      return roles.map(r => ({
+        id: r.role_code || r.id,
+        name: r.role_name || r.name,
+        desc: r.description || r.desc || `${r.role_name || r.role_code} role`,
+        isSystem: Boolean(r.is_system),
+        permissions: r.permissions
+      }));
+    }
+    const localizedDefaults = DEFAULT_ROLES.map(r => {
+      if (r.id === 'ADMIN') return { ...r, name: t('rbac.role.super_admin') || r.name };
+      if (r.id === 'MANAGER') return { ...r, name: t('rbac.role.manager') || r.name };
+      if (r.id === 'COLLECTOR') return { ...r, name: t('rbac.role.collector') || r.name };
+      if (r.id === 'STAFF') return { ...r, name: t('rbac.role.staff') || r.name };
+      return r;
+    });
+    return [...localizedDefaults, ...customRoles];
+  }, [t, customRoles, roles]);
 
   const currentRole = selectedStaffMember?.role || initialRole;
   const [selectedRole, setSelectedRole] = useState(currentRole);
-  const [flags, setFlags] = useState(() => rowsToFlags(selectedStaffMember?.permissions));
+  
+  const getInitialFlags = (roleCode) => {
+    if (selectedStaffMember?.permissions) {
+      return rowsToFlags(selectedStaffMember.permissions);
+    }
+    const foundRole = (roles || []).find(r => (r.role_code || r.id) === roleCode);
+    if (foundRole?.permissions) {
+      return rowsToFlags(foundRole.permissions);
+    }
+    return getRolePreset(roleCode);
+  };
+
+  const [flags, setFlags] = useState(() => getInitialFlags(currentRole));
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  
+
+  // Add Role Modal State
+  const [showAddRoleModal, setShowAddRoleModal] = useState(false);
+  const [newRoleForm, setNewRoleForm] = useState({ name: '', code: '', desc: '', baseRole: 'STAFF' });
+  const [newRoleError, setNewRoleError] = useState('');
+
   // Accordion State:
   // 1. Sections: Expanded by default
   const [expandedSections, setExpandedSections] = useState(() => {
@@ -636,10 +781,18 @@ export default function PermissionMatrix({
   });
 
   useEffect(() => {
-    setSelectedRole(selectedStaffMember?.role || initialRole);
-    setFlags(rowsToFlags(selectedStaffMember?.permissions));
+    const target = selectedStaffMember?.role || initialRole;
+    setSelectedRole(target);
+    setFlags(getInitialFlags(target));
     setSaveError('');
-  }, [selectedStaffMember, initialRole]);
+  }, [selectedStaffMember, initialRole, roles]);
+
+  const handleRoleChange = (newRole) => {
+    setSelectedRole(newRole);
+    if (!selectedStaffMember) {
+      setFlags(getInitialFlags(newRole));
+    }
+  };
 
   // Toggle single section accordion
   const toggleSectionAccordion = (secId) => {
@@ -741,17 +894,129 @@ export default function PermissionMatrix({
     setSaving(true);
     setSaveError('');
     try {
-      await onSaveStaffPermissions?.(
-        selectedStaffMember?.id || null,
-        selectedRole,
-        flagsToRows(flags)
-      );
+      const rows = flagsToRows(flags);
+      if (selectedStaffMember) {
+        await onSaveStaffPermissions?.(
+          selectedStaffMember.id,
+          selectedRole,
+          rows
+        );
+      } else {
+        // 1. Save role permissions in backend database (roles table)
+        if (onUpdateRole) {
+          try {
+            await onUpdateRole(selectedRole, { permissions: rows });
+          } catch (e) {
+            console.warn('Backend role update fallback', e);
+          }
+        }
+        // 2. Local fallback caching
+        localStorage.setItem('rbac_preset_' + selectedRole, JSON.stringify(flags));
+        
+        // 3. Update all active staff members with this role
+        const targetStaff = employees.filter(e => e.role === selectedRole);
+        if (targetStaff.length > 0 && onSaveStaffPermissions) {
+          for (const emp of targetStaff) {
+            try {
+              await onSaveStaffPermissions(emp.id, selectedRole, rows);
+            } catch (err) {
+              console.warn(`Failed to update permissions for staff ${emp.id}`, err);
+            }
+          }
+        }
+      }
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
     } catch (err) {
       setSaveError(err?.response?.data?.message || 'Failed to save permissions.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCreateNewRole = async (e) => {
+    e.preventDefault();
+    setNewRoleError('');
+    const rawName = newRoleForm.name.trim();
+    if (!rawName) {
+      setNewRoleError('Role name is required.');
+      return;
+    }
+    const derivedCode = (newRoleForm.code.trim() || rawName)
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '_')
+      .replace(/_+/g, '_');
+
+    if (!derivedCode) {
+      setNewRoleError('Valid Role Code is required.');
+      return;
+    }
+
+    if (ROLES.some(r => r.id === derivedCode)) {
+      setNewRoleError(`A role with code '${derivedCode}' already exists.`);
+      return;
+    }
+
+    const initialPreset = getBaseRolePreset(newRoleForm.baseRole);
+    const initialPresetRows = flagsToRows(initialPreset);
+
+    try {
+      if (onCreateRole) {
+        await onCreateRole({
+          role_name: rawName,
+          role_code: derivedCode,
+          description: newRoleForm.desc.trim() || `${rawName} role`,
+          permissions: initialPresetRows
+        });
+      }
+    } catch (err) {
+      setNewRoleError(err?.response?.data?.message || 'Failed to create role on server.');
+      return;
+    }
+
+    const newRole = {
+      id: derivedCode,
+      name: rawName,
+      desc: newRoleForm.desc.trim() || `${rawName} role`,
+      isSystem: false,
+      permissions: initialPresetRows
+    };
+
+    const nextCustom = [...customRoles, newRole];
+    saveStoredCustomRoles(nextCustom);
+    setCustomRoles(nextCustom);
+
+    try {
+      localStorage.setItem('rbac_preset_' + derivedCode, JSON.stringify(initialPreset));
+    } catch (err) {}
+
+    setSelectedRole(derivedCode);
+    setFlags(initialPreset);
+    setShowAddRoleModal(false);
+    setNewRoleForm({ name: '', code: '', desc: '', baseRole: 'STAFF' });
+  };
+
+  const handleDeleteCustomRole = async (roleId) => {
+    const roleToDelete = ROLES.find(r => r.id === roleId);
+    if (!roleToDelete) return;
+    if (window.confirm(`Are you sure you want to delete custom role '${roleToDelete.name}'?`)) {
+      try {
+        if (onDeleteRole) {
+          await onDeleteRole(roleId);
+        }
+      } catch (err) {
+        alert(err?.response?.data?.message || 'Failed to delete role on server.');
+        return;
+      }
+
+      const nextCustom = customRoles.filter(r => r.id !== roleId);
+      saveStoredCustomRoles(nextCustom);
+      setCustomRoles(nextCustom);
+      try {
+        localStorage.removeItem('rbac_preset_' + roleId);
+      } catch (err) {}
+      setSelectedRole('STAFF');
+      setFlags(getRolePreset('STAFF'));
     }
   };
 
@@ -864,7 +1129,7 @@ export default function PermissionMatrix({
               ) : (
                 <SharedDropdown
                   value={selectedRole}
-                  onChange={(e) => setSelectedRole(e.target.value)}
+                  onChange={(e) => handleRoleChange(e.target.value)}
                   size="sm"
                   buttonStyle={{ height: 32, minWidth: 140, fontWeight: 700, border: 'none', background: 'transparent' }}
                   options={ROLES.map(r => ({ value: r.id, label: r.name }))}
@@ -873,17 +1138,68 @@ export default function PermissionMatrix({
             </div>
 
             {!selectedStaffMember && (
-              <span style={{
-                fontSize: '0.74rem',
-                fontWeight: 600,
-                padding: '4px 10px',
-                borderRadius: 20,
-                background: 'var(--brand-primary-light, #F0FEF5)',
-                color: 'var(--brand-primary, #15803D)',
-                border: '1px solid var(--brand-primary-border, #A3F5C1)'
-              }}>
-                Applies to {affectedCount} staff user{affectedCount === 1 ? '' : 's'} with {selectedRole} role
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewRoleForm({ name: '', code: '', desc: '', baseRole: 'STAFF' });
+                    setNewRoleError('');
+                    setShowAddRoleModal(true);
+                  }}
+                  style={{
+                    background: 'var(--brand-primary-light, #F0FEF5)',
+                    border: '1px solid var(--brand-primary-border, #A3F5C1)',
+                    color: 'var(--brand-primary, #15803D)',
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5
+                  }}
+                >
+                  <Plus style={{ width: 14, height: 14 }} />
+                  <span>Add New Role</span>
+                </button>
+
+                {!ROLES.find(r => r.id === selectedRole)?.isSystem && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCustomRole(selectedRole)}
+                    style={{
+                      background: 'var(--color-danger-light, #FEF2F2)',
+                      border: '1px solid var(--color-danger-border, #FECACA)',
+                      color: 'var(--color-danger, #DC2626)',
+                      padding: '6px 10px',
+                      borderRadius: 8,
+                      fontSize: '0.76rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                    title="Delete this custom role"
+                  >
+                    <Trash2 style={{ width: 13, height: 13 }} />
+                    <span>Delete Role</span>
+                  </button>
+                )}
+
+                <span style={{
+                  fontSize: '0.74rem',
+                  fontWeight: 600,
+                  padding: '4px 10px',
+                  borderRadius: 20,
+                  background: '#F1F5F9',
+                  color: '#475569',
+                  border: '1px solid #CBD5E1'
+                }}>
+                  Applies to {affectedCount} staff user{affectedCount === 1 ? '' : 's'} with {selectedRole} role
+                </span>
+              </div>
             )}
           </div>
 
@@ -946,7 +1262,9 @@ export default function PermissionMatrix({
             border: '1px solid #E2E8F0',
             borderRadius: 7,
             padding: '6px 12px',
-            width: 280
+            width: '100%',
+            maxWidth: 280,
+            boxSizing: 'border-box'
           }}>
             <Search style={{ width: 15, height: 15, color: '#94A3B8' }} />
             <input
@@ -1517,6 +1835,126 @@ export default function PermissionMatrix({
           );
         })}
       </div>
+
+      {/* ── CREATE NEW ROLE MODAL ── */}
+      {showAddRoleModal && (
+        <div className="saas-modal-backdrop">
+          <div className="saas-modal-card" style={{ maxWidth: 480 }}>
+            <div className="saas-modal-header">
+              <div className="head-left">
+                <div className="head-icon-badge" style={{ background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #15803D)' }}>
+                  <Shield style={{ width: 18, height: 18 }} />
+                </div>
+                <div className="head-titles">
+                  <h3>Create New System Role</h3>
+                  <p>Define a new organizational role and configure its permission matrix</p>
+                </div>
+              </div>
+              <button onClick={() => setShowAddRoleModal(false)} className="close-btn" type="button">
+                <X style={{ width: 16, height: 16 }} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateNewRole}>
+              <div className="saas-modal-body">
+                {newRoleError && (
+                  <div className="form-alert form-alert--error" style={{ background: 'var(--color-danger-light, #FEF2F2)', color: 'var(--color-danger, #DC2626)', border: '1px solid var(--color-danger-border, #FECACA)', padding: '10px 14px', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600 }}>
+                    <span>{newRoleError}</span>
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: 4 }}>
+                    Role Display Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    className="input-control"
+                    placeholder="e.g. Internal Auditor, Senior Accountant, Cashier"
+                    value={newRoleForm.name}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const autoCode = val.toUpperCase().replace(/[^A-Z0-9]/g, '_').replace(/_+/g, '_');
+                      setNewRoleForm(prev => ({
+                        ...prev,
+                        name: val,
+                        code: prev.code === '' || prev.code === prev.name.toUpperCase().replace(/[^A-Z0-9]/g, '_').replace(/_+/g, '_') ? autoCode : prev.code
+                      }));
+                    }}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: 4 }}>
+                    Role Code / System ID *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    className="input-control"
+                    placeholder="e.g. INTERNAL_AUDITOR"
+                    value={newRoleForm.code}
+                    onChange={(e) => setNewRoleForm({ ...newRoleForm, code: e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '') })}
+                    style={{ fontFamily: 'monospace', fontWeight: 600 }}
+                  />
+                  <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', marginTop: 3 }}>
+                    Unique identifier used in backend authorization checks.
+                  </span>
+                </div>
+
+                <div className="form-group">
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: 4 }}>
+                    Role Description
+                  </label>
+                  <input
+                    type="text"
+                    className="input-control"
+                    placeholder="e.g. Inspect ledger entries, day-end audits, and compliance"
+                    value={newRoleForm.desc}
+                    onChange={(e) => setNewRoleForm({ ...newRoleForm, desc: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: 4 }}>
+                    Copy Initial Permissions From
+                  </label>
+                  <SharedDropdown
+                    value={newRoleForm.baseRole}
+                    onChange={(e) => setNewRoleForm({ ...newRoleForm, baseRole: e.target.value })}
+                    buttonStyle={{ height: 38 }}
+                    options={[
+                      { value: 'STAFF', label: 'General Staff (Basic View & Entry)' },
+                      { value: 'COLLECTOR', label: 'Field Collector (Collections & Receipts)' },
+                      { value: 'MANAGER', label: 'Branch Manager (Operations & Approvals)' },
+                      { value: 'ADMIN', label: 'System Administrator (Full Access)' },
+                      { value: 'BLANK', label: 'Blank / No Permissions' }
+                    ]}
+                  />
+                </div>
+              </div>
+
+              <div className="saas-modal-footer">
+                <button
+                  type="button"
+                  onClick={() => setShowAddRoleModal(false)}
+                  className="btn-cancel"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-submit"
+                >
+                  <Plus style={{ width: 14, height: 14 }} />
+                  <span>Create Role</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

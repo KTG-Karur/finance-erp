@@ -58,6 +58,61 @@
       padding: 0 0 0 0;
     }
   }
+
+  // Mobile Drawer State (< 768px)
+  @include respond-to(md) {
+    position: fixed !important;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 280px !important;
+    max-width: 85vw !important;
+    height: 100vh !important;
+    transform: translateX(-100%);
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.4);
+    z-index: $z-drawer;
+
+    // In mobile drawer mode, always show full labels even if mini state is set
+    .sidebar__label,
+    .sidebar__section-label,
+    .sidebar__chevron,
+    .sidebar__children,
+    .sidebar__user-info,
+    .sidebar__brand-text {
+      display: flex !important;
+    }
+    .sidebar__item {
+      justify-content: flex-start !important;
+      padding: 10px 14px !important;
+
+      .sidebar__item-icon {
+        margin-right: 10px !important;
+      }
+    }
+    .sidebar__user-badge {
+      justify-content: flex-start !important;
+      padding: 8px 10px !important;
+    }
+    .sidebar__brand {
+      justify-content: space-between !important;
+      padding: 0 14px !important;
+    }
+
+    &--mobile-open {
+      transform: translateX(0) !important;
+    }
+  }
+}
+
+// ── Mobile Sidebar Backdrop ───────────────────────────────────
+.sidebar-mobile-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: $z-sidebar;
+  animation: fadeIn 0.2s ease-out;
 }
 
 // ── Sidebar Brand / Company Header ─────────────────────────────

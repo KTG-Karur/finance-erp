@@ -44,7 +44,7 @@ export default function DedicatedThermalPrintModal({ company = {}, receipt, onCl
         {/* Screen Preview Body */}
         <div style={{ padding: 20, background: '#F1F5F9', display: 'flex', justifyContent: 'center' }}>
           <div style={{
-            background: '#FFFFFF', color: '#000000', width: 300,
+            background: '#FFFFFF', color: '#000000', width: '100%', maxWidth: 300, boxSizing: 'border-box',
             fontFamily: '"Courier New", Courier, monospace', padding: '16px 14px',
             fontSize: '0.78rem', lineHeight: 1.4, border: '1px solid #CBD5E1', boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
           }}>
@@ -76,6 +76,25 @@ export default function DedicatedThermalPrintModal({ company = {}, receipt, onCl
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}><span>Principal:</span><span>Rs. {fmt(receipt.principal_paid)}</span></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}><span>Interest:</span><span>Rs. {fmt(receipt.interest_paid)}</span></div>
+              {receipt.penalty > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}><span>Penalty/Fees:</span><span>Rs. {fmt(receipt.penalty)}</span></div>
+              )}
+              {receipt.interest_shortfall > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}><span>Interest C/F:</span><span>Rs. {fmt(receipt.interest_shortfall)}</span></div>
+              )}
+              {receipt.interest_waiver > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}><span>Interest Waived:</span><span>Rs. {fmt(receipt.interest_waiver)}</span></div>
+              )}
+              {(receipt.interest_paid_upto || receipt.interest_to_date) && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                  <span>Interest Period:</span>
+                  <span>
+                    {receipt.interest_from_date
+                      ? `${receipt.interest_from_date} to ${receipt.interest_paid_upto || receipt.interest_to_date}${receipt.interest_days !== undefined && receipt.interest_days !== null ? ` (${receipt.interest_days}d)` : ''}`
+                      : `Up to ${receipt.interest_paid_upto || receipt.interest_to_date}`}
+                  </span>
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontWeight: 700 }}><span>Pending Bal:</span><span>Rs. {fmt(receipt.pending_balance)}</span></div>
             </div>
 
@@ -135,6 +154,25 @@ export default function DedicatedThermalPrintModal({ company = {}, receipt, onCl
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}><span>Principal:</span><span>Rs. {fmt(receipt.principal_paid)}</span></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}><span>Interest:</span><span>Rs. {fmt(receipt.interest_paid)}</span></div>
+            {receipt.penalty > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}><span>Penalty/Fees:</span><span>Rs. {fmt(receipt.penalty)}</span></div>
+            )}
+            {receipt.interest_shortfall > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}><span>Interest C/F:</span><span>Rs. {fmt(receipt.interest_shortfall)}</span></div>
+            )}
+            {receipt.interest_waiver > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}><span>Interest Waived:</span><span>Rs. {fmt(receipt.interest_waiver)}</span></div>
+            )}
+            {(receipt.interest_paid_upto || receipt.interest_to_date) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                <span>Interest Period:</span>
+                <span>
+                  {receipt.interest_from_date
+                    ? `${receipt.interest_from_date} to ${receipt.interest_paid_upto || receipt.interest_to_date}${receipt.interest_days !== undefined && receipt.interest_days !== null ? ` (${receipt.interest_days}d)` : ''}`
+                    : `Up to ${receipt.interest_paid_upto || receipt.interest_to_date}`}
+                </span>
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontWeight: 700 }}><span>Pending Bal:</span><span>Rs. {fmt(receipt.pending_balance)}</span></div>
           </div>
 

@@ -42,8 +42,8 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import SharedDropdown from '../components/common/SharedDropdown';
-import SharedDatePicker from '../components/common/SharedDatePicker';
 import api from '../api/client';
+import { uploadFile } from '../api/upload.js';
 
 // Menu tree structure: single entries for standalone menus, nested checkboxes only for menus with real submenus
 const MODULE_MENU_TREE = [
@@ -150,13 +150,21 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
 
   const openEditPlanModal = (plan) => {
     setEditingPlan(plan);
+    const mPrice = Number(plan.monthly_price) || 0;
+    const sixPrice = (plan.six_month_price && Number(plan.six_month_price) > 0)
+      ? String(plan.six_month_price)
+      : (mPrice > 0 ? String(Math.round(mPrice * 5.5)) : '0');
+    const yPrice = (plan.yearly_price && Number(plan.yearly_price) > 0)
+      ? String(plan.yearly_price)
+      : (mPrice > 0 ? String(mPrice * 10) : '0');
+
     setPlanForm({
       name: plan.name,
       code: plan.code,
       max_branches: plan.max_branches ?? '',
       monthly_price: plan.monthly_price ?? '0',
-      six_month_price: plan.six_month_price ?? '0',
-      yearly_price: plan.yearly_price ?? '0',
+      six_month_price: sixPrice,
+      yearly_price: yPrice,
       allowed_modules: plan.allowed_modules ?? null
     });
     setErrorMsg('');
@@ -462,9 +470,9 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
 
   const renderCategorizedMenuTree = (allowedModules, toggleKey, basePlanModules = undefined) => {
     const isPlanAllowed = (k) => {
-      if (basePlanModules === undefined) return null;
+      if (basePlanModules === undefined || basePlanModules === false) return null;
       if (basePlanModules === null) return true;
-      return Array.isArray(basePlanModules) && basePlanModules.includes(k);
+      return Array.isArray(basePlanModules) ? basePlanModules.includes(k) : null;
     };
 
     return (
@@ -695,7 +703,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
     }
   };
 
-  const handleAccessLogoChange = (e) => {
+  const handleAccessLogoChange = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
@@ -707,11 +715,14 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
       setAccessError('Logo image must be smaller than 5MB.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setAccessForm(prev => ({ ...prev, logo: event.target.result }));
-    };
-    reader.readAsDataURL(file);
+    try {
+      const res = await uploadFile(file, { subfolder: 'company-info', category: 'logo', prefix: 'company_logo' });
+      if (res?.url) {
+        setAccessForm(prev => ({ ...prev, logo: res.url }));
+      }
+    } catch {
+      setAccessError('Failed to upload logo.');
+    }
   };
 
   const toggleModuleKey = (key) => {
@@ -1141,7 +1152,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                     <button onClick={() => setActiveNav('registry')} style={{ background: 'transparent', border: 'none', color: 'var(--brand-primary, #15803D)', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>View All ({tenants.length}) &rarr;</button>
                   </div>
 
-                  <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                  <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
                       <thead>
                         <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -1227,7 +1238,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                   </button>
                 </div>
 
-                <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -1441,7 +1452,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                 </div>
 
                 {/* Subscriptions Table */}
-                <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -1643,7 +1654,27 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16 }}>
                     <div>
                       <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>Monthly Price (₹) *</label>
-                      <input type="number" required value={planForm.monthly_price} onChange={(e) => setPlanForm({ ...planForm, monthly_price: e.target.value })} style={{ width: '100%', height: 40, padding: '0 14px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem' }} />
+                      <input
+                        type="number"
+                        required
+                        value={planForm.monthly_price}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const mNum = Number(val) || 0;
+                          setPlanForm(prev => {
+                            const prevM = Number(prev.monthly_price) || 0;
+                            const isDefaultSix = !prev.six_month_price || Number(prev.six_month_price) === 0 || prev.six_month_price === String(Math.round(prevM * 5.5));
+                            const isDefaultYear = !prev.yearly_price || Number(prev.yearly_price) === 0 || prev.yearly_price === String(prevM * 10);
+                            return {
+                              ...prev,
+                              monthly_price: val,
+                              six_month_price: isDefaultSix ? (mNum > 0 ? String(Math.round(mNum * 5.5)) : '') : prev.six_month_price,
+                              yearly_price: isDefaultYear ? (mNum > 0 ? String(mNum * 10) : '') : prev.yearly_price
+                            };
+                          });
+                        }}
+                        style={{ width: '100%', height: 40, padding: '0 14px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem' }}
+                      />
                     </div>
                     <div>
                       <label style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600, display: 'block', marginBottom: 6 }}>6 Months Price (₹) *</label>
@@ -1667,7 +1698,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                         <button type="button" onClick={deselectAllPlanModules} style={{ background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Deselect All</button>
                       </div>
                     </div>
-                    {renderCategorizedMenuTree(planForm.allowed_modules, togglePlanModuleKey, false)}
+                    {renderCategorizedMenuTree(planForm.allowed_modules, togglePlanModuleKey, undefined)}
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 16, borderTop: '1px solid #E2E8F0' }}>
@@ -2110,7 +2141,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                             </div>
                           )}
 
-                          {renderCategorizedMenuTree(accessForm.allowed_modules, toggleModuleKey, matchedPlan ? matchedPlan.allowed_modules : null)}
+                          {renderCategorizedMenuTree(accessForm.allowed_modules, toggleModuleKey, matchedPlan ? matchedPlan.allowed_modules : undefined)}
 
                           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 16, borderTop: '1px solid #E2E8F0' }}>
                             <button type="button" onClick={() => { setAccessTarget(null); setActiveNav('registry'); }} style={{ background: '#F1F5F9', color: '#475569', border: '1px solid #CBD5E1', borderRadius: 8, padding: '10px 20px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
@@ -2287,7 +2318,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                   <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '4px 0 0 0' }}>Security events, tenant provisioning actions, and database status toggles</p>
                 </div>
 
-                <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', fontVariantNumeric: 'tabular-nums' }}>
                     <thead>
                       <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569', fontSize: '0.72rem', textTransform: 'uppercase' }}>
@@ -2623,18 +2654,21 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                   id="provision_logo_file"
                   accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
                   style={{ display: 'none' }}
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
                     if (file.size > 5 * 1024 * 1024) {
                       alert('Logo file must be smaller than 5MB.');
                       return;
                     }
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                      setForm(prev => ({ ...prev, logo: reader.result }));
-                    };
-                    reader.readAsDataURL(file);
+                    try {
+                      const res = await uploadFile(file, { subfolder: 'company-info', category: 'logo', prefix: 'company_logo' });
+                      if (res?.url) {
+                        setForm(prev => ({ ...prev, logo: res.url }));
+                      }
+                    } catch {
+                      alert('Failed to upload logo.');
+                    }
                   }}
                 />
                 {form.logo ? (

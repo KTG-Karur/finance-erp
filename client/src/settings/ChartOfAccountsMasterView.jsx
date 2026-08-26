@@ -313,14 +313,14 @@ export default function ChartOfAccountsMasterView({
       </div>
 
       <div className="fin-filterbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div className="fin-field">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 200 }}>
+          <div className="fin-field" style={{ width: '100%', maxWidth: 280 }}>
             <label style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 500 }}>Category Filter</label>
             <SharedDropdown
               value={typeFilter}
               onChange={e => setTypeFilter(e.target.value)}
               size="sm"
-              buttonStyle={{ height: 34, minWidth: 160 }}
+              buttonStyle={{ height: 36, width: '100%' }}
               options={[
                 { value: 'ALL', label: 'All Categories' },
                 ...ACCOUNT_TYPES.map(t => ({ value: t.key, label: t.label }))
@@ -329,12 +329,12 @@ export default function ChartOfAccountsMasterView({
           </div>
         </div>
 
-        <div style={{ position: 'relative', width: 240 }}>
-          <Search style={{ position: 'absolute', left: 9, top: 10, width: 13, height: 13, color: '#94A3B8' }} />
+        <div style={{ position: 'relative', width: '100%', maxWidth: 280 }}>
+          <Search style={{ position: 'absolute', left: 10, top: 11, width: 14, height: 14, color: '#94A3B8', pointerEvents: 'none' }} />
           <input
             type="text"
             className="fin-input"
-            style={{ paddingLeft: 28, height: 34, width: '100%', fontSize: '0.78rem', fontWeight: 400, boxSizing: 'border-box' }}
+            style={{ paddingLeft: 30, height: 36, width: '100%', fontSize: '0.78rem', fontWeight: 400, boxSizing: 'border-box' }}
             placeholder="Search account code or name..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
@@ -348,15 +348,15 @@ export default function ChartOfAccountsMasterView({
           <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#0F172A' }}>Transaction Account Options List</span>
         </div>
 
-        <div className="table-responsive">
-          <table className="fin-grid-table">
+        <div className="fin-table-scroll">
+          <table className="fin-grid-table" style={{ minWidth: 640 }}>
             <thead>
               <tr>
-                <th style={{ width: 80, fontWeight: 600 }}>Code</th>
-                <th style={{ fontWeight: 600 }}>Account Option Name</th>
-                <th style={{ fontWeight: 600 }}>Category</th>
-                <th style={{ textAlign: 'center', fontWeight: 600 }}>Voucher Status</th>
-                <th style={{ textAlign: 'right', fontWeight: 600 }}>Actions</th>
+                <th style={{ width: 90, fontWeight: 600 }}>Code</th>
+                <th style={{ minWidth: 200, fontWeight: 600 }}>Account Option Name</th>
+                <th style={{ width: 120, fontWeight: 600 }}>Category</th>
+                <th style={{ width: 120, textAlign: 'center', fontWeight: 600 }}>Voucher Status</th>
+                <th style={{ width: 120, textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -397,36 +397,44 @@ export default function ChartOfAccountsMasterView({
                           {isActive ? 'Active' : 'Hidden'}
                         </span>
                       </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap', width: 120 }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, flexShrink: 0 }}>
                           <button
+                            type="button"
                             onClick={() => setEditAccount(acc)}
                             title="Edit / Rename Account Option"
-                            style={{ border: '1px solid #E2E8F0', background: '#FFFFFF', color: '#334155', borderRadius: 7, padding: '6px', cursor: 'pointer', display: 'inline-flex' }}
+                            style={{ width: 30, height: 30, flexShrink: 0, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#334155', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
                           >
-                            <Pencil style={{ width: 15, height: 15 }} />
+                            <Pencil style={{ width: 14, height: 14, flexShrink: 0 }} />
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleToggleActive(acc)}
                             title={isActive ? 'Hide from Dropdowns' : 'Show in Dropdowns'}
                             style={{
+                              width: 30,
+                              height: 30,
+                              flexShrink: 0,
                               border: `1px solid ${isActive ? '#FECACA' : '#BBF7D0'}`,
                               background: isActive ? '#FEF2F2' : '#F0FDF4',
                               color: isActive ? '#DC2626' : '#15803D',
-                              borderRadius: 7,
-                              padding: '6px',
+                              borderRadius: 6,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
                               cursor: 'pointer',
-                              display: 'inline-flex'
+                              padding: 0
                             }}
                           >
-                            {isActive ? <EyeOff style={{ width: 15, height: 15 }} /> : <Eye style={{ width: 15, height: 15 }} />}
+                            {isActive ? <EyeOff style={{ width: 14, height: 14, flexShrink: 0 }} /> : <Eye style={{ width: 14, height: 14, flexShrink: 0 }} />}
                           </button>
                           <button
+                            type="button"
                             onClick={() => { setDeleteAccountTarget(acc); setDeleteError(''); }}
                             title="Delete Account Option"
-                            style={{ border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', borderRadius: 7, padding: '6px', cursor: 'pointer', display: 'inline-flex' }}
+                            style={{ width: 30, height: 30, flexShrink: 0, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
                           >
-                            <Trash2 style={{ width: 15, height: 15 }} />
+                            <Trash2 style={{ width: 14, height: 14, flexShrink: 0 }} />
                           </button>
                         </div>
                       </td>

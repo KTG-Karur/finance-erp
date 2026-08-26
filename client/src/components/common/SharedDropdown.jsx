@@ -42,17 +42,28 @@ export default function SharedDropdown({
   // wrapper — fine standalone, but every modal in this app wraps its fields in
   // an `overflow-y: auto` scroll container, which clips or mis-stacks an
   // absolutely positioned descendant instead of letting it float freely above
-  // the modal. Portaling to document.body with viewport (`fixed`) coordinates
-  // computed from the trigger's actual position sidesteps that ancestor
-  // entirely, so the menu always renders on top, unclipped, wherever it's used.
   const updateMenuCoords = () => {
     const rect = triggerBtnRef.current?.getBoundingClientRect();
     if (!rect) return;
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const estimatedHeight = 220;
+    const openUpward = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
+
+    const width = rect.width;
+    let left = rect.left;
+    if (left + width > window.innerWidth - 8) {
+      left = Math.max(8, window.innerWidth - width - 8);
+    }
     setMenuCoords({
-      top: rect.bottom + 4,
-      left: rect.left,
+      top: openUpward ? undefined : rect.bottom + 4,
+      bottom: openUpward ? viewportHeight - rect.top + 4 : undefined,
+      openUpward,
+      left: Math.max(8, left),
       right: window.innerWidth - rect.right,
-      width: rect.width
+      width: Math.min(width, window.innerWidth - 16),
+      maxWidth: Math.max(width, Math.min(480, window.innerWidth - 16))
     });
   };
 
@@ -371,24 +382,18 @@ export default function SharedDropdown({
           role="listbox"
           style={{
             position: 'fixed',
-            top: menuCoords.top,
+            ...(menuCoords.openUpward ? { bottom: menuCoords.bottom } : { top: menuCoords.top }),
             ...(align === 'right' ? { right: menuCoords.right } : { left: menuCoords.left }),
-            // Portaled to document.body as a sibling of whatever modal it was
-            // opened from, not a descendant — so its stacking order is decided
-            // purely by z-index comparison against that modal's own overlay,
-            // not DOM nesting. Modals in this app go as high as 9999999
-            // (z-index), so anything lower here (99999 originally) renders the
-            // popover invisibly behind the modal that opened it. This needs to
-            // outrank every overlay in the app, always.
             zIndex: 2147483000,
+            width: menuCoords.width,
             minWidth: menuCoords.width,
-            maxWidth: 380,
-            maxHeight: 260,
+            maxWidth: menuCoords.maxWidth || 480,
+            maxHeight: 240,
             overflowY: 'auto',
             background: '#FFFFFF',
             border: '1px solid #E2E8F0',
             borderRadius: 8,
-            boxShadow: '0 12px 28px -4px rgba(15, 23, 42, 0.14), 0 4px 10px -2px rgba(15, 23, 42, 0.08)',
+            boxShadow: '0 12px 28px -4px rgba(15, 23, 42, 0.16), 0 4px 10px -2px rgba(15, 23, 42, 0.08)',
             padding: 4,
             animation: 'fadeIn 0.12s ease-out',
             boxSizing: 'border-box',

@@ -6,13 +6,17 @@ import {
   getJournalEntriesHandler,
   postVoucherHandler,
   revertVoucherHandler,
-  getTrialBalanceHandler
+  getTrialBalanceHandler,
+  getAccountBalancesHandler,
+  getAccountBalanceByCodeHandler
 } from './ledger.controller.js';
 
 export default async function ledgerRoutes(fastify, options) {
   const onRequest = [fastify.authenticate, fastify.tenantGuard, fastify.requireTenantModule('accounting')];
 
   fastify.get('/ledger/accounts', { onRequest, preHandler: fastify.moduleGuard('LEDGER', 'VIEW') }, getChartOfAccountsHandler);
+  fastify.get('/ledger/accounts/balances', { onRequest, preHandler: fastify.moduleGuard('LEDGER', 'VIEW') }, getAccountBalancesHandler);
+  fastify.get('/ledger/accounts/:code/balance', { onRequest, preHandler: fastify.moduleGuard('LEDGER', 'VIEW') }, getAccountBalanceByCodeHandler);
   fastify.post('/ledger/accounts', { onRequest, preHandler: fastify.moduleGuard('LEDGER', 'EDIT') }, createAccountHandler);
   fastify.put('/ledger/accounts/:code', { onRequest, preHandler: fastify.moduleGuard('LEDGER', 'EDIT') }, updateAccountHandler);
   fastify.patch('/ledger/accounts/:code', { onRequest, preHandler: fastify.moduleGuard('LEDGER', 'EDIT') }, updateAccountHandler);

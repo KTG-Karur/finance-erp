@@ -55,17 +55,17 @@ function duplicateNameError(name) {
 
 export class SchemeRepository {
   static async findAll(db) {
-    const [rows] = await db.query('SELECT * FROM loan_schemes ORDER BY id');
+    const [rows] = await db.query('SELECT * FROM loan_schemes WHERE deleted_at IS NULL ORDER BY id');
     return rows.map(parseRow);
   }
 
   static async findById(db, id) {
-    const [rows] = await db.query('SELECT * FROM loan_schemes WHERE id = ?', [id]);
+    const [rows] = await db.query('SELECT * FROM loan_schemes WHERE id = ? AND deleted_at IS NULL', [id]);
     return rows.length ? parseRow(rows[0]) : null;
   }
 
   static async findActiveNameConflict(db, name, excludeId = null) {
-    const [rows] = await db.query('SELECT id FROM loan_schemes WHERE LOWER(name) = LOWER(?)', [name]);
+    const [rows] = await db.query('SELECT id FROM loan_schemes WHERE LOWER(name) = LOWER(?) AND deleted_at IS NULL', [name]);
     return rows.some(r => !excludeId || r.id != excludeId);
   }
 
@@ -97,7 +97,7 @@ export class SchemeRepository {
   }
 
   static async remove(db, id) {
-    const [result] = await db.execute('DELETE FROM loan_schemes WHERE id = ?', [id]);
+    const [result] = await db.execute('UPDATE loan_schemes SET deleted_at = CURRENT_TIMESTAMP, is_active = 0 WHERE id = ? AND deleted_at IS NULL', [id]);
     return result.affectedRows > 0;
   }
 

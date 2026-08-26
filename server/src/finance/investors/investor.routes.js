@@ -5,6 +5,7 @@ export default async function investorRoutes(fastify, options) {
 
   fastify.get('/investors', { onRequest, preHandler: fastify.moduleGuard('INVESTORS', 'VIEW') }, investorController.listInvestorsHandler);
   fastify.post('/investors', { onRequest, preHandler: fastify.moduleGuard('INVESTORS', 'CREATE') }, investorController.createInvestorHandler);
+  fastify.post('/investors/:id/add-capital', { onRequest, preHandler: fastify.moduleGuard('INVESTORS', 'CREATE') }, investorController.addInvestorCapitalHandler);
   fastify.put('/investors/:id', { onRequest, preHandler: fastify.moduleGuard('INVESTORS', 'EDIT') }, investorController.updateInvestorHandler);
   fastify.delete('/investors/:id', { onRequest, preHandler: fastify.moduleGuard('INVESTORS', 'DELETE') }, investorController.deleteInvestorHandler);
 }

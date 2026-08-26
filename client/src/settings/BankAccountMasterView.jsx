@@ -182,11 +182,11 @@ export default function BankAccountMasterView({
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
   return (
-    <div className="fin-page" style={{ padding: '24px 32px' }}>
+    <div className="fin-page">
       
       {/* ── Top Header ────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div className="active-loans-header" style={{ marginBottom: 20 }}>
+        <div className="header-left" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{
             width: 42,
             height: 42,
@@ -196,41 +196,46 @@ export default function BankAccountMasterView({
             color: 'var(--brand-primary, #15803D)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            flexShrink: 0
           }}>
-            <Landmark style={{ width: 22, height: 22 }} />
+            <Landmark style={{ width: 22, height: 22, flexShrink: 0 }} />
           </div>
-          <div>
+          <div className="header-text">
             <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0F172A' }}>
               Bank Account Master
             </h1>
-            <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748B' }}>
+            <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: '#64748B' }}>
               Manage registered company bank accounts, IFSC codes, branches, and linked Chart of Accounts ledgers.
             </p>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleOpenCreate}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '8px 16px',
-            borderRadius: 8,
-            background: 'var(--brand-primary, #15803D)',
-            color: '#FFFFFF',
-            fontWeight: 700,
-            fontSize: '0.82rem',
-            border: 'none',
-            cursor: 'pointer',
-            boxShadow: '0 2px 4px rgba(21, 128, 61, 0.2)'
-          }}
-        >
-          <Plus style={{ width: 16, height: 16 }} />
-          <span>Add Bank Account</span>
-        </button>
+        <div className="header-actions">
+          <button
+            type="button"
+            onClick={handleOpenCreate}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              padding: '8px 16px',
+              borderRadius: 8,
+              background: 'var(--brand-primary, #15803D)',
+              color: '#FFFFFF',
+              fontWeight: 700,
+              fontSize: '0.82rem',
+              border: 'none',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 2px 4px rgba(21, 128, 61, 0.2)'
+            }}
+          >
+            <Plus style={{ width: 16, height: 16, flexShrink: 0 }} />
+            <span>Add Bank Account</span>
+          </button>
+        </div>
       </div>
 
       {/* ── KPI Stat Badges ─────────────────────────────────────────── */}
@@ -317,9 +322,10 @@ export default function BankAccountMasterView({
         border: '1px solid #E2E8F0',
         borderTop: 'none',
         borderRadius: '0 0 10px 10px',
-        overflowX: 'auto'
+        overflow: 'hidden'
       }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+        <div className="fin-table-scroll">
+          <table style={{ width: '100%', minWidth: 780, borderCollapse: 'collapse', fontSize: '0.78rem' }}>
           <thead>
             <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569', textAlign: 'left' }}>
               <th style={{ padding: '10px 14px', width: 40, textAlign: 'center' }}>#</th>
@@ -434,37 +440,49 @@ export default function BankAccountMasterView({
                     </span>
                   </td>
 
-                  <td style={{ padding: '12px 14px', textAlign: 'right' }}>
-                    <div style={{ display: 'inline-flex', gap: 6 }}>
+                  <td style={{ padding: '12px 14px', textAlign: 'right', whiteSpace: 'nowrap', width: 110 }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, flexShrink: 0 }}>
                       <button
                         type="button"
                         onClick={() => handleOpenEdit(acc)}
                         title="Edit Bank Account"
                         style={{
-                          padding: '4px 8px',
-                          borderRadius: 4,
+                          width: 30,
+                          height: 30,
+                          flexShrink: 0,
+                          borderRadius: 6,
                           border: '1px solid #CBD5E1',
                           background: '#FFFFFF',
                           color: '#475569',
-                          cursor: 'pointer'
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 0
                         }}
                       >
-                        <Edit2 style={{ width: 12, height: 12 }} />
+                        <Edit2 style={{ width: 14, height: 14, flexShrink: 0 }} />
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDelete(acc)}
-                        title="Deactivate Account"
+                        title="Deactivate Bank Account"
                         style={{
-                          padding: '4px 8px',
-                          borderRadius: 4,
+                          width: 30,
+                          height: 30,
+                          flexShrink: 0,
+                          borderRadius: 6,
                           border: '1px solid #FECACA',
                           background: '#FEF2F2',
                           color: '#DC2626',
-                          cursor: 'pointer'
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 0
                         }}
                       >
-                        <Trash2 style={{ width: 12, height: 12 }} />
+                        <Trash2 style={{ width: 14, height: 14, flexShrink: 0 }} />
                       </button>
                     </div>
                   </td>
@@ -473,112 +491,72 @@ export default function BankAccountMasterView({
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
-      {/* ── Add / Edit Modal ────────────────────────────────────────── */}
+      {/* ── Modal (Create / Edit) ──────────────────────────────────── */}
       {modalMode && (
-        <div className="saas-modal-backdrop" style={{ zIndex: 9999 }}>
-          <div className="saas-modal-card" style={{ maxWidth: 540, width: '100%', padding: 0, overflow: 'hidden' }}>
+        <div className="saas-modal-backdrop" style={{ zIndex: 100000 }}>
+          <div className="saas-modal-card" style={{ maxWidth: 540 }}>
             
-            {/* Header */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '16px 20px',
-              borderBottom: '1px solid #E2E8F0',
-              background: '#FFFFFF'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 8,
-                  background: '#EFF6FF',
-                  color: '#2563EB',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: '1px solid #BFDBFE'
-                }}>
+            {/* Modal Header */}
+            <div className="saas-modal-header">
+              <div className="head-left">
+                <div className="head-icon-badge" style={{ background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #15803D)' }}>
                   <Landmark style={{ width: 18, height: 18 }} />
                 </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#0F172A' }}>
-                    {modalMode === 'CREATE' ? 'Register New Bank Account' : 'Edit Bank Account Details'}
+                <div className="head-titles">
+                  <h3 style={{ fontWeight: 600, fontSize: '0.98rem', color: '#0F172A', margin: 0 }}>
+                    {modalMode === 'CREATE' ? 'Register New Company Bank Account' : `Edit Account: ${selectedAccount?.bank_name}`}
                   </h3>
-                  <p style={{ margin: 0, fontSize: '0.72rem', color: '#64748B' }}>
-                    Configure bank details and auto-link with the General Ledger.
+                  <p style={{ margin: 0, fontSize: '0.74rem', color: '#64748B' }}>
+                    {modalMode === 'CREATE' ? 'Add bank details for automated loan disbursal, payments & manual vouchers' : 'Update bank details or branch linkage'}
                   </p>
                 </div>
               </div>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setModalMode(null)}
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748B' }}
+                className="close-btn"
               >
-                <X style={{ width: 18, height: 18 }} />
+                <X style={{ width: 16, height: 16 }} />
               </button>
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} style={{ padding: '20px' }}>
-              
-              {formError && (
-                <div style={{
-                  marginBottom: 14,
-                  padding: '8px 12px',
-                  borderRadius: 6,
-                  fontSize: '0.78rem',
-                  background: '#FEF2F2',
-                  color: '#991B1B',
-                  border: '1px solid #FECACA'
-                }}>
-                  {formError}
-                </div>
-              )}
+            {/* Modal Body */}
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+              <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: '72vh' }}>
 
-              {/* Bank Name (with datalist) */}
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>
-                  Bank Name *
-                </label>
-                <input
-                  type="text"
-                  list="popular-banks-list"
-                  required
-                  value={formData.bank_name}
-                  onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
-                  placeholder="e.g. HDFC Bank, SBI, ICICI Bank..."
-                  style={{
-                    width: '100%',
-                    height: 36,
-                    padding: '0 10px',
-                    borderRadius: 6,
-                    border: '1px solid #CBD5E1',
-                    fontSize: '0.8rem',
-                    color: '#0F172A'
-                  }}
-                />
-                <datalist id="popular-banks-list">
-                  {POPULAR_BANKS.map(b => (
-                    <option key={b} value={b} />
-                  ))}
-                </datalist>
-              </div>
+                {formError && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '10px 14px',
+                    borderRadius: 8,
+                    background: 'var(--color-danger-light, #FEF2F2)',
+                    border: '1px solid var(--color-danger-border, #FECACA)',
+                    color: 'var(--color-danger-hover, #B91C1C)',
+                    fontSize: '0.78rem',
+                    marginBottom: 16
+                  }}>
+                    <AlertTriangle style={{ width: 15, height: 15, flexShrink: 0 }} />
+                    <span>{formError}</span>
+                  </div>
+                )}
 
-              {/* Account Display Title & Account Type */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 12, marginBottom: 12 }}>
-                <div>
+                {/* Popular Bank Selector / Autocomplete */}
+                <div style={{ marginBottom: 12 }}>
                   <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>
-                    Account Display Title *
+                    Bank Name *
                   </label>
                   <input
                     type="text"
                     required
-                    value={formData.account_name}
-                    onChange={(e) => setFormData({ ...formData, account_name: e.target.value })}
-                    placeholder="e.g. Main Disbursal Current A/C"
+                    list="popular-banks-list"
+                    value={formData.bank_name}
+                    onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
+                    placeholder="e.g. State Bank of India, HDFC, ICICI..."
                     style={{
                       width: '100%',
                       height: 36,
@@ -589,140 +567,181 @@ export default function BankAccountMasterView({
                       color: '#0F172A'
                     }}
                   />
+                  <datalist id="popular-banks-list">
+                    {POPULAR_BANKS.map(b => (
+                      <option key={b} value={b} />
+                    ))}
+                  </datalist>
                 </div>
 
-                <div>
-                  <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>
-                    Account Type
-                  </label>
-                  <SharedDropdown
-                    value={formData.account_type}
-                    onChange={(value) => setFormData({ ...formData, account_type: value })}
-                    options={[
-                      { value: 'CURRENT', label: 'Current Account' },
-                      { value: 'SAVINGS', label: 'Savings Account' },
-                      { value: 'OVERDRAFT', label: 'Overdraft / OD' }
-                    ]}
-                  />
+                {/* Account Title & Account Type */}
+                <div className="modal-grid-2" style={{ marginBottom: 12 }}>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>
+                      Account Holder / Display Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.account_name}
+                      onChange={(e) => setFormData({ ...formData, account_name: e.target.value })}
+                      placeholder="e.g. Main Disbursal Current A/C"
+                      style={{
+                        width: '100%',
+                        height: 36,
+                        padding: '0 10px',
+                        borderRadius: 6,
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.8rem',
+                        color: '#0F172A'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>
+                      Account Type
+                    </label>
+                    <SharedDropdown
+                      value={formData.account_type}
+                      onChange={(e) => setFormData({ ...formData, account_type: e.target.value })}
+                      buttonStyle={{ height: 36, width: '100%' }}
+                      options={[
+                        { value: 'CURRENT', label: 'Current Account' },
+                        { value: 'SAVINGS', label: 'Savings Account' },
+                        { value: 'OVERDRAFT', label: 'Overdraft / OD' }
+                      ]}
+                    />
+                  </div>
                 </div>
+
+                {/* Account Number & IFSC Code */}
+                <div className="modal-grid-2" style={{ marginBottom: 12 }}>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>
+                      Account Number *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.account_number}
+                      onChange={(e) => setFormData({ ...formData, account_number: e.target.value.replace(/\s+/g, '') })}
+                      placeholder="e.g. 50200012345678"
+                      style={{
+                        width: '100%',
+                        height: 36,
+                        padding: '0 10px',
+                        borderRadius: 6,
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.8rem',
+                        color: '#0F172A',
+                        fontFamily: 'monospace'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>
+                      IFSC Code *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.ifsc_code}
+                      onChange={(e) => setFormData({ ...formData, ifsc_code: e.target.value.toUpperCase().replace(/\s+/g, '') })}
+                      placeholder="e.g. HDFC0001234"
+                      style={{
+                        width: '100%',
+                        height: 36,
+                        padding: '0 10px',
+                        borderRadius: 6,
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.8rem',
+                        color: '#0F172A',
+                        fontFamily: 'monospace'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Bank Branch & Company Branch Assignment */}
+                <div className="modal-grid-2" style={{ marginBottom: 12 }}>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>
+                      Bank Branch Location
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.branch_name}
+                      onChange={(e) => setFormData({ ...formData, branch_name: e.target.value })}
+                      placeholder="e.g. Karur Main Branch"
+                      style={{
+                        width: '100%',
+                        height: 36,
+                        padding: '0 10px',
+                        borderRadius: 6,
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.8rem',
+                        color: '#0F172A'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>
+                      Company Branch Assignment
+                    </label>
+                    <SharedDropdown
+                      value={formData.company_branch}
+                      onChange={(e) => setFormData({ ...formData, company_branch: e.target.value })}
+                      placeholder="All Branches (Global / Central)"
+                      buttonStyle={{ height: 36, width: '100%' }}
+                      options={[
+                        { value: '', label: 'All Branches (Global / Central)' },
+                        ...branchesList.map(b => ({ value: b.name, label: b.name }))
+                      ]}
+                    />
+                  </div>
+                </div>
+
+                {/* Opening Balance */}
+                {modalMode === 'CREATE' && (
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>
+                      Opening Book Balance (₹)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formData.opening_balance}
+                      onChange={(e) => setFormData({ ...formData, opening_balance: e.target.value })}
+                      placeholder="0.00"
+                      style={{
+                        width: '100%',
+                        height: 36,
+                        padding: '0 10px',
+                        borderRadius: 6,
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.8rem',
+                        color: '#0F172A'
+                      }}
+                    />
+                  </div>
+                )}
+
               </div>
-
-              {/* Account Number & IFSC Code */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 12, marginBottom: 12 }}>
-                <div>
-                  <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>
-                    Account Number *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.account_number}
-                    onChange={(e) => setFormData({ ...formData, account_number: e.target.value.replace(/\s+/g, '') })}
-                    placeholder="e.g. 50200012345678"
-                    style={{
-                      width: '100%',
-                      height: 36,
-                      padding: '0 10px',
-                      borderRadius: 6,
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.8rem',
-                      color: '#0F172A',
-                      fontFamily: 'monospace'
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>
-                    IFSC Code *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.ifsc_code}
-                    onChange={(e) => setFormData({ ...formData, ifsc_code: e.target.value.toUpperCase().replace(/\s+/g, '') })}
-                    placeholder="e.g. HDFC0001234"
-                    style={{
-                      width: '100%',
-                      height: 36,
-                      padding: '0 10px',
-                      borderRadius: 6,
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.8rem',
-                      color: '#0F172A',
-                      fontFamily: 'monospace'
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Bank Branch & Company Branch Assignment */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-                <div>
-                  <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>
-                    Bank Branch Location
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.branch_name}
-                    onChange={(e) => setFormData({ ...formData, branch_name: e.target.value })}
-                    placeholder="e.g. Karur Main Branch"
-                    style={{
-                      width: '100%',
-                      height: 36,
-                      padding: '0 10px',
-                      borderRadius: 6,
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.8rem',
-                      color: '#0F172A'
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>
-                    Company Branch Assignment
-                  </label>
-                  <SharedDropdown
-                    value={formData.company_branch}
-                    onChange={(e) => setFormData({ ...formData, company_branch: e.target.value })}
-                    placeholder="All Branches (Global / Central)"
-                    options={[
-                      { value: '', label: 'All Branches (Global / Central)' },
-                      ...branchesList.map(b => ({ value: b.name, label: b.name }))
-                    ]}
-                  />
-                </div>
-              </div>
-
-              {/* Opening Balance */}
-              {modalMode === 'CREATE' && (
-                <div style={{ marginBottom: 16 }}>
-                  <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>
-                    Opening Book Balance (₹)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={formData.opening_balance}
-                    onChange={(e) => setFormData({ ...formData, opening_balance: e.target.value })}
-                    placeholder="0.00"
-                    style={{
-                      width: '100%',
-                      height: 36,
-                      padding: '0 10px',
-                      borderRadius: 6,
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.8rem',
-                      color: '#0F172A'
-                    }}
-                  />
-                </div>
-              )}
 
               {/* Actions */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 10,
+                padding: '14px 20px',
+                borderTop: '1px solid #E2E8F0',
+                background: '#F8FAFC',
+                flexShrink: 0
+              }}>
                 <button
                   type="button"
                   disabled={submitting}

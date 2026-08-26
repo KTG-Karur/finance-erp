@@ -23,7 +23,8 @@ export async function getLoanByIdHandler(request, reply) {
 
 export async function createLoanHandler(request, reply) {
   try {
-    const loan = await LoanService.createLoan(request.tenantDb, request.body, request.user?.name);
+    const companyCode = request.companyCode || request.tenantCode || request.tenant?.code || request.user?.companyCode || request.user?.company_code || 'default';
+    const loan = await LoanService.createLoan(request.tenantDb, request.body, request.user?.name, companyCode);
     return reply.code(201).send({ success: true, message: 'Loan disbursed successfully', data: loan });
   } catch (err) {
     return reply.code(err.statusCode || 400).send({ success: false, message: err.message });

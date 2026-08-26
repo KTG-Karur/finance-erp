@@ -30,7 +30,7 @@ import SharedDropdown from '../../components/common/SharedDropdown';
 
 const normalizePhone = (p) => (p || '').toString().replace(/\D/g, '');
 
-export default function BorrowersView({ borrowers = [], loans = [], branches = [], selectedBranch = 'ALL', tenant, onCreateBorrower, onUpdateBorrower, onDeleteBorrower }) {
+export default function BorrowersView({ borrowers = [], loans = [], collections = [], fixedDeposits = [], recurringDeposits = [], journalEntries = [], branches = [], selectedBranch = 'ALL', tenant, onCreateBorrower, onUpdateBorrower, onDeleteBorrower }) {
   const { t, tStatus } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -177,6 +177,33 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
   const startIndex = (safePage - 1) * pageSize;
   const paginatedList = borrowersList.slice(startIndex, startIndex + pageSize);
 
+  const activeLoansForTarget = useMemo(() => {
+    if (!deleteTarget) return [];
+    return (loans || []).filter(l => {
+      const isBorrowerMatch = String(l.borrower_id) === String(deleteTarget.id) || (l.phone && deleteTarget.phone && String(l.phone) === String(deleteTarget.phone));
+      const isStatusActive = !['CLOSED', 'REJECTED', 'CANCELLED'].includes((l.status || '').toUpperCase());
+      return isBorrowerMatch && isStatusActive;
+    });
+  }, [deleteTarget, loans]);
+
+  const activeFdsForTarget = useMemo(() => {
+    if (!deleteTarget) return [];
+    return (fixedDeposits || []).filter(fd => {
+      const isMatch = String(fd.customer_id) === String(deleteTarget.id) || (fd.phone && deleteTarget.phone && String(fd.phone) === String(deleteTarget.phone));
+      return isMatch && (fd.status || 'ACTIVE') === 'ACTIVE';
+    });
+  }, [deleteTarget, fixedDeposits]);
+
+  const activeRdsForTarget = useMemo(() => {
+    if (!deleteTarget) return [];
+    return (recurringDeposits || []).filter(rd => {
+      const isMatch = String(rd.customer_id) === String(deleteTarget.id) || (rd.phone && deleteTarget.phone && String(rd.phone) === String(deleteTarget.phone));
+      return isMatch && (rd.status || 'ACTIVE') === 'ACTIVE';
+    });
+  }, [deleteTarget, recurringDeposits]);
+
+  const hasActiveObligations = activeLoansForTarget.length > 0 || activeFdsForTarget.length > 0 || activeRdsForTarget.length > 0;
+
   const totalBorrowers = enrichedBorrowers.length;
 
   const openCreateForm = () => {
@@ -200,6 +227,20 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
     setFormOpen(false);
   };
 
+  const confirmDelete = async () => {
+    if (!deleteTarget || hasActiveObligations) return;
+    setDeleteLoading(true);
+    setDeleteError('');
+    try {
+      await onDeleteBorrower(deleteTarget.id);
+      setDeleteTarget(null);
+    } catch (err) {
+      setDeleteError(err?.response?.data?.message || 'Unable to delete this customer.');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   if (formOpen) {
     return (
       <CustomerFormPage
@@ -212,20 +253,6 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
       />
     );
   }
-
-  const confirmDelete = async () => {
-    if (!deleteTarget) return;
-    setDeleteLoading(true);
-    setDeleteError('');
-    try {
-      await onDeleteBorrower(deleteTarget.id);
-      setDeleteTarget(null);
-    } catch (err) {
-      setDeleteError(err?.response?.data?.message || 'Unable to delete this customer.');
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
 
   return (
     <div className="fin-page">
@@ -608,10 +635,27 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
                 <X style={{ width: 16, height: 16 }} />
               </button>
             </div>
-            <div className="saas-modal-body">
+            <div className="saas-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <p style={{ fontSize: '0.85rem', color: '#334155', margin: 0 }}>
-                Are you sure you want to permanently delete <strong>{deleteTarget.full_name}</strong> ({deleteTarget.borrower_code}) from the customer directory?
+                Are you sure you want to delete customer <strong>{deleteTarget.full_name}</strong> ({deleteTarget.borrower_code}) from the directory?
               </p>
+
+              {hasActiveObligations && (
+                <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <AlertTriangle style={{ width: 16, height: 16, color: '#DC2626', flexShrink: 0, marginTop: 2 }} />
+                  <div style={{ fontSize: '0.78rem', color: '#991B1B', lineHeight: 1.5 }}>
+                    <strong>Deletion Blocked:</strong> This customer has{' '}
+                    {[
+                      activeLoansForTarget.length > 0 && `**${activeLoansForTarget.length} active loan(s)**`,
+                      activeFdsForTarget.length > 0 && `**${activeFdsForTarget.length} active Fixed Deposit(s)**`,
+                      activeRdsForTarget.length > 0 && `**${activeRdsForTarget.length} active Recurring Deposit(s)**`
+                    ].filter(Boolean).join(' and ')}.
+                    <br />
+                    All active loans and deposit accounts must be closed or settled before this customer can be deleted.
+                  </div>
+                </div>
+              )}
+
               {deleteError && (
                 <div className="form-alert form-alert--error">
                   <AlertTriangle style={{ width: 14, height: 14 }} />
@@ -626,11 +670,15 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
               <button
                 type="button"
                 onClick={confirmDelete}
-                disabled={deleteLoading}
+                disabled={hasActiveObligations || deleteLoading}
                 className="btn-submit"
-                style={{ background: 'var(--color-danger, #DC2626)', boxShadow: '0 2px 6px rgba(var(--color-danger-rgb), 0.3)' }}
+                style={{
+                  background: hasActiveObligations ? '#94A3B8' : 'var(--color-danger, #DC2626)',
+                  boxShadow: hasActiveObligations ? 'none' : '0 2px 6px rgba(var(--color-danger-rgb), 0.3)',
+                  cursor: hasActiveObligations ? 'not-allowed' : 'pointer'
+                }}
               >
-                {deleteLoading ? 'Deleting...' : 'Delete Permanently'}
+                {deleteLoading ? 'Deleting...' : 'Confirm Deletion'}
               </button>
             </div>
           </div>
@@ -641,6 +689,11 @@ export default function BorrowersView({ borrowers = [], loans = [], branches = [
       {profileTarget && (
         <CustomerProfileModal
           borrower={profileTarget}
+          tenant={tenant}
+          collections={collections}
+          fixedDeposits={fixedDeposits}
+          recurringDeposits={recurringDeposits}
+          journalEntries={journalEntries}
           onClose={() => setProfileTarget(null)}
           onEdit={() => { openEditForm(profileTarget); setProfileTarget(null); }}
         />

@@ -21,7 +21,7 @@ async function ensureExpenseColumns(db) {
 
 export async function getExpenseCategories(db) {
   await ensureExpenseColumns(db);
-  const [rows] = await db.query("SELECT id, name, branch, status, balance, allocated_total, created_at FROM expense_categories ORDER BY id");
+  const [rows] = await db.query("SELECT id, name, branch, status, balance, allocated_total, created_at FROM expense_categories WHERE deleted_at IS NULL ORDER BY id");
   return rows;
 }
 
@@ -136,7 +136,7 @@ export async function updateExpenseCategory(db, id, payload) {
 }
 
 export async function deleteExpenseCategory(db, id) {
-  const [rows] = await db.query('SELECT * FROM expense_categories WHERE id = ?', [id]);
+  const [rows] = await db.query('SELECT * FROM expense_categories WHERE id = ? AND deleted_at IS NULL', [id]);
   if (!rows.length) {
     const err = new Error('Expense category not found.');
     err.statusCode = 404;
@@ -147,7 +147,7 @@ export async function deleteExpenseCategory(db, id) {
     err.statusCode = 409;
     throw err;
   }
-  await db.execute('DELETE FROM expense_categories WHERE id = ?', [id]);
+  await db.execute('UPDATE expense_categories SET deleted_at = CURRENT_TIMESTAMP, status = ' + "'INACTIVE'" + ' WHERE id = ? AND deleted_at IS NULL', [id]);
 }
 
 export async function addExpenseFunds(db, payload, requestedBy) {

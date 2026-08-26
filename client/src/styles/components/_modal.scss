@@ -4,7 +4,8 @@
 // EXECUTIVE MODERN SAAS MODAL SYSTEM (macOS Inspired Pixel-Perfect)
 // ============================================================
 
-.saas-modal-backdrop {
+.saas-modal-backdrop,
+.modal-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.55);
@@ -14,27 +15,124 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: 20px;
+  overflow-y: auto;
   animation: fadeIn 0.2s ease-out;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  box-sizing: border-box;
+
+  @include respond-to(sm) {
+    align-items: flex-end;
+    padding: 0;
+  }
 }
 
-.saas-modal-card {
+.saas-modal-card,
+.modal-card {
   background: #FFFFFF;
   border: 1px solid #CBD5E1;
-  border-radius: 10px;
-  box-shadow: 0 14px 35px -5px rgba(15, 23, 42, 0.18);
+  border-radius: 12px;
+  box-shadow: 0 20px 40px -5px rgba(15, 23, 42, 0.22);
   width: 100%;
-  max-width: 520px;
-  max-height: 90vh;
+  max-width: 540px;
+  max-height: calc(100vh - 40px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   animation: fadeIn 0.15s ease-out;
   color: #0F172A;
+  position: relative;
 
   &--lg {
-    max-width: 620px;
+    max-width: 660px;
+  }
+
+  &--xl {
+    max-width: 840px;
+  }
+
+  @include respond-to(sm) {
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: 92vh !important;
+    border-radius: 16px 16px 0 0 !important;
+    border-bottom: none;
+    border-left: none;
+    border-right: none;
+  }
+
+  // Header is pinned/fixed at top
+  > .saas-modal-header,
+  > .modal-header {
+    flex-shrink: 0;
+  }
+
+  // Any middle content wrapper (form, .saas-modal-body, .modal-body, or general container)
+  > form,
+  > .saas-modal-body,
+  > .modal-body,
+  > div:not(.saas-modal-header):not(.modal-header):not(.saas-modal-footer):not(.modal-footer) {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  // Form flex layout when inside modal
+  > form {
+    display: flex;
+    flex-direction: column;
+
+    // Body content inside form if explicitly structured
+    > .saas-modal-body,
+    > .modal-body {
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    // Footer inside form pinned at bottom
+    > .saas-modal-footer,
+    > .modal-footer {
+      flex-shrink: 0;
+    }
+  }
+
+  // Direct footer inside modal card
+  > .saas-modal-footer,
+  > .modal-footer {
+    flex-shrink: 0;
+  }
+
+  // Custom modern slim scrollbar for scrollable modal sections
+  &::-webkit-scrollbar,
+  .saas-modal-body::-webkit-scrollbar,
+  .modal-body::-webkit-scrollbar,
+  form::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-track,
+  .saas-modal-body::-webkit-scrollbar-track,
+  .modal-body::-webkit-scrollbar-track,
+  form::-webkit-scrollbar-track {
+    background: #F1F5F9;
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb,
+  .saas-modal-body::-webkit-scrollbar-thumb,
+  .modal-body::-webkit-scrollbar-thumb,
+  form::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 4px;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: #94A3B8;
+    }
   }
 }
 

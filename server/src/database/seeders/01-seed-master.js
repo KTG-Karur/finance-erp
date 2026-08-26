@@ -15,6 +15,7 @@ export async function up(queryInterface, Sequelize) {
       max_branches: 3,
       allowed_modules: JSON.stringify(['LOANS', 'COLLECTIONS', 'REPORTS']),
       monthly_price: 1999.00,
+      six_month_price: 10995.00,
       yearly_price: 19990.00,
       is_active: true,
       created_at: new Date()
@@ -26,6 +27,7 @@ export async function up(queryInterface, Sequelize) {
       max_branches: 10,
       allowed_modules: JSON.stringify(['LOANS', 'COLLECTIONS', 'GOLD_LOANS', 'REPORTS', 'EMPLOYEES']),
       monthly_price: 4999.00,
+      six_month_price: 27495.00,
       yearly_price: 49990.00,
       is_active: true,
       created_at: new Date()
@@ -37,6 +39,7 @@ export async function up(queryInterface, Sequelize) {
       max_branches: null,
       allowed_modules: JSON.stringify(['LOANS', 'COLLECTIONS', 'GOLD_LOANS', 'NPA', 'GENERAL_LEDGER', 'REPORTS', 'EMPLOYEES', 'ORGANIZATION']),
       monthly_price: 9999.00,
+      six_month_price: 54995.00,
       yearly_price: 99990.00,
       is_active: true,
       created_at: new Date()

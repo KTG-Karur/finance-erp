@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import PermissionMatrix from '../components/PermissionMatrix';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import PermissionMatrix, { DEFAULT_ROLES, getStoredCustomRoles } from '../components/PermissionMatrix';
 import BorrowersView from '../finance/borrowers/BorrowersView';
 import OrganizationHierarchyView from './OrganizationHierarchyView';
 import LoanSchemeMasterView from './LoanSchemeMasterView';
@@ -7,7 +7,10 @@ import ExpenseAllocationView from './ExpenseAllocationView';
 import ChartOfAccountsMasterView from './ChartOfAccountsMasterView';
 import BankAccountMasterView from './BankAccountMasterView';
 import InvestorCapitalView from '../finance/investors/InvestorCapitalView';
+import BrandThemeSettingsView from './BrandThemeSettingsView';
+import DraftsArchiveView from './DraftsArchiveView';
 import SharedDropdown from '../components/common/SharedDropdown';
+import { uploadFile } from '../api/upload.js';
 import {
   Settings,
   Users,
@@ -41,6 +44,10 @@ export default function MasterSettingsView({
   tenant,
   user,
   employees = [],
+  roles = [],
+  onCreateRole,
+  onUpdateRole,
+  onDeleteRole,
   onSavePermissions,
   onCreateEmployee,
   onUpdateEmployee,
@@ -84,10 +91,18 @@ export default function MasterSettingsView({
   investors = [],
   onCreateInvestor,
   onUpdateInvestor,
-  onDeleteInvestor
+  onDeleteInvestor,
+  onAddInvestorCapital,
+  journalEntries = [],
+  onSaveTheme,
+  onRefreshData
 }) {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
   const [activeModal, setActiveModal] = useState(null); // 'CREATE_STAFF' | 'EDIT_STAFF' | 'DELETE_STAFF' | 'STAFF_PERMISSIONS' | null
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [selectedStaffForRbac, setSelectedStaffForRbac] = useState(null);
@@ -196,7 +211,7 @@ export default function MasterSettingsView({
     setActiveModal('DELETE_STAFF');
   };
 
-  const handlePhotoUpload = (e) => {
+  const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
@@ -209,11 +224,14 @@ export default function MasterSettingsView({
       return;
     }
     setStaffFormError('');
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setStaffForm(prev => ({ ...prev, photo: reader.result }));
-    };
-    reader.readAsDataURL(file);
+    try {
+      const res = await uploadFile(file, { subfolder: 'staff', category: 'photo', prefix: 'staff_photo' });
+      if (res?.url) {
+        setStaffForm(prev => ({ ...prev, photo: res.url }));
+      }
+    } catch {
+      setStaffFormError('Failed to upload staff photo.');
+    }
   };
 
   const [staffActionLoading, setStaffActionLoading] = useState(false);
@@ -300,13 +318,35 @@ export default function MasterSettingsView({
   const startIndex = (currentPage - 1) * pageSize;
   const paginatedEmployees = filteredEmployees.slice(startIndex, startIndex + pageSize);
 
+  const [customRoles, setCustomRoles] = useState(getStoredCustomRoles);
+
+  useEffect(() => {
+    const handleRolesUpdated = () => {
+      setCustomRoles(getStoredCustomRoles());
+    };
+    window.addEventListener('roles-updated', handleRolesUpdated);
+    return () => window.removeEventListener('roles-updated', handleRolesUpdated);
+  }, []);
+
+  const allRolesList = useMemo(() => {
+    const localizedDefaults = DEFAULT_ROLES.map(r => {
+      if (r.id === 'ADMIN') return { ...r, name: t('staff.modal.role_admin') || r.name };
+      if (r.id === 'MANAGER') return { ...r, name: t('staff.modal.role_manager') || r.name };
+      if (r.id === 'COLLECTOR') return { ...r, name: t('staff.modal.role_collector') || r.name };
+      if (r.id === 'STAFF') return { ...r, name: t('staff.modal.role_staff') || r.name };
+      return r;
+    });
+    return [...localizedDefaults, ...customRoles];
+  }, [t, customRoles]);
+
   const getRoleLabel = (roleCode) => {
     if (roleCode === 'ADMIN' || roleCode === 'SUPER_ADMIN') return 'System Administrator';
     if (roleCode === 'COMPANY_ADMIN') return 'Company Admin';
     if (roleCode === 'MANAGER') return 'Branch Manager';
     if (roleCode === 'COLLECTOR') return 'Field Collector Agent';
     if (roleCode === 'STAFF') return 'General Staff';
-    return roleCode || 'Staff';
+    const found = allRolesList.find(r => r.id === roleCode);
+    return found ? found.name : (roleCode || 'Staff');
   };
 
   if (activeTab === 'customer-details') {
@@ -365,9 +405,13 @@ export default function MasterSettingsView({
     return (
       <InvestorCapitalView
         investors={investors}
+        bankAccounts={bankAccounts}
+        branchesList={branchesList}
+        journalEntries={journalEntries}
         onCreateInvestor={onCreateInvestor}
         onUpdateInvestor={onUpdateInvestor}
         onDeleteInvestor={onDeleteInvestor}
+        onAddInvestorCapital={onAddInvestorCapital}
       />
     );
   }
@@ -403,6 +447,24 @@ export default function MasterSettingsView({
         savedSuccess={savedSuccess}
         companySaveError={companySaveError}
         companySaving={companySaving}
+      />
+    );
+  }
+
+  if (activeTab === 'brand-theme' || activeTab === 'theme') {
+    return (
+      <BrandThemeSettingsView
+        tenant={tenant}
+        user={user}
+        onSaveTheme={onSaveTheme}
+      />
+    );
+  }
+
+  if (activeTab === 'drafts-archive' || activeTab === 'drafts' || activeTab === 'trash' || activeTab === 'deleted-records') {
+    return (
+      <DraftsArchiveView
+        onRestored={onRefreshData}
       />
     );
   }
@@ -473,8 +535,8 @@ export default function MasterSettingsView({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           
           <div className="loans-table-card">
-            <div className="table-responsive">
-              <table>
+            <div className="fin-table-scroll">
+              <table style={{ minWidth: 640 }}>
                 <thead>
                   <tr>
                     <th style={{ width: 50, textAlign: 'center' }}>{t('col.sno')}</th>
@@ -598,8 +660,8 @@ export default function MasterSettingsView({
                           )}
                         </td>
 
-                        <td style={{ textAlign: 'right' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                        <td style={{ textAlign: 'right', whiteSpace: 'nowrap', width: 140 }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, flexShrink: 0 }}>
                             {/* Small Configure RBAC Button (Opens Dedicated Modal In-Place) */}
                             <button
                               type="button"
@@ -608,18 +670,20 @@ export default function MasterSettingsView({
                                 border: '1px solid #CBD5E1',
                                 background: '#FFFFFF',
                                 color: '#334155',
-                                fontSize: '0.7rem',
-                                fontWeight: 500,
-                                padding: '3px 8px',
-                                borderRadius: 5,
+                                fontSize: '0.72rem',
+                                fontWeight: 600,
+                                height: 30,
+                                padding: '0 8px',
+                                borderRadius: 6,
                                 cursor: 'pointer',
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: 3
+                                gap: 4,
+                                flexShrink: 0
                               }}
                               title="Configure Custom Permissions for this Staff Member"
                             >
-                              <Shield style={{ width: 11, height: 11 }} />
+                              <Shield style={{ width: 12, height: 12, flexShrink: 0 }} />
                               <span>RBAC</span>
                             </button>
 
@@ -628,16 +692,22 @@ export default function MasterSettingsView({
                               type="button"
                               onClick={() => handleOpenEditStaff(emp)}
                               style={{
+                                width: 30,
+                                height: 30,
+                                flexShrink: 0,
                                 border: '1px solid #CBD5E1',
                                 background: '#FFFFFF',
                                 color: 'var(--color-info, #2563EB)',
-                                padding: '4px 7px',
-                                borderRadius: 5,
-                                cursor: 'pointer'
+                                borderRadius: 6,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: 0
                               }}
                               title="Edit Staff Member Details"
                             >
-                              <Pencil style={{ width: 12, height: 12 }} />
+                              <Pencil style={{ width: 13, height: 13, flexShrink: 0 }} />
                             </button>
 
                             {/* Delete Staff Button */}
@@ -645,16 +715,22 @@ export default function MasterSettingsView({
                               type="button"
                               onClick={() => handleOpenDeleteStaff(emp)}
                               style={{
+                                width: 30,
+                                height: 30,
+                                flexShrink: 0,
                                 border: '1px solid var(--color-danger-border, #FCA5A5)',
                                 background: 'var(--color-danger-light, #FEF2F2)',
                                 color: 'var(--color-danger, #DC2626)',
-                                padding: '4px 7px',
-                                borderRadius: 5,
-                                cursor: 'pointer'
+                                borderRadius: 6,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: 0
                               }}
                               title="Delete / Deactivate Staff Account"
                             >
-                              <Trash2 style={{ width: 13, height: 13 }} />
+                              <Trash2 style={{ width: 13, height: 13, flexShrink: 0 }} />
                             </button>
                           </div>
                         </td>
@@ -702,12 +778,17 @@ export default function MasterSettingsView({
             initialRole="MANAGER"
             selectedStaffMember={null}
             employees={employees}
-            onSaveStaffPermissions={handleSaveStaffPermissions}
+            roles={roles}
+            onCreateRole={onCreateRole}
+            onUpdateRole={onUpdateRole}
+            onDeleteRole={onDeleteRole}
+            onSavePermissions={handleSaveStaffPermissions}
+            onClose={() => setActiveTab('staff-directory')}
           />
         </div>
       )}
 
-      {/* ── DEDICATED IN-PLACE MODAL FOR SPECIFIC STAFF PERMISSIONS (RBAC) ── */}
+      {/* ── 4. Dedicated Staff Permissions Override Modal ── */}
       {activeModal === 'STAFF_PERMISSIONS' && selectedStaffForRbac && (
         <div style={{
           position: 'fixed',
@@ -779,6 +860,10 @@ export default function MasterSettingsView({
               <PermissionMatrix
                 initialRole={selectedStaffForRbac.role}
                 selectedStaffMember={selectedStaffForRbac}
+                roles={roles}
+                onCreateRole={onCreateRole}
+                onUpdateRole={onUpdateRole}
+                onDeleteRole={onDeleteRole}
                 onSaveStaffPermissions={handleSaveStaffPermissions}
               />
             </div>
@@ -875,9 +960,7 @@ export default function MasterSettingsView({
                 </div>
               )}
 
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
+              <div className="org-split-layout" style={{
                 gap: 0,
                 flex: 1,
                 overflowY: 'auto'
@@ -885,7 +968,7 @@ export default function MasterSettingsView({
 
                 {/* ── LEFT PANEL: Photo Upload, Personal Details & Role ── */}
                 <div style={{
-                  padding: 24,
+                  padding: 20,
                   borderRight: '1px solid #E2E8F0',
                   display: 'flex',
                   flexDirection: 'column',
@@ -1045,12 +1128,7 @@ export default function MasterSettingsView({
                       value={staffForm.role}
                       onChange={e => setStaffForm({ ...staffForm, role: e.target.value })}
                       buttonStyle={{ height: 42, fontSize: '0.85rem', fontWeight: 600 }}
-                      options={[
-                        { value: 'COLLECTOR', label: t('staff.modal.role_collector') },
-                        { value: 'MANAGER', label: t('staff.modal.role_manager') },
-                        { value: 'STAFF', label: t('staff.modal.role_staff') },
-                        { value: 'ADMIN', label: t('staff.modal.role_admin') }
-                      ]}
+                      options={allRolesList.map(r => ({ value: r.id, label: r.name }))}
                     />
                   </div>
                 </div>

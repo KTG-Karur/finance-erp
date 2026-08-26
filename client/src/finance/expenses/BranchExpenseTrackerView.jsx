@@ -526,7 +526,7 @@ export default function BranchExpenseTrackerView({
       </div>
 
       {/* Split Side-by-Side Panel Architecture */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 16, marginTop: 20, marginBottom: 24 }}>
+      <div className="fin-split-panels">
         {/* LEFT PANEL: Branch Category Budget Breakdown Table */}
         <div className="loans-table-card" style={{ margin: 0 }}>
           <div style={{ padding: '14px 18px', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

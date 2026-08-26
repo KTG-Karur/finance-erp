@@ -8,6 +8,7 @@ import rateLimit from '@fastify/rate-limit';
 import sensible from '@fastify/sensible';
 
 import fastifyStatic from '@fastify/static';
+import fastifyMultipart from '@fastify/multipart';
 import path from 'path';
 import fs from 'fs';
 
@@ -19,9 +20,12 @@ import tenantGuardPlugin from './plugins/tenantGuard.js';
 import moduleGuardPlugin from './plugins/moduleGuard.js';
 
 import authRoutes from './modules/auth/auth.routes.js';
+import uploadRoutes from './modules/upload/upload.routes.js';
 import financeRoutes from './finance/finance.routes.js';
 import orgRoutes from './modules/org/org.routes.js';
 import employeeRoutes from './modules/employee/employee.routes.js';
+import roleRoutes from './modules/roles/roles.routes.js';
+import trashRoutes from './modules/trash/trash.routes.js';
 import { ensureCompanyUploadDirectories } from './shared/utils/fileStorage.js';
 
 // Fastify's default bodyLimit is 1MB — too small for real uploads: a single
@@ -32,7 +36,12 @@ import { ensureCompanyUploadDirectories } from './shared/utils/fileStorage.js';
 // the outer transport limit, set with headroom above that worst case.
 const fastify = Fastify({
   logger: false,
-  bodyLimit: 100 * 1024 * 1024
+  bodyLimit: 100 * 1024 * 1024,
+  ajv: {
+    customOptions: {
+      allowUnionTypes: true
+    }
+  }
 });
 
 // Origin allowlist instead of `origin: true` (which reflects any caller's Origin
@@ -93,6 +102,13 @@ await fastify.register(fastifyStatic, {
   decorateReply: false
 });
 
+await fastify.register(fastifyMultipart, {
+  limits: {
+    fileSize: 25 * 1024 * 1024, // 25MB max file size
+    files: 10
+  }
+});
+
 await fastify.register(sensible);
 await fastify.register(masterDbPlugin);
 await fastify.register(tenantDbPlugin);
@@ -116,16 +132,32 @@ fastify.get('/health', async (request, reply) => {
   return { status: 'OK', system: 'Database-per-Tenant Financial ERP API', timestamp: new Date() };
 });
 
-// Register Auth Routes
+// Register Auth & Multipart Direct Disk Upload Routes
 fastify.register(authRoutes, { prefix: '/api/auth' });
+fastify.register(uploadRoutes, { prefix: '/api' });
+fastify.register(uploadRoutes, { prefix: '/api/v1' });
 
 // Register General Finance Domain Engine
 fastify.register(financeRoutes, { prefix: '/api/finance' });
 fastify.register(financeRoutes, { prefix: '/api' });
 
-// Org (branches/sub-companies) and Employees
+// Org (branches/sub-companies), Employees and Roles
 fastify.register(orgRoutes, { prefix: '/api' });
 fastify.register(employeeRoutes, { prefix: '/api/employees' });
+fastify.register(roleRoutes, { prefix: '/api/roles' });
+fastify.register(trashRoutes, { prefix: '/api' });
+
+// Global Error Handler
+fastify.setErrorHandler((error, request, reply) => {
+  const statusCode = error.statusCode || (reply.statusCode >= 400 ? reply.statusCode : 500);
+  if (statusCode >= 500) {
+    console.error(`\x1b[31m[ERROR 500] ${request.method} ${request.url}\x1b[0m:`, error);
+  }
+  return reply.code(statusCode).send({
+    success: false,
+    message: error.message || 'Internal Server Error'
+  });
+});
 
 const PORT = Number(process.env.PORT) || 5000;
 const HOST = process.env.HOST || '0.0.0.0';

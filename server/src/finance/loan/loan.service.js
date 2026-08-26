@@ -3,6 +3,7 @@ import { validateLoanCreationPayload } from './loan.validation.js';
 import { generateEmiSchedule } from '../../shared/interest-engine/interestEngine.js';
 import { createDisbursalVoucher, createPreclosureVoucher, createEmergencyCloseVoucher } from '../../shared/voucher-engine/voucherEngine.js';
 import { NpaService } from '../npa/npa.service.js';
+import { processDocumentsArray } from '../../shared/utils/fileStorage.js';
 
 // Statuses a loan can transition INTO via updateStatus, and which CURRENT
 // status each is valid from. Anything not listed here is rejected with a
@@ -11,10 +12,11 @@ import { NpaService } from '../npa/npa.service.js';
 // its rendering on, so an invalid jump (e.g. CLOSED -> PENDING) would leave
 // the UI in a state nothing else expects.
 const VALID_TRANSITIONS = {
-  APPROVED: ['PENDING'],
-  REJECTED: ['PENDING'],
-  PENDING: ['APPROVED', 'REJECTED'], // revert
-  ACTIVE: ['APPROVED', 'PENDING_CLOSURE', 'OVERDUE'], // disburse, or reject a closure request
+  APPROVED: ['PENDING', 'PENDING_DISBURSAL', 'REJECTED'],
+  PENDING_DISBURSAL: ['APPROVED', 'PENDING', 'REJECTED'],
+  REJECTED: ['PENDING', 'APPROVED', 'PENDING_DISBURSAL'],
+  PENDING: ['APPROVED', 'PENDING_DISBURSAL', 'REJECTED'], // revert
+  ACTIVE: ['APPROVED', 'PENDING_DISBURSAL', 'PENDING_CLOSURE', 'OVERDUE'], // disburse, or reject a closure request
   CLOSED: ['PENDING_CLOSURE'],
   OVERDUE: ['ACTIVE']
 };
@@ -32,7 +34,43 @@ export class LoanService {
     return LoanRepository.findById(db, id);
   }
 
-  static async createLoan(db, loanData, createdBy) {
+  static async findById(db, id) {
+    return LoanRepository.findById(db, id);
+  }
+
+  static async generateNextLoanAccountNo(conn, isApplication = true) {
+    const year = new Date().getFullYear();
+    const prefix = isApplication ? 'APP' : 'LN';
+
+    const [rows] = await conn.query(
+      `SELECT loan_account_no FROM loans 
+       WHERE loan_account_no LIKE ? OR loan_account_no LIKE ?
+       ORDER BY id ASC`,
+      [`APP-${year}-%`, `LN-${year}-%`]
+    );
+
+    let maxSeq = 0;
+    for (const r of rows) {
+      const match = r.loan_account_no && r.loan_account_no.match(/^(?:APP|LN)-\d+-(\d+)$/);
+      if (match && match[1]) {
+        const seq = parseInt(match[1], 10);
+        if (!isNaN(seq) && seq < 1000) {
+          if (seq > maxSeq) maxSeq = seq;
+        }
+      }
+    }
+
+    if (maxSeq === 0) {
+      const [countRows] = await conn.query(`SELECT COUNT(*) as cnt FROM loans`);
+      maxSeq = countRows[0]?.cnt || 0;
+    }
+
+    const nextSeq = maxSeq + 1;
+    const paddedSeq = String(nextSeq).padStart(4, '0');
+    return `${prefix}-${year}-${paddedSeq}`;
+  }
+
+  static async createLoan(db, loanData, createdBy, companyCode = 'default') {
     validateLoanCreationPayload(loanData);
 
     const conn = await db.getConnection();
@@ -59,8 +97,11 @@ export class LoanService {
       // APPROVED->ACTIVE transition). A direct disbursal skips the review step
       // and is immediately ACTIVE with cash out the door.
       const isApplication = loanData.mode === 'APPLICATION';
-      const accountPrefix = isApplication ? 'APP' : 'LN';
-      const loanAccountNo = `${accountPrefix}-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      let loanAccountNo = loanData.loan_account_no;
+      if (!loanAccountNo || loanAccountNo.includes('DRAFT') || loanAccountNo.includes('PREVIEW')) {
+        loanAccountNo = await LoanService.generateNextLoanAccountNo(conn, isApplication);
+      }
+      
       const principal = Number(loanData.principal_amount);
       const rate = Number(loanData.monthly_interest_rate);
       const tenureDays = Number(loanData.tenure_days || 120);
@@ -111,6 +152,52 @@ export class LoanService {
         firstDueDate = d.toISOString().slice(0, 10);
       }
 
+      // Convert any uploaded base64 file buffers (guarantor, nominee, security) to static disk files
+      let guarantorObj = loanData.guarantor;
+      if (typeof guarantorObj === 'string') {
+        try { guarantorObj = JSON.parse(guarantorObj); } catch {}
+      }
+      if (guarantorObj && typeof guarantorObj === 'object') {
+        if (guarantorObj.files && Array.isArray(guarantorObj.files)) {
+          guarantorObj.files = await processDocumentsArray(guarantorObj.files, companyCode);
+        }
+      } else if (loanData.guarantor_name) {
+        guarantorObj = {
+          name: loanData.guarantor_name,
+          relationship: loanData.guarantor_relationship || 'Guarantor',
+          dob: loanData.guarantor_dob || null,
+          mobile: loanData.guarantor_phone || null,
+          id_proof_type: loanData.guarantor_id_type || 'Aadhaar Card',
+          id_proof_number: loanData.guarantor_id_number || null,
+          address: loanData.guarantor_address || null,
+          files: []
+        };
+      }
+
+      let nomineeObj = loanData.nominee;
+      if (typeof nomineeObj === 'string') {
+        try { nomineeObj = JSON.parse(nomineeObj); } catch {}
+      }
+      if (nomineeObj && typeof nomineeObj === 'object') {
+        if (nomineeObj.files && Array.isArray(nomineeObj.files)) {
+          nomineeObj.files = await processDocumentsArray(nomineeObj.files, companyCode);
+        }
+      }
+
+      let securityObj = loanData.security;
+      if (typeof securityObj === 'string') {
+        try { securityObj = JSON.parse(securityObj); } catch {}
+      }
+      if (securityObj && typeof securityObj === 'object') {
+        if (securityObj.details?.files && Array.isArray(securityObj.details.files)) {
+          securityObj.details.files = await processDocumentsArray(securityObj.details.files, companyCode);
+        }
+      }
+
+      const guarantorValue = guarantorObj ? JSON.stringify(guarantorObj) : null;
+      const nomineeValue = nomineeObj ? JSON.stringify(nomineeObj) : null;
+      const securityValue = securityObj ? JSON.stringify(securityObj) : null;
+
       const [res] = await conn.query(
         `INSERT INTO loans (
           loan_account_no, borrower_id, borrower_name, phone, scheme_id, branch, collector,
@@ -143,10 +230,10 @@ export class LoanService {
           loanData.installment_formula ? JSON.stringify(loanData.installment_formula) : null,
           loanData.aadhaar || null,
           loanData.pan || null,
-          loanData.guarantor || null,
+          guarantorValue,
           loanData.purpose || null,
-          loanData.nominee ? JSON.stringify(loanData.nominee) : null,
-          loanData.security ? JSON.stringify(loanData.security) : null,
+          nomineeValue,
+          securityValue,
           status,
           loanData.loan_date || new Date().toISOString().slice(0, 10),
           isApplication ? null : firstDueDate
@@ -197,8 +284,9 @@ export class LoanService {
         });
       }
 
+      const createdLoan = await LoanRepository.findById(conn, loanId);
       await conn.commit();
-      return { id: loanId, loan_account_no: loanAccountNo, status, total_payable: totalPayable, schedule };
+      return createdLoan || { id: loanId, loan_account_no: loanAccountNo, status, total_payable: totalPayable, schedule };
     } catch (err) {
       await conn.rollback();
       throw err;
@@ -236,13 +324,16 @@ export class LoanService {
         // number's prefix so it reads as a real (pending-disbursal) account.
         const newAccountNo = loan.loan_account_no.replace(/^APP-/, 'LN-');
         await conn.query(`UPDATE loans SET status = 'APPROVED', loan_account_no = ? WHERE id = ?`, [newAccountNo, id]);
+      } else if (status === 'PENDING_DISBURSAL') {
+        const newAccountNo = loan.loan_account_no.replace(/^APP-/, 'LN-');
+        await conn.query(`UPDATE loans SET status = 'PENDING_DISBURSAL', loan_account_no = ? WHERE id = ?`, [newAccountNo, id]);
       } else if (status === 'REJECTED') {
         await conn.query(`UPDATE loans SET status = 'REJECTED', rejection_reason = ? WHERE id = ?`, [reason || 'Not specified', id]);
       } else if (status === 'PENDING') {
-        // Revert an APPROVED or REJECTED application back to review.
+        // Revert an application back to review.
         const newAccountNo = loan.loan_account_no.replace(/^LN-/, 'APP-');
         await conn.query(`UPDATE loans SET status = 'PENDING', loan_account_no = ?, rejection_reason = NULL WHERE id = ?`, [newAccountNo, id]);
-      } else if (status === 'ACTIVE' && loan.status === 'APPROVED') {
+      } else if (status === 'ACTIVE' && (loan.status === 'APPROVED' || loan.status === 'PENDING_DISBURSAL')) {
         // The actual disbursal — cash leaves the vault/bank now, not at application
         // time. Same voucher path as an immediate (non-application) disbursal.
         // next_due was left null while the application sat PENDING (it wasn't
@@ -488,7 +579,10 @@ export class LoanService {
       payment_mode = 'CASH',
       transaction_ref = '',
       foreclosure_fee = 0,
-      notes = ''
+      notes = '',
+      bank_account_id = null,
+      source_account_code = null,
+      source_account_name = null
     } = payload;
 
     const conn = await db.getConnection();
@@ -507,6 +601,22 @@ export class LoanService {
         const err = new Error(`Loan is already ${loan.status}.`);
         err.statusCode = 400;
         throw err;
+      }
+
+      // Resolve specific settlement bank account if provided
+      let resolvedBankAccountId = bank_account_id ? parseInt(bank_account_id, 10) : null;
+      let resolvedSourceCode = source_account_code || null;
+      let resolvedSourceName = source_account_name || null;
+
+      if (resolvedBankAccountId) {
+        const [bankRows] = await conn.query(
+          `SELECT id, bank_name, account_name, ledger_account_code FROM bank_accounts WHERE id = ?`,
+          [resolvedBankAccountId]
+        );
+        if (bankRows.length > 0) {
+          resolvedSourceCode = bankRows[0].ledger_account_code || '1002';
+          resolvedSourceName = `${bankRows[0].bank_name} (${bankRows[0].account_name})`;
+        }
       }
 
       // Calculate preclosure payoff based on loan type
@@ -539,8 +649,8 @@ export class LoanService {
       const [colRes] = await conn.query(
         `INSERT INTO collections (
           loan_id, receipt_no, collection_date, amount, principal_paid, interest_paid, penalty_paid,
-          payment_mode, collector_name, branch, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          payment_mode, bank_account_id, settlement_account_code, collector_name, branch, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           loan.id,
           receiptNo,
@@ -550,6 +660,8 @@ export class LoanService {
           interestPaid,
           Number(foreclosure_fee || 0),
           payment_mode,
+          resolvedBankAccountId,
+          resolvedSourceCode,
           createdBy || 'Staff Manager',
           loan.branch,
           notes ? `[PRECLOSURE] ${notes}` : '[PRECLOSURE] Early settlement in full'
@@ -579,6 +691,8 @@ export class LoanService {
         branch: loan.branch,
         createdBy,
         paymentMode: payment_mode,
+        sourceAccountCode: resolvedSourceCode,
+        sourceAccountName: resolvedSourceName,
         transactionRef: transaction_ref
       });
 

@@ -100,6 +100,67 @@ export function resolveLastPaymentDate(loan, referenceDateStr) {
   return loan.loan_date || today;
 }
 
+/**
+ * Resolves the date up to which interest is currently paid for a loan.
+ */
+export function resolveInterestPaidUpto(loan) {
+  if (!loan) return new Date().toISOString().slice(0, 10);
+  if (loan.interest_paid_upto) {
+    return String(loan.interest_paid_upto).slice(0, 10);
+  }
+  if (loan.last_payment_date) {
+    return String(loan.last_payment_date).slice(0, 10);
+  }
+  return loan.loan_date ? String(loan.loan_date).slice(0, 10) : new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Calculates interest due for a loan across a specific date range [fromDate, toDate].
+ * Automatically includes any past unpaid interest arrears if present on the loan.
+ */
+export function calculateInterestForDateRange({ loan, fromDate, toDate, includeArrears = false }) {
+  if (!loan || !fromDate || !toDate) {
+    return includeArrears ? { periodInterest: 0, pastArrears: 0, totalSuggestedInterest: 0, days: 0 } : 0;
+  }
+  const days = daysBetween(fromDate, toDate);
+  const interestCalculation = resolveInterestCalculation(loan);
+  const principalBase = interestCalculation === 'CONSTANT_FLAT'
+    ? (parseFloat(loan.principal_amount) || 0)
+    : (parseFloat(loan.pending_amount) || 0);
+
+  const monthlyRate = parseFloat(loan.monthly_interest_rate) || 0;
+  const dailyRate = (monthlyRate / 100) / 30;
+  const periodInterest = days > 0 ? Math.round(principalBase * dailyRate * days * 100) / 100 : 0;
+  const pastArrears = Math.max(0, parseFloat(loan.pending_interest_arrears) || 0);
+  const totalSuggestedInterest = Math.round((periodInterest + pastArrears) * 100) / 100;
+
+  if (includeArrears) {
+    return {
+      periodInterest,
+      pastArrears,
+      totalSuggestedInterest,
+      days: Math.max(0, days)
+    };
+  }
+  return totalSuggestedInterest;
+}
+
+/**
+ * Calculates the interest strictly for the days in [fromDate, toDate] excluding past arrears.
+ */
+export function calculatePeriodInterestOnly({ loan, fromDate, toDate }) {
+  if (!loan || !fromDate || !toDate) return 0;
+  const days = daysBetween(fromDate, toDate);
+  if (days <= 0) return 0;
+  const interestCalculation = resolveInterestCalculation(loan);
+  const principalBase = interestCalculation === 'CONSTANT_FLAT'
+    ? (parseFloat(loan.principal_amount) || 0)
+    : (parseFloat(loan.pending_amount) || 0);
+  const monthlyRate = parseFloat(loan.monthly_interest_rate) || 0;
+  const dailyRate = (monthlyRate / 100) / 30;
+  return Math.round(principalBase * dailyRate * days * 100) / 100;
+}
+
 // Loans created before this scheme-aware engine existed (or created without a
 // matched scheme) have no `repayment_method` / `interest_calculation` fields.
 // Defaulting them to Interest Only + Flexible reproduces the live day-based
@@ -121,7 +182,7 @@ export function resolveRepaymentMethod(loan) {
 export function resolveInterestCalculation(loan) {
   if (loan?.interest_calculation) return loan.interest_calculation;
   if (loan?.repayment_mode === 'FLEXIBLE') return 'FLEXIBLE_REDUCING';
-  return 'FLEXIBLE_REDUCING';
+  return 'CONSTANT_FLAT';
 }
 
 /**
@@ -279,40 +340,97 @@ export function generateEmiSchedule({
  * than a period's EMI partially pays down that same period (interest first) and
  * leaves the remainder owed for next time.
  */
-export function allocateEmiPayment({ schedule, paymentAmount }) {
+export function allocateEmiPayment({ schedule, paymentAmount, lastPaymentDate, paymentDate }) {
   let remaining = parseFloat(paymentAmount) || 0;
   let principalPortion = 0;
   let interestPortion = 0;
-  const updatedSchedule = (schedule || []).map(row => ({ ...row }));
+  const updatedSchedule = (schedule || []).map(r => ({
+    ...r,
+    principal: parseFloat(r.principal) || 0,
+    interest: parseFloat(r.interest) || 0,
+    principal_paid: parseFloat(r.principal_paid) || 0,
+    interest_paid: parseFloat(r.interest_paid) || 0
+  }));
 
+  const todayStr = paymentDate ? new Date(paymentDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const lastPaidStr = lastPaymentDate ? new Date(lastPaymentDate).toISOString().slice(0, 10) : null;
+  
+  // If interest was ALREADY collected on the exact same date (0 days elapsed),
+  // no duplicate interest is charged today — 100% of this payment goes to Principal.
+  const isSameDayPaid = Boolean(lastPaidStr && lastPaidStr === todayStr);
+
+  const unpaidRows = updatedSchedule.filter(
+    r => (r.principal - r.principal_paid) > 0.001 || (r.interest - r.interest_paid) > 0.001
+  );
+  const firstUnpaidRow = unpaidRows[0];
+
+  // Identify all periods that are due up to the selected collection date
+  const dueRowPeriods = new Set();
+  if (!isSameDayPaid && unpaidRows.length > 0) {
+    const dueRows = unpaidRows.filter(r => r.due_date && r.due_date <= todayStr);
+    if (dueRows.length > 0) {
+      dueRows.forEach(r => dueRowPeriods.add(r.period));
+    } else if (firstUnpaidRow) {
+      dueRowPeriods.add(firstUnpaidRow.period);
+    }
+  }
+
+  let pastArrearsInterestPaid = 0;
+  let currentInterestPaid = 0;
+
+  // 1. Settle interest for all periods due up to the selected collection date
   for (const row of updatedSchedule) {
     if (remaining <= 0) break;
-    const interestOwed = row.interest - (row.interest_paid || 0);
-    const principalOwed = row.principal - (row.principal_paid || 0);
-    if (interestOwed <= 0 && principalOwed <= 0) continue;
+    if (!dueRowPeriods.has(row.period)) continue; // Skip future periods' unaccrued interest
 
+    const interestOwed = Math.max(0, row.interest - row.interest_paid);
     if (interestOwed > 0) {
-      const pay = Math.min(remaining, interestOwed);
-      row.interest_paid = (row.interest_paid || 0) + pay;
-      interestPortion += pay;
-      remaining -= pay;
+      const payI = Math.min(remaining, interestOwed);
+      row.interest_paid += payI;
+      interestPortion += payI;
+      if (row.due_date && row.due_date < todayStr) {
+        pastArrearsInterestPaid += payI;
+      } else {
+        currentInterestPaid += payI;
+      }
+      remaining -= payI;
     }
-    if (remaining > 0 && principalOwed > 0) {
+  }
+
+  // 2. Settle principal for periods due up to the selected collection date
+  for (const row of updatedSchedule) {
+    if (remaining <= 0) break;
+    if (!dueRowPeriods.has(row.period)) continue;
+
+    const principalOwed = Math.max(0, row.principal - row.principal_paid);
+    if (principalOwed > 0) {
+      const payP = Math.min(remaining, principalOwed);
+      row.principal_paid += payP;
+      principalPortion += payP;
+      remaining -= payP;
+    }
+  }
+
+  // 3. Any excess payment goes 100% to Principal of future periods (no future interest charged)
+  for (const row of updatedSchedule) {
+    if (remaining <= 0) break;
+    const principalOwed = Math.max(0, row.principal - row.principal_paid);
+    if (principalOwed > 0) {
       const pay = Math.min(remaining, principalOwed);
-      row.principal_paid = (row.principal_paid || 0) + pay;
+      row.principal_paid += pay;
       principalPortion += pay;
       remaining -= pay;
     }
   }
 
   return {
-    interestPortion: Math.round(interestPortion),
-    principalPortion: Math.round(principalPortion),
+    interestPortion: Math.round(interestPortion * 100) / 100,
+    principalPortion: Math.round(principalPortion * 100) / 100,
+    pastArrearsInterest: Math.round(pastArrearsInterestPaid * 100) / 100,
+    currentInterest: Math.round(currentInterestPaid * 100) / 100,
     updatedSchedule,
-    // Only non-zero if the payment exceeds the entire remaining schedule (loan
-    // closed out early with money left over) — callers should treat this as change
-    // to hand back or refuse up front.
-    unappliedAmount: Math.max(0, Math.round(remaining))
+    // Only non-zero if the payment exceeds the entire remaining principal schedule
+    unappliedAmount: Math.max(0, Math.round(remaining * 100) / 100)
   };
 }
 
@@ -504,7 +622,7 @@ export function calculatePaymentAllocation({ loan, paymentAmount, paymentDate })
   const interestCalculation = resolveInterestCalculation(loan);
 
   if (repaymentMethod === 'EMI') {
-    const schedule = (loan?.repayment_schedule && loan.repayment_schedule.length)
+    let schedule = (loan?.repayment_schedule && loan.repayment_schedule.length)
       ? loan.repayment_schedule
       : generateEmiSchedule({
           principal: loan?.principal_amount,
@@ -515,12 +633,29 @@ export function calculatePaymentAllocation({ loan, paymentAmount, paymentDate })
           startDate: loan?.loan_date
         });
 
-    const result = allocateEmiPayment({ schedule, paymentAmount: amount });
+    // If schedule has no recorded payments but loan has collected_amount,
+    // apply past payments to the schedule first so partial arrears are accurately tracked
+    const alreadyCollected = parseFloat(loan?.collected_amount) || 0;
+    const scheduleHasPaid = schedule.some(r => (parseFloat(r.principal_paid) || 0) > 0.001 || (parseFloat(r.interest_paid) || 0) > 0.001);
+    if (!scheduleHasPaid && alreadyCollected > 0) {
+      const pastAlloc = allocateEmiPayment({
+        schedule,
+        paymentAmount: alreadyCollected,
+        lastPaymentDate: null,
+        paymentDate: loan?.last_payment_date || loan?.loan_date
+      });
+      schedule = pastAlloc.updatedSchedule;
+    }
+
+    const lastPaymentDate = loan?.last_payment_date ? resolveLastPaymentDate(loan, paymentDate) : null;
+    const result = allocateEmiPayment({ schedule, paymentAmount: amount, lastPaymentDate, paymentDate });
 
     return {
       strategy: `EMI_${interestCalculation}`,
       interestPortion: result.interestPortion,
       principalPortion: result.principalPortion,
+      pastArrearsInterest: result.pastArrearsInterest || 0,
+      currentInterest: result.currentInterest || 0,
       newPendingPrincipal: Math.max(0, (loan?.pending_amount || 0) - result.principalPortion),
       updatedSchedule: result.updatedSchedule,
       unappliedAmount: result.unappliedAmount,

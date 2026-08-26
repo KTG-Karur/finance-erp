@@ -17,7 +17,11 @@ export const createLoanSchema = {
       repayment_method: { type: 'string', enum: Object.values(REPAYMENT_METHOD) },
       interest_calculation: { type: 'string', enum: Object.values(INTEREST_CALCULATION) },
       repayment_frequency: { type: 'string', enum: Object.values(REPAYMENT_FREQUENCY) },
-      loan_date: { type: 'string', format: 'date' }
+      loan_date: { type: 'string', format: 'date' },
+      guarantor: { type: ['object', 'string', 'null'] },
+      purpose: { type: ['string', 'null'] },
+      nominee: { type: ['object', 'string', 'null'] },
+      security: { type: ['object', 'string', 'null'] }
     }
   }
 };

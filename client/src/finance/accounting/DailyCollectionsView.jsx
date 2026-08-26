@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Receipt,
   Search,
@@ -23,10 +23,14 @@ import {
   ArrowRight,
   Wallet,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  ShieldCheck,
+  Check,
+  Shield
 } from 'lucide-react';
 import CustomerProfileModal from '../borrowers/CustomerProfileModal';
-import DedicatedThermalPrintModal from '../../components/DedicatedThermalPrintModal';
+import VoucherReceiptModal from '../../components/VoucherReceiptModal';
+import api from '../../api/client';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import { calculatePaymentAllocation, daysBetween, resolveLastPaymentDate } from '../../utils/loanCalculations';
 import SharedDropdown from '../../components/common/SharedDropdown';
@@ -101,12 +105,15 @@ export default function DailyCollectionsView({
   tenant,
   branchesList = [],
   selectedBranch = 'ALL',
+  onOpenCollectDrawer,
   onRecordCollection,
   onQuickAction,
   onRevertCollection,
   onUpdateCollection,
   onMarkChequeCleared,
-  onMarkChequeBounced
+  onMarkChequeBounced,
+  onApproveWaiver,
+  onRejectWaiver
 }) {
   const { t } = useLanguage();
 
@@ -149,7 +156,89 @@ export default function DailyCollectionsView({
   const [chequeClearBusy, setChequeClearBusy] = useState(false);
   const [chequeClearError, setChequeClearError] = useState('');
   const [bounceBusy, setBounceBusy] = useState(false);
+  const [bankAccounts, setBankAccounts] = useState([]);
   const pageSize = 10;
+
+  useEffect(() => {
+    api.get('/finance/bank-accounts')
+      .then(res => {
+        if (res.data?.success && Array.isArray(res.data?.data)) {
+          setBankAccounts(res.data.data.filter(b => b.is_active !== false));
+        }
+      })
+      .catch(err => console.warn('Could not load bank accounts:', err));
+  }, []);
+
+  // ── Top-Level Tab State & Waiver Approvals State ──
+  const [activeSection, setActiveSection] = useState('REGISTER'); // 'REGISTER' | 'WAIVERS'
+  const [waiverStatusFilter, setWaiverStatusFilter] = useState('PENDING_APPROVAL'); // 'ALL' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED'
+  const [selectedWaiverForDetail, setSelectedWaiverForDetail] = useState(null);
+  const [rejectTarget, setRejectTarget] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [waiverBusy, setWaiverBusy] = useState(false);
+  const [waiverActionSuccess, setWaiverActionSuccess] = useState('');
+
+  const waiverCollections = useMemo(() => {
+    return (collections || []).filter(c => (Number(c.interest_waiver || 0) > 0 || (c.waiver_status && c.waiver_status !== 'NONE')));
+  }, [collections]);
+
+  const pendingWaiversCount = useMemo(() => {
+    return waiverCollections.filter(c => c.waiver_status === 'PENDING_APPROVAL' || (!c.waiver_status && Number(c.interest_waiver || 0) > 0)).length;
+  }, [waiverCollections]);
+
+  const filteredWaivers = useMemo(() => {
+    let list = waiverCollections;
+    if (branchFilter !== 'ALL') {
+      list = list.filter(c => c.branch === branchFilter);
+    }
+    if (waiverStatusFilter !== 'ALL') {
+      if (waiverStatusFilter === 'PENDING_APPROVAL') {
+        list = list.filter(c => c.waiver_status === 'PENDING_APPROVAL' || (!c.waiver_status && Number(c.interest_waiver || 0) > 0));
+      } else {
+        list = list.filter(c => c.waiver_status === waiverStatusFilter);
+      }
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      list = list.filter(c => 
+        (c.borrower_name && c.borrower_name.toLowerCase().includes(q)) ||
+        (c.loan_account_no && c.loan_account_no.toLowerCase().includes(q)) ||
+        (c.voucher_no && c.voucher_no.toLowerCase().includes(q)) ||
+        (c.phone && c.phone.includes(q))
+      );
+    }
+    return list;
+  }, [waiverCollections, branchFilter, waiverStatusFilter, searchQuery]);
+
+  const handleApproveWaiverClick = async (c) => {
+    if (typeof onApproveWaiver !== 'function') return;
+    setWaiverBusy(true);
+    try {
+      await onApproveWaiver(c.id);
+      setWaiverActionSuccess(`Waiver for ${c.voucher_no || 'loan receipt'} approved successfully.`);
+      setTimeout(() => setWaiverActionSuccess(''), 4000);
+    } catch (err) {
+      alert(err?.response?.data?.message || err?.message || 'Failed to approve waiver');
+    } finally {
+      setWaiverBusy(false);
+    }
+  };
+
+  const handleConfirmRejectWaiver = async () => {
+    if (!rejectTarget || typeof onRejectWaiver !== 'function') return;
+    setWaiverBusy(true);
+    try {
+      await onRejectWaiver(rejectTarget.id, rejectionReason || 'Waiver rejected by manager');
+      setRejectTarget(null);
+      setRejectionReason('');
+      setWaiverActionSuccess(`Waiver request rejected.`);
+      setTimeout(() => setWaiverActionSuccess(''), 4000);
+    } catch (err) {
+      alert(err?.response?.data?.message || err?.message || 'Failed to reject waiver');
+    } finally {
+      setWaiverBusy(false);
+    }
+  };
 
   const canControl = user?.role !== 'COLLECTOR';
   // Collection Modal State
@@ -209,6 +298,10 @@ export default function DailyCollectionsView({
     const loan = loanToOpen || targetLoan;
     if (!loan) {
       setEntryError('Please select a customer / loan account to record collection.');
+      return;
+    }
+    if (onOpenCollectDrawer) {
+      onOpenCollectDrawer(loan);
       return;
     }
     setEntryError('');
@@ -432,22 +525,220 @@ export default function DailyCollectionsView({
 
   return (
     <div className="fin-page">
-      {/* ── Collection Entry Form Card with integrated Page Header ── */}
-      <div className="fin-card" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 18, marginBottom: 18, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 8, background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Receipt style={{ width: 18, height: 18 }} />
-            </div>
-            <div>
-              <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#0F172A', lineHeight: 1.2 }}>
-                {t('coll.title')}
-              </h1>
-              <p style={{ margin: 0, fontSize: '0.76rem', color: '#64748B' }}>
-                {t('coll.subtitle')}
-              </p>
-            </div>
-          </div>
+      {/* ── Modern Enterprise Responsive Table & Cards Design ── */}
+      <style>{`
+        .coll-card-container {
+          border-radius: 10px;
+          border: 1px solid #CBD5E1;
+          background: #FFFFFF;
+          overflow: hidden;
+          box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+        }
+        .coll-scroll-area {
+          max-height: calc(100vh - 360px);
+          overflow-y: auto;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+        .coll-scroll-area table {
+          width: 100%;
+          min-width: 780px;
+          border-collapse: separate;
+          border-spacing: 0;
+        }
+        .coll-scroll-area th {
+          position: sticky;
+          top: 0;
+          z-index: 10;
+          background: #F8FAFC !important;
+          border-bottom: 1px solid #CBD5E1 !important;
+          color: #475569;
+          font-weight: 600;
+          font-size: 0.73rem;
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
+          padding: 9px 12px;
+          user-select: none;
+          white-space: nowrap;
+        }
+        .coll-scroll-area th.sortable {
+          cursor: pointer;
+        }
+        .coll-scroll-area th.sortable:hover {
+          background-color: #F1F5F9 !important;
+          color: #0F172A;
+        }
+        .coll-scroll-area td {
+          border-bottom: 1px solid #E2E8F0;
+          padding: 8px 12px;
+        }
+        .coll-scroll-area tr:hover td {
+          background-color: #F8FAFC !important;
+        }
+
+        /* ── Toolbar Single-Row on Desktop, Stacked on Mobile ── */
+        .coll-toolbar-row {
+          padding: 10px 14px;
+          background: #F8FAFC;
+          border-bottom: 1px solid #E2E8F0;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: nowrap;
+        }
+        .coll-toolbar-search {
+          position: relative;
+          width: 220px;
+          flex-shrink: 0;
+        }
+
+        /* ── Responsive View Toggle: Desktop Table vs Mobile Cards ── */
+        .coll-desktop-view {
+          display: block;
+        }
+        .coll-mobile-view {
+          display: none !important;
+        }
+
+        @media (max-width: 768px) {
+          .coll-toolbar-row {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 8px !important;
+          }
+          .coll-toolbar-row > div,
+          .coll-toolbar-row-inner {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            width: 100% !important;
+          }
+          .coll-toolbar-search {
+            width: 100% !important;
+          }
+          .coll-toolbar-row .shared-dropdown-container,
+          .coll-toolbar-row button {
+            width: 100% !important;
+          }
+          .coll-desktop-view {
+            display: none !important;
+          }
+          .coll-mobile-view {
+            display: flex !important;
+            flex-direction: column;
+            gap: 12px;
+            padding: 12px;
+            max-height: calc(100vh - 280px);
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+          }
+        }
+      `}</style>
+
+      {/* ── Top Level Navigation Tabs: Collection Register vs Waiver Approvals ── */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 16,
+        borderBottom: '1px solid #E2E8F0',
+        paddingBottom: 2
+      }}>
+        <button
+          type="button"
+          onClick={() => setActiveSection('REGISTER')}
+          style={{
+            background: 'none',
+            border: 'none',
+            borderBottom: activeSection === 'REGISTER' ? '2.5px solid var(--brand-primary, #15803D)' : '2.5px solid transparent',
+            color: activeSection === 'REGISTER' ? 'var(--brand-primary, #15803D)' : '#64748B',
+            fontWeight: activeSection === 'REGISTER' ? 700 : 500,
+            fontSize: '0.86rem',
+            padding: '8px 16px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7,
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <Receipt style={{ width: 16, height: 16 }} />
+          <span>Collection Register</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSection('WAIVERS')}
+          style={{
+            background: 'none',
+            border: 'none',
+            borderBottom: activeSection === 'WAIVERS' ? '2.5px solid var(--brand-primary, #15803D)' : '2.5px solid transparent',
+            color: activeSection === 'WAIVERS' ? 'var(--brand-primary, #15803D)' : '#64748B',
+            fontWeight: activeSection === 'WAIVERS' ? 700 : 500,
+            fontSize: '0.86rem',
+            padding: '8px 16px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7,
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <ShieldCheck style={{ width: 16, height: 16 }} />
+          <span>Waiver Approvals</span>
+          {pendingWaiversCount > 0 && (
+            <span style={{
+              background: '#D97706',
+              color: '#FFFFFF',
+              borderRadius: 12,
+              padding: '1px 8px',
+              fontSize: '0.7rem',
+              fontWeight: 700,
+              boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+            }}>
+              {pendingWaiversCount} Pending
+            </span>
+          )}
+        </button>
+      </div>
+
+      {waiverActionSuccess && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          background: 'var(--brand-primary-light, #F0FEF5)',
+          border: '1px solid var(--brand-primary-border, #A3F5C1)',
+          borderRadius: 8,
+          padding: '10px 14px',
+          marginBottom: 14,
+          fontSize: '0.8rem',
+          color: 'var(--brand-primary, #15803D)',
+          fontWeight: 600
+        }}>
+          <CheckCircle2 style={{ width: 16, height: 16, flexShrink: 0 }} />
+          <span>{waiverActionSuccess}</span>
+        </div>
+      )}
+
+      {/* ── REGISTER VIEW ── */}
+      {activeSection === 'REGISTER' && (
+        <>
+          {/* ── Collection Entry Form Card with integrated Page Header ── */}
+          <div className="fin-card" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 18, marginBottom: 18, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Receipt style={{ width: 18, height: 18 }} />
+                </div>
+                <div>
+                  <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#0F172A', lineHeight: 1.2 }}>
+                    {t('coll.title')}
+                  </h1>
+                  <p style={{ margin: 0, fontSize: '0.76rem', color: '#64748B' }}>
+                    {t('coll.subtitle')}
+                  </p>
+                </div>
+              </div>
           {targetLoan && (
             <div style={{ fontSize: '0.76rem', color: '#64748B', background: '#F8FAFC', padding: '6px 12px', borderRadius: 6, border: '1px solid #E2E8F0' }}>
               Pending Bal: <strong style={{ color: 'var(--color-danger, #DC2626)' }}>₹{fmt(targetLoan.pending_amount)}</strong> | EMI: <strong style={{ color: 'var(--brand-primary, #15803D)' }}>₹{fmt(targetLoan.installment_amount)}</strong>
@@ -536,9 +827,14 @@ export default function DailyCollectionsView({
                           onMouseEnter={(e) => e.currentTarget.style.background = '#F8FAFC'}
                           onMouseLeave={(e) => e.currentTarget.style.background = String(selectedLoanId) === String(l.id) ? 'var(--brand-primary-light, #F0FEF5)' : '#FFFFFF'}
                         >
-                          <div style={{ fontWeight: 600, color: '#0F172A' }}>{l.borrower_name}</div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748B', fontSize: '0.72rem', marginTop: 2 }}>
-                            <span>{l.loan_account_no} • {l.phone || 'No phone'} • {l.branch || 'Main Branch'}</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ fontWeight: 600, color: '#0F172A' }}>{l.borrower_name}</div>
+                            <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#2563EB', background: '#EFF6FF', padding: '2px 6px', borderRadius: 4 }}>
+                              {l.repayment_method === 'INTEREST_ONLY' ? 'Interest Only' : `EMI: ₹${fmt(l.installment_amount)}`}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748B', fontSize: '0.72rem', marginTop: 3 }}>
+                            <span><strong>{l.loan_account_no}</strong> • {l.phone || 'No phone'} • {l.branch || 'Main Branch'}</span>
                             <span style={{ color: 'var(--color-danger, #DC2626)', fontWeight: 600 }}>Bal: ₹{fmt(l.pending_amount)}</span>
                           </div>
                         </div>
@@ -578,67 +874,16 @@ export default function DailyCollectionsView({
         </form>
       </div>
 
-      {/* ── Modern Enterprise Table Design ── */}
-      <style>{`
-        .coll-card-container {
-          border-radius: 10px;
-          border: 1px solid #CBD5E1;
-          background: #FFFFFF;
-          overflow: hidden;
-          box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
-        }
-        .coll-scroll-area {
-          max-height: calc(100vh - 380px);
-          overflow-y: auto;
-          overflow-x: auto;
-        }
-        .coll-scroll-area table {
-          width: 100%;
-          border-collapse: separate;
-          border-spacing: 0;
-        }
-        .coll-scroll-area th {
-          position: sticky;
-          top: 0;
-          z-index: 10;
-          background: #F8FAFC !important;
-          border-bottom: 1px solid #CBD5E1 !important;
-          color: #475569;
-          font-weight: 600;
-          font-size: 0.73rem;
-          text-transform: uppercase;
-          letter-spacing: 0.03em;
-          padding: 9px 12px;
-          user-select: none;
-        }
-        .coll-scroll-area th.sortable {
-          cursor: pointer;
-        }
-        .coll-scroll-area th.sortable:hover {
-          background-color: #F1F5F9 !important;
-          color: #0F172A;
-        }
-        .coll-scroll-area td {
-          border-bottom: 1px solid #E2E8F0;
-          padding: 8px 12px;
-        }
-        .coll-scroll-area tr:hover td {
-          background-color: #F8FAFC !important;
-        }
-      `}</style>
       <div className="coll-card-container">
         {/* Toolbar Header - Fixed Top */}
-        <div style={{
-          padding: '8px 12px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0',
-          display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 8, flexWrap: 'nowrap'
-        }}>
+        <div className="coll-toolbar-row">
           {/* Search Box */}
-          <div style={{ position: 'relative', width: 170, flexShrink: 0 }}>
-            <Search style={{ position: 'absolute', left: 8, top: 7, width: 12, height: 12, color: '#94A3B8' }} />
+          <div className="coll-toolbar-search">
+            <Search style={{ position: 'absolute', left: 8, top: 8, width: 13, height: 13, color: '#94A3B8' }} />
             <input
-              style={{ paddingLeft: 25, width: '100%', height: 28, borderRadius: 5, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: '0.74rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+              style={{ paddingLeft: 26, width: '100%', height: 30, borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: '0.75rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
               type="text"
-              placeholder="Search..."
+              placeholder="Search customer, loan..."
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
             />
@@ -650,7 +895,7 @@ export default function DailyCollectionsView({
             onChange={(e) => { setBranchFilter(e.target.value); setCurrentPage(1); }}
             disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
             size="sm"
-            buttonStyle={{ height: 28, minWidth: 120, fontSize: '0.74rem', padding: '0 8px' }}
+            buttonStyle={{ height: 30, minWidth: 120, fontSize: '0.74rem', padding: '0 8px' }}
             options={[
               { value: 'ALL', label: 'All Branches' },
               ...branchesList.map(b => ({ value: b.name, label: b.name }))
@@ -662,7 +907,7 @@ export default function DailyCollectionsView({
             value={modeFilter}
             onChange={(e) => { setModeFilter(e.target.value); setCurrentPage(1); }}
             size="sm"
-            buttonStyle={{ height: 28, minWidth: 120, fontSize: '0.74rem', padding: '0 8px' }}
+            buttonStyle={{ height: 30, minWidth: 120, fontSize: '0.74rem', padding: '0 8px' }}
             options={[
               { value: 'ALL', label: `All Modes (${countAll})` },
               { value: 'CASH', label: `Cash (${countCash})` },
@@ -676,7 +921,7 @@ export default function DailyCollectionsView({
             value={datePreset}
             onChange={(e) => handleDatePresetChange(e.target.value)}
             size="sm"
-            buttonStyle={{ height: 28, minWidth: 110, fontSize: '0.74rem', padding: '0 8px' }}
+            buttonStyle={{ height: 30, minWidth: 110, fontSize: '0.74rem', padding: '0 8px' }}
             options={[
               { value: 'ALL', label: 'All Dates' },
               { value: 'TODAY', label: 'Today' },
@@ -686,28 +931,28 @@ export default function DailyCollectionsView({
             ]}
           />
 
-          {/* Custom Date Pickers */}
+          {/* Custom Date Pickers (only shown if datePreset === 'CUSTOM') */}
           {datePreset === 'CUSTOM' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <SharedDatePicker
                 value={fromDate}
                 onChange={(e) => { setFromDate(e.target.value); setCurrentPage(1); }}
                 size="sm"
-                buttonStyle={{ height: 32, minWidth: 120, fontSize: '0.72rem' }}
+                buttonStyle={{ height: 30, minWidth: 120, fontSize: '0.72rem' }}
               />
-              <span style={{ fontSize: '0.7rem', color: '#64748B' }}>-</span>
+              <span style={{ fontSize: '0.7rem', color: '#64748B' }}>to</span>
               <SharedDatePicker
                 value={toDate}
                 onChange={(e) => { setToDate(e.target.value); setCurrentPage(1); }}
                 size="sm"
-                buttonStyle={{ height: 32, minWidth: 120, fontSize: '0.72rem' }}
+                buttonStyle={{ height: 30, minWidth: 120, fontSize: '0.72rem' }}
               />
             </div>
           )}
         </div>
 
-        {/* Scrollable Table Area */}
-        <div className="coll-scroll-area">
+        {/* 1. Desktop High-Density Table Area (>= 768px) */}
+        <div className="coll-desktop-view coll-scroll-area">
           <table className="fin-grid-table" style={{ minWidth: 960 }}>
             <thead>
               <tr>
@@ -733,6 +978,7 @@ export default function DailyCollectionsView({
                 </th>
                 <th className="num">{t('col.principal')}</th>
                 <th className="num">{t('col.interest')}</th>
+                <th className="num" style={{ color: '#D97706' }}>Charges (₹)</th>
                 <th className="num sortable" onClick={() => handleSortClick('balance')}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
                     <span>{t('col.balance')}</span>
@@ -746,15 +992,16 @@ export default function DailyCollectionsView({
             <tbody>
               {paginatedCollections.length === 0 ? (
                 <tr>
-                  <td colSpan="10" style={{ textAlign: 'center', padding: 40, color: '#94A3B8' }}>
+                  <td colSpan="11" style={{ textAlign: 'center', padding: 40, color: '#94A3B8' }}>
                     {t('coll.no_records')}
                   </td>
                 </tr>
               ) : (
                 paginatedCollections.map((c, idx) => {
                   const amount = parseFloat(c.amount) || 0;
+                  const penaltyPortion = Number(c.penalty ?? c.penalty_paid ?? c.additional_charges ?? c.penaltyPortion ?? 0);
                   const interestPortion = Number(c.interest_paid ?? c.interest_portion ?? c.interestPaid ?? 0);
-                  const principalPortion = Number(c.principal_paid ?? c.principal_portion ?? c.principalPaid ?? (amount - interestPortion));
+                  const principalPortion = Number(c.principal_paid ?? c.principal_portion ?? c.principalPaid ?? Math.max(0, amount - interestPortion - penaltyPortion));
                   const timestamp = c.collection_date || c.date || '—';
                   const timeStr = c.created_at ? new Date(c.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
 
@@ -808,6 +1055,9 @@ export default function DailyCollectionsView({
                       <td className="num" style={{ color: 'var(--brand-primary, #15803D)', fontWeight: 600, ...textDecor }}>₹{fmt(amount)}</td>
                       <td className="num" style={{ fontWeight: 400, ...textDecor }}>₹{fmt(principalPortion)}</td>
                       <td className="num" style={{ color: '#0E7490', fontWeight: 400, ...textDecor }}>₹{fmt(interestPortion)}</td>
+                      <td className="num" style={{ color: penaltyPortion > 0 ? '#D97706' : '#94A3B8', fontWeight: penaltyPortion > 0 ? 600 : 400, ...textDecor }}>
+                        {penaltyPortion > 0 ? `₹${fmt(penaltyPortion)}` : '—'}
+                      </td>
                       <td className="num" style={{ color: remainingBal > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)', fontWeight: 400 }}>₹{fmt(remainingBal)}</td>
 
                       <td style={{ textAlign: 'center', fontWeight: 400 }}>
@@ -815,7 +1065,7 @@ export default function DailyCollectionsView({
                           <span style={{ fontSize: '0.74rem', color: '#334155' }}>
                             {c.payment_mode || 'CASH'}
                           </span>
-                          {c.reverted && (
+                          {Boolean(c.reverted) && (
                             <span style={{ fontSize: '0.62rem', color: 'var(--color-danger, #DC2626)' }}>{t('coll.reverted_badge')}</span>
                           )}
                           {!c.reverted && c.clearance_status === 'PENDING_CLEARANCE' && (
@@ -834,12 +1084,13 @@ export default function DailyCollectionsView({
                             onClick={() => setSelectedReceipt(c)}
                             title="View Voucher"
                             style={{
+                              width: 32, height: 32, minWidth: 32, minHeight: 32, padding: 0,
                               background: '#F1F5F9', border: '1px solid #CBD5E1', borderRadius: 6,
-                              padding: '6px 9px', color: '#334155', cursor: 'pointer', display: 'inline-flex',
+                              color: '#334155', cursor: 'pointer', display: 'inline-flex',
                               alignItems: 'center', justifyContent: 'center'
                             }}
                           >
-                            <Eye style={{ width: 16, height: 16, strokeWidth: 2, color: '#334155' }} />
+                            <Eye size={16} color="#334155" strokeWidth={2} style={{ display: 'block' }} />
                           </button>
                           {!c.reverted && canControl && (
                             <>
@@ -848,12 +1099,13 @@ export default function DailyCollectionsView({
                                 onClick={() => prefillCollectionForEdit(c)}
                                 title="Edit Collection (Prefills Form)"
                                 style={{
+                                  width: 32, height: 32, minWidth: 32, minHeight: 32, padding: 0,
                                   background: 'var(--color-info-light, #EFF6FF)', border: '1px solid #93C5FD', borderRadius: 6,
-                                  padding: '6px 9px', color: 'var(--color-info, #2563EB)', cursor: 'pointer', display: 'inline-flex',
+                                  color: 'var(--color-info, #2563EB)', cursor: 'pointer', display: 'inline-flex',
                                   alignItems: 'center', justifyContent: 'center'
                                 }}
                               >
-                                <Pencil style={{ width: 16, height: 16, strokeWidth: 2, color: 'var(--color-info, #2563EB)' }} />
+                                <Pencil size={15} color="var(--color-info, #2563EB)" strokeWidth={2} style={{ display: 'block' }} />
                               </button>
                               {c.clearance_status !== 'BOUNCED' && (
                               <button
@@ -861,12 +1113,13 @@ export default function DailyCollectionsView({
                                 onClick={() => setRevertTarget(c)}
                                 title="Revert Collection"
                                 style={{
+                                  width: 32, height: 32, minWidth: 32, minHeight: 32, padding: 0,
                                   background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FCA5A5)', borderRadius: 6,
-                                  padding: '6px 9px', color: 'var(--color-danger, #DC2626)', cursor: 'pointer', display: 'inline-flex',
+                                  color: 'var(--color-danger, #DC2626)', cursor: 'pointer', display: 'inline-flex',
                                   alignItems: 'center', justifyContent: 'center'
                                 }}
                               >
-                                <Undo2 style={{ width: 16, height: 16, strokeWidth: 2, color: 'var(--color-danger, #DC2626)' }} />
+                                <Undo2 size={15} color="var(--color-danger, #DC2626)" strokeWidth={2} style={{ display: 'block' }} />
                               </button>
                               )}
                             </>
@@ -879,6 +1132,168 @@ export default function DailyCollectionsView({
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* 2. Mobile Responsive Card Deck View (< 768px) */}
+        <div className="coll-mobile-view">
+          {paginatedCollections.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 30, color: '#94A3B8', fontSize: '0.84rem' }}>
+              {t('coll.no_records')}
+            </div>
+          ) : (
+            paginatedCollections.map((c, idx) => {
+              const amount = parseFloat(c.amount) || 0;
+              const penaltyPortion = Number(c.penalty ?? c.penalty_paid ?? c.additional_charges ?? c.penaltyPortion ?? 0);
+              const interestPortion = Number(c.interest_paid ?? c.interest_portion ?? c.interestPaid ?? 0);
+              const principalPortion = Number(c.principal_paid ?? c.principal_portion ?? c.principalPaid ?? Math.max(0, amount - interestPortion - penaltyPortion));
+              const timestamp = c.collection_date || c.date || '—';
+              const matchedLoan = loans.find(l => String(l.id) === String(c.loan_id) || l.loan_account_no === c.loan_account_no) || null;
+              const loanAccNo = c.loan_account_no || matchedLoan?.loan_account_no || '—';
+              const remainingBal = c.new_principal_balance !== undefined && c.new_principal_balance !== null
+                ? Number(c.new_principal_balance)
+                : (c.newPrincipalBalance ?? (matchedLoan?.pending_amount ?? 0));
+              const linkedBorrower = getLinkedBorrower(c);
+
+              return (
+                <div
+                  key={c.id || idx}
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: 10,
+                    padding: 12,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    opacity: c.reverted ? 0.6 : 1
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontWeight: 700, color: 'var(--brand-primary, #15803D)', fontSize: '0.78rem' }}>{loanAccNo}</span>
+                      <span style={{ fontSize: '0.72rem', color: '#64748B' }}>{formatDateDDMMYYYY(timestamp)}</span>
+                    </div>
+                    <span style={{
+                      padding: '2px 7px',
+                      borderRadius: 6,
+                      fontSize: '0.68rem',
+                      fontWeight: 600,
+                      background: c.reverted ? '#FEF2F2' : '#F1F5F9',
+                      color: c.reverted ? '#DC2626' : '#334155'
+                    }}>
+                      {c.reverted ? 'REVERTED' : (c.payment_mode || 'CASH')}
+                    </span>
+                  </div>
+
+                  <div>
+                    <div
+                      onClick={() => setSelectedCustomerForProfile(linkedBorrower)}
+                      style={{ fontWeight: 700, fontSize: '0.88rem', color: '#0F172A', cursor: 'pointer' }}
+                    >
+                      {c.borrower_name || `Loan #${c.loan_id}`}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                      {linkedBorrower.phone || '—'} · {c.branch || 'Main Branch'}
+                    </div>
+                  </div>
+
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 6,
+                    background: '#F8FAFC',
+                    borderRadius: 8,
+                    padding: '8px 10px',
+                    fontSize: '0.75rem'
+                  }}>
+                    <div>
+                      <span style={{ color: '#64748B', fontSize: '0.68rem', display: 'block' }}>Paid Amount</span>
+                      <strong style={{ color: 'var(--brand-primary, #15803D)', fontSize: '0.86rem' }}>₹{fmt(amount)}</strong>
+                      <span style={{ fontSize: '0.65rem', color: '#64748B', display: 'block' }}>
+                        Pr: ₹{fmt(principalPortion)} | Int: ₹{fmt(interestPortion)}{penaltyPortion > 0 ? ` | Chg: ₹${fmt(penaltyPortion)}` : ''}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748B', fontSize: '0.68rem', display: 'block' }}>Remaining Balance</span>
+                      <strong style={{ color: remainingBal > 0 ? '#DC2626' : '#15803D', fontSize: '0.86rem' }}>₹{fmt(remainingBal)}</strong>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedReceipt(c)}
+                      style={{
+                        flex: 1,
+                        background: '#FFFFFF',
+                        border: '1px solid #CBD5E1',
+                        color: '#334155',
+                        borderRadius: 6,
+                        padding: '6px 8px',
+                        fontSize: '0.76rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 4
+                      }}
+                    >
+                      <Eye style={{ width: 14, height: 14 }} />
+                      <span>Voucher</span>
+                    </button>
+
+                    {!c.reverted && canControl && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => prefillCollectionForEdit(c)}
+                          style={{
+                            background: '#EFF6FF',
+                            border: '1px solid #93C5FD',
+                            color: '#2563EB',
+                            borderRadius: 6,
+                            padding: '6px 10px',
+                            fontSize: '0.76rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="Edit"
+                        >
+                          <Pencil style={{ width: 14, height: 14 }} />
+                        </button>
+
+                        {c.clearance_status !== 'BOUNCED' && (
+                          <button
+                            type="button"
+                            onClick={() => setRevertTarget(c)}
+                            style={{
+                              background: '#FEF2F2',
+                              border: '1px solid #FECACA',
+                              color: '#DC2626',
+                              borderRadius: 6,
+                              padding: '6px 10px',
+                              fontSize: '0.76rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                            title="Revert"
+                          >
+                            <Undo2 style={{ width: 14, height: 14 }} />
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
 
         {/* Table Pagination Footer - Fixed Bottom */}
@@ -907,6 +1322,385 @@ export default function DailyCollectionsView({
           </div>
         </div>
       </div>
+        </>
+      )}
+
+      {/* ── WAIVER APPROVALS QUEUE VIEW ── */}
+      {activeSection === 'WAIVERS' && (
+        <div className="coll-card-container">
+          {/* Toolbar Header */}
+          <div className="coll-toolbar-row" style={{ justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap' }} className="coll-toolbar-row-inner">
+              {/* Search */}
+              <div className="coll-toolbar-search">
+                <Search style={{ position: 'absolute', left: 8, top: 8, width: 13, height: 13, color: '#94A3B8' }} />
+                <input
+                  style={{ paddingLeft: 26, width: '100%', height: 30, borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: '0.75rem', outline: 'none', boxSizing: 'border-box' }}
+                  type="text"
+                  placeholder="Search borrower, loan # or voucher..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+
+              {/* Status Filter Dropdown */}
+              <SharedDropdown
+                value={waiverStatusFilter}
+                onChange={(e) => setWaiverStatusFilter(e.target.value)}
+                size="sm"
+                buttonStyle={{ height: 30, minWidth: 140, fontSize: '0.75rem' }}
+                options={[
+                  { value: 'ALL', label: `All Statuses (${waiverCollections.length})` },
+                  { value: 'PENDING_APPROVAL', label: `Pending Approval (${pendingWaiversCount})` },
+                  { value: 'APPROVED', label: `Approved (${waiverCollections.filter(c => c.waiver_status === 'APPROVED').length})` },
+                  { value: 'REJECTED', label: `Rejected (${waiverCollections.filter(c => c.waiver_status === 'REJECTED').length})` }
+                ]}
+              />
+
+              {/* Branch Filter */}
+              <SharedDropdown
+                value={branchFilter}
+                onChange={(e) => setBranchFilter(e.target.value)}
+                disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
+                size="sm"
+                buttonStyle={{ height: 30, minWidth: 120, fontSize: '0.75rem' }}
+                options={[
+                  { value: 'ALL', label: 'All Branches' },
+                  ...branchesList.map(b => ({ value: b.name, label: b.name }))
+                ]}
+              />
+            </div>
+
+            <div style={{ fontSize: '0.76rem', color: '#64748B', whiteSpace: 'nowrap' }}>
+              Showing <strong>{filteredWaivers.length}</strong> waiver requests
+            </div>
+          </div>
+
+          {/* 1. Desktop High-Density Table View (>= 768px) */}
+          <div className="coll-desktop-view coll-scroll-area">
+            <table className="fin-grid-table" style={{ width: '100%' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'center', width: 35 }}>#</th>
+                  <th style={{ width: 85 }}>Date</th>
+                  <th style={{ width: 140 }}>Voucher Code</th>
+                  <th>Customer / Loan A/c</th>
+                  <th className="num" style={{ width: 90 }}>Paid (₹)</th>
+                  <th className="num" style={{ width: 95, color: '#059669' }}>Waived (₹)</th>
+                  <th style={{ width: 145 }}>Period Covered</th>
+                  <th style={{ textAlign: 'center', width: 110 }}>Status</th>
+                  <th style={{ textAlign: 'right', width: 90 }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredWaivers.length === 0 ? (
+                  <tr>
+                    <td colSpan="9" style={{ textAlign: 'center', padding: '48px 20px', color: '#94A3B8' }}>
+                      <ShieldCheck style={{ width: 36, height: 36, margin: '0 auto 10px auto', opacity: 0.4, color: '#94A3B8' }} />
+                      <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#64748B' }}>No waiver approval requests found</div>
+                      <div style={{ fontSize: '0.74rem' }}>When staff submit collections with waived shortfall concessions, they will queue here for authorization.</div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredWaivers.map((c, idx) => {
+                    const isPending = c.waiver_status === 'PENDING_APPROVAL' || (!c.waiver_status && Number(c.interest_waiver || 0) > 0);
+                    const isApproved = c.waiver_status === 'APPROVED';
+                    const isRejected = c.waiver_status === 'REJECTED';
+                    const linkedBorrower = getLinkedBorrower(c);
+
+                    return (
+                      <tr key={c.id || idx}>
+                        <td style={{ textAlign: 'center', color: '#94A3B8' }}>{idx + 1}</td>
+                        <td style={{ whiteSpace: 'nowrap', fontSize: '0.74rem' }}>{formatDateDDMMYYYY(c.collection_date)}</td>
+                        <td>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedWaiverForDetail(c)}
+                            style={{
+                              background: '#F1F5F9',
+                              border: '1px solid #CBD5E1',
+                              borderRadius: 6,
+                              padding: '3px 8px',
+                              fontSize: '0.72rem',
+                              fontWeight: 600,
+                              color: 'var(--brand-primary, #15803D)',
+                              fontFamily: 'monospace',
+                              cursor: 'pointer'
+                            }}
+                            title="View & authorize waiver"
+                          >
+                            {c.voucher_no || `REC-${c.id}`}
+                          </button>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600, color: '#0F172A', fontSize: '0.8rem' }}>
+                            {c.borrower_name} <span style={{ color: '#64748B', fontWeight: 400 }}>({c.loan_account_no})</span>
+                          </div>
+                          <div style={{ fontSize: '0.68rem', color: '#64748B' }}>
+                            {c.phone || linkedBorrower.phone || '—'} · {c.branch || 'Main Branch'} · By: {c.collector_name || 'Staff'}
+                          </div>
+                        </td>
+                        <td className="num">
+                          <div style={{ fontWeight: 600, color: 'var(--brand-primary, #15803D)', fontSize: '0.82rem' }}>₹{fmt(c.amount)}</div>
+                          <div style={{ fontSize: '0.68rem', color: '#64748B' }}>Int: ₹{fmt(c.interest_paid || c.interest_portion || 0)}</div>
+                        </td>
+                        <td className="num" style={{ fontWeight: 700, color: '#059669', fontSize: '0.86rem' }}>
+                          ₹{fmt(c.interest_waiver || 0)}
+                        </td>
+                        <td style={{ fontSize: '0.72rem' }}>
+                          {c.interest_from_date ? (
+                            <span style={{ color: '#4338CA', fontWeight: 600 }}>
+                              {c.interest_from_date} → {c.interest_paid_upto} {c.interest_days ? `(${c.interest_days}d)` : ''}
+                            </span>
+                          ) : (
+                            c.interest_paid_upto ? `Up to ${c.interest_paid_upto}` : '—'
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            background: isPending ? '#FFFBEB' : isApproved ? '#F0FDF4' : '#FEF2F2',
+                            color: isPending ? '#B45309' : isApproved ? '#15803D' : '#DC2626',
+                            border: `1px solid ${isPending ? '#FDE68A' : isApproved ? '#BBF7D0' : '#FECACA'}`
+                          }}>
+                            {isPending ? 'Pending' : isApproved ? 'Approved' : 'Rejected'}
+                          </span>
+                          {isApproved && c.waiver_approved_by && (
+                            <div style={{ fontSize: '0.65rem', color: '#64748B', marginTop: 2 }}>by {c.waiver_approved_by}</div>
+                          )}
+                          {isRejected && c.waiver_rejection_reason && (
+                            <div style={{ fontSize: '0.65rem', color: '#DC2626', marginTop: 2 }}>{c.waiver_rejection_reason}</div>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedWaiverForDetail(c)}
+                              title={isPending ? 'Review & Authorize Waiver' : 'View Waiver Details'}
+                              style={{
+                                width: 32,
+                                height: 32,
+                                minWidth: 32,
+                                minHeight: 32,
+                                padding: 0,
+                                background: isPending ? 'var(--brand-primary-light, #F0FEF5)' : '#F1F5F9',
+                                border: `1px solid ${isPending ? 'var(--brand-primary-border, #A3F5C1)' : '#CBD5E1'}`,
+                                color: isPending ? 'var(--brand-primary, #15803D)' : '#334155',
+                                borderRadius: 6,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <Eye size={16} color={isPending ? '#15803D' : '#334155'} strokeWidth={2.2} style={{ display: 'block' }} />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setPrintThermalReceipt(c)}
+                              style={{
+                                width: 32,
+                                height: 32,
+                                minWidth: 32,
+                                minHeight: 32,
+                                padding: 0,
+                                background: '#FFFFFF',
+                                border: '1px solid #CBD5E1',
+                                color: '#475569',
+                                borderRadius: 6,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                              title="Print Thermal Receipt"
+                            >
+                              <Printer size={15} color="#475569" strokeWidth={2} style={{ display: 'block' }} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* 2. Mobile Responsive Card Deck View (< 768px) */}
+          <div className="coll-mobile-view">
+            {filteredWaivers.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '36px 16px', color: '#94A3B8' }}>
+                <ShieldCheck style={{ width: 32, height: 32, margin: '0 auto 8px auto', opacity: 0.4 }} />
+                <div style={{ fontSize: '0.84rem', fontWeight: 600, color: '#64748B' }}>No waiver requests found</div>
+                <div style={{ fontSize: '0.72rem', marginTop: 4 }}>When staff submit collections with concessions, they appear here.</div>
+              </div>
+            ) : (
+              filteredWaivers.map((c, idx) => {
+                const isPending = c.waiver_status === 'PENDING_APPROVAL' || (!c.waiver_status && Number(c.interest_waiver || 0) > 0);
+                const isApproved = c.waiver_status === 'APPROVED';
+                const isRejected = c.waiver_status === 'REJECTED';
+                const linkedBorrower = getLinkedBorrower(c);
+
+                return (
+                  <div
+                    key={c.id || idx}
+                    style={{
+                      background: '#FFFFFF',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: 10,
+                      padding: 12,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                    }}
+                  >
+                    {/* Header Row */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button
+                          type="button"
+                          onClick={() => setPrintThermalReceipt(c)}
+                          style={{
+                            background: '#F1F5F9',
+                            border: '1px solid #CBD5E1',
+                            borderRadius: 6,
+                            padding: '3px 8px',
+                            fontSize: '0.74rem',
+                            fontWeight: 700,
+                            color: 'var(--brand-primary, #15803D)',
+                            fontFamily: 'monospace',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {c.voucher_no || `REC-${c.id}`}
+                        </button>
+                        <span style={{ fontSize: '0.72rem', color: '#64748B' }}>{formatDateDDMMYYYY(c.collection_date)}</span>
+                      </div>
+
+                      <span style={{
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        fontSize: '0.68rem',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        background: isPending ? '#FFFBEB' : isApproved ? '#F0FDF4' : '#FEF2F2',
+                        color: isPending ? '#B45309' : isApproved ? '#15803D' : '#DC2626',
+                        border: `1px solid ${isPending ? '#FDE68A' : isApproved ? '#BBF7D0' : '#FECACA'}`
+                      }}>
+                        {isPending ? 'Pending' : isApproved ? 'Approved' : 'Rejected'}
+                      </span>
+                    </div>
+
+                    {/* Customer & Loan */}
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#0F172A' }}>
+                        {c.borrower_name} <span style={{ fontWeight: 400, color: '#64748B', fontSize: '0.78rem' }}>({c.loan_account_no})</span>
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: 2 }}>
+                        {c.phone || linkedBorrower.phone || '—'} · {c.branch || 'Main Branch'} · By: {c.collector_name || 'Staff'}
+                      </div>
+                    </div>
+
+                    {/* Amount vs Waived Grid */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: 8,
+                      background: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: 8,
+                      padding: '8px 10px'
+                    }}>
+                      <div>
+                        <span style={{ color: '#64748B', display: 'block', fontSize: '0.68rem' }}>Amount Paid</span>
+                        <strong style={{ color: 'var(--brand-primary, #15803D)', fontSize: '0.86rem' }}>₹{fmt(c.amount)}</strong>
+                        <span style={{ fontSize: '0.66rem', color: '#64748B', display: 'block' }}>Int: ₹{fmt(c.interest_paid || c.interest_portion || 0)}</span>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748B', display: 'block', fontSize: '0.68rem' }}>Waived Concession</span>
+                        <strong style={{ color: '#059669', fontSize: '0.94rem' }}>₹{fmt(c.interest_waiver || 0)}</strong>
+                      </div>
+                    </div>
+
+                    {/* Period */}
+                    {c.interest_from_date && (
+                      <div style={{ fontSize: '0.72rem', color: '#4338CA', background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 6, padding: '5px 8px', fontWeight: 600 }}>
+                        Period: {c.interest_from_date} → {c.interest_paid_upto} {c.interest_days ? `(${c.interest_days}d)` : ''}
+                      </div>
+                    )}
+
+                    {/* Approver / Rejection Note */}
+                    {isApproved && c.waiver_approved_by && (
+                      <div style={{ fontSize: '0.72rem', color: '#15803D', fontWeight: 500 }}>Approved by: {c.waiver_approved_by}</div>
+                    )}
+                    {isRejected && c.waiver_rejection_reason && (
+                      <div style={{ fontSize: '0.72rem', color: '#DC2626', fontWeight: 500 }}>Reason: {c.waiver_rejection_reason}</div>
+                    )}
+
+                    {/* Actions */}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedWaiverForDetail(c)}
+                        style={{
+                          flex: 1,
+                          background: isPending ? 'var(--brand-primary, #15803D)' : '#F1F5F9',
+                          color: isPending ? '#FFFFFF' : '#334155',
+                          border: isPending ? 'none' : '1px solid #CBD5E1',
+                          borderRadius: 8,
+                          padding: '8px 12px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6
+                        }}
+                      >
+                        <Eye style={{ width: 15, height: 15 }} />
+                        <span>{isPending ? 'Review & Authorize' : 'View Details'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPrintThermalReceipt(c)}
+                        style={{
+                          background: '#FFFFFF',
+                          border: '1px solid #CBD5E1',
+                          color: '#475569',
+                          borderRadius: 8,
+                          padding: '8px 12px',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 4
+                        }}
+                      >
+                        <Printer style={{ width: 14, height: 14 }} />
+                        <span>Receipt</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Clean Modern Collection Details View Modal ────────────────────── */}
       {selectedReceipt && (() => {
@@ -1141,9 +1935,9 @@ export default function DailyCollectionsView({
         const linkedBorrower = getLinkedBorrower(printThermalReceipt);
         const linkedLoan = (loans || []).find(l => String(l.id) === String(printThermalReceipt.loan_id) || l.loan_account_no === printThermalReceipt.loan_account_no);
         return (
-          <DedicatedThermalPrintModal
+          <VoucherReceiptModal
             company={tenant}
-            receipt={{
+            voucher={{
               voucher_no: printThermalReceipt.voucher_no || `REC-${printThermalReceipt.id}`,
               date: formatDateDDMMYYYY(printThermalReceipt.collection_date),
               loan_account_no: printThermalReceipt.loan_account_no,
@@ -1155,9 +1949,16 @@ export default function DailyCollectionsView({
               amount: printThermalReceipt.amount,
               principal_paid: printThermalReceipt.principal_paid ?? printThermalReceipt.principal_portion ?? printThermalReceipt.principalPaid ?? 0,
               interest_paid: printThermalReceipt.interest_paid ?? printThermalReceipt.interest_portion ?? printThermalReceipt.interestPaid ?? 0,
+              penalty: printThermalReceipt.penalty ?? printThermalReceipt.penalty_portion ?? 0,
+              interest_from_date: printThermalReceipt.interest_from_date || null,
+              interest_paid_upto: printThermalReceipt.interest_paid_upto || printThermalReceipt.interest_to_date || null,
+              interest_days: printThermalReceipt.interest_days ?? null,
+              interest_shortfall: printThermalReceipt.interest_shortfall || 0,
+              interest_waiver: printThermalReceipt.interest_waiver || 0,
               pending_balance: printThermalReceipt.new_principal_balance ?? printThermalReceipt.newPrincipalBalance ?? (linkedLoan ? linkedLoan.pending_amount : 0),
               collector_name: printThermalReceipt.collector_name || user?.name
             }}
+            typeLabel="COLLECTION RECEIPT"
             onClose={() => setPrintThermalReceipt(null)}
           />
         );
@@ -1228,6 +2029,9 @@ export default function DailyCollectionsView({
 
           setPosting(true);
           try {
+            const isNonCash = (collectionModalData.paymentMode || 'CASH') !== 'CASH';
+            const selectedBank = bankAccounts.find(b => String(b.id) === String(collectionModalData.bankAccountId)) || (isNonCash ? bankAccounts[0] : null);
+
             const payload = {
               is_edit: isEdit,
               collection_id: collectionModalData.collection_id,
@@ -1242,6 +2046,8 @@ export default function DailyCollectionsView({
               new_principal_balance: liveAlloc.newPendingPrincipal,
               updated_schedule: liveAlloc.updatedSchedule,
               payment_mode: collectionModalData.paymentMode || 'CASH',
+              bank_account_id: isNonCash && selectedBank ? selectedBank.id : null,
+              settlement_account_code: isNonCash && selectedBank ? (selectedBank.ledger_account_code || '1002') : null,
               reference_no: collectionModalData.referenceNo || '',
               collector_name: collectionModalData.collectorName || user?.name || 'Staff Collector',
               collection_date: effectivePaymentDate,
@@ -1490,21 +2296,37 @@ export default function DailyCollectionsView({
                     </div>
                   </div>
 
-                  {/* Reference No based on Mode */}
+                  {/* Non-Cash Settlement Bank & Reference No */}
                   {(collectionModalData.paymentMode !== 'CASH') && (
-                    <div className="form-group" style={{ margin: 0 }}>
-                      <label style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155', marginBottom: 4, display: 'block' }}>
-                        {collectionModalData.paymentMode === 'UPI' ? 'UPI Transaction ID / UTR *' : collectionModalData.paymentMode === 'CHEQUE' ? 'Cheque No & Bank Details *' : 'NEFT / Bank Reference No *'}
-                      </label>
-                      <input
-                        type="text"
-                        value={collectionModalData.referenceNo || ''}
-                        onChange={(e) => setCollectionModalData(prev => ({ ...prev, referenceNo: e.target.value }))}
-                        placeholder={collectionModalData.paymentMode === 'UPI' ? 'e.g. 423489123891' : collectionModalData.paymentMode === 'CHEQUE' ? 'e.g. Cheque #491021 - SBI' : 'e.g. UTR / Ref #'}
-                        className="input-control"
-                        style={{ height: 36, fontSize: '0.8rem', borderRadius: 8 }}
-                        required={collectionModalData.paymentMode !== 'CASH'}
-                      />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155', marginBottom: 4, display: 'block' }}>
+                          Receiving Bank Account *
+                        </label>
+                        <SharedDropdown
+                          value={collectionModalData.bankAccountId ? String(collectionModalData.bankAccountId) : (bankAccounts[0]?.id ? String(bankAccounts[0].id) : '')}
+                          onChange={(e) => setCollectionModalData(prev => ({ ...prev, bankAccountId: e.target.value }))}
+                          options={bankAccounts.map(b => ({
+                            value: String(b.id),
+                            label: `${b.bank_name} (${b.account_number ? '...' + String(b.account_number).slice(-4) : b.account_name})`
+                          }))}
+                          buttonStyle={{ height: 36, fontSize: '0.8rem', borderRadius: 8 }}
+                        />
+                      </div>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155', marginBottom: 4, display: 'block' }}>
+                          {collectionModalData.paymentMode === 'UPI' ? 'UPI UTR / Ref No *' : collectionModalData.paymentMode === 'CHEQUE' ? 'Cheque No *' : 'Bank Reference No *'}
+                        </label>
+                        <input
+                          type="text"
+                          value={collectionModalData.referenceNo || ''}
+                          onChange={(e) => setCollectionModalData(prev => ({ ...prev, referenceNo: e.target.value }))}
+                          placeholder={collectionModalData.paymentMode === 'UPI' ? 'e.g. 423489123891' : collectionModalData.paymentMode === 'CHEQUE' ? 'e.g. Cheque #491021' : 'e.g. UTR / Ref #'}
+                          className="input-control"
+                          style={{ height: 36, fontSize: '0.8rem', borderRadius: 8 }}
+                          required={collectionModalData.paymentMode !== 'CASH'}
+                        />
+                      </div>
                     </div>
                   )}
 
@@ -1731,6 +2553,319 @@ export default function DailyCollectionsView({
           </div>
         </div>
       )}
+
+      {/* ── Reject Waiver Modal ───────────────────────────────── */}
+      {rejectTarget && (
+        <div className="saas-modal-backdrop" style={{ zIndex: 1000000 }}>
+          <div className="saas-modal-card" style={{ maxWidth: 440 }}>
+            <div className="saas-modal-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--color-danger-light, #FEF2F2)', color: 'var(--color-danger, #DC2626)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <XCircle style={{ width: 18, height: 18 }} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 700, color: '#0F172A' }}>
+                    Reject Interest Waiver
+                  </h3>
+                  <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                    Voucher: {rejectTarget.voucher_no || rejectTarget.id} · Concession: ₹{fmt(rejectTarget.interest_waiver)}
+                  </span>
+                </div>
+              </div>
+              <button type="button" onClick={() => { setRejectTarget(null); setRejectionReason(''); }} className="modal-close-btn">
+                <X style={{ width: 16, height: 16 }} />
+              </button>
+            </div>
+            <div className="saas-modal-body" style={{ padding: '16px 20px' }}>
+              <p style={{ margin: '0 0 12px 0', fontSize: '0.78rem', color: '#475569', lineHeight: 1.45 }}>
+                Rejecting this waiver will move the <strong>₹{fmt(rejectTarget.interest_waiver)}</strong> concession back into the borrower&apos;s pending interest arrears on loan <strong>{rejectTarget.loan_account_no}</strong>.
+              </p>
+              <div className="form-group">
+                <label style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155', marginBottom: 4, display: 'block' }}>
+                  Reason for Rejection *
+                </label>
+                <textarea
+                  rows={2}
+                  value={rejectionReason}
+                  onChange={e => setRejectionReason(e.target.value)}
+                  className="input-control"
+                  style={{ height: 'auto', padding: '10px 12px', fontSize: '0.8rem' }}
+                  placeholder="e.g. Concession not approved for overdue account..."
+                />
+              </div>
+            </div>
+            <div className="saas-modal-footer">
+              <button
+                type="button"
+                disabled={waiverBusy}
+                onClick={() => { setRejectTarget(null); setRejectionReason(''); }}
+                className="btn-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={waiverBusy}
+                onClick={handleConfirmRejectWaiver}
+                className="btn-submit"
+                style={{ background: 'var(--color-danger, #DC2626)', opacity: waiverBusy ? 0.6 : 1 }}
+              >
+                {waiverBusy ? 'Rejecting…' : 'Confirm Rejection'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Waiver Detail & Authorization Modal ─────────────────── */}
+      {selectedWaiverForDetail && (() => {
+        const c = selectedWaiverForDetail;
+        const isPending = c.waiver_status === 'PENDING_APPROVAL' || (!c.waiver_status && Number(c.interest_waiver || 0) > 0);
+        const isApproved = c.waiver_status === 'APPROVED';
+        const isRejected = c.waiver_status === 'REJECTED';
+        const linkedBorrower = getLinkedBorrower(c);
+        const amount = parseFloat(c.amount) || 0;
+        const interestPortion = Number(c.interest_paid ?? c.interest_portion ?? c.interestPaid ?? 0);
+        const principalPortion = Number(c.principal_paid ?? c.principal_portion ?? c.principalPaid ?? (amount - interestPortion));
+        const waiverAmount = Number(c.interest_waiver || 0);
+
+        return (
+          <div className="saas-modal-backdrop" style={{ zIndex: 1000000 }}>
+            <div className="saas-modal-card" style={{ maxWidth: 520, width: '95vw' }}>
+              {/* Modal Header */}
+              <div className="saas-modal-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #E2E8F0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 38, height: 38, borderRadius: 10,
+                    background: isPending ? '#FFFBEB' : isApproved ? '#F0FDF4' : '#FEF2F2',
+                    color: isPending ? '#B45309' : isApproved ? '#15803D' : '#DC2626',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: `1px solid ${isPending ? '#FDE68A' : isApproved ? '#BBF7D0' : '#FECACA'}`
+                  }}>
+                    <ShieldCheck style={{ width: 20, height: 20 }} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#0F172A' }}>
+                      Waiver Authorization Review
+                    </h3>
+                    <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                      Voucher: <strong style={{ color: 'var(--brand-primary, #15803D)', fontFamily: 'monospace' }}>{c.voucher_no || `REC-${c.id}`}</strong> · {formatDateDDMMYYYY(c.collection_date)}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    padding: '3px 9px',
+                    borderRadius: 6,
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    background: isPending ? '#FFFBEB' : isApproved ? '#F0FDF4' : '#FEF2F2',
+                    color: isPending ? '#B45309' : isApproved ? '#15803D' : '#DC2626',
+                    border: `1px solid ${isPending ? '#FDE68A' : isApproved ? '#BBF7D0' : '#FECACA'}`
+                  }}>
+                    {isPending ? 'Pending' : isApproved ? 'Approved' : 'Rejected'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedWaiverForDetail(null)}
+                    className="modal-close-btn"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#64748B' }}
+                  >
+                    <X style={{ width: 18, height: 18 }} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div className="saas-modal-body" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 14, maxHeight: 'calc(85vh - 140px)', overflowY: 'auto' }}>
+                {/* Customer & Loan Box */}
+                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '12px 16px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, fontSize: '0.76rem' }}>
+                    <div>
+                      <span style={{ color: '#64748B', display: 'block', fontSize: '0.7rem' }}>Customer Name</span>
+                      <strong style={{ color: '#0F172A', fontSize: '0.84rem' }}>{c.borrower_name}</strong>
+                      <div style={{ fontSize: '0.68rem', color: '#64748B' }}>{c.phone || linkedBorrower.phone || '—'}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748B', display: 'block', fontSize: '0.7rem' }}>Loan Account No</span>
+                      <strong style={{ color: 'var(--brand-primary, #15803D)', fontSize: '0.84rem' }}>{c.loan_account_no}</strong>
+                      <div style={{ fontSize: '0.68rem', color: '#64748B' }}>{c.branch || 'Main Branch'}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748B', display: 'block', fontSize: '0.7rem' }}>Recorded By</span>
+                      <strong style={{ color: '#334155' }}>{c.collector_name || 'Staff'}</strong>
+                      <div style={{ fontSize: '0.68rem', color: '#64748B' }}>Mode: {c.payment_mode || 'CASH'}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Financial Concession Breakdown Banner */}
+                <div style={{
+                  background: 'linear-gradient(135deg, #F0FDF4 0%, #ECFEFF 100%)',
+                  border: '1px solid #A7F3D0',
+                  borderRadius: 10,
+                  padding: '14px 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}>
+                  <div>
+                    <span style={{ fontSize: '0.74rem', color: '#065F46', fontWeight: 600, display: 'block' }}>
+                      Requested Interest Concession / Discount
+                    </span>
+                    <span style={{ fontSize: '0.7rem', color: '#047857' }}>
+                      Interest shortfall to be waived upon authorization
+                    </span>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#059669' }}>
+                      ₹{fmt(waiverAmount)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Detailed Numbers Breakdown */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: 10,
+                  background: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: 10,
+                  padding: '12px 14px',
+                  textAlign: 'center'
+                }}>
+                  <div>
+                    <span style={{ color: '#64748B', display: 'block', fontSize: '0.68rem' }}>Total Paid</span>
+                    <strong style={{ color: 'var(--brand-primary, #15803D)', fontSize: '0.92rem' }}>₹{fmt(amount)}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748B', display: 'block', fontSize: '0.68rem' }}>Principal Paid</span>
+                    <strong style={{ color: '#334155', fontSize: '0.92rem' }}>₹{fmt(principalPortion)}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748B', display: 'block', fontSize: '0.68rem' }}>Interest Paid</span>
+                    <strong style={{ color: '#0E7490', fontSize: '0.92rem' }}>₹{fmt(interestPortion)}</strong>
+                  </div>
+                </div>
+
+                {/* Period & Settlement Details */}
+                {c.interest_from_date && (
+                  <div style={{ background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 8, padding: '10px 14px', fontSize: '0.76rem', color: '#3730A3' }}>
+                    <div style={{ fontWeight: 700, marginBottom: 2 }}>Interest Period Settlement:</div>
+                    <div>
+                      {c.interest_from_date} → {c.interest_paid_upto} {c.interest_days ? `(${c.interest_days} days)` : ''}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: '#4338CA', marginTop: 4 }}>
+                      • <strong>If Approved:</strong> Period marked fully settled up to {c.interest_paid_upto} with ₹{fmt(waiverAmount)} discount.<br />
+                      • <strong>If Rejected:</strong> ₹{fmt(waiverAmount)} shortfall remains in pending interest arrears.
+                    </div>
+                  </div>
+                )}
+
+                {/* Audit notes if already processed */}
+                {isApproved && (
+                  <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '10px 14px', fontSize: '0.76rem', color: '#166534' }}>
+                    <strong>Approval Audit:</strong> Authorized by <strong>{c.waiver_approved_by || 'Manager'}</strong>.
+                  </div>
+                )}
+                {isRejected && (
+                  <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 14px', fontSize: '0.76rem', color: '#991B1B' }}>
+                    <strong>Rejection Reason:</strong> {c.waiver_rejection_reason || 'Rejected by supervisor'}.
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer with Actions */}
+              <div className="saas-modal-footer" style={{ padding: '14px 20px', borderTop: '1px solid #E2E8F0', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = selectedWaiverForDetail;
+                    setSelectedWaiverForDetail(null);
+                    setPrintThermalReceipt(target);
+                  }}
+                  className="btn-cancel"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Printer style={{ width: 14, height: 14 }} />
+                  <span>Thermal Receipt</span>
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {isPending && canControl ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const target = selectedWaiverForDetail;
+                          setSelectedWaiverForDetail(null);
+                          setRejectTarget(target);
+                        }}
+                        disabled={waiverBusy}
+                        style={{
+                          background: '#FFFFFF',
+                          color: 'var(--color-danger, #DC2626)',
+                          border: '1px solid var(--color-danger-border, #FECACA)',
+                          borderRadius: 8,
+                          padding: '8px 16px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6
+                        }}
+                      >
+                        <X style={{ width: 14, height: 14, strokeWidth: 3 }} />
+                        <span>Reject Concession</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const target = selectedWaiverForDetail;
+                          setSelectedWaiverForDetail(null);
+                          await handleApproveWaiverClick(target);
+                        }}
+                        disabled={waiverBusy}
+                        style={{
+                          background: 'var(--brand-primary, #15803D)',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          borderRadius: 8,
+                          padding: '8px 18px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          boxShadow: '0 2px 4px rgba(21, 128, 61, 0.25)'
+                        }}
+                      >
+                        <Check style={{ width: 15, height: 15, strokeWidth: 3 }} />
+                        <span>Approve Waiver (₹{fmt(waiverAmount)})</span>
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedWaiverForDetail(null)}
+                      className="btn-submit"
+                      style={{ background: 'var(--brand-primary, #15803D)' }}
+                    >
+                      Done
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Customer Profile Modal ────────────────────────────── */}
       {selectedCustomerForProfile && (
