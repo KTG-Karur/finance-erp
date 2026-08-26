@@ -89,11 +89,22 @@ export default function ThermalVoucherModal({ company = {}, receipt, voidInfo = 
             ))}
           </div>
 
-          {(receipt.principal_paid !== undefined || receipt.interest_paid !== undefined || receipt.pending_balance !== undefined) && (
+          {(receipt.principal_paid !== undefined || receipt.interest_paid !== undefined || receipt.penalty > 0 || receipt.interest_paid_upto || receipt.pending_balance !== undefined || receipt.interest_shortfall > 0 || receipt.interest_waiver > 0) && (
             <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 14, padding: '4px 18px' }}>
               {[
                 receipt.principal_paid !== undefined ? ['Principal Portion', `₹${fmt(receipt.principal_paid)}`] : null,
                 receipt.interest_paid !== undefined ? ['Interest Portion', `₹${fmt(receipt.interest_paid)}`] : null,
+                receipt.penalty > 0 ? ['Additional / Late Fee', `₹${fmt(receipt.penalty)}`, '#C2410C'] : null,
+                receipt.interest_shortfall > 0 ? ['Interest Shortfall (Carried Forward)', `₹${fmt(receipt.interest_shortfall)}`, '#B45309'] : null,
+                receipt.interest_waiver > 0 ? ['Interest Waived / Discount', `₹${fmt(receipt.interest_waiver)}`, '#059669'] : null,
+                receipt.new_pending_interest_arrears > 0 ? ['Pending Interest Arrears', `₹${fmt(receipt.new_pending_interest_arrears)}`, '#7C3AED'] : null,
+                (receipt.interest_paid_upto || receipt.interest_to_date) ? [
+                  'Interest Period Covered',
+                  receipt.interest_from_date
+                    ? `${receipt.interest_from_date} → ${receipt.interest_paid_upto || receipt.interest_to_date}${receipt.interest_days !== undefined && receipt.interest_days !== null ? ` (${receipt.interest_days}d)` : ''}`
+                    : `Up to ${receipt.interest_paid_upto || receipt.interest_to_date}`,
+                  '#7C3AED'
+                ] : null,
                 receipt.pending_balance !== undefined ? ['Pending Balance', `₹${fmt(receipt.pending_balance)}`, receipt.pending_balance > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)'] : null
               ].filter(Boolean).map(([label, value, color], i, arr) => (
                 <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: i < arr.length - 1 ? '1px solid #E2E8F0' : 'none' }}>
@@ -218,6 +229,28 @@ export default function ThermalVoucherModal({ company = {}, receipt, voidInfo = 
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
                 <span>Interest Portion:</span>
                 <span>Rs. {fmt(receipt.interest_paid)}</span>
+              </div>
+            )}
+            {receipt.interest_shortfall > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                <span>Interest Shortfall (C/F):</span>
+                <span>Rs. {fmt(receipt.interest_shortfall)}</span>
+              </div>
+            )}
+            {receipt.interest_waiver > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                <span>Interest Waived:</span>
+                <span>Rs. {fmt(receipt.interest_waiver)}</span>
+              </div>
+            )}
+            {(receipt.interest_paid_upto || receipt.interest_to_date) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                <span>Interest Period:</span>
+                <span>
+                  {receipt.interest_from_date
+                    ? `${receipt.interest_from_date} to ${receipt.interest_paid_upto || receipt.interest_to_date}${receipt.interest_days !== undefined && receipt.interest_days !== null ? ` (${receipt.interest_days}d)` : ''}`
+                    : `Up to ${receipt.interest_paid_upto || receipt.interest_to_date}`}
+                </span>
               </div>
             )}
 

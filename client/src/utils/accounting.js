@@ -117,12 +117,14 @@ export function computeAccountBalances(chartOfAccounts, journalEntries) {
 
 export function computeCashBookEntries(journalEntries, cashAccountCodes) {
   const rows = [];
-  // Same-day entries tie-break on created_at (a real, always-present ISO
-  // timestamp on both the mock and real-backend entry shapes) rather than
-  // `id` — `id` is a voucher_no string on real entries (e.g. "VOU-..."),
-  // so `a.id - b.id` silently evaluated to NaN and left same-day rows in
-  // whatever order the DB happened to return them in, not chronological order.
-  const sorted = [...journalEntries].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0)));
+  // Same-day entries tie-break on created_at (ISO timestamp) and db_id
+  const sorted = [...journalEntries].sort((a, b) => {
+    const timeA = new Date(a.created_at || `${a.date}T00:00:00`).getTime() || 0;
+    const timeB = new Date(b.created_at || `${b.date}T00:00:00`).getTime() || 0;
+    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+    if (timeA !== timeB) return timeA - timeB;
+    return (Number(a.db_id || a.id) || 0) - (Number(b.db_id || b.id) || 0);
+  });
   let running = 0;
   sorted.forEach(je => {
     je.lines.forEach(l => {
@@ -132,11 +134,15 @@ export function computeCashBookEntries(journalEntries, cashAccountCodes) {
       running += net;
       rows.push({
         id: `${je.id}-${l.account_code}`,
+        voucher_no: je.voucher_no || je.id,
         date: je.date,
+        created_at: je.created_at,
         description: je.narration,
         type: net > 0 ? 'INFLOW' : 'OUTFLOW',
         amount: Math.abs(net),
         category: je.ref_type,
+        branch: je.branch,
+        created_by: je.created_by,
         balance: running
       });
     });
@@ -149,11 +155,13 @@ export function computeCashBookEntries(journalEntries, cashAccountCodes) {
 // instead of just its final balance.
 export function computeLedgerFolio(account, journalEntries, openingBalance = 0) {
   const rows = [];
-  const sorted = [...journalEntries].sort((a, b) => (
-    a.date < b.date ? -1 : a.date > b.date ? 1 : (
-      (a.created_at || '') < (b.created_at || '') ? -1 : (a.created_at || '') > (b.created_at || '') ? 1 : 0
-    )
-  ));
+  const sorted = [...journalEntries].sort((a, b) => {
+    const timeA = new Date(a.created_at || `${a.date}T00:00:00`).getTime() || 0;
+    const timeB = new Date(b.created_at || `${b.date}T00:00:00`).getTime() || 0;
+    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+    if (timeA !== timeB) return timeA - timeB;
+    return (Number(a.db_id || a.id) || 0) - (Number(b.db_id || b.id) || 0);
+  });
   const normalSide = ACCOUNT_TYPES[account.type] || 'DEBIT';
   let running = Number(openingBalance) || 0;
 
@@ -167,12 +175,15 @@ export function computeLedgerFolio(account, journalEntries, openingBalance = 0) 
       running += signed;
       rows.push({
         id: `${je.id}-${l.account_code}`,
+        voucher_no: je.voucher_no || je.id,
         date: je.date,
+        created_at: je.created_at,
         narration: je.narration,
         ref_type: je.ref_type,
         ref_id: je.ref_id,
         branch: je.branch,
         voucher_type: je.voucher_type,
+        created_by: je.created_by,
         debit: dr,
         credit: cr,
         balance: running
@@ -293,23 +304,37 @@ export function refTimeMap(journalEntries) {
 // just by swapping its data source — the rendering/computation code underneath
 // (computeAccountBalances, computeLedgerFolio, etc.) never has to change.
 export function normalizeLedgerAccount(row) {
+  const opBal = parseFloat(row.opening_balance || row.balance) || 0;
+  const curBal = parseFloat(row.available_balance ?? row.current_balance ?? row.balance) || 0;
   return {
-    code: row.account_code,
-    name: row.account_name,
+    code: row.account_code || row.code,
+    account_code: row.account_code || row.code,
+    name: row.account_name || row.name,
+    account_name: row.account_name || row.name,
     name_key: row.name_key,
-    type: row.account_type,
+    type: row.account_type || row.type,
+    account_type: row.account_type || row.type,
     category: row.category,
-    is_active: Boolean(row.is_active)
+    balance: curBal,
+    opening_balance: opBal,
+    current_balance: curBal,
+    available_balance: curBal,
+    total_debit: parseFloat(row.total_debit) || 0,
+    total_credit: parseFloat(row.total_credit) || 0,
+    is_active: row.is_active !== undefined ? Boolean(row.is_active) : true
   };
 }
 
 export function normalizeLedgerEntry(row) {
+  const lineTotal = (row.lines || []).reduce((s, l) => Math.max(s, Number(l.debit || l.credit || 0)), 0);
   return {
     id: row.voucher_no,
     db_id: row.id,
     voucher_no: row.voucher_no,
     date: row.entry_date,
     narration: row.description,
+    description: row.description,
+    total_amount: Number(row.total_amount || lineTotal || 0),
     lines: (row.lines || []).map(l => ({
       account_code: l.account_code,
       account_name: l.account_name,

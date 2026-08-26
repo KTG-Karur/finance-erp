@@ -96,9 +96,19 @@ export class BorrowerService {
       err.statusCode = 404;
       throw err;
     }
-    const linkedLoanCount = await BorrowerRepository.countLinkedLoans(db, id);
-    if (linkedLoanCount > 0) {
-      const err = new Error('Cannot delete a customer with linked loan accounts.');
+    const { activeLoans, activeFds, activeRds } = await BorrowerRepository.countActiveObligations(db, id);
+    if (activeLoans > 0) {
+      const err = new Error(`Cannot delete customer "${existing.full_name}" because they have ${activeLoans} active loan account(s). All loans must be settled and closed before deletion.`);
+      err.statusCode = 409;
+      throw err;
+    }
+    if (activeFds > 0) {
+      const err = new Error(`Cannot delete customer "${existing.full_name}" because they have ${activeFds} active Fixed Deposit(s). Please mature or close them first.`);
+      err.statusCode = 409;
+      throw err;
+    }
+    if (activeRds > 0) {
+      const err = new Error(`Cannot delete customer "${existing.full_name}" because they have ${activeRds} active Recurring Deposit(s). Please mature or close them first.`);
       err.statusCode = 409;
       throw err;
     }

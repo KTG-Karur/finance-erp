@@ -30,26 +30,37 @@ export class BankService {
 
   static async getAll(db, filters = {}) {
     await this.ensureTable(db);
-    let sql = 'SELECT * FROM bank_accounts WHERE 1=1';
+    let sql = `
+      SELECT b.*,
+             COALESCE(
+               b.balance + COALESCE(SUM(jl.debit), 0) - COALESCE(SUM(jl.credit), 0),
+               b.balance
+             ) as current_balance,
+             COALESCE(SUM(jl.debit), 0) as total_debit,
+             COALESCE(SUM(jl.credit), 0) as total_credit
+      FROM bank_accounts b
+      LEFT JOIN journal_lines jl ON jl.account_code = b.ledger_account_code
+      WHERE b.deleted_at IS NULL
+    `;
     const params = [];
 
     if (filters.is_active !== undefined) {
-      sql += ' AND is_active = ?';
+      sql += ' AND b.is_active = ?';
       params.push(filters.is_active ? 1 : 0);
     }
     if (filters.branch) {
-      sql += ' AND branch_name = ?';
-      params.push(filters.branch);
+      sql += ' AND (b.branch = ? OR b.branch_name = ?)';
+      params.push(filters.branch, filters.branch);
     }
 
-    sql += ' ORDER BY id ASC';
+    sql += ' GROUP BY b.id ORDER BY b.id ASC';
     const [rows] = await db.query(sql, params);
     return rows;
   }
 
   static async getById(db, id) {
     await this.ensureTable(db);
-    const [rows] = await db.query('SELECT * FROM bank_accounts WHERE id = ?', [id]);
+    const [rows] = await db.query('SELECT * FROM bank_accounts WHERE id = ? AND deleted_at IS NULL', [id]);
     return rows[0] || null;
   }
 
@@ -143,7 +154,7 @@ export class BankService {
 
   static async delete(db, id) {
     await this.ensureTable(db);
-    await db.query('UPDATE bank_accounts SET is_active = 0 WHERE id = ?', [id]);
+    await db.query('UPDATE bank_accounts SET is_active = 0, deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL', [id]);
     return true;
   }
 }

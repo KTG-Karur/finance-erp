@@ -1,31 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Receipt, CheckCircle2, FileText } from 'lucide-react';
+import { X, Receipt, CheckCircle2, FileText, Calendar } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
-import { calculatePaymentAllocation } from '../utils/loanCalculations';
+import {
+  resolveInterestPaidUpto,
+  calculateInterestForDateRange,
+  daysBetween
+} from '../utils/loanCalculations';
 import ThermalVoucherModal from './ThermalVoucherModal';
 import SharedDropdown from './common/SharedDropdown';
 import SharedDatePicker from './common/SharedDatePicker';
+import api from '../api/client';
 
 export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = [], employees = [], tenant, onSubmit }) {
   const { t } = useLanguage();
 
-  // This component is always mounted (App.jsx renders it unconditionally and
-  // toggles `isOpen`/`loan` instead of mounting/unmounting it), so every hook
-  // below must run on every render regardless of open state — bailing out
-  // early before them (as this used to do) made React call a different
-  // number of hooks between the closed and open renders, which corrupts
-  // component state on the very transition that matters (closed -> open).
-  // All hooks are declared first; the early return comes after every one of
-  // them, with loan-dependent values guarded via `loan?.` until then.
-  const [amountPaid, setAmountPaid] = useState(loan?.installment_amount || 0);
+  const isInterestOnly = loan?.repayment_method === 'INTEREST_ONLY';
+
   const [paymentMode, setPaymentMode] = useState('CASH');
+  const [bankAccountId, setBankAccountId] = useState('');
+  const [bankAccounts, setBankAccounts] = useState([]);
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [remarks, setRemarks] = useState('');
   const [collectorName, setCollectorName] = useState('');
-  // "Received By" — pick from the real staff list, or type a name manually
-  // when the collector isn't in that list.
   const [collectorEntryMode, setCollectorEntryMode] = useState('SELECT'); // 'SELECT' | 'MANUAL'
+
+  // Fetch company bank accounts
+  useEffect(() => {
+    api.get('/finance/bank-accounts')
+      .then(res => {
+        if (res.data?.success && Array.isArray(res.data?.data)) {
+          const activeBanks = res.data.data.filter(b => b.is_active !== false);
+          setBankAccounts(activeBanks);
+          if (activeBanks.length > 0) {
+            setBankAccountId(String(activeBanks[0].id));
+          }
+        }
+      })
+      .catch(err => console.warn('Could not load bank accounts:', err));
+  }, []);
 
   // Dynamic Payment Method Fields
   const [upiTxnId, setUpiTxnId] = useState('');
@@ -33,14 +46,63 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
   const [chequeBank, setChequeBank] = useState('');
   const [bankRefNo, setBankRefNo] = useState('');
 
+  // Interest Paid Upto & Manual Component States
+  const [interestUptoDate, setInterestUptoDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [manualPrincipal, setManualPrincipal] = useState('');
+  const [manualInterest, setManualInterest] = useState('');
+  const [additionalCharges, setAdditionalCharges] = useState('');
+  const [shortfallAction, setShortfallAction] = useState('CARRY_FORWARD'); // 'CARRY_FORWARD' | 'WAIVE'
+
   const [loading, setLoading] = useState(false);
   const [receipt, setReceipt] = useState(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
+  const curInterestPaidUpto = resolveInterestPaidUpto(loan);
+  const minInterestUptoDate = (() => {
+    if (!curInterestPaidUpto) return null;
+    const d = new Date(curInterestPaidUpto);
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0, 10);
+  })();
+
   useEffect(() => {
     if (loan) {
-      setAmountPaid(loan.installment_amount || 500);
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const curUpto = resolveInterestPaidUpto(loan);
+      const minDate = (() => {
+        if (!curUpto) return null;
+        const d = new Date(curUpto);
+        d.setDate(d.getDate() + 1);
+        return d.toISOString().slice(0, 10);
+      })();
+
+      let initialDate = todayStr;
+      if (minDate && todayStr < minDate) {
+        initialDate = minDate;
+      }
+      setInterestUptoDate(initialDate);
+
+      const suggInterest = calculateInterestForDateRange({
+        loan,
+        fromDate: curUpto,
+        toDate: initialDate
+      });
+
+      const isEmi = loan.repayment_method === 'EMI';
+      const curPending = parseFloat(loan.pending_amount) || 0;
+      if (isEmi) {
+        const emiAmt = parseFloat(loan.installment_amount) || 0;
+        const suggPrin = Math.max(0, Math.min(curPending, emiAmt - suggInterest));
+        setManualInterest(String(suggInterest));
+        setManualPrincipal(String(suggPrin));
+      } else {
+        setManualInterest(String(suggInterest));
+        setManualPrincipal('0');
+      }
+      setAdditionalCharges('');
+      setShortfallAction('CARRY_FORWARD');
+      setPaymentDate(new Date().toISOString().slice(0, 10));
       setReceipt(null);
       setShowReceiptModal(false);
       setSubmitError('');
@@ -69,30 +131,67 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
   const branchLoc = currentLoan.branch || borrowerData?.branch || '—';
   const aadhaarNo = currentLoan.aadhaar || borrowerData?.aadhaar_number || '—';
   const panNo = currentLoan.pan || borrowerData?.pan_number || '—';
-  const guarantorName = currentLoan.guarantor || borrowerData?.guarantor_name || '—';
+  const rawGuarantor = typeof currentLoan.guarantor === 'string'
+    ? (() => { try { return JSON.parse(currentLoan.guarantor); } catch { return { name: currentLoan.guarantor }; } })()
+    : (currentLoan.guarantor || null);
+  const guarantorName = rawGuarantor?.name || (typeof currentLoan.guarantor === 'string' && !currentLoan.guarantor.startsWith('{') ? currentLoan.guarantor : '') || borrowerData?.guarantor_name || '—';
 
   const dailyEmi = currentLoan.installment_amount || 0;
   const pendingBal = currentLoan.pending_amount || 0;
   const principalAmt = currentLoan.principal_amount || 0;
   const collectedAmt = currentLoan.collected_amount || 0;
 
-  const receivedVal = parseFloat(amountPaid) || 0;
+  const handleInterestUptoDateChange = (newDate) => {
+    setInterestUptoDate(newDate);
+    if (!currentLoan) return;
+    const suggInterest = calculateInterestForDateRange({
+      loan: currentLoan,
+      fromDate: curInterestPaidUpto,
+      toDate: newDate
+    });
+    setManualInterest(String(suggInterest));
+  };
 
-  // Dispatches to the loan's configured Repayment Method (EMI / Interest Only) x
-  // Interest Calculation (Constant / Flexible) strategy. Within whatever period or
-  // day-window is being settled, interest always comes out first and only the
-  // remainder reduces principal — extra amount paid accelerates payoff.
-  const allocation = calculatePaymentAllocation({
+  const interestBreakdown = calculateInterestForDateRange({
     loan: currentLoan,
-    paymentAmount: receivedVal,
-    paymentDate
+    fromDate: curInterestPaidUpto,
+    toDate: interestUptoDate,
+    includeArrears: true
   });
-  const updatedCollectedAmt = collectedAmt + receivedVal;
-  const updatedPendingBal = allocation.newPendingPrincipal;
+
+  const numericPrincipal = Math.max(0, parseFloat(manualPrincipal) || 0);
+  const numericInterest = Math.max(0, parseFloat(manualInterest) || 0);
+  const numericAdditional = Math.max(0, parseFloat(additionalCharges) || 0);
+  const totalAmountToCollect = Math.round((numericPrincipal + numericInterest + numericAdditional) * 100) / 100;
+  const updatedCollectedAmt = collectedAmt + totalAmountToCollect;
+  const updatedPendingBal = Math.max(0, pendingBal - numericPrincipal);
+  const interestDays = daysBetween(curInterestPaidUpto, interestUptoDate);
+  const suggestedInterestDue = interestBreakdown.totalSuggestedInterest;
+
+  // Shortfall & Arrears
+  const interestShortfallAmount = Math.max(0, Math.round((interestBreakdown.totalSuggestedInterest - numericInterest) * 100) / 100);
+  const hasShortfall = interestShortfallAmount > 0;
+  const newPendingArrears = shortfallAction === 'CARRY_FORWARD' ? interestShortfallAmount : 0;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (receivedVal <= 0) return;
+    if (totalAmountToCollect <= 0) return;
+
+    if (numericPrincipal > pendingBal + 0.01) {
+      setSubmitError(`Principal amount (₹${fmt(numericPrincipal)}) cannot exceed outstanding balance (₹${fmt(pendingBal)}).`);
+      return;
+    }
+
+    const minDate = currentLoan?.last_payment_date || currentLoan?.loan_date || null;
+    const maxDate = new Date().toISOString().slice(0, 10);
+    if (minDate && paymentDate < minDate) {
+      setSubmitError(`Collection date cannot be earlier than ${currentLoan?.last_payment_date ? 'the last payment date' : 'the loan disbursal date'} (${minDate}).`);
+      return;
+    }
+    if (paymentDate > maxDate) {
+      setSubmitError('Collection date cannot be in the future.');
+      return;
+    }
 
     setLoading(true);
     setSubmitError('');
@@ -102,17 +201,31 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
         : paymentMode === 'BANK_TRANSFER' ? ` (NEFT UTR: ${bankRefNo})`
         : '';
 
+      const isNonCash = paymentMode !== 'CASH';
+      const selectedBank = bankAccounts.find(b => String(b.id) === String(bankAccountId)) || (isNonCash ? bankAccounts[0] : null);
+
       const res = await onSubmit({
         loan_id: currentLoan.id,
-        amount: receivedVal,
-        principal_portion: allocation.principalPortion,
-        interest_portion: allocation.interestPortion,
-        penalty: 0,
+        amount: totalAmountToCollect,
+        principal_portion: numericPrincipal,
+        principal_paid: numericPrincipal,
+        interest_portion: numericInterest,
+        interest_paid: numericInterest,
+        penalty: numericAdditional,
+        penalty_portion: numericAdditional,
+        interest_from_date: curInterestPaidUpto,
+        interest_paid_upto: interestUptoDate,
+        interest_days: interestDays,
+        interest_shortfall_action: shortfallAction,
+        interest_shortfall: shortfallAction === 'CARRY_FORWARD' ? interestShortfallAmount : 0,
+        interest_waiver: shortfallAction === 'WAIVE' ? interestShortfallAmount : 0,
+        new_pending_interest_arrears: newPendingArrears,
         new_principal_balance: updatedPendingBal,
         payment_mode: paymentMode,
+        bank_account_id: isNonCash && selectedBank ? selectedBank.id : null,
+        settlement_account_code: isNonCash && selectedBank ? (selectedBank.ledger_account_code || '1002') : null,
         payment_date: paymentDate,
         collection_type: 'DAILY_EMI',
-        updated_schedule: allocation.updatedSchedule,
         notes: `${remarks}${modeDetails}`,
         collector_name: collectorName,
         reference_no: upiTxnId || chequeNo || bankRefNo || '',
@@ -128,7 +241,11 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
 
       setReceipt(res?.data || {
         voucher_no: `JE-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        amount: receivedVal,
+        amount: totalAmountToCollect,
+        principal_paid: numericPrincipal,
+        interest_paid: numericInterest,
+        penalty: numericAdditional,
+        interest_paid_upto: interestUptoDate,
         updatedCollectedAmt,
         updatedPendingBal,
         payment_mode: paymentMode,
@@ -146,81 +263,51 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
   const mainModal = (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      zIndex: 999999,
-      background: 'rgba(15, 23, 42, 0.65)',
-      backdropFilter: 'blur(6px)',
-      WebkitBackdropFilter: 'blur(6px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 20
-    }}>
-      <div style={{
-        background: '#FFFFFF',
-        borderRadius: 16,
-        boxShadow: '0 25px 60px -15px rgba(15, 23, 42, 0.25), 0 0 0 1px #E2E8F0',
-        width: '100%',
-        maxWidth: 840,
-        maxHeight: '92vh',
-        minHeight: 540,
-        overflow: 'hidden',
-        display: 'grid',
-        gridTemplateColumns: '320px 1fr',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif'
-      }}>
+    <div className="collection-modal-overlay">
+      <div className="collection-modal-card">
 
         {/* ── LEFT PANEL: Borrower Image & Full Profile Details ─────────── */}
-        <div style={{
-          background: '#F8FAFC',
-          borderRight: '1px solid #E2E8F0',
-          padding: '24px 20px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          overflowY: 'auto'
-        }}>
+        <div className="collection-left-panel">
           <div>
             {/* Centered Profile Picture / Initials Avatar */}
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+            <div className="borrower-profile-header">
               {profileImage ? (
                 <img
                   src={profileImage}
                   alt={borrowerName}
                   style={{
-                    width: 68,
-                    height: 68,
+                    width: 60,
+                    height: 60,
                     borderRadius: '50%',
                     objectFit: 'cover',
                     border: '2px solid var(--brand-primary-border, #A3F5C1)',
-                    margin: '0 auto 10px auto',
-                    boxShadow: '0 4px 14px rgba(var(--brand-primary-rgb), 0.2)'
+                    margin: '0 auto 8px auto',
+                    boxShadow: '0 4px 14px rgba(var(--brand-primary-rgb), 0.2)',
+                    display: 'block'
                   }}
                   onError={(e) => { e.target.style.display = 'none'; }}
                 />
               ) : (
                 <div style={{
-                  width: 68,
-                  height: 68,
+                  width: 60,
+                  height: 60,
                   borderRadius: '50%',
                   background: 'var(--brand-primary-light, #F0FEF5)',
                   border: '2px solid var(--brand-primary-border, #A3F5C1)',
                   color: 'var(--brand-primary, #15803D)',
-                  fontSize: '1.4rem',
+                  fontSize: '1.3rem',
                   fontWeight: 600,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  margin: '0 auto 10px auto',
+                  margin: '0 auto 8px auto',
                   boxShadow: '0 4px 14px rgba(var(--brand-primary-rgb), 0.15)'
                 }}>
                   {(borrowerName || 'C').slice(0, 2).toUpperCase()}
                 </div>
               )}
 
-              <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600, color: '#0F172A' }}>
+              <h4 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 600, color: '#0F172A' }}>
                 {borrowerName}
               </h4>
 
@@ -240,7 +327,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
             </div>
 
             {/* Borrower Identity & Contact Grid */}
-            <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 14, marginBottom: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div className="identity-grid-card">
               <div>
                 <span style={{ fontSize: '0.65rem', color: '#64748B', display: 'block', fontWeight: 400 }}>{t('cd.phone')}</span>
                 <span style={{ fontSize: '0.82rem', color: '#0F172A', fontWeight: 500, marginTop: 2, display: 'block' }}>{phoneNo}</span>
@@ -264,7 +351,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
               </div>
 
               {guarantorName !== '—' && (
-                <div style={{ gridColumn: 'span 2', paddingTop: 4 }}>
+                <div style={{ gridColumn: 'span 2', paddingTop: 2 }}>
                   <span style={{ fontSize: '0.65rem', color: '#64748B', display: 'block', fontWeight: 400 }}>{t('cd.guarantor')}</span>
                   <span style={{ fontSize: '0.8rem', color: '#0F172A', fontWeight: 500, marginTop: 2, display: 'block' }}>{guarantorName}</span>
                 </div>
@@ -272,20 +359,24 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
             </div>
 
             {/* Account Balance Details */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <span style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 {t('cd.account_balance_details')}
               </span>
 
-              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="balance-details-card">
                 <div>
                   <span style={{ fontSize: '0.65rem', color: '#64748B', display: 'block', fontWeight: 400 }}>{t('cd.loan_principal')}</span>
                   <span style={{ fontSize: '0.92rem', color: '#0F172A', fontWeight: 600, marginTop: 2, display: 'block' }}>₹{fmt(principalAmt)}</span>
                 </div>
 
                 <div>
-                  <span style={{ fontSize: '0.65rem', color: '#64748B', display: 'block', fontWeight: 400 }}>{t('cd.daily_emi')}</span>
-                  <span style={{ fontSize: '0.92rem', color: 'var(--color-info, #2563EB)', fontWeight: 600, marginTop: 2, display: 'block' }}>₹{fmt(dailyEmi)}</span>
+                  <span style={{ fontSize: '0.65rem', color: '#64748B', display: 'block', fontWeight: 400 }}>
+                    {isInterestOnly ? 'Interest Due' : (currentLoan?.repayment_frequency === 'WEEKLY' ? 'Weekly Installment' : (currentLoan?.repayment_frequency === 'MONTHLY' ? 'Monthly EMI' : t('cd.daily_emi')))}
+                  </span>
+                  <span style={{ fontSize: '0.92rem', color: 'var(--color-info, #2563EB)', fontWeight: 600, marginTop: 2, display: 'block' }}>
+                    ₹{fmt(isInterestOnly ? suggestedInterestDue : dailyEmi)}
+                  </span>
                 </div>
 
                 <div style={{ gridColumn: 'span 2', height: 1, background: '#F1F5F9' }} />
@@ -299,37 +390,75 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                   <span style={{ fontSize: '0.65rem', color: 'var(--color-danger-text, #991B1B)', display: 'block', fontWeight: 500 }}>{t('cd.pending_amount')}</span>
                   <span style={{ fontSize: '0.95rem', color: pendingBal > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)', fontWeight: 600, marginTop: 2, display: 'block' }}>₹{fmt(pendingBal)}</span>
                 </div>
+
+                <div style={{ gridColumn: 'span 2', height: 1, background: '#F1F5F9' }} />
+
+                <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', padding: '6px 10px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
+                  <span style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 500 }}>Last Paid Date</span>
+                  <strong style={{ fontSize: '0.78rem', color: currentLoan.last_payment_date ? '#0F172A' : '#94A3B8' }}>
+                    {currentLoan.last_payment_date
+                      ? new Date(currentLoan.last_payment_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                      : 'No payments yet'}
+                  </strong>
+                </div>
+
+                <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', padding: '6px 10px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
+                  <span style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 500 }}>Total Elapsed Days</span>
+                  <strong style={{ fontSize: '0.78rem', color: '#0F172A' }}>
+                    {(() => {
+                      const todayCal = new Date().toISOString().slice(0, 10);
+                      const fromD = currentLoan.last_payment_date || currentLoan.loan_date;
+                      if (!fromD) return '0 Days';
+                      const diffMs = new Date(todayCal).getTime() - new Date(fromD).getTime();
+                      const days = Math.max(0, Math.round(diffMs / (1000 * 60 * 60 * 24)));
+                      return `${days} ${days === 1 ? 'Day' : 'Days'}${days === 0 ? ' (Today)' : ''}`;
+                    })()}
+                  </strong>
+                </div>
+
+                <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F0FDF4', padding: '6px 10px', borderRadius: 8, border: '1px solid #BBF7D0' }}>
+                  <span style={{ fontSize: '0.68rem', color: '#166534', fontWeight: 600 }}>Interest Up to Today</span>
+                  <strong style={{ fontSize: '0.78rem', color: (() => {
+                    const todayCal = new Date().toISOString().slice(0, 10);
+                    const todayInt = calculateInterestForDateRange({
+                      loan: currentLoan,
+                      fromDate: curInterestPaidUpto,
+                      toDate: todayCal
+                    });
+                    return todayInt > 0 ? '#15803D' : '#64748B';
+                  })() }}>
+                    {(() => {
+                      const todayCal = new Date().toISOString().slice(0, 10);
+                      const isPaidToday = curInterestPaidUpto && curInterestPaidUpto >= todayCal;
+                      if (isPaidToday) return '₹0 (Settled ✓)';
+
+                      const todayInt = calculateInterestForDateRange({
+                        loan: currentLoan,
+                        fromDate: curInterestPaidUpto,
+                        toDate: todayCal
+                      });
+
+                      if (todayInt <= 0) return '₹0 (Settled ✓)';
+                      return `₹${fmt(todayInt)}`;
+                    })()}
+                  </strong>
+                </div>
               </div>
             </div>
           </div>
 
-          <div style={{ paddingTop: 14, borderTop: '1px solid #E2E8F0', fontSize: '0.72rem', color: 'var(--brand-primary-hover, #0E5327)', textAlign: 'center', fontWeight: 500 }}>
+          <div style={{ paddingTop: 12, borderTop: '1px solid #E2E8F0', fontSize: '0.72rem', color: 'var(--brand-primary-hover, #0E5327)', textAlign: 'center', fontWeight: 500 }}>
             {t('cd.active_loan_account')}
           </div>
         </div>
 
         {/* ── RIGHT PANEL: Collection Entry Form / Success Screen ─────────── */}
-        <div style={{
-          background: '#FFFFFF',
-          display: 'flex',
-          flexDirection: 'column',
-          overflowY: 'auto'
-        }}>
+        <div className="collection-right-panel">
 
-          <div style={{
-            padding: '20px 24px',
-            borderBottom: '1px solid #E2E8F0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            position: 'sticky',
-            top: 0,
-            background: '#FFFFFF',
-            zIndex: 10
-          }}>
+          <div className="collection-header-bar">
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <Receipt style={{ width: 20, height: 20, color: 'var(--brand-primary, #15803D)' }} />
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 500, color: '#0F172A' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600, color: '#0F172A' }}>
                 {t('cd.record_loan_collection')}
               </h3>
             </div>
@@ -356,7 +485,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
 
           {/* Success Screen with Preview Button */}
           {receipt ? (
-            <div style={{ padding: '40px 28px', textAlign: 'center' }}>
+            <div style={{ padding: '32px 20px', textAlign: 'center' }}>
               <div style={{
                 width: 56,
                 height: 56,
@@ -383,8 +512,8 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                 background: '#F8FAFC',
                 border: '1px solid #E2E8F0',
                 borderRadius: 12,
-                padding: 20,
-                margin: '24px 0',
+                padding: 16,
+                margin: '20px 0',
                 textAlign: 'left',
                 display: 'flex',
                 flexDirection: 'column',
@@ -405,7 +534,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   onClick={() => setShowReceiptModal(true)}
@@ -413,9 +542,9 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                     border: '1px solid #CBD5E1',
                     background: '#FFFFFF',
                     color: '#0F172A',
-                    padding: '11px 22px',
+                    padding: '10px 20px',
                     borderRadius: 9,
-                    fontSize: '0.88rem',
+                    fontSize: '0.85rem',
                     fontWeight: 500,
                     cursor: 'pointer',
                     display: 'inline-flex',
@@ -435,9 +564,9 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                     border: 'none',
                     background: 'var(--brand-primary, #15803D)',
                     color: '#FFFFFF',
-                    padding: '11px 26px',
+                    padding: '10px 24px',
                     borderRadius: 9,
-                    fontSize: '0.88rem',
+                    fontSize: '0.85rem',
                     fontWeight: 500,
                     cursor: 'pointer'
                   }}
@@ -447,53 +576,198 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
               </div>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <form onSubmit={handleSubmit} className="collection-form-body">
               
-              {/* Collection Amount */}
-              <div>
-                <label style={{ fontSize: '0.75rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>
-                  {t('cd.collection_amount_rs')}
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: 14, top: 11, fontSize: '0.98rem', color: 'var(--brand-primary, #15803D)', fontWeight: 500 }}>₹</span>
-                  <input
-                    type="number"
-                    value={amountPaid}
-                    onChange={(e) => setAmountPaid(e.target.value)}
-                    placeholder="0.00"
-                    style={{
-                      width: '100%',
-                      height: 44,
-                      padding: '0 14px 0 32px',
-                      borderRadius: 9,
-                      border: '1px solid #CBD5E1',
-                      fontSize: '1rem',
-                      fontWeight: 500,
-                      color: 'var(--brand-primary, #15803D)',
-                      background: '#FFFFFF',
-                      boxSizing: 'border-box'
-                    }}
-                  />
+              {/* Interest Period & Date Selection */}
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '12px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Calendar style={{ width: 15, height: 15, color: 'var(--brand-primary, #15803D)' }} />
+                    <span style={{ fontSize: '0.76rem', fontWeight: 600, color: '#0F172A' }}>
+                      Interest Paid Up To Date
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.68rem', color: '#64748B', background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '2px 8px', borderRadius: 10 }}>
+                    Last settled: <strong>{curInterestPaidUpto ? new Date(curInterestPaidUpto).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Disbursal'}</strong>
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center' }}>
+                  <div>
+                    <SharedDatePicker
+                      value={interestUptoDate}
+                      min={minInterestUptoDate}
+                      onChange={(e, val) => handleInterestUptoDateChange(val || e.target.value)}
+                      buttonStyle={{ height: 40, background: '#FFFFFF', border: '1px solid #CBD5E1' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--brand-primary, #15803D)', background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', padding: '3px 8px', borderRadius: 6 }}>
+                      {interestDays} Day{interestDays === 1 ? '' : 's'}
+                    </span>
+                    <span style={{ fontSize: '0.6rem', color: '#94A3B8', marginTop: 2 }}>
+                      {currentLoan.monthly_interest_rate || 0}% / mo
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {/* Interest / Principal Allocation Breakdown (interest-first, day-based accrual) */}
-              {receivedVal > 0 && (
-                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 9, padding: 12, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                  <div>
-                    <span style={{ fontSize: '0.62rem', color: '#64748B', display: 'block' }}>{t('nce.principal_portion')}</span>
-                    <strong style={{ fontSize: '0.85rem', color: '#0F172A' }}>₹{fmt(allocation.principalPortion)}</strong>
+              {/* 3-Column Manual Entry */}
+              <div>
+                <label style={{ fontSize: '0.75rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>
+                  Collection Breakdown (Manual Entry)
+                </label>
+
+                {/* Past Arrears Notification Banner */}
+                {interestBreakdown.pastArrears > 0 && (
+                  <div style={{ background: '#FAF5FF', border: '1px solid #E9D5FF', borderRadius: 8, padding: '6px 10px', marginBottom: 8, fontSize: '0.7rem', color: '#6B21A8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+                    <span>Past Arrears: <strong>₹{fmt(interestBreakdown.pastArrears)}</strong></span>
+                    <span>Accrued ({interestDays}d): <strong>₹{fmt(interestBreakdown.periodInterest)}</strong></span>
                   </div>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                   <div>
-                    <span style={{ fontSize: '0.62rem', color: '#64748B', display: 'block' }}>{t('nce.interest_component')}{allocation.daysSinceLastPayment !== null ? ` (${allocation.daysSinceLastPayment}d)` : ''}</span>
-                    <strong style={{ fontSize: '0.85rem', color: '#7C3AED' }}>₹{fmt(allocation.interestPortion)}</strong>
+                    <span style={{ fontSize: '0.66rem', color: '#334155', fontWeight: 500, display: 'block', marginBottom: 4 }}>
+                      Principal (₹)
+                    </span>
+                    <input
+                      type="number"
+                      value={manualPrincipal}
+                      onChange={(e) => setManualPrincipal(e.target.value)}
+                      min={0}
+                      max={pendingBal}
+                      placeholder="0.00"
+                      style={{
+                        width: '100%',
+                        height: 40,
+                        padding: '0 8px',
+                        borderRadius: 8,
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.92rem',
+                        fontWeight: 600,
+                        color: '#0F172A',
+                        background: '#FFFFFF',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    <span style={{ fontSize: '0.6rem', color: '#64748B', display: 'block', marginTop: 2 }}>
+                      Bal: ₹{fmt(pendingBal)}
+                    </span>
                   </div>
+
                   <div>
-                    <span style={{ fontSize: '0.62rem', color: 'var(--brand-primary-hover, #0E5327)', display: 'block' }}>{t('nce.updated_pending_balance')}</span>
-                    <strong style={{ fontSize: '0.85rem', color: updatedPendingBal > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)' }}>₹{fmt(updatedPendingBal)}</strong>
+                    <span style={{ fontSize: '0.66rem', color: '#6B21A8', fontWeight: 500, display: 'block', marginBottom: 4 }}>
+                      Interest (₹)
+                    </span>
+                    <input
+                      type="number"
+                      value={manualInterest}
+                      onChange={(e) => setManualInterest(e.target.value)}
+                      min={0}
+                      placeholder="0.00"
+                      style={{
+                        width: '100%',
+                        height: 40,
+                        padding: '0 8px',
+                        borderRadius: 8,
+                        border: '1px solid #DDD6FE',
+                        fontSize: '0.92rem',
+                        fontWeight: 600,
+                        color: '#7C3AED',
+                        background: '#FAF5FF',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    <span style={{ fontSize: '0.6rem', color: '#7C3AED', display: 'block', marginTop: 2 }}>
+                      Sugg: ₹{fmt(interestBreakdown.totalSuggestedInterest)}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.66rem', color: '#C2410C', fontWeight: 500, display: 'block', marginBottom: 4 }}>
+                      Addnl / Fees (₹)
+                    </span>
+                    <input
+                      type="number"
+                      value={additionalCharges}
+                      onChange={(e) => setAdditionalCharges(e.target.value)}
+                      min={0}
+                      placeholder="0.00"
+                      style={{
+                        width: '100%',
+                        height: 40,
+                        padding: '0 8px',
+                        borderRadius: 8,
+                        border: '1px solid #FED7AA',
+                        fontSize: '0.92rem',
+                        fontWeight: 600,
+                        color: '#C2410C',
+                        background: '#FFF7ED',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    <span style={{ fontSize: '0.6rem', color: '#9A3412', display: 'block', marginTop: 2 }}>
+                      Late/Other
+                    </span>
                   </div>
                 </div>
-              )}
+
+                {/* Shortfall Resolution Card (Option 4 with Option 1 as default) */}
+                {hasShortfall && (
+                  <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 9, padding: '8px 10px', marginTop: 8, fontSize: '0.72rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', gap: 4 }}>
+                      <span style={{ fontWeight: 700, color: '#92400E' }}>
+                        Difference: ₹{fmt(interestShortfallAmount)}
+                      </span>
+                      <span style={{ fontSize: '0.65rem', color: '#B45309' }}>
+                        Due ₹{fmt(interestBreakdown.totalSuggestedInterest)} vs Entered ₹{fmt(numericInterest)}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: '#78350F', fontWeight: shortfallAction === 'CARRY_FORWARD' ? 600 : 400 }}>
+                        <input
+                          type="radio"
+                          name="shortfall_action_cd"
+                          checked={shortfallAction === 'CARRY_FORWARD'}
+                          onChange={() => setShortfallAction('CARRY_FORWARD')}
+                        />
+                        <span>Carry forward ₹{fmt(interestShortfallAmount)} as pending interest arrears (Default)</span>
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: '#78350F', fontWeight: shortfallAction === 'WAIVE' ? 600 : 400 }}>
+                        <input
+                          type="radio"
+                          name="shortfall_action_cd"
+                          checked={shortfallAction === 'WAIVE'}
+                          onChange={() => setShortfallAction('WAIVE')}
+                        />
+                        <span>Waive / discount ₹{fmt(interestShortfallAmount)} as concession (Submit for Manager Waiver Approval)</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Total Summary Banner */}
+              <div style={{ background: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)', border: '1px solid var(--brand-primary-border, #A3F5C1)', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <span style={{ fontSize: '0.62rem', color: 'var(--brand-primary-hover, #0E5327)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block' }}>
+                    Total Collection
+                  </span>
+                  <span style={{ fontSize: '1.15rem', color: 'var(--brand-primary, #15803D)', fontWeight: 700, marginTop: 1, display: 'block' }}>
+                    ₹{fmt(totalAmountToCollect)}
+                  </span>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '0.62rem', color: '#64748B', display: 'block' }}>
+                    New Principal Bal
+                  </span>
+                  <span style={{ fontSize: '0.98rem', color: updatedPendingBal > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)', fontWeight: 700 }}>
+                    ₹{fmt(updatedPendingBal)}
+                  </span>
+                </div>
+              </div>
 
               {/* Payment Method Selector */}
               <div>
@@ -512,6 +786,24 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                   ]}
                 />
               </div>
+
+              {/* Receiving Bank Account for Non-Cash Collections */}
+              {paymentMode !== 'CASH' && (
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>
+                    Receiving Bank Account *
+                  </label>
+                  <SharedDropdown
+                    value={bankAccountId ? String(bankAccountId) : (bankAccounts[0]?.id ? String(bankAccounts[0].id) : '')}
+                    onChange={(e) => setBankAccountId(e.target.value)}
+                    buttonStyle={{ height: 44, fontSize: '0.88rem' }}
+                    options={bankAccounts.map(b => ({
+                      value: String(b.id),
+                      label: `${b.bank_name} (${b.account_number ? '...' + String(b.account_number).slice(-4) : b.account_name})`
+                    }))}
+                  />
+                </div>
+              )}
 
               {/* Dynamic Payment Fields */}
               {paymentMode === 'UPI' && (
@@ -615,13 +907,15 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
               )}
 
               {/* Date & Collector Name */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="date-collector-row">
                 <div>
                   <label style={{ fontSize: '0.75rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 6 }}>
                     {t('cd.collection_date')}
                   </label>
                   <SharedDatePicker
                     value={paymentDate}
+                    min={currentLoan?.last_payment_date || currentLoan?.loan_date || null}
+                    max={new Date().toISOString().slice(0, 10)}
                     onChange={(e) => setPaymentDate(e.target.value)}
                     buttonStyle={{ height: 44 }}
                   />
@@ -712,7 +1006,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
               )}
 
               {/* Footer Actions */}
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 14 }}>
+              <div className="collection-actions-bar">
                 <button
                   type="button"
                   onClick={onClose}
@@ -731,7 +1025,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || receivedVal <= 0}
+                  disabled={loading || totalAmountToCollect <= 0}
                   style={{
                     border: 'none',
                     background: 'var(--brand-primary, #15803D)',
@@ -740,8 +1034,8 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
                     borderRadius: 9,
                     fontSize: '0.85rem',
                     fontWeight: 500,
-                    cursor: receivedVal > 0 ? 'pointer' : 'not-allowed',
-                    opacity: receivedVal > 0 ? 1 : 0.5,
+                    cursor: totalAmountToCollect > 0 ? 'pointer' : 'not-allowed',
+                    opacity: totalAmountToCollect > 0 ? 1 : 0.5,
                     boxShadow: '0 4px 14px rgba(var(--brand-primary-rgb), 0.25)'
                   }}
                 >
@@ -770,7 +1064,11 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
         phone: phoneNo,
         payment_mode: paymentMode,
         reference_no: receipt.mode_ref,
-        amount: receipt.amount || receivedVal,
+        amount: receipt.amount || totalAmountToCollect,
+        principal_paid: receipt.principal_paid ?? numericPrincipal,
+        interest_paid: receipt.interest_paid ?? numericInterest,
+        penalty: receipt.penalty ?? numericAdditional,
+        interest_paid_upto: receipt.interest_paid_upto ?? interestUptoDate,
         pending_balance: updatedPendingBal,
         collector_name: collectorName
       }}

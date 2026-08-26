@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import NewLoanApplicationPage from './NewLoanApplicationPage';
 import PrintableLoanApplicationSheet from './PrintableLoanApplicationSheet';
 import CustomerProfileModal from '../borrowers/CustomerProfileModal';
@@ -13,7 +13,8 @@ import {
   ChevronLeft,
   ChevronRight,
   RotateCcw,
-  Printer
+  Printer,
+  X
 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 
@@ -98,14 +99,15 @@ function ActionPill({ icon, label, onClick, tone = 'neutral', disabled = false }
 
 function appStatusBadgeCls(status) {
   if (status === 'APPROVED') return 'fin-badge fin-badge--ok';
-  if (status === 'REJECTED') return 'fin-badge fin-badge--warn';
+  if (status === 'PENDING_DISBURSAL') return 'fin-badge fin-badge--warn';
+  if (status === 'REJECTED') return 'fin-badge fin-badge--bad';
   return 'fin-badge';
 }
 
 // Dedicated "creation + approval" page: new applications get submitted here
 // and admins approve/reject/revert them here. Once APPROVED (and eventually
 // disbursed), the account shows up in the Loans register page instead — this
-// page only ever shows PENDING / APPROVED / REJECTED applications.
+// page only ever shows PENDING / APPROVED / PENDING_DISBURSAL / REJECTED applications.
 export default function LoanApplicationsView({
   loans = [],
   borrowers = [],
@@ -120,21 +122,35 @@ export default function LoanApplicationsView({
   onApproveApplication,
   onRejectApplication,
   onRevertApplication,
-  onDisburseApprovedLoan
+  onDisburseApprovedLoan,
+  onMarkPendingDisbursal,
+  highlightLoanId = null
 }) {
   const { t, tStatus } = useLanguage();
 
   const [searchQuery, setSearchQuery] = useState('');
   const activeSearch = externalSearchQuery || searchQuery;
-  const [appStatusFilter, setAppStatusFilter] = useState('PENDING'); // PENDING, APPROVED, REJECTED
+  const [appStatusFilter, setAppStatusFilter] = useState('PENDING'); // PENDING, APPROVED, PENDING_DISBURSAL, REJECTED
+
+  useEffect(() => {
+    if (!highlightLoanId) return;
+    const target = loans.find(l => l.id === highlightLoanId || l.loan_account_no === highlightLoanId);
+    if (!target) return;
+
+    if (target.status === 'PENDING' || target.status === 'APPROVED' || target.status === 'PENDING_DISBURSAL' || target.status === 'REJECTED') {
+      setAppStatusFilter(target.status);
+    }
+  }, [highlightLoanId, loans]);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionErrorMsg, setActionErrorMsg] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
   const [selectedApplication, setSelectedApplication] = useState(null);
+  const [selectedAppForApprove, setSelectedAppForApprove] = useState(null);
+  const [selectedAppForReject, setSelectedAppForReject] = useState(null);
   const [loanToDisburse, setLoanToDisburse] = useState(null);
-  const [modalAction, setModalAction] = useState('VIEW'); // 'VIEW' | 'APPROVE' | 'REJECT'
+  const [modalAction, setModalAction] = useState('VIEW'); // 'VIEW' | 'PRINT'
   const [rejectReason, setRejectReason] = useState('');
   const [actionSuccessMsg, setActionSuccessMsg] = useState('');
   const [createAppPageOpen, setCreateAppPageOpen] = useState(false);
@@ -143,10 +159,11 @@ export default function LoanApplicationsView({
   const schemeName = (schemeId) => loanSchemes.find(s => s.id === schemeId)?.name || '—';
   const linkedBorrower = (loan) => borrowers.find(b => b.id === loan.borrower_id || b.phone === loan.phone) || null;
 
-  const allAppsList = loans.filter(l => l.status === 'PENDING' || l.status === 'APPROVED' || l.status === 'REJECTED');
+  const allAppsList = loans.filter(l => l.status === 'PENDING' || l.status === 'APPROVED' || l.status === 'PENDING_DISBURSAL' || l.status === 'REJECTED');
   const allAppsCount = allAppsList.length;
   const pendingAppsCount = loans.filter(l => l.status === 'PENDING').length;
   const approvedAppsCount = loans.filter(l => l.status === 'APPROVED').length;
+  const pendingDisbursalCount = loans.filter(l => l.status === 'PENDING_DISBURSAL').length;
   const rejectedAppsCount = loans.filter(l => l.status === 'REJECTED').length;
 
   const displayList = allAppsList.filter(l => {
@@ -168,6 +185,15 @@ export default function LoanApplicationsView({
   const totalPrincipal = displayList.reduce((acc, l) => acc + (parseFloat(l.principal_amount) || 0), 0);
   const avgRequestedAmount = displayList.length ? totalPrincipal / displayList.length : 0;
 
+  useEffect(() => {
+    if (!highlightLoanId) return;
+    const targetIndex = displayList.findIndex(l => l.id === highlightLoanId || l.loan_account_no === highlightLoanId);
+    if (targetIndex !== -1) {
+      const targetPage = Math.floor(targetIndex / pageSize) + 1;
+      setCurrentPage(targetPage);
+    }
+  }, [highlightLoanId, displayList]);
+
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
   const handleOpenModal = (loan, action = 'VIEW') => {
@@ -188,6 +214,7 @@ export default function LoanApplicationsView({
     setActionErrorMsg('');
     try {
       await onApproveApplication?.(app.id);
+      setSelectedAppForApprove(null);
       handleCloseModal();
       setActionSuccessMsg(`Loan Application ${app.loan_account_no} for ${app.borrower_name} has been approved successfully!`);
       setTimeout(() => setActionSuccessMsg(''), 4000);
@@ -206,6 +233,7 @@ export default function LoanApplicationsView({
     setActionErrorMsg('');
     try {
       await onRejectApplication?.(app.id, reason);
+      setSelectedAppForReject(null);
       handleCloseModal();
       setActionSuccessMsg(`Loan Application ${app.loan_account_no} for ${app.borrower_name} has been rejected.`);
       setTimeout(() => setActionSuccessMsg(''), 4000);
@@ -258,6 +286,7 @@ export default function LoanApplicationsView({
   if (createAppPageOpen) {
     return (
       <NewLoanApplicationPage
+        loans={loans}
         borrowers={borrowers}
         loanSchemes={loanSchemes}
         branches={branches}
@@ -274,15 +303,11 @@ export default function LoanApplicationsView({
     );
   }
 
-  // "Approved" here IS the disbursal queue — an approved application sits in
-  // this exact tab until someone disburses it, at which point its status
-  // flips to ACTIVE and it naturally drops out of allAppsList (PENDING /
-  // APPROVED / REJECTED only) below. Labeling it "Disbursal" makes that
-  // relationship obvious instead of implying two separate stages.
   const TABS = [
-    { id: 'PENDING', label: t('kyc.pending_review'), count: pendingAppsCount },
-    { id: 'APPROVED', label: 'Disbursal', count: approvedAppsCount },
-    { id: 'REJECTED', label: tStatus('REJECTED'), count: rejectedAppsCount }
+    { id: 'PENDING', label: t('kyc.pending_review') || 'Pending Review', count: pendingAppsCount },
+    { id: 'APPROVED', label: 'Approved', count: approvedAppsCount },
+    { id: 'PENDING_DISBURSAL', label: 'Disbursement Pending', count: pendingDisbursalCount },
+    { id: 'REJECTED', label: tStatus('REJECTED') || 'Rejected', count: rejectedAppsCount }
   ];
 
   return (
@@ -339,8 +364,13 @@ export default function LoanApplicationsView({
             ) : (
               paginatedList.map((loan, idx) => {
                 const borrower = linkedBorrower(loan);
+                const isHighlighted = Boolean(highlightLoanId && (loan.id === highlightLoanId || loan.loan_account_no === highlightLoanId));
                 return (
-                  <tr key={loan.id}>
+                  <tr
+                    key={loan.id}
+                    className={isHighlighted ? 'highlighted-loan-row' : ''}
+                    ref={isHighlighted ? (el) => el?.scrollIntoView({ behavior: 'smooth', block: 'center' }) : null}
+                  >
                     <td style={{ textAlign: 'center', color: '#94A3B8' }}>{startIndex + idx + 1}</td>
 
                     <td>
@@ -389,7 +419,10 @@ export default function LoanApplicationsView({
 
                     <td style={{ textAlign: 'center' }}>
                       <span className={appStatusBadgeCls(loan.status)}>
-                        {loan.status === 'PENDING' ? t('kyc.pending_review') : tStatus(loan.status)}
+                        {loan.status === 'PENDING' ? (t('kyc.pending_review') || 'Pending Review') :
+                         loan.status === 'PENDING_DISBURSAL' ? 'Disbursement Pending' :
+                         loan.status === 'APPROVED' ? 'Approved' :
+                         tStatus(loan.status)}
                       </span>
                     </td>
 
@@ -399,15 +432,18 @@ export default function LoanApplicationsView({
                         <ActionPill icon={<Printer style={{ width: 11, height: 11 }} />} label="Print" onClick={() => handleOpenModal(loan, 'PRINT')} />
                         {loan.status === 'PENDING' && (
                           <>
-                            <ActionPill icon={<CheckCircle2 style={{ width: 11, height: 11 }} />} label="Approve" tone="good" onClick={() => handleOpenModal(loan, 'APPROVE')} />
-                            <ActionPill icon={<XCircle style={{ width: 11, height: 11 }} />} label="Reject" tone="bad" onClick={() => handleOpenModal(loan, 'REJECT')} />
+                            <ActionPill icon={<CheckCircle2 style={{ width: 11, height: 11 }} />} label="Approve" tone="good" onClick={() => setSelectedAppForApprove(loan)} />
+                            <ActionPill icon={<XCircle style={{ width: 11, height: 11 }} />} label="Reject" tone="bad" onClick={() => { setRejectReason(''); setSelectedAppForReject(loan); }} />
                           </>
                         )}
                         {loan.status === 'REJECTED' && (
                           <ActionPill icon={<RotateCcw style={{ width: 11, height: 11 }} />} label="Revert" tone="warn" disabled={actionLoading} onClick={() => handleRevertConfirm(loan)} />
                         )}
-                        {loan.status === 'APPROVED' && (
-                          <ActionPill icon={<CheckCircle2 style={{ width: 11, height: 11 }} />} label={actionLoading ? 'Disbursing…' : 'Disburse'} tone="good" disabled={actionLoading} onClick={() => handleDisburseConfirm(loan)} />
+                        {(loan.status === 'APPROVED' || loan.status === 'PENDING_DISBURSAL') && (
+                          <>
+                            <ActionPill icon={<CheckCircle2 style={{ width: 11, height: 11 }} />} label={actionLoading ? 'Disbursing…' : 'Disburse'} tone="good" disabled={actionLoading} onClick={() => handleDisburseConfirm(loan)} />
+                            <ActionPill icon={<XCircle style={{ width: 11, height: 11 }} />} label="Reject" tone="bad" disabled={actionLoading} onClick={() => { setRejectReason(''); setSelectedAppForReject(loan); }} />
+                          </>
                         )}
                       </div>
                     </td>
@@ -436,6 +472,139 @@ export default function LoanApplicationsView({
         </div>
       </div>
 
+      {/* ── Direct Loan Approval Confirmation Modal ── */}
+      {selectedAppForApprove && (
+        <div className="saas-modal-backdrop" style={{ zIndex: 100000 }}>
+          <div className="saas-modal-card" style={{ maxWidth: 480 }}>
+            <div className="saas-modal-header">
+              <div className="head-left">
+                <div className="head-icon-badge" style={{ background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #15803D)' }}>
+                  <CheckCircle2 style={{ width: 18, height: 18 }} />
+                </div>
+                <div className="head-titles">
+                  <h3>Confirm Loan Approval</h3>
+                  <p>Approve credit application and send to Disbursal queue</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedAppForApprove(null)} className="close-btn" type="button">
+                <X style={{ width: 16, height: 16 }} />
+              </button>
+            </div>
+
+            <div className="saas-modal-body">
+              <p style={{ fontSize: '0.85rem', color: '#334155', lineHeight: 1.5, margin: 0 }}>
+                Are you sure you want to approve loan application <strong style={{ color: 'var(--brand-primary, #15803D)' }}>{selectedAppForApprove.loan_account_no}</strong> for <strong>{selectedAppForApprove.borrower_name}</strong>?
+              </p>
+
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.8rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#64748B' }}>Requested Principal:</span>
+                  <strong style={{ color: '#0F172A', fontSize: '0.92rem' }}>₹{fmt(selectedAppForApprove.principal_amount)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#64748B' }}>Installment:</span>
+                  <strong style={{ color: 'var(--brand-primary-hover, #0E5327)' }}>
+                    ₹{fmt(selectedAppForApprove.installment_amount)} / {selectedAppForApprove.repayment_frequency || 'MONTHLY'}
+                  </strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#64748B' }}>Scheme:</span>
+                  <span style={{ fontWeight: 600, color: '#334155' }}>{schemeName(selectedAppForApprove.scheme_id)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#64748B' }}>Branch:</span>
+                  <span style={{ fontWeight: 600, color: '#334155' }}>{selectedAppForApprove.branch || '—'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="saas-modal-footer">
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => setSelectedAppForApprove(null)}
+                className="btn-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => handleApproveConfirm(selectedAppForApprove)}
+                className="btn-submit"
+              >
+                <CheckCircle2 style={{ width: 14, height: 14 }} />
+                <span>{actionLoading ? 'Approving…' : 'Confirm & Approve'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Direct Loan Rejection Modal ── */}
+      {selectedAppForReject && (
+        <div className="saas-modal-backdrop" style={{ zIndex: 100000 }}>
+          <div className="saas-modal-card" style={{ maxWidth: 480 }}>
+            <div className="saas-modal-header">
+              <div className="head-left">
+                <div className="head-icon-badge" style={{ background: 'var(--color-danger-light, #FEF2F2)', color: 'var(--color-danger, #DC2626)' }}>
+                  <XCircle style={{ width: 18, height: 18 }} />
+                </div>
+                <div className="head-titles">
+                  <h3>Reject Loan Application</h3>
+                  <p>Provide a rejection reason for the applicant record</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedAppForReject(null)} className="close-btn" type="button">
+                <X style={{ width: 16, height: 16 }} />
+              </button>
+            </div>
+
+            <div className="saas-modal-body">
+              <p style={{ fontSize: '0.85rem', color: '#334155', lineHeight: 1.5, margin: 0 }}>
+                Are you sure you want to reject loan application <strong style={{ color: 'var(--color-danger, #DC2626)' }}>{selectedAppForReject.loan_account_no}</strong> for <strong>{selectedAppForReject.borrower_name}</strong>?
+              </p>
+
+              <div className="form-group">
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: 4 }}>
+                  Rejection Reason *
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  className="input-control"
+                  style={{ height: 'auto', padding: '8px 12px', resize: 'vertical' }}
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="e.g. KYC mismatch, insufficient income, or high credit risk..."
+                />
+              </div>
+            </div>
+
+            <div className="saas-modal-footer">
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => setSelectedAppForReject(null)}
+                className="btn-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={actionLoading || !rejectReason.trim()}
+                onClick={() => handleRejectConfirm(selectedAppForReject, rejectReason)}
+                className="btn-submit"
+                style={{ background: 'var(--color-danger, #DC2626)' }}
+              >
+                <XCircle style={{ width: 14, height: 14 }} />
+                <span>{actionLoading ? 'Rejecting…' : 'Confirm Rejection'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedApplication && (
         <PrintableLoanApplicationSheet
           applicationData={selectedApplication}
@@ -449,8 +618,8 @@ export default function LoanApplicationsView({
           initialMode={modalAction}
           tenant={tenant}
           onClose={handleCloseModal}
-          onApprove={modalAction === 'APPROVE' ? (app) => handleApproveConfirm(app) : null}
-          onReject={modalAction === 'REJECT' ? (app, reason) => handleRejectConfirm(app, reason) : null}
+          onApprove={(app) => handleApproveConfirm(app)}
+          onReject={(app, reason) => handleRejectConfirm(app, reason)}
         />
       )}
 
@@ -469,6 +638,12 @@ export default function LoanApplicationsView({
           chartOfAccounts={chartOfAccounts}
           bankAccounts={bankAccounts}
           onConfirm={handleDisburseSubmit}
+          onMarkPendingDisbursal={async (loanId, reason) => {
+            await onMarkPendingDisbursal?.(loanId, reason);
+            setLoanToDisburse(null);
+            setActionSuccessMsg('Loan moved to Disbursement Pending stage (awaiting funds).');
+            setTimeout(() => setActionSuccessMsg(''), 4000);
+          }}
           onClose={() => setLoanToDisburse(null)}
         />
       )}

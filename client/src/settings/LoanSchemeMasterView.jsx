@@ -493,7 +493,7 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
 
             <div>
               <label style={{ ...labelStyle, marginBottom: 6 }}>{t('scheme.modal.loan_amount_range')}</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="modal-grid-2">
                 <input type="number" min="0" value={form.min_amount} onChange={e => setForm({ ...form, min_amount: e.target.value })} placeholder={t('scheme.modal.min_amount')} style={inputStyle} />
                 <input type="number" min="0" value={form.max_amount} onChange={e => setForm({ ...form, max_amount: e.target.value })} placeholder={t('scheme.modal.max_amount')} style={inputStyle} />
               </div>
@@ -501,7 +501,7 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
 
             <div>
               <label style={{ ...labelStyle, marginBottom: 6 }}>{t('scheme.modal.tenure_range_months')}</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="modal-grid-2">
                 <input type="number" min="1" value={form.min_tenure_months} onChange={e => setForm({ ...form, min_tenure_months: e.target.value })} placeholder={t('scheme.modal.min_months')} style={inputStyle} />
                 <input type="number" min="1" value={form.max_tenure_months} onChange={e => setForm({ ...form, max_tenure_months: e.target.value })} placeholder={t('scheme.modal.max_months')} style={inputStyle} />
               </div>
@@ -555,9 +555,9 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
               <button onClick={() => setRateModalOpen(false)} className="close-btn" type="button" style={{ background: 'transparent', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}><X style={{ width: 16, height: 16 }} /></button>
             </div>
 
-            <div style={{ padding: '20px 24px' }}>
+            <div style={{ padding: '16px 20px' }}>
               <div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                <div className="modal-grid-3">
                   <div>
                     <label style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 600, display: 'block', marginBottom: 2 }}>Base Amount (₹)</label>
                     <input
@@ -674,8 +674,8 @@ export default function LoanSchemeMasterView({ schemes = [], onCreateScheme, onU
       </div>
 
       <div className="loans-table-card">
-        <div className="table-responsive">
-          <table>
+        <div className="fin-table-scroll">
+          <table style={{ minWidth: 840 }}>
             <thead>
               <tr>
                 <th style={{ width: 50, textAlign: 'center', fontWeight: 500 }}>{t('col.sno')}</th>
@@ -716,25 +716,23 @@ export default function LoanSchemeMasterView({ schemes = [], onCreateScheme, onU
                       {s.is_active ? tStatus('ACTIVE') : tStatus('INACTIVE')}
                     </span>
                   </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <div style={{ display: 'inline-flex', gap: 8 }}>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap', width: 100 }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, flexShrink: 0 }}>
                       <button
+                        type="button"
                         onClick={() => { setEditing(s); setModalOpen(true); }}
                         title={t('btn.edit')}
-                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, border: '1px solid #E2E8F0', background: '#FFFFFF', color: '#334155', borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s ease' }}
-                        onMouseEnter={e => { e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.borderColor = '#94A3B8'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.borderColor = '#E2E8F0'; }}
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, flexShrink: 0, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#334155', borderRadius: 6, cursor: 'pointer', padding: 0 }}
                       >
-                        <Pencil style={{ width: 16, height: 16 }} />
+                        <Pencil style={{ width: 14, height: 14, flexShrink: 0 }} />
                       </button>
                       <button
+                        type="button"
                         onClick={() => { setDeleteTarget(s); setDeleteError(''); }}
                         title={t('btn.delete')}
-                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, border: '1px solid transparent', background: 'var(--color-danger-light, #FEE2E2)', color: 'var(--color-danger, #DC2626)', borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s ease' }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-danger-border, #FECACA)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'var(--color-danger-light, #FEE2E2)'; }}
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, flexShrink: 0, border: '1px solid #FECACA', background: 'var(--color-danger-light, #FEE2E2)', color: 'var(--color-danger, #DC2626)', borderRadius: 6, cursor: 'pointer', padding: 0 }}
                       >
-                        <Trash2 style={{ width: 16, height: 16 }} />
+                        <Trash2 style={{ width: 14, height: 14, flexShrink: 0 }} />
                       </button>
                     </div>
                   </td>

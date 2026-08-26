@@ -22,6 +22,7 @@ import PrintableCustomerApplicationForm from './PrintableCustomerApplicationForm
 import { useLanguage } from '../../i18n/LanguageContext';
 import SharedDropdown from '../../components/common/SharedDropdown';
 import SharedDatePicker from '../../components/common/SharedDatePicker';
+import { uploadFile, uploadMultipleFiles } from '../../api/upload';
 
 const EMPTY_FORM = {
   full_name: '',
@@ -128,15 +129,6 @@ function fmtSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function readFileAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
 function DocPreviewItem({ doc, onRemove }) {
   const { t } = useLanguage();
   const isImage = (doc.mime || '').startsWith('image/');
@@ -215,8 +207,10 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
       return;
     }
     try {
-      const dataUrl = await readFileAsDataUrl(file);
-      setProfileImage(dataUrl);
+      const res = await uploadFile(file, { subfolder: 'customer', category: 'profile', prefix: 'cust_profile' });
+      if (res?.url) {
+        setProfileImage(res.url);
+      }
     } catch {
       alert(t('cf.err.read_image'));
     }
@@ -225,31 +219,28 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
   const handleCategoryUpload = async (catId, fileList) => {
     if (!fileList || fileList.length === 0) return;
     const catObj = DOC_CATEGORIES.find(c => c.id === catId);
-    const newDocs = [];
 
-    for (const file of Array.from(fileList)) {
-      if (file.size > 10 * 1024 * 1024) {
-        alert(`${file.name} ${t('cf.err.file_size_limit')}`);
-        continue;
-      }
-      try {
-        const dataUrl = await readFileAsDataUrl(file);
-        newDocs.push({
-          id: `doc-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+    try {
+      const uploaded = await uploadMultipleFiles(fileList, {
+        subfolder: 'cust-proofs',
+        category: catId,
+        prefix: `kyc_${catId}`
+      });
+
+      if (Array.isArray(uploaded) && uploaded.length > 0) {
+        const newDocs = uploaded.map((u, i) => ({
+          id: `doc-${Date.now()}-${i}`,
           category: catId,
           type: catObj?.type || catId,
-          name: file.name,
-          size: file.size,
-          mime: file.type,
-          url: dataUrl
-        });
-      } catch {
-        alert(`${t('cf.err.file_read_fail')} ${file.name}`);
+          name: u.name,
+          size: u.size,
+          mime: u.type,
+          url: u.url
+        }));
+        setDocuments(prev => [...prev.filter(d => d.category !== catId), ...newDocs]);
       }
-    }
-
-    if (newDocs.length > 0) {
-      setDocuments(prev => [...prev.filter(d => d.category !== catId), ...newDocs]);
+    } catch {
+      alert(`${t('cf.err.file_read_fail')}`);
     }
   };
 
@@ -337,11 +328,11 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
 
       {/* ── Header Action Row ── */}
       <div className="cf-page-header">
-        <div className="cf-header-left" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="cf-header-left">
           <button type="button" className="cf-back-btn" onClick={onCancel} title={t('cf.back_to_directory')}>
             <ArrowLeft style={{ width: 16, height: 16 }} />
           </button>
-          <h1 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0, color: '#0F172A' }}>
+          <h1>
             {mode === 'EDIT' ? t('cf.edit_title') : t('cf.register_title')}
           </h1>
         </div>
@@ -350,14 +341,14 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
           <button
             type="button"
             onClick={() => setShowPrintableSheet(true)}
-            className="btn-cancel"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, borderColor: 'var(--brand-primary, #15803D)', color: 'var(--brand-primary-hover, #0E5327)', background: 'var(--brand-primary-light, #F0FEF5)' }}
+            className="btn-preview-sheet"
+            title={t('cf.form_sheet_preview')}
           >
             <Printer style={{ width: 14, height: 14 }} />
             <span>{t('cf.form_sheet_preview')}</span>
           </button>
-          <button type="button" onClick={onCancel} className="btn-cancel" disabled={loading}>{t('btn.cancel')}</button>
-          <button type="submit" onClick={handleSubmit} disabled={loading} className="btn-submit">
+          <button type="button" onClick={onCancel} className="btn-cancel desktop-only-btn" disabled={loading}>{t('btn.cancel')}</button>
+          <button type="submit" onClick={handleSubmit} disabled={loading} className="btn-submit desktop-only-btn">
             {loading ? t('cf.saving_record') : mode === 'EDIT' ? t('form.save_changes') : t('cf.register_customer')}
           </button>
         </div>

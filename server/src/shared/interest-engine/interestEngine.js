@@ -110,38 +110,90 @@ export function generateEmiSchedule({
   return schedule;
 }
 
-export function calculatePaymentAllocation(schedule, amountPaid, penaltyAmount = 0) {
+export function calculatePaymentAllocation(schedule, amountPaid, penaltyAmount = 0, lastPaymentDate = null, paymentDate = null) {
   let remaining = parseFloat(amountPaid) || 0;
 
-  const penaltyPaid = Math.min(remaining, penaltyAmount);
+  const penaltyPaid = Math.min(remaining, parseFloat(penaltyAmount) || 0);
   remaining -= penaltyPaid;
 
   let totalInterestPaid = 0;
   let totalPrincipalPaid = 0;
 
-  for (const row of schedule) {
-    const iDue = row.interest - (row.interest_paid || 0);
-    if (iDue > 0) {
-      const iCover = Math.min(remaining, iDue);
-      totalInterestPaid += iCover;
-      remaining -= iCover;
+  const todayStr = paymentDate ? new Date(paymentDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const lastPaidStr = lastPaymentDate ? new Date(lastPaymentDate).toISOString().slice(0, 10) : null;
+  const isSameDayPaid = Boolean(lastPaidStr && lastPaidStr === todayStr);
+
+  const parsedSchedule = (schedule || []).map(r => ({
+    ...r,
+    principal: parseFloat(r.principal) || 0,
+    interest: parseFloat(r.interest) || 0,
+    principal_paid: parseFloat(r.principal_paid) || 0,
+    interest_paid: parseFloat(r.interest_paid) || 0
+  }));
+
+  const unpaidRows = parsedSchedule.filter(
+    r => (r.principal - r.principal_paid) > 0.001 || (r.interest - r.interest_paid) > 0.001
+  );
+  const firstUnpaidRow = unpaidRows[0];
+
+  // Identify all periods that are due up to the selected collection date
+  const dueRowPeriods = new Set();
+  if (!isSameDayPaid && unpaidRows.length > 0) {
+    const dueRows = unpaidRows.filter(r => r.due_date && r.due_date <= todayStr);
+    if (dueRows.length > 0) {
+      dueRows.forEach(r => dueRowPeriods.add(r.id || r.period));
+    } else if (firstUnpaidRow) {
+      dueRowPeriods.add(firstUnpaidRow.id || firstUnpaidRow.period);
     }
   }
 
-  for (const row of schedule) {
-    const pDue = row.principal - (row.principal_paid || 0);
-    if (pDue > 0) {
-      const pCover = Math.min(remaining, pDue);
-      totalPrincipalPaid += pCover;
-      remaining -= pCover;
+  // 1. Settle interest for all periods due up to the selected collection date
+  for (const row of parsedSchedule) {
+    if (remaining <= 0) break;
+    const rowKey = row.id || row.period;
+    if (!dueRowPeriods.has(rowKey)) continue; // Skip future periods' unaccrued interest
+
+    const interestOwed = Math.max(0, row.interest - row.interest_paid);
+    if (interestOwed > 0) {
+      const payI = Math.min(remaining, interestOwed);
+      row.interest_paid += payI;
+      totalInterestPaid += payI;
+      remaining -= payI;
+    }
+  }
+
+  // 2. Settle principal for periods due up to the selected collection date
+  for (const row of parsedSchedule) {
+    if (remaining <= 0) break;
+    const rowKey = row.id || row.period;
+    if (!dueRowPeriods.has(rowKey)) continue;
+
+    const principalOwed = Math.max(0, row.principal - row.principal_paid);
+    if (principalOwed > 0) {
+      const payP = Math.min(remaining, principalOwed);
+      row.principal_paid += payP;
+      totalPrincipalPaid += payP;
+      remaining -= payP;
+    }
+  }
+
+  // 3. Any excess payment goes 100% to Principal of future periods (no future interest charged)
+  for (const row of parsedSchedule) {
+    if (remaining <= 0) break;
+    const principalOwed = Math.max(0, row.principal - row.principal_paid);
+    if (principalOwed > 0) {
+      const pay = Math.min(remaining, principalOwed);
+      row.principal_paid += pay;
+      totalPrincipalPaid += pay;
+      remaining -= pay;
     }
   }
 
   return {
     penaltyPaid,
-    interestPaid: totalInterestPaid,
-    principalPaid: totalPrincipalPaid,
-    excessAmount: remaining
+    interestPaid: Math.round(totalInterestPaid * 100) / 100,
+    principalPaid: Math.round(totalPrincipalPaid * 100) / 100,
+    excessAmount: Math.max(0, Math.round(remaining * 100) / 100)
   };
 }
 

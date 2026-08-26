@@ -68,7 +68,9 @@ async function assertValidVoucherInput(conn, { description, entry_date, voucher_
 export async function insertVoucherOnConnection(conn, voucherData) {
   const { entry_date, description, voucher_type, lines, ref_type, ref_id, branch, created_by, is_auto } = voucherData;
   await assertValidVoucherInput(conn, { description, entry_date, voucher_type, lines });
-  await EodService.assertEodNotLocked(conn, branch, entry_date);
+  if (ref_type !== 'EOD_VARIANCE_ADJUSTMENT') {
+    await EodService.assertEodNotLocked(conn, branch, entry_date);
+  }
   const { totalDebit } = validateDoubleEntry(lines);
   if (totalDebit <= 0) {
     const err = new Error('Voucher total amount must be greater than zero.');
@@ -299,6 +301,97 @@ export class LedgerService {
         total_credit: totalCredit,
         is_balanced: Math.abs(totalDebit - totalCredit) < 0.01
       }
+    };
+  }
+
+  static async getAccountBalances(db, { branch } = {}) {
+    const [accounts] = await db.query(
+      `SELECT id, account_code, account_name, account_type, category, balance FROM chart_of_accounts WHERE is_active = 1`
+    );
+
+    let sql = `
+      SELECT jl.account_code,
+             COALESCE(SUM(jl.debit), 0) as total_debit,
+             COALESCE(SUM(jl.credit), 0) as total_credit
+      FROM journal_lines jl
+      JOIN journal_entries je ON jl.journal_entry_id = je.id
+      WHERE 1=1
+    `;
+    const params = [];
+    if (branch && branch !== 'ALL') {
+      sql += ` AND (je.branch = ? OR je.branch IS NULL OR ? = '')`;
+      params.push(branch, branch);
+    }
+    sql += ` GROUP BY jl.account_code`;
+
+    const [lines] = await db.query(sql, params);
+    const lineMap = new Map();
+    for (const l of lines) {
+      lineMap.set(l.account_code, l);
+    }
+
+    return accounts.map(acc => {
+      const summary = lineMap.get(acc.account_code) || { total_debit: 0, total_credit: 0 };
+      const openingBal = parseFloat(acc.balance || 0);
+      const isDebitNormal = acc.account_type === 'ASSET' || acc.account_type === 'EXPENSE';
+      const debit = parseFloat(summary.total_debit || 0);
+      const credit = parseFloat(summary.total_credit || 0);
+      const currentBalance = isDebitNormal
+        ? (openingBal + debit - credit)
+        : (openingBal + credit - debit);
+
+      return {
+        account_code: acc.account_code,
+        account_name: acc.account_name,
+        account_type: acc.account_type,
+        category: acc.category,
+        opening_balance: openingBal,
+        total_debit: debit,
+        total_credit: credit,
+        available_balance: Math.round(currentBalance * 100) / 100
+      };
+    });
+  }
+
+  static async getAccountBalance(connOrDb, accountCode, { branch } = {}) {
+    const [accRows] = await connOrDb.query(
+      `SELECT account_code, account_name, account_type, category, balance FROM chart_of_accounts WHERE account_code = ?`,
+      [accountCode]
+    );
+    if (!accRows.length) return null;
+    const acc = accRows[0];
+
+    let sql = `
+      SELECT COALESCE(SUM(jl.debit), 0) as total_debit,
+             COALESCE(SUM(jl.credit), 0) as total_credit
+      FROM journal_lines jl
+      JOIN journal_entries je ON jl.journal_entry_id = je.id
+      WHERE jl.account_code = ?
+    `;
+    const params = [accountCode];
+    if (branch && branch !== 'ALL') {
+      sql += ` AND (je.branch = ? OR je.branch IS NULL OR ? = '')`;
+      params.push(branch, branch);
+    }
+    const [lines] = await connOrDb.query(sql, params);
+    const summary = lines[0] || { total_debit: 0, total_credit: 0 };
+    const openingBal = parseFloat(acc.balance || 0);
+    const debit = parseFloat(summary.total_debit || 0);
+    const credit = parseFloat(summary.total_credit || 0);
+    const isDebitNormal = acc.account_type === 'ASSET' || acc.account_type === 'EXPENSE';
+    const currentBalance = isDebitNormal
+      ? (openingBal + debit - credit)
+      : (openingBal + credit - debit);
+
+    return {
+      account_code: acc.account_code,
+      account_name: acc.account_name,
+      account_type: acc.account_type,
+      category: acc.category,
+      opening_balance: openingBal,
+      total_debit: debit,
+      total_credit: credit,
+      available_balance: Math.round(currentBalance * 100) / 100
     };
   }
 }

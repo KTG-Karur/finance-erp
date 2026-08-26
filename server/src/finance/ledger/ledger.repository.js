@@ -1,11 +1,11 @@
 export class LedgerRepository {
   static async findAccounts(db) {
-    const [rows] = await db.query(`SELECT * FROM chart_of_accounts ORDER BY account_code ASC`);
+    const [rows] = await db.query(`SELECT * FROM chart_of_accounts WHERE deleted_at IS NULL ORDER BY account_code ASC`);
     return rows;
   }
 
   static async findActiveAccounts(db) {
-    const [rows] = await db.query(`SELECT * FROM chart_of_accounts WHERE is_active = 1 ORDER BY account_code ASC`);
+    const [rows] = await db.query(`SELECT * FROM chart_of_accounts WHERE is_active = 1 AND deleted_at IS NULL ORDER BY account_code ASC`);
     return rows;
   }
 
@@ -23,7 +23,7 @@ export class LedgerRepository {
       err.statusCode = 400;
       throw err;
     }
-    const [existing] = await db.query('SELECT account_code FROM chart_of_accounts WHERE account_code = ?', [account_code]);
+    const [existing] = await db.query('SELECT account_code FROM chart_of_accounts WHERE account_code = ? AND deleted_at IS NULL', [account_code]);
     if (existing.length) {
       const err = new Error(`Account code '${account_code}' already exists.`);
       err.statusCode = 409;
@@ -47,7 +47,7 @@ export class LedgerRepository {
       const VALID_TYPES = ['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'];
       if (!VALID_TYPES.includes(uType)) {
         const err = new Error(`Invalid account_type '${uType}'. Must be one of: ${VALID_TYPES.join(', ')}`);
-        err.statusCode = 400;
+        if (!err.statusCode) err.statusCode = 400;
         throw err;
       }
       fields.push('account_type = ?');
@@ -70,7 +70,7 @@ export class LedgerRepository {
       err.statusCode = 400;
       throw err;
     }
-    await db.query(`DELETE FROM chart_of_accounts WHERE account_code = ?`, [account_code]);
+    await db.query(`UPDATE chart_of_accounts SET deleted_at = CURRENT_TIMESTAMP, is_active = 0 WHERE account_code = ? AND deleted_at IS NULL`, [account_code]);
     return true;
   }
 
@@ -98,7 +98,7 @@ export class LedgerRepository {
       sql += ` AND entry_date <= ?`;
       params.push(filters.date_to);
     }
-    sql += ` ORDER BY entry_date DESC, id DESC`;
+    sql += ` ORDER BY entry_date DESC, created_at DESC, id DESC`;
 
     // Bounded by default — an unfiltered fetch on a mature ledger would otherwise
     // pull every voucher this tenant has ever posted in one query.

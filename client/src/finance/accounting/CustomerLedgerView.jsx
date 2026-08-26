@@ -47,6 +47,7 @@ export default function CustomerLedgerView({ borrowers = [], loans = [], collect
     const disbursalRows = customerLoans.map(l => ({
       id: `disbursal-${l.id}`,
       date: l.loan_date,
+      created_at: l.created_at,
       loan_account_no: l.loan_account_no,
       voucher_no: '—',
       type: 'DISBURSAL',
@@ -58,6 +59,7 @@ export default function CustomerLedgerView({ borrowers = [], loans = [], collect
       .map(c => ({
         id: c.id,
         date: c.collection_date,
+        created_at: c.created_at,
         loan_account_no: c.loan_account_no,
         voucher_no: c.voucher_no || '—',
         type: 'COLLECTION',
@@ -66,7 +68,12 @@ export default function CustomerLedgerView({ borrowers = [], loans = [], collect
       }));
     return [...disbursalRows, ...collectionRows]
       .filter(row => (!fromDate || row.date >= fromDate) && (!toDate || row.date <= toDate))
-      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+      .sort((a, b) => {
+        const timeA = new Date(a.created_at || `${a.date}T00:00:00`).getTime() || 0;
+        const timeB = new Date(b.created_at || `${b.date}T00:00:00`).getTime() || 0;
+        if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+        return timeB - timeA;
+      });
   }, [selectedBorrower, customerLoans, collections, fromDate, toDate]);
 
   const totalBorrowed = customerLoans.reduce((s, l) => s + (l.principal_amount || 0), 0);
@@ -169,7 +176,7 @@ export default function CustomerLedgerView({ borrowers = [], loans = [], collect
         <table className="fin-grid-table">
           <thead>
             <tr>
-              <th>{t('col.date')}</th>
+              <th>{t('col.date_time') || 'Date & Time'}</th>
               <th>{t('col.loan_acc')}</th>
               <th>{t('fin.voucher_type_col')}</th>
               <th>{t('col.voucher_no')}</th>
@@ -182,7 +189,14 @@ export default function CustomerLedgerView({ borrowers = [], loans = [], collect
               <tr><td colSpan="6" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>{!hasBranchSelected ? t('fin.select_branch_hint') : t('fin.no_results_hint')}</td></tr>
             ) : rows.map(row => (
               <tr key={row.id}>
-                <td>{row.date}</td>
+                <td>
+                  <div style={{ fontWeight: 600, color: '#0F172A' }}>{row.date}</div>
+                  {row.created_at && (
+                    <div style={{ fontSize: '0.68rem', color: '#64748B' }}>
+                      {new Date(row.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                    </div>
+                  )}
+                </td>
                 <td className="code">{row.loan_account_no}</td>
                 <td><span className="fin-tag">{row.type === 'DISBURSAL' ? t('fin.ref_disbursal') : t('fin.ref_collection')}</span></td>
                 <td className="code">{row.voucher_no}</td>

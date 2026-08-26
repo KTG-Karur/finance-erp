@@ -29,7 +29,7 @@ function parseRow(row) {
 
 export class BorrowerRepository {
   static async findAll(db, search = '') {
-    let sql = `SELECT * FROM borrowers WHERE 1=1`;
+    let sql = `SELECT * FROM borrowers WHERE deleted_at IS NULL`;
     const params = [];
 
     if (search) {
@@ -43,7 +43,7 @@ export class BorrowerRepository {
   }
 
   static async findById(db, id) {
-    const [rows] = await db.query(`SELECT * FROM borrowers WHERE id = ?`, [id]);
+    const [rows] = await db.query(`SELECT * FROM borrowers WHERE id = ? AND deleted_at IS NULL`, [id]);
     if (!rows.length) return null;
 
     const borrower = parseRow(rows[0]);
@@ -53,7 +53,7 @@ export class BorrowerRepository {
   }
 
   static async findByPhone(db, phone, excludeId = null) {
-    let sql = `SELECT id FROM borrowers WHERE phone = ?`;
+    let sql = `SELECT id FROM borrowers WHERE phone = ? AND deleted_at IS NULL`;
     const params = [phone];
     if (excludeId) {
       sql += ` AND id != ?`;
@@ -125,21 +125,47 @@ export class BorrowerRepository {
   }
 
   static async delete(db, id) {
-    const [res] = await db.query(`DELETE FROM borrowers WHERE id = ?`, [id]);
+    const [res] = await db.query(`UPDATE borrowers SET deleted_at = CURRENT_TIMESTAMP, status = 'INACTIVE' WHERE id = ? AND deleted_at IS NULL`, [id]);
     return res.affectedRows > 0;
   }
 
-  static async countLinkedLoans(db, id) {
+  static async countActiveObligations(db, id) {
     const [borrowerRows] = await db.query(`SELECT phone FROM borrowers WHERE id = ?`, [id]);
-    if (!borrowerRows.length) return 0;
-    // Loans link to a borrower by borrower_id when created through the
-    // Customer Directory, but the quick-disburse flow can also create a loan
-    // for a phone number with no borrower_id set at all — count both so a
-    // borrower with either kind of linked loan can't be silently deleted.
-    const [rows] = await db.query(
-      `SELECT COUNT(*) as cnt FROM loans WHERE borrower_id = ? OR phone = ?`,
-      [id, borrowerRows[0].phone]
+    if (!borrowerRows.length) return { activeLoans: 0, activeFds: 0, activeRds: 0 };
+    const phone = borrowerRows[0].phone;
+
+    const [loanRows] = await db.query(
+      `SELECT COUNT(*) as cnt FROM loans WHERE (borrower_id = ? OR phone = ?) AND status NOT IN ('CLOSED', 'REJECTED', 'CANCELLED')`,
+      [id, phone]
     );
-    return rows[0]?.cnt || 0;
+
+    let activeFds = 0;
+    try {
+      const [fdRows] = await db.query(
+        `SELECT COUNT(*) as cnt FROM fixed_deposits WHERE (customer_id = ? OR phone = ?) AND status = 'ACTIVE'`,
+        [id, phone]
+      );
+      activeFds = fdRows[0]?.cnt || 0;
+    } catch (e) {}
+
+    let activeRds = 0;
+    try {
+      const [rdRows] = await db.query(
+        `SELECT COUNT(*) as cnt FROM recurring_deposits WHERE (customer_id = ? OR phone = ?) AND status = 'ACTIVE'`,
+        [id, phone]
+      );
+      activeRds = rdRows[0]?.cnt || 0;
+    } catch (e) {}
+
+    return {
+      activeLoans: loanRows[0]?.cnt || 0,
+      activeFds,
+      activeRds
+    };
+  }
+
+  static async countLinkedLoans(db, id) {
+    const ob = await this.countActiveObligations(db, id);
+    return ob.activeLoans;
   }
 }

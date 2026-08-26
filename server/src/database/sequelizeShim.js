@@ -9,8 +9,9 @@ export const DataTypes = {
   STRING: (length = 255) => ({ key: 'STRING', length }),
   INTEGER: { key: 'INTEGER' },
   DECIMAL: (precision = 15, scale = 2) => ({ key: 'DECIMAL', precision, scale }),
-  TEXT: { key: 'TEXT' },
+  TEXT: Object.assign((subtype) => ({ key: subtype === 'long' ? 'LONGTEXT' : subtype === 'medium' ? 'MEDIUMTEXT' : 'TEXT' }), { key: 'TEXT' }),
   MEDIUMTEXT: { key: 'MEDIUMTEXT' },
+  LONGTEXT: { key: 'LONGTEXT' },
   BOOLEAN: { key: 'BOOLEAN' },
   DATE: { key: 'DATE' },
   DATEONLY: { key: 'DATEONLY' },
@@ -30,6 +31,7 @@ function columnTypeSql(spec) {
     case 'DECIMAL': return `DECIMAL(${type.precision},${type.scale})`;
     case 'TEXT': return 'TEXT';
     case 'MEDIUMTEXT': return 'MEDIUMTEXT';
+    case 'LONGTEXT': return 'LONGTEXT';
     case 'BOOLEAN': return 'TINYINT(1)';
     case 'DATEONLY': return 'DATE';
     case 'DATE': return 'DATETIME';
@@ -96,7 +98,25 @@ export function createQueryInterface(conn) {
       const cols = fields.map(f => `\`${f}\``).join(', ');
       const kind = options.unique ? 'UNIQUE INDEX' : 'INDEX';
       const name = options.name || `${tableName}_${fields.join('_')}${options.unique ? '_unique' : '_idx'}`;
-      await conn.query(`ALTER TABLE \`${tableName}\` ADD ${kind} \`${name}\` (${cols})`);
+      try {
+        await conn.query(`ALTER TABLE \`${tableName}\` ADD ${kind} \`${name}\` (${cols})`);
+      } catch (err) {
+        // Index might already exist
+      }
+    },
+
+    async addColumn(tableName, colName, spec) {
+      const colDef = columnDefinitionSql(conn, colName, spec);
+      await conn.query(`ALTER TABLE \`${tableName}\` ADD COLUMN ${colDef}`);
+    },
+
+    async changeColumn(tableName, colName, spec) {
+      const colDef = columnDefinitionSql(conn, colName, spec);
+      await conn.query(`ALTER TABLE \`${tableName}\` MODIFY COLUMN ${colDef}`);
+    },
+
+    async removeColumn(tableName, colName) {
+      await conn.query(`ALTER TABLE \`${tableName}\` DROP COLUMN \`${colName}\``);
     }
   };
 }

@@ -42,8 +42,8 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import SharedDropdown from '../components/common/SharedDropdown';
-import SharedDatePicker from '../components/common/SharedDatePicker';
 import api from '../api/client';
+import { uploadFile } from '../api/upload.js';
 
 // Menu tree structure: single entries for standalone menus, nested checkboxes only for menus with real submenus
 const MODULE_MENU_TREE = [
@@ -703,7 +703,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
     }
   };
 
-  const handleAccessLogoChange = (e) => {
+  const handleAccessLogoChange = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
@@ -715,11 +715,14 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
       setAccessError('Logo image must be smaller than 5MB.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setAccessForm(prev => ({ ...prev, logo: event.target.result }));
-    };
-    reader.readAsDataURL(file);
+    try {
+      const res = await uploadFile(file, { subfolder: 'company-info', category: 'logo', prefix: 'company_logo' });
+      if (res?.url) {
+        setAccessForm(prev => ({ ...prev, logo: res.url }));
+      }
+    } catch {
+      setAccessError('Failed to upload logo.');
+    }
   };
 
   const toggleModuleKey = (key) => {
@@ -1149,7 +1152,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                     <button onClick={() => setActiveNav('registry')} style={{ background: 'transparent', border: 'none', color: 'var(--brand-primary, #15803D)', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>View All ({tenants.length}) &rarr;</button>
                   </div>
 
-                  <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                  <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
                       <thead>
                         <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -1235,7 +1238,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                   </button>
                 </div>
 
-                <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -1449,7 +1452,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                 </div>
 
                 {/* Subscriptions Table */}
-                <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -2315,7 +2318,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                   <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '4px 0 0 0' }}>Security events, tenant provisioning actions, and database status toggles</p>
                 </div>
 
-                <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', fontVariantNumeric: 'tabular-nums' }}>
                     <thead>
                       <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569', fontSize: '0.72rem', textTransform: 'uppercase' }}>
@@ -2651,18 +2654,21 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                   id="provision_logo_file"
                   accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
                   style={{ display: 'none' }}
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
                     if (file.size > 5 * 1024 * 1024) {
                       alert('Logo file must be smaller than 5MB.');
                       return;
                     }
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                      setForm(prev => ({ ...prev, logo: reader.result }));
-                    };
-                    reader.readAsDataURL(file);
+                    try {
+                      const res = await uploadFile(file, { subfolder: 'company-info', category: 'logo', prefix: 'company_logo' });
+                      if (res?.url) {
+                        setForm(prev => ({ ...prev, logo: res.url }));
+                      }
+                    } catch {
+                      alert('Failed to upload logo.');
+                    }
                   }}
                 />
                 {form.logo ? (

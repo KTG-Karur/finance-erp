@@ -7,12 +7,12 @@ function conflictCheck(list, companyId, code, excludeId = null) {
 }
 
 export async function getSubCompanies(db, companyId) {
-  const [rows] = await db.query('SELECT * FROM sub_companies WHERE company_id = ? ORDER BY id', [companyId]);
+  const [rows] = await db.query('SELECT * FROM sub_companies WHERE company_id = ? AND deleted_at IS NULL ORDER BY id', [companyId]);
   return rows;
 }
 
 export async function createSubCompany(db, companyId, payload) {
-  const [existing] = await db.query('SELECT * FROM sub_companies WHERE company_id = ?', [companyId]);
+  const [existing] = await db.query('SELECT * FROM sub_companies WHERE company_id = ? AND deleted_at IS NULL', [companyId]);
   if (conflictCheck(existing, companyId, payload.code)) {
     const err = new Error(`Sub-company code '${payload.code.toUpperCase()}' already exists.`);
     err.statusCode = 409;
@@ -26,7 +26,7 @@ export async function createSubCompany(db, companyId, payload) {
 }
 
 export async function updateSubCompany(db, companyId, id, payload) {
-  const [existing] = await db.query('SELECT * FROM sub_companies WHERE company_id = ?', [companyId]);
+  const [existing] = await db.query('SELECT * FROM sub_companies WHERE company_id = ? AND deleted_at IS NULL', [companyId]);
   if (!existing.find(s => s.id == id)) {
     const err = new Error('Sub-company not found.');
     err.statusCode = 404;
@@ -45,14 +45,14 @@ export async function updateSubCompany(db, companyId, id, payload) {
 }
 
 export async function deleteSubCompany(db, companyId, id) {
-  const [branches] = await db.query('SELECT * FROM branches WHERE company_id = ?', [companyId]);
+  const [branches] = await db.query('SELECT * FROM branches WHERE company_id = ? AND deleted_at IS NULL', [companyId]);
   const linkedBranches = branches.filter(b => b.sub_company_id == id);
   if (linkedBranches.length > 0) {
     const err = new Error(`Cannot delete: ${linkedBranches.length} branch(es) are assigned to this sub-company. Reassign or delete them first.`);
     err.statusCode = 409;
     throw err;
   }
-  const [result] = await db.execute('DELETE FROM sub_companies WHERE id = ? AND company_id = ?', [id, companyId]);
+  const [result] = await db.execute('UPDATE sub_companies SET deleted_at = CURRENT_TIMESTAMP, is_active = 0 WHERE id = ? AND company_id = ? AND deleted_at IS NULL', [id, companyId]);
   if (!result.affectedRows) {
     const err = new Error('Sub-company not found.');
     err.statusCode = 404;
@@ -62,19 +62,17 @@ export async function deleteSubCompany(db, companyId, id) {
 }
 
 export async function getBranches(db, companyId) {
-  const [rows] = await db.query('SELECT * FROM branches WHERE company_id = ? ORDER BY id', [companyId]);
+  const [rows] = await db.query('SELECT * FROM branches WHERE company_id = ? AND deleted_at IS NULL ORDER BY id', [companyId]);
   return rows;
 }
 
 export async function createBranch(db, companyId, payload, maxBranches) {
-  const [existing] = await db.query('SELECT * FROM branches WHERE company_id = ?', [companyId]);
+  const [existing] = await db.query('SELECT * FROM branches WHERE company_id = ? AND deleted_at IS NULL', [companyId]);
   if (conflictCheck(existing, companyId, payload.code)) {
     const err = new Error(`Branch code '${payload.code.toUpperCase()}' already exists.`);
     err.statusCode = 409;
     throw err;
   }
-  // maxBranches is null/undefined for an unrestricted tenant (see companies.
-  // max_branches — a SuperAdmin opts a tenant INTO a cap, default is unlimited).
   if (maxBranches != null && existing.length >= maxBranches) {
     const err = new Error(`Branch limit reached: this plan allows a maximum of ${maxBranches} branch(es). Contact your account administrator to increase this limit.`);
     err.statusCode = 409;
@@ -89,7 +87,7 @@ export async function createBranch(db, companyId, payload, maxBranches) {
 }
 
 export async function updateBranch(db, companyId, id, payload) {
-  const [existing] = await db.query('SELECT * FROM branches WHERE company_id = ?', [companyId]);
+  const [existing] = await db.query('SELECT * FROM branches WHERE company_id = ? AND deleted_at IS NULL', [companyId]);
   if (!existing.find(b => b.id == id)) {
     const err = new Error('Branch not found.');
     err.statusCode = 404;
@@ -117,14 +115,7 @@ export async function deleteBranch(db, companyId, id) {
     throw err;
   }
 
-  // loans/borrowers store `branch` as a plain name string, not a real FK to
-  // this table (same denormalized pattern used throughout this schema) — so
-  // deleting the branch row wouldn't throw a DB-level foreign key error, it
-  // would just silently orphan those records: they'd keep a `branch` value
-  // that no longer corresponds to any real branch, quietly disappearing from
-  // every branch-scoped filter/view (their name still shows on the record,
-  // but nothing in the branch dropdown would ever match it again).
-  const [[branchRow]] = await db.query('SELECT name FROM branches WHERE id = ? AND company_id = ?', [id, companyId]);
+  const [[branchRow]] = await db.query('SELECT name FROM branches WHERE id = ? AND company_id = ? AND deleted_at IS NULL', [id, companyId]);
   if (branchRow) {
     const [[loanCount]] = await db.query('SELECT COUNT(*) as c FROM loans WHERE branch = ?', [branchRow.name]);
     if (Number(loanCount.c) > 0) {
@@ -140,7 +131,7 @@ export async function deleteBranch(db, companyId, id) {
     }
   }
 
-  const [result] = await db.execute('DELETE FROM branches WHERE id = ? AND company_id = ?', [id, companyId]);
+  const [result] = await db.execute('UPDATE branches SET deleted_at = CURRENT_TIMESTAMP, is_active = 0 WHERE id = ? AND company_id = ? AND deleted_at IS NULL', [id, companyId]);
   if (!result.affectedRows) {
     const err = new Error('Branch not found.');
     err.statusCode = 404;

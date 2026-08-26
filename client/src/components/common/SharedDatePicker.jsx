@@ -398,6 +398,7 @@ export default function SharedDatePicker({
             [align === 'right' ? 'right' : 'left']: 0,
             zIndex: 9999,
             width: 280,
+            maxWidth: 'min(280px, calc(100vw - 24px))',
             background: '#FFFFFF',
             borderRadius: 10,
             border: '1px solid #CBD5E1',

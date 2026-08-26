@@ -98,6 +98,38 @@ export async function saveBase64File(dataUrlOrPath, companyCode = 'default', sub
 }
 
 /**
+ * Saves a direct binary buffer from multipart upload directly to disk
+ * at server/uploads/<companyCode>/<subfolder>/<filename>.<ext>
+ * and returns the relative URL path (/uploads/<companyCode>/<subfolder>/<filename>.<ext>).
+ */
+export async function saveUploadedFileBuffer(buffer, originalFilename, mimeType, companyCode = 'default', subfolder = 'images', prefix = 'file') {
+  if (!buffer || !Buffer.isBuffer(buffer)) {
+    throw new Error('Invalid file buffer provided for upload');
+  }
+
+  const cleanCompanyCode = sanitizeCode(companyCode);
+  const cleanSubfolder = String(subfolder).trim().replace(/[^a-zA-Z0-9_-]/g, '_') || 'images';
+  const cleanPrefix = String(prefix).trim().replace(/[^a-zA-Z0-9_-]/g, '_') || 'file';
+
+  let ext = 'jpg';
+  if (originalFilename && originalFilename.includes('.')) {
+    ext = originalFilename.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+  } else if (mimeType && MIME_EXT_MAP[mimeType.toLowerCase()]) {
+    ext = MIME_EXT_MAP[mimeType.toLowerCase()];
+  }
+
+  const filename = `${cleanPrefix}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
+  const targetDir = path.resolve(process.cwd(), 'uploads', cleanCompanyCode, cleanSubfolder);
+
+  await fs.promises.mkdir(targetDir, { recursive: true });
+
+  const filePath = path.join(targetDir, filename);
+  await fs.promises.writeFile(filePath, buffer);
+
+  return `/uploads/${cleanCompanyCode}/${cleanSubfolder}/${filename}`;
+}
+
+/**
  * Iterates through a documents array (e.g. KYC documents) and converts any base64 payloads to disk files.
  * Automatically routes nominee/guarantor documents to 'nominee-proofs' and customer KYC to 'cust-proofs'.
  */

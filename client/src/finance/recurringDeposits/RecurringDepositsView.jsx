@@ -43,6 +43,7 @@ function BookRdScreen({ borrowers, onCancel, onSubmit }) {
     tenure_months: 12,
     interest_rate: 8,
     payment_mode: 'CASH',
+    reference: '',
     notes: ''
   });
   const [error, setError] = useState('');
@@ -81,6 +82,7 @@ function BookRdScreen({ borrowers, onCancel, onSubmit }) {
         tenure_months: Number(form.tenure_months),
         interest_rate: parseFloat(form.interest_rate),
         payment_mode: form.payment_mode,
+        reference: form.reference || null,
         notes: form.notes,
         booking_date: bookingDate.toISOString().slice(0, 10),
         maturity_date: maturityDate.toISOString().slice(0, 10),
@@ -187,7 +189,20 @@ function BookRdScreen({ borrowers, onCancel, onSubmit }) {
           <div className="cf-pane-title" style={{ paddingBottom: 12 }}>
             <UserCheck style={{ width: 16, height: 16, color: 'var(--brand-primary, #15803D)' }} />
             <div>
-              <h3>{t('rd.section_notes_title')}</h3>
+              <h3>Documents & Reference</h3>
+              <p style={{ fontSize: '0.74rem', color: '#64748B', margin: 0 }}>Record document references, passbook, KYC documents, or security given.</p>
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <label>Reference / Documents Given</label>
+              <input
+                type="text"
+                value={form.reference}
+                onChange={e => setField('reference', e.target.value)}
+                className="input-control"
+                placeholder="e.g. Original Passbook Issued, Aadhaar Copy, Security Cheque #..."
+              />
             </div>
           </div>
           <div className="form-row">
@@ -211,7 +226,8 @@ function BookRdScreen({ borrowers, onCancel, onSubmit }) {
 
 function statusBadgeCls(status) {
   if (status === 'ACTIVE') return 'fin-badge fin-badge--ok';
-  if (status === 'CLOSED_PREMATURE') return 'fin-badge fin-badge--warn';
+  if (status === 'CLOSED_PREMATURE' || status === 'PREMATURE_CLOSED' || status === 'PREMATURE') return 'fin-badge fin-badge--warn';
+  if (status === 'MATURED') return 'fin-badge fin-badge--info';
   return 'fin-badge';
 }
 
@@ -349,17 +365,27 @@ export default function RecurringDepositsView({
   const totalMaturityLiability = branchScopedRds.reduce((acc, r) => acc + (r.status === 'ACTIVE' ? r.maturity_value : 0), 0);
   const activeCount = branchScopedRds.filter(r => r.status === 'ACTIVE').length;
 
-  const byTab = branchScopedRds.filter(r => r.status === statusTab);
+  const byTab = branchScopedRds.filter(r => {
+    if (statusTab === 'ACTIVE') return r.status === 'ACTIVE';
+    if (statusTab === 'MATURED') return r.status === 'MATURED';
+    if (statusTab === 'CLOSED_PREMATURE') return r.status === 'CLOSED_PREMATURE' || r.status === 'PREMATURE_CLOSED' || r.status === 'PREMATURE';
+    return r.status === statusTab;
+  });
   const filteredRds = byTab.filter(r => {
     const q = searchQuery.toLowerCase().trim();
-    return !q || r.rd_account_no.toLowerCase().includes(q) || r.customer_name.toLowerCase().includes(q);
+    return !q || r.rd_account_no.toLowerCase().includes(q) || r.customer_name.toLowerCase().includes(q) || (r.reference && r.reference.toLowerCase().includes(q));
   });
   const totalPages = Math.ceil(filteredRds.length / pageSize) || 1;
   const safePage = Math.min(page, totalPages);
   const startIndex = (safePage - 1) * pageSize;
   const pagedRds = filteredRds.slice(startIndex, startIndex + pageSize);
 
-  const tabCount = (id) => branchScopedRds.filter(r => r.status === id).length;
+  const tabCount = (id) => branchScopedRds.filter(r => {
+    if (id === 'ACTIVE') return r.status === 'ACTIVE';
+    if (id === 'MATURED') return r.status === 'MATURED';
+    if (id === 'CLOSED_PREMATURE') return r.status === 'CLOSED_PREMATURE' || r.status === 'PREMATURE_CLOSED' || r.status === 'PREMATURE';
+    return r.status === id;
+  }).length;
 
   return (
     <div className="fin-page">
@@ -433,6 +459,7 @@ export default function RecurringDepositsView({
               <th style={{ width: 50, textAlign: 'center' }}>{t('col.sno')}</th>
               <th>{t('col.rd_account_no')}</th>
               <th>{t('col.customer')}</th>
+              <th>Documents / Ref</th>
               <th className="num">{t('col.monthly_installment_rs')}</th>
               <th style={{ textAlign: 'center' }}>{t('col.tenure')}</th>
               <th className="num">{t('col.rate')}</th>
@@ -446,12 +473,15 @@ export default function RecurringDepositsView({
           </thead>
           <tbody>
             {pagedRds.length === 0 ? (
-              <tr><td colSpan="12" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>{t('rd.no_rds_yet')}</td></tr>
+              <tr><td colSpan="13" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>{t('rd.no_rds_yet')}</td></tr>
             ) : pagedRds.map((rd, idx) => (
               <tr key={rd.id}>
                 <td style={{ textAlign: 'center', color: '#64748B' }}>{startIndex + idx + 1}</td>
                 <td className="code" style={{ color: 'var(--brand-primary, #15803D)', fontWeight: 600 }}>{rd.rd_account_no}</td>
                 <td>{rd.customer_name}</td>
+                <td style={{ fontSize: '0.74rem', color: '#475569', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={rd.reference || '—'}>
+                  {rd.reference || '—'}
+                </td>
                 <td className="num">₹{fmt(rd.monthly_installment)}</td>
                 <td style={{ textAlign: 'center', color: '#64748B' }}>{rd.tenure_months}mo</td>
                 <td className="num">{rd.interest_rate}%</td>
@@ -465,16 +495,35 @@ export default function RecurringDepositsView({
                 <td style={{ textAlign: 'right' }}>
                   <div style={{ display: 'inline-flex', gap: 6 }}>
                     {rd.status === 'ACTIVE' ? (
-                      <>
-                        <ActionPill
-                          icon={<Wallet style={{ width: 11, height: 11 }} />}
-                          label={(rd.installments || []).some(i => i.status === 'PENDING') ? 'Collect / Schedule' : 'View Schedule'}
-                          tone={(rd.installments || []).some(i => i.status === 'PENDING') ? 'good' : 'neutral'}
-                          onClick={() => setCollectRd(rd)}
-                        />
-                        <ActionPill icon={<CheckCircle2 style={{ width: 11, height: 11 }} />} label={t('rd.mark_matured')} tone="good" onClick={() => setConfirmAction({ type: 'MATURE', rd })} />
-                        <ActionPill icon={<LogOut style={{ width: 11, height: 11 }} />} label={t('rd.premature_exit')} tone="bad" onClick={() => setConfirmAction({ type: 'PREMATURE', rd })} />
-                      </>
+                      (() => {
+                        const paidCount = (rd.installments || []).filter(i => i.status === 'PAID').length;
+                        const isFullyPaid = paidCount >= Number(rd.tenure_months);
+
+                        return (
+                          <>
+                            <ActionPill
+                              icon={<Wallet style={{ width: 11, height: 11 }} />}
+                              label={(rd.installments || []).some(i => i.status === 'PENDING') ? 'Collect / Schedule' : 'View Schedule'}
+                              tone={(rd.installments || []).some(i => i.status === 'PENDING') ? 'good' : 'neutral'}
+                              onClick={() => setCollectRd(rd)}
+                            />
+                            <ActionPill
+                              icon={<CheckCircle2 style={{ width: 11, height: 11 }} />}
+                              label={t('rd.mark_matured')}
+                              tone="good"
+                              disabled={!isFullyPaid}
+                              onClick={() => setConfirmAction({ type: 'MATURE', rd })}
+                            />
+                            <ActionPill
+                              icon={<LogOut style={{ width: 11, height: 11 }} />}
+                              label={t('rd.premature_exit')}
+                              tone="bad"
+                              disabled={isFullyPaid}
+                              onClick={() => setConfirmAction({ type: 'PREMATURE', rd })}
+                            />
+                          </>
+                        );
+                      })()
                     ) : (
                       <ActionPill icon={<CalendarClock style={{ width: 11, height: 11 }} />} label="View Schedule & Receipts" tone="neutral" onClick={() => setScheduleRd(rd)} />
                     )}
@@ -490,14 +539,33 @@ export default function RecurringDepositsView({
 
       {confirmAction && (() => {
         const isMature = confirmAction.type === 'MATURE';
-        const defaultPenaltyPayout = Math.round((confirmAction.rd.collected_amount || 0) * 0.98);
+        const monthlyInstallment = Number(confirmAction.rd.monthly_installment) || 0;
+        const rate = Number(confirmAction.rd.interest_rate) || 0;
+        const tenureMonths = Number(confirmAction.rd.tenure_months) || 12;
+        const installments = confirmAction.rd.installments || [];
+        const paidInstallments = installments.filter(i => i.status === 'PAID');
+        const paidInstallmentsCount = paidInstallments.length || Number(confirmAction.rd.paid_installments_count) || 1;
+        const totalPrincipalDeposited = Number(confirmAction.rd.total_deposited) || (paidInstallmentsCount * monthlyInstallment);
+
+        const startDateStr = String(confirmAction.rd.start_date || confirmAction.rd.created_at || '').slice(0, 10);
+        const exitDateStr = new Date().toISOString().slice(0, 10);
+        const daysHeld = Math.max(1, Math.round((new Date(exitDateStr) - new Date(startDateStr)) / (1000 * 60 * 60 * 24)));
+
+        const defaultPenaltyPayout = computeRdMaturity(
+          monthlyInstallment,
+          paidInstallmentsCount,
+          rate
+        );
+
+        const accruedInterest = Math.max(0, defaultPenaltyPayout - totalPrincipalDeposited);
         const payoutAmount = isMature
-          ? confirmAction.rd.maturity_value
+          ? (Number(confirmAction.rd.maturity_value) || defaultPenaltyPayout)
           : (customPayoutAmount !== '' ? (parseFloat(customPayoutAmount) || 0) : defaultPenaltyPayout);
+
         const tone = isMature ? { bg: 'var(--brand-primary-light, #F0FEF5)', border: 'var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', icon: 'var(--brand-primary, #15803D)' } : { bg: 'var(--color-danger-light, #FEF2F2)', border: 'var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)', icon: 'var(--color-danger, #DC2626)' };
         return (
           <div className="saas-modal-backdrop">
-            <div className="saas-modal-card" style={{ maxWidth: 440 }}>
+            <div className="saas-modal-card" style={{ maxWidth: 480 }}>
               <div className="saas-modal-header">
                 <div className="head-left">
                   <div className="head-icon-badge" style={{ background: tone.bg, color: tone.icon }}>
@@ -514,44 +582,77 @@ export default function RecurringDepositsView({
                 {confirmError && (
                   <div className="form-alert form-alert--error"><span>{confirmError}</span></div>
                 )}
-                <div style={{ background: tone.bg, border: `1px solid ${tone.border}`, borderRadius: 12, padding: '16px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ background: tone.bg, border: `1px solid ${tone.border}`, borderRadius: 12, padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                      {isMature ? t('col.maturity_value') : 'Final Settlement Amount'}
+                      {isMature ? t('col.maturity_value') : 'Final Settlement Payout'}
                     </span>
                     <strong style={{ fontSize: '1.3rem', color: tone.color }}>₹{fmt(payoutAmount)}</strong>
                   </div>
                   {!isMature && (
                     <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase' }}>{t('col.maturity_value')}</span>
-                      <span style={{ fontSize: '0.9rem', color: '#94A3B8', textDecoration: 'line-through' }}>₹{fmt(confirmAction.rd.maturity_value)}</span>
+                      <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase' }}>Full Maturity</span>
+                      <span style={{ fontSize: '0.88rem', color: '#94A3B8', textDecoration: 'line-through' }}>₹{fmt(confirmAction.rd.maturity_value)}</span>
                     </div>
                   )}
                 </div>
 
+                {/* Step-by-Step RD Accrual & Payout Breakdown */}
+                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.74rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: 6 }}>
+                    <span style={{ fontWeight: 600, color: '#0F172A' }}>Holding Duration & Progress:</span>
+                    <strong style={{ color: '#0F172A', fontFamily: 'monospace', fontSize: '0.74rem' }}>
+                      {paidInstallmentsCount}/{tenureMonths} Months ({daysHeld}d elapsed)
+                    </strong>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                    <span>Monthly Deposit Rate:</span>
+                    <strong style={{ color: '#0F172A' }}>₹{fmt(monthlyInstallment)}/mo</strong>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                    <span>Total Principal Deposited:</span>
+                    <strong style={{ color: '#0F172A' }}>₹{fmt(totalPrincipalDeposited)} ({paidInstallmentsCount} mo)</strong>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                    <span>Accrued RD Interest ({rate}% p.a.):</span>
+                    <strong style={{ color: '#15803D' }}>+ ₹{fmt(accruedInterest)}</strong>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#0F172A', paddingTop: 6, borderTop: '1px dashed #CBD5E1', fontWeight: 700 }}>
+                    <span>Calculated Exit Value:</span>
+                    <span style={{ color: '#2563EB' }}>= ₹{fmt(defaultPenaltyPayout)}</span>
+                  </div>
+                </div>
+
                 {!isMature && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#334155' }}>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>
                       Premature Settlement Amount (₹)
                     </label>
                     <input
                       type="number"
-                      placeholder={`Default ₹${fmt(defaultPenaltyPayout)}`}
+                      placeholder={`Calculated: ₹${fmt(defaultPenaltyPayout)}`}
                       value={customPayoutAmount}
                       onChange={(e) => setCustomPayoutAmount(e.target.value)}
                       style={{
-                        height: 36, padding: '0 12px', borderRadius: 8,
+                        height: 38, padding: '0 12px', borderRadius: 8,
                         border: '1px solid #CBD5E1', fontSize: '0.85rem',
-                        fontWeight: 400, fontFamily: 'inherit', outline: 'none'
+                        fontWeight: 500, fontFamily: 'inherit', outline: 'none'
                       }}
                     />
+                    <span style={{ fontSize: '0.68rem', color: '#64748B' }}>
+                      Leave blank to settle with exact formula amount (₹{fmt(defaultPenaltyPayout)}).
+                    </span>
                   </div>
                 )}
 
-                <p style={{ fontSize: '0.8rem', color: '#334155', margin: 0, lineHeight: 1.5 }}>
+                <p style={{ fontSize: '0.76rem', color: '#475569', margin: 0, lineHeight: 1.4 }}>
                   {isMature
                     ? t('rd.confirm_matured_desc').replace('{amount}', fmt(payoutAmount))
-                    : `Confirm early settlement of RD #${confirmAction.rd.rd_account_no}. Net payout amount ₹${fmt(payoutAmount)} will be processed.`}
+                    : `Confirming premature settlement for RD #${confirmAction.rd.rd_account_no}. Net disbursement of ₹${fmt(payoutAmount)} will be debited.`}
                 </p>
               </div>
               <div className="saas-modal-footer">
@@ -747,9 +848,9 @@ function RdCollectScheduleModal({ rd, borrowers = [], bankAccounts = [], initial
 
   return (
     <div className="saas-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget && !collecting) onClose(); }}>
-      <div className="saas-modal-card" style={{ maxWidth: 680, width: '95%' }}>
+      <div className="saas-modal-card" style={{ maxWidth: 720, width: '95%', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
         {/* Modal Header */}
-        <div className="saas-modal-header" style={{ padding: '16px 20px', borderBottom: '1px solid #E2E8F0' }}>
+        <div className="saas-modal-header" style={{ padding: '16px 20px', borderBottom: '1px solid #E2E8F0', flexShrink: 0 }}>
           <div className="head-left">
             <div className="head-icon-badge" style={{ background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #15803D)' }}>
               <Wallet style={{ width: 20, height: 20 }} />
@@ -769,7 +870,7 @@ function RdCollectScheduleModal({ rd, borrowers = [], bankAccounts = [], initial
         </div>
 
         {/* Modal Body */}
-        <div className="saas-modal-body" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14, maxHeight: '72vh', overflowY: 'auto' }}>
+        <div className="saas-modal-body" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', flex: 1, minHeight: 0 }}>
           
           {/* Top Summary Metrics Strip */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
@@ -918,12 +1019,12 @@ function RdCollectScheduleModal({ rd, borrowers = [], bankAccounts = [], initial
           )}
 
           {/* Installment Schedule & Selection Table */}
-          <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ border: '1px solid #CBD5E1', borderRadius: 10, overflowY: 'auto', maxHeight: 360, background: '#FFFFFF' }}>
             <table className="fin-grid-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #CBD5E1', position: 'sticky', top: 0, zIndex: 2 }}>
                   {rd.status === 'ACTIVE' && pendingInstallments.length > 0 && (
-                    <th style={{ width: 44, textAlign: 'center', padding: '8px 10px' }}>
+                    <th style={{ width: 44, textAlign: 'center', padding: '8px 10px', background: '#F8FAFC' }}>
                       <input
                         type="checkbox"
                         checked={isAllPendingSelected}
@@ -933,11 +1034,11 @@ function RdCollectScheduleModal({ rd, borrowers = [], bankAccounts = [], initial
                       />
                     </th>
                   )}
-                  <th style={{ textAlign: 'center', width: 65, padding: '8px 10px' }}>Month</th>
-                  <th style={{ padding: '8px 10px' }}>Due Date</th>
-                  <th className="num" style={{ padding: '8px 10px' }}>Installment (₹)</th>
-                  <th style={{ textAlign: 'center', padding: '8px 10px' }}>Status</th>
-                  <th style={{ textAlign: 'right', padding: '8px 10px' }}>Receipt / Mode</th>
+                  <th style={{ textAlign: 'center', width: 65, padding: '8px 10px', background: '#F8FAFC' }}>Month</th>
+                  <th style={{ padding: '8px 10px', background: '#F8FAFC' }}>Due Date</th>
+                  <th className="num" style={{ padding: '8px 10px', background: '#F8FAFC' }}>Installment (₹)</th>
+                  <th style={{ textAlign: 'center', padding: '8px 10px', background: '#F8FAFC' }}>Status</th>
+                  <th style={{ textAlign: 'right', padding: '8px 10px', background: '#F8FAFC' }}>Receipt / Mode</th>
                 </tr>
               </thead>
               <tbody>

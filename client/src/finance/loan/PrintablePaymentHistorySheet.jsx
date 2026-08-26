@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Printer, ArrowLeft, History, X, Check, FileCheck } from 'lucide-react';
+import { Printer, ArrowLeft, History, X, Check, FileCheck, Receipt } from 'lucide-react';
+import VoucherReceiptModal from '../../components/VoucherReceiptModal';
 
 export default function PrintablePaymentHistorySheet({
   loan = {},
@@ -18,6 +19,7 @@ export default function PrintablePaymentHistorySheet({
 
   // 2-Step Flow: 'UI_MODAL' (modern macOS style modal) -> 'PAPER_PREVIEW' (exact ISO A4 printable statement)
   const [viewStep, setViewStep] = useState('UI_MODAL');
+  const [selectedVoucherForModal, setSelectedVoucherForModal] = useState(null);
 
   const fmt = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -37,7 +39,7 @@ export default function PrintablePaymentHistorySheet({
     const principalAmt = Number(r.principal_paid || 0);
     const interestAmt = Number(r.interest_paid || 0);
     const penaltyAmt = Number(r.penalty || 0);
-    const totalAmt = Number(r.amount || (principalAmt + interestAmt));
+    const totalAmt = Number(r.amount || (principalAmt + interestAmt + penaltyAmt));
     const createdAt = r.created_at ? new Date(r.created_at) : null;
     return {
       sno: idx + 1,
@@ -51,7 +53,15 @@ export default function PrintablePaymentHistorySheet({
       principal: principalAmt,
       interest: interestAmt,
       penalty: penaltyAmt,
-      paid: totalAmt + penaltyAmt,
+      interest_from_date: r.interest_from_date || null,
+      interest_paid_upto: r.interest_paid_upto || null,
+      interest_days: r.interest_days ?? null,
+      interest_shortfall: Number(r.interest_shortfall || 0),
+      interest_waiver: Number(r.interest_waiver || 0),
+      waiver_status: r.waiver_status || (Number(r.interest_waiver || 0) > 0 ? 'PENDING_APPROVAL' : 'NONE'),
+      waiver_rejection_reason: r.waiver_rejection_reason || null,
+      waiver_approved_by: r.waiver_approved_by || null,
+      paid: totalAmt,
       balance: r.new_principal_balance !== undefined && r.new_principal_balance !== null ? Number(r.new_principal_balance) : null,
       status: r.voided ? 'VOIDED' : (r.reverted ? 'REVERTED' : (r.clearance_status || 'CLEARED')),
       remarks: r.notes || (r.reverted ? r.revert_reason : '') || 'Collection Received'
@@ -220,8 +230,53 @@ export default function PrintablePaymentHistorySheet({
                       )}
                       {historyItems.map((item, idx) => (
                         <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                          <td style={{ padding: '10px 12px', textAlign: 'center', color: '#94A3B8' }}>{item.sno}</td>
-                          <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontWeight: 500, color: 'var(--color-info, #2563EB)' }}>{item.voucher_no}</td>
+                          <td style={{ padding: '10px 12px', textAlign: 'center', color: '#64748B', fontWeight: 500 }}>
+                            {idx + 1}
+                          </td>
+                          <td style={{ padding: '10px 12px' }}>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedVoucherForModal({
+                                voucher_no: item.voucher_no,
+                                date: item.date,
+                                branch: item.branch || loan.branch,
+                                borrower_name: loan.borrower_name || borrower?.full_name,
+                                phone: loan.phone || borrower?.phone,
+                                loan_account_no: loan.loan_account_no,
+                                payment_mode: item.mode,
+                                reference_no: item.txn_ref,
+                                amount: item.paid,
+                                principal_paid: item.principal,
+                                interest_paid: item.interest,
+                                penalty: item.penalty,
+                                interest_from_date: item.interest_from_date,
+                                interest_paid_upto: item.interest_paid_upto,
+                                interest_days: item.interest_days,
+                                interest_shortfall: item.interest_shortfall,
+                                interest_waiver: item.interest_waiver,
+                                pending_balance: item.balance,
+                                collector_name: item.collector
+                              })}
+                              style={{
+                                background: '#F1F5F9',
+                                border: '1px solid #CBD5E1',
+                                borderRadius: 6,
+                                padding: '3px 8px',
+                                fontSize: '0.74rem',
+                                fontWeight: 600,
+                                color: 'var(--brand-primary, #15803D)',
+                                fontFamily: 'monospace',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4
+                              }}
+                              title="Click to view and print official voucher"
+                            >
+                              <Receipt style={{ width: 12, height: 12 }} />
+                              <span>{item.voucher_no}</span>
+                            </button>
+                          </td>
                           <td style={{ padding: '10px 12px', color: '#0F172A' }}>
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                               <span style={{ fontWeight: 500 }}>{item.date}</span>
@@ -244,7 +299,62 @@ export default function PrintablePaymentHistorySheet({
                           <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontSize: '0.72rem', color: '#64748B' }}>{item.txn_ref}</td>
                           <td style={{ padding: '10px 12px', color: '#334155', fontWeight: 400 }}>{item.collector}</td>
                           <td style={{ padding: '10px 12px', textAlign: 'right', color: '#334155', fontWeight: 400 }}>₹{fmt(item.principal)}</td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', color: '#334155', fontWeight: 400 }}>₹{fmt(item.interest)}</td>
+                          <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                            <div style={{ color: '#7C3AED', fontWeight: 500 }}>₹{fmt(item.interest)}</div>
+                            {(item.interest_paid_upto || item.interest_from_date) && (
+                              <div style={{ fontSize: '0.66rem', color: '#64748B', whiteSpace: 'nowrap', marginTop: 2 }}>
+                                {item.interest_from_date ? `${item.interest_from_date} → ${item.interest_paid_upto}` : `Up to ${item.interest_paid_upto}`}
+                                {item.interest_days !== null && item.interest_days !== undefined ? ` (${item.interest_days}d)` : ''}
+                              </div>
+                            )}
+                            {item.interest_shortfall > 0 && (
+                              <div style={{ fontSize: '0.62rem', color: '#B45309' }}>C/F: ₹{fmt(item.interest_shortfall)}</div>
+                            )}
+                            {item.interest_waiver > 0 && (
+                              <div style={{ marginTop: 2 }}>
+                                {item.waiver_status === 'REJECTED' ? (
+                                  <span style={{
+                                    display: 'inline-block',
+                                    fontSize: '0.62rem',
+                                    color: '#DC2626',
+                                    background: '#FEF2F2',
+                                    border: '1px solid #FECACA',
+                                    borderRadius: 4,
+                                    padding: '1px 4px',
+                                    fontWeight: 600
+                                  }}>
+                                    Waiver Rejected: ₹{fmt(item.interest_waiver)} (Arrears)
+                                  </span>
+                                ) : item.waiver_status === 'APPROVED' ? (
+                                  <span style={{
+                                    display: 'inline-block',
+                                    fontSize: '0.62rem',
+                                    color: '#15803D',
+                                    background: '#F0FDF4',
+                                    border: '1px solid #BBF7D0',
+                                    borderRadius: 4,
+                                    padding: '1px 4px',
+                                    fontWeight: 600
+                                  }}>
+                                    Waived: ₹{fmt(item.interest_waiver)} (Approved)
+                                  </span>
+                                ) : (
+                                  <span style={{
+                                    display: 'inline-block',
+                                    fontSize: '0.62rem',
+                                    color: '#B45309',
+                                    background: '#FFFBEB',
+                                    border: '1px solid #FDE68A',
+                                    borderRadius: 4,
+                                    padding: '1px 4px',
+                                    fontWeight: 600
+                                  }}>
+                                    Waiver: ₹{fmt(item.interest_waiver)} (Pending Approval)
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </td>
                           <td style={{ padding: '10px 12px', textAlign: 'right', color: item.penalty > 0 ? 'var(--color-danger, #DC2626)' : '#94A3B8', fontWeight: 400 }}>{item.penalty > 0 ? `₹${fmt(item.penalty)}` : '₹0.00'}</td>
                           <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 500, color: 'var(--brand-primary, #15803D)' }}>₹{fmt(item.paid)}</td>
                           <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 500, color: '#0F172A' }}>{item.balance !== null ? `₹${fmt(item.balance)}` : "—"}</td>
@@ -321,7 +431,19 @@ export default function PrintablePaymentHistorySheet({
       </div>
     );
 
-    return createPortal(uiModalContent, document.body);
+    return (
+      <>
+        {createPortal(uiModalContent, document.body)}
+        {selectedVoucherForModal && (
+          <VoucherReceiptModal
+            company={tenant}
+            voucher={selectedVoucherForModal}
+            typeLabel="COLLECTION RECEIPT"
+            onClose={() => setSelectedVoucherForModal(null)}
+          />
+        )}
+      </>
+    );
   }
 
   // ── STEP 2: EXACT ISO A4 PAPER SHEET SIZE FOR PRINTING

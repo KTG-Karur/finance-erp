@@ -126,12 +126,12 @@ export async function createFixedDeposit(db, payload, createdBy) {
 
       const [result] = await conn.execute(
         `INSERT INTO fixed_deposits (fd_account_no, borrower_id, customer_name, branch, principal_amount,
-          tenure_months, interest_rate, scheme, payment_mode, notes, booking_date, maturity_date,
+          tenure_months, interest_rate, scheme, payment_mode, notes, reference, booking_date, maturity_date,
           maturity_value, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')`,
         [accountNo, payload.borrower_id || null, payload.customer_name, payload.branch || null,
           principal, tenure, rate,
-          scheme, paymentMode, payload.notes || null,
+          scheme, paymentMode, payload.notes || null, payload.reference || payload.document_ref || null,
           payload.booking_date, payload.maturity_date, maturityValue]
       );
       const fdId = result.insertId;
@@ -227,6 +227,10 @@ export async function payFdMonthlyInterest(db, id, payload = {}, createdBy) {
     throw err;
   }
   const paymentMode = payload.payment_mode || 'CASH';
+  const payoutDate = payload.payout_date || new Date().toISOString().slice(0, 10);
+  const bankAccountId = payload.bank_account_id ? Number(payload.bank_account_id) : null;
+  const referenceNo = payload.reference_no || '';
+
   if (!VALID_PAYMENT_MODES.includes(paymentMode)) {
     const err = new Error(`'${paymentMode}' is not a valid payment mode. Must be one of: ${VALID_PAYMENT_MODES.join(', ')}.`);
     err.statusCode = 400;
@@ -239,18 +243,24 @@ export async function payFdMonthlyInterest(db, id, payload = {}, createdBy) {
     err.statusCode = 409;
     throw err;
   }
-  const now = new Date();
-  const currentMonth = now.toISOString().slice(0, 7);
-  const lastPayoutMonth = summary.lastPayoutDate ? new Date(summary.lastPayoutDate).toISOString().slice(0, 7) : null;
-  if (lastPayoutMonth === currentMonth) {
-    const err = new Error('Monthly interest for this fixed deposit has already been paid this month.');
-    err.statusCode = 409;
-    throw err;
+
+  let amount = computeMonthlyInterestAmount(Number(fd.principal_amount), Number(fd.interest_rate));
+  let descriptionPeriod = `month ${summary.payoutCount + 1} of ${fd.tenure_months}`;
+
+  if (payload.interest_amount !== undefined && payload.interest_amount !== null && Number(payload.interest_amount) > 0) {
+    amount = Math.round(Number(payload.interest_amount));
+  } else if (payload.from_date && payload.to_date) {
+    const days = Math.max(1, Math.round((new Date(payload.to_date) - new Date(payload.from_date)) / (1000 * 60 * 60 * 24)));
+    amount = Math.round(Number(fd.principal_amount) * (Number(fd.interest_rate) / 100) * (days / 365));
   }
 
-  const amount = computeMonthlyInterestAmount(Number(fd.principal_amount), Number(fd.interest_rate));
+  if (payload.from_date && payload.to_date) {
+    const days = Math.max(1, Math.round((new Date(payload.to_date) - new Date(payload.from_date)) / (1000 * 60 * 60 * 24)));
+    descriptionPeriod = `period ${payload.from_date} to ${payload.to_date} (${days}d)`;
+  }
+
   if (amount <= 0) {
-    const err = new Error('Computed monthly interest amount is zero — nothing to pay out.');
+    const err = new Error('Computed interest amount is zero — nothing to pay out.');
     err.statusCode = 400;
     throw err;
   }
@@ -258,9 +268,33 @@ export async function payFdMonthlyInterest(db, id, payload = {}, createdBy) {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
+
+    let settlementAccountCode = '1001';
+    let settlementAccountName = 'Cash in Hand';
+
+    if (paymentMode !== 'CASH') {
+      if (bankAccountId) {
+        const [banks] = await conn.query('SELECT bank_name, account_name, ledger_account_code FROM bank_accounts WHERE id = ? LIMIT 1', [bankAccountId]);
+        if (banks.length > 0) {
+          settlementAccountCode = banks[0].ledger_account_code || '1002';
+          settlementAccountName = banks[0].bank_name ? `${banks[0].bank_name} (${banks[0].account_name})` : 'Bank Account';
+        } else {
+          settlementAccountCode = '1002';
+          settlementAccountName = 'Bank Account';
+        }
+      } else if (payload.source_account_code) {
+        settlementAccountCode = payload.source_account_code;
+        settlementAccountName = payload.source_account_name || 'Bank Account';
+      } else {
+        settlementAccountCode = '1002';
+        settlementAccountName = 'Bank Account';
+      }
+    }
+
+    const refStr = referenceNo ? ` [Ref: ${referenceNo}]` : '';
     const voucher = await insertVoucherOnConnection(conn, {
-      entry_date: now.toISOString().slice(0, 10),
-      description: `FD monthly interest payout — ${fd.fd_account_no} (${fd.customer_name}), month ${summary.payoutCount + 1} of ${fd.tenure_months}`,
+      entry_date: payoutDate,
+      description: `FD interest payout — ${fd.fd_account_no} (${fd.customer_name}), ${descriptionPeriod} (${paymentMode})${refStr}`,
       voucher_type: 'PAYMENT',
       is_auto: false,
       ref_type: 'FD_INTEREST_PAYOUT',
@@ -269,13 +303,14 @@ export async function payFdMonthlyInterest(db, id, payload = {}, createdBy) {
       created_by: createdBy || null,
       lines: [
         { account_code: FD_INTEREST_EXPENSE_ACCOUNT, account_name: 'Fixed Deposit Interest Expense', debit: amount, credit: 0 },
-        { account_code: cashOrBankAccount(paymentMode), debit: 0, credit: amount }
+        { account_code: settlementAccountCode, account_name: settlementAccountName, debit: 0, credit: amount }
       ]
     });
     await conn.commit();
     return {
       ...voucher,
       amount,
+      entry_date: payoutDate,
       month_number: summary.payoutCount + 1,
       tenure_months: fd.tenure_months
     };
@@ -296,15 +331,23 @@ export async function matureFixedDeposit(db, id, createdBy) {
   }
 
   const principal = Number(fd.principal_amount);
-  const maturityValue = Number(fd.maturity_value);
-  const interestPortion = Math.max(0, maturityValue - principal);
+  let maturityValue = Number(fd.maturity_value);
+  let interestPortion = Math.max(0, maturityValue - principal);
+
+  if (fd.scheme === 'MONTHLY_PAYOUT') {
+    const fullExpectedInterest = Math.round(principal * (Number(fd.interest_rate) / 100) * (Number(fd.tenure_months) / 12));
+    const summary = await getMonthlyPayoutSummary(db, id);
+    const unpaidInterest = Math.max(0, fullExpectedInterest - summary.totalPaid);
+    interestPortion = unpaidInterest;
+    maturityValue = principal + unpaidInterest;
+  }
 
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
     const [updateResult] = await conn.execute(
-      "UPDATE fixed_deposits SET status = 'MATURED' WHERE id = ? AND status = 'ACTIVE'",
-      [id]
+      "UPDATE fixed_deposits SET status = 'MATURED', maturity_value = ? WHERE id = ? AND status = 'ACTIVE'",
+      [maturityValue, id]
     );
     if (updateResult.affectedRows === 0) {
       const err = new Error('This fixed deposit was already updated by another request.');
@@ -361,10 +404,12 @@ export async function prematureCloseFixedDeposit(db, id, payoutAmount, createdBy
     payout = computeProRatedValue(principal, Number(fd.interest_rate), fd.booking_date, new Date().toISOString().slice(0, 10));
     if (fd.scheme === 'MONTHLY_PAYOUT') {
       const summary = await getMonthlyPayoutSummary(db, id);
-      payout = Math.max(principal, payout - summary.totalPaid);
+      const totalAccruedInterest = Math.max(0, payout - principal);
+      const unpaidInterest = Math.max(0, totalAccruedInterest - summary.totalPaid);
+      payout = principal + unpaidInterest;
     }
   }
-  const interestPortion = payout - principal;
+  const interestPortion = Math.max(0, payout - principal);
 
   const conn = await db.getConnection();
   try {

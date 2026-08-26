@@ -186,9 +186,19 @@ $radius-xl:   12px;    // Dialog radius
 $radius-2xl:  16px;
 $radius-full: 9999px;
 
-// ── Z-Index ───────────────────────────────────────────────────
+// ── Responsive Breakpoints ────────────────────────────────────
+$bp-xs:       375px;   // Compact mobile (iPhone SE, Galaxy S)
+$bp-sm:       540px;   // Standard & Large mobile / Phablets
+$bp-md:       768px;   // Tablets (portrait) / iPad
+$bp-lg:       1024px;  // Small laptops / Tablets (landscape)
+$bp-xl:       1280px;  // Desktop Workstations
+$bp-2xl:      1536px;  // Ultra-wide Displays
+
+// ── Z-Index Hierarchy ─────────────────────────────────────────
 $z-dropdown:  100;
+$z-sticky:    150;
 $z-sidebar:   200;
+$z-drawer:    250;
 $z-modal:     300;
 $z-toast:     400;
 
@@ -208,4 +218,5 @@ $table-row-hover:        #F1F5F9;
 $table-row-selected:     var(--color-info-light, #EFF6FF);
 $table-border:           #E2E8F0;
 $table-stripe:           #FAFAFA;
+
 

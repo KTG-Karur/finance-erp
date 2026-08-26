@@ -33,6 +33,9 @@ export function getMasterDbConfig() {
     password: profile.password,
     database: profile.database,
     waitForConnections: true,
+    connectionLimit: 10,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000,
     // Without this, mysql2 returns DATE/DATETIME columns as JS Date objects
     // rather than the 'YYYY-MM-DD' strings every date filter/comparison in
     // this codebase (and the React tables that render them directly) expects
@@ -79,6 +82,9 @@ export function getTenantDbConfig(dbNameOrCode = 'alpha') {
     password: profile.password,
     database: dbName,
     waitForConnections: true,
+    connectionLimit: 10,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000,
     // See the matching comments in getMasterDbConfig() — same reasoning
     // applies to every tenant DB, since it's exactly the tenant tables
     // (fixed_deposits, journal_entries, repayment_schedules, borrowers, etc.)

@@ -34,9 +34,9 @@ export function LanguageProvider({ children }) {
     }, 160);
   }, [language]);
 
-  // Falls back to English, then to the raw key
-  const t = useCallback((key) => {
-    return translations[language]?.[key] ?? translations.en?.[key] ?? key;
+  // Falls back to English, then to default fallback string, then to the raw key
+  const t = useCallback((key, fallback) => {
+    return translations[language]?.[key] ?? translations.en?.[key] ?? fallback ?? key;
   }, [language]);
 
   const tStatus = useCallback((status) => {

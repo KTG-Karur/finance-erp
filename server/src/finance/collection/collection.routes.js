@@ -4,7 +4,10 @@ import {
   revertCollectionHandler,
   updateCollectionHandler,
   markChequeClearedHandler,
-  markChequeBouncedHandler
+  markChequeBouncedHandler,
+  getWaiversHandler,
+  approveWaiverHandler,
+  rejectWaiverHandler
 } from './collection.controller.js';
 
 export default async function collectionRoutes(fastify, options) {
@@ -18,4 +21,9 @@ export default async function collectionRoutes(fastify, options) {
   fastify.patch('/collections/:id/revert', { onRequest, preHandler: fastify.moduleGuard('COLLECTIONS', 'REVERT') }, revertCollectionHandler);
   fastify.patch('/collections/:id/cheque-cleared', { onRequest, preHandler: fastify.moduleGuard('COLLECTIONS', 'REVERT') }, markChequeClearedHandler);
   fastify.patch('/collections/:id/cheque-bounced', { onRequest, preHandler: fastify.moduleGuard('COLLECTIONS', 'REVERT') }, markChequeBouncedHandler);
+
+  // Waiver Approval endpoints
+  fastify.get('/collections/waivers', { onRequest, preHandler: fastify.moduleGuardAny([['COLLECTIONS', 'VIEW'], ['DASHBOARD', 'VIEW']]) }, getWaiversHandler);
+  fastify.post('/collections/:id/approve-waiver', { onRequest, preHandler: fastify.moduleGuardAny([['COLLECTIONS', 'WAIVER_APPROVE'], ['COLLECTIONS', 'REVERT']]) }, approveWaiverHandler);
+  fastify.post('/collections/:id/reject-waiver', { onRequest, preHandler: fastify.moduleGuardAny([['COLLECTIONS', 'WAIVER_APPROVE'], ['COLLECTIONS', 'REVERT']]) }, rejectWaiverHandler);
 }

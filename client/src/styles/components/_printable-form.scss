@@ -11,7 +11,12 @@
   align-items: center;
   overflow-y: auto;
   padding: 24px 16px 80px 16px;
-  gap: 20px;
+  gap: 16px;
+
+  @media (max-width: 680px) {
+    padding: 10px 8px 60px 8px;
+    gap: 10px;
+  }
 }
 
 // Floating Action Controls Container
@@ -20,38 +25,76 @@
   top: 12px;
   z-index: 100;
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   width: 210mm;
   max-width: 100%;
   box-sizing: border-box;
   flex-shrink: 0;
 
+  @media (max-width: 680px) {
+    top: 6px;
+    gap: 6px;
+  }
+
+  .top-action-row,
+  .primary-action-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+
+    button {
+      flex: 1;
+      height: 38px;
+      padding: 0 12px;
+      font-size: 0.8rem;
+    }
+  }
+
   button {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
-    padding: 8px 18px;
-    border-radius: 20px;
+    height: 38px;
+    padding: 0 18px;
+    border-radius: 8px;
     font-size: 0.82rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.15s ease;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    white-space: nowrap;
   }
 
-  .btn-print {
+  .btn-print,
+  .btn-confirm-app,
+  .btn-approve-app {
     background: var(--brand-primary, #15803D);
     color: #FFFFFF;
     border: 1px solid var(--brand-primary, #15803D);
+    box-shadow: 0 2px 6px rgba(var(--brand-primary-rgb), 0.3);
     &:hover { background: var(--brand-primary-hover, #0E5327); }
+    &:disabled { opacity: 0.6; cursor: not-allowed; }
+  }
+
+  .btn-reject-app {
+    background: var(--color-danger-light, #FEF2F2);
+    color: var(--color-danger-text, #991B1B);
+    border: 1px solid var(--color-danger-border, #FECACA);
+    &:hover { background: #FEE2E2; }
+    &:disabled { opacity: 0.6; cursor: not-allowed; }
   }
 
   .btn-close {
     background: #FFFFFF;
     color: #0F172A;
-    border: 1px solid #E2E8F0;
-    &:hover { background: #F8FAFC; color: #000000; }
+    border: 1px solid #CBD5E1;
+    &:hover { background: #F8FAFC; color: #000000; border-color: #94A3B8; }
   }
 }
 
@@ -63,7 +106,6 @@
   min-height: 297mm;
   height: fit-content;
   flex-shrink: 0;
-  box-sizing: border-box;
   background: #FFFFFF !important;
   color: #000000;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -76,12 +118,23 @@
   position: relative;
   z-index: 10;
 
+  @media (max-width: 820px) {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    padding: 14px 10px 24px 10px !important;
+    margin: 0 auto 20px auto !important;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    box-sizing: border-box;
+  }
+
   // 1. Bank Header Row
   .bank-header-row {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 16px;
+    gap: 12px;
     border-bottom: 2px solid #000000;
     padding-bottom: 10px;
     margin-bottom: 12px;
@@ -89,12 +142,12 @@
 
     .bank-logo-col {
       .bank-emblem {
-        width: 50px;
-        height: 50px;
+        width: 48px;
+        height: 48px;
         background: #FFFFFF !important;
         color: #000000;
         font-weight: 800;
-        font-size: 1.1rem;
+        font-size: 1.05rem;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -105,42 +158,46 @@
 
     .bank-title-col {
       flex: 1;
+      min-width: 0;
 
       .bank-company-name {
-        font-size: 1.15rem;
+        font-size: 1.12rem;
         font-weight: 800;
         color: #000000;
         margin: 0 0 2px 0;
         letter-spacing: -0.01em;
+        line-height: 1.2;
       }
 
       .bank-tagline {
         font-size: 0.72rem;
         font-weight: 500;
         color: #000000;
-        margin: 0 0 4px 0;
+        margin: 0 0 3px 0;
       }
 
       .bank-contact-line {
-        font-size: 0.7rem;
+        font-size: 0.68rem;
         color: #000000;
         margin: 1px 0;
         font-weight: 400;
+        word-break: break-word;
       }
 
       .bank-cin-line {
-        font-size: 0.68rem;
+        font-size: 0.65rem;
         font-weight: 500;
         color: #000000;
-        margin-top: 3px;
+        margin-top: 2px;
         font-family: monospace;
+        word-break: break-word;
       }
     }
 
     // Passport Photo Box
     .bank-photo-container.borderless-photo {
-      width: 105px;
-      height: 125px;
+      width: 90px;
+      height: 110px;
       border: none !important;
       outline: none !important;
       display: flex;
@@ -152,6 +209,11 @@
       padding: 0;
       flex-shrink: 0;
 
+      @media (max-width: 480px) {
+        width: 72px;
+        height: 88px;
+      }
+
       img {
         width: 100%;
         height: 100%;
@@ -160,14 +222,15 @@
       }
 
       .photo-instructions {
-        font-size: 0.66rem;
+        font-size: 0.6rem;
         font-weight: 500;
         color: #64748B;
-        line-height: 1.3;
-        padding: 8px;
+        line-height: 1.25;
+        padding: 4px;
         border: 1px dashed #CBD5E1;
         width: 100%;
         height: 100%;
+        box-sizing: border-box;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -178,26 +241,32 @@
   // 2. Title Banner
   .bank-title-banner {
     text-align: center;
-    padding: 6px 12px;
-    font-size: 0.92rem;
+    padding: 6px 10px;
+    font-size: 0.88rem;
     font-weight: 700;
     letter-spacing: 0.02em;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     border: 1.5px solid #000000;
     background: #FFFFFF !important;
+
+    @media (max-width: 680px) {
+      font-size: 0.78rem;
+      padding: 4px 6px;
+      margin-bottom: 8px;
+    }
   }
 
   // 3. Meta Table
   .bank-meta-table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 12px;
-    font-size: 0.82rem;
+    margin-bottom: 10px;
+    font-size: 0.8rem;
     background: #FFFFFF !important;
 
     td {
       border: 1px solid #000000;
-      padding: 6px 10px;
+      padding: 5px 8px;
       background: #FFFFFF !important;
     }
 
@@ -214,22 +283,74 @@
       font-family: monospace;
       background: #FFFFFF !important;
     }
+
+    @media (max-width: 680px) {
+      margin-bottom: 8px;
+
+      tbody {
+        display: block;
+        width: 100%;
+      }
+
+      tr {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        border: 1px solid #000000;
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      td {
+        border: none !important;
+        border-bottom: 1px solid #E2E8F0 !important;
+        padding: 4px 6px;
+        font-size: 0.72rem;
+        display: flex;
+        align-items: center;
+        box-sizing: border-box;
+
+        &:nth-child(even) {
+          border-left: 1px solid #000000 !important;
+        }
+      }
+
+      .meta-lbl {
+        width: 100% !important;
+        background: #F8FAFC !important;
+        font-weight: 700;
+      }
+
+      .meta-val {
+        width: 100% !important;
+        word-break: break-all;
+      }
+    }
   }
 
   // 4. Section Bar
   .bank-section {
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     background: #FFFFFF !important;
+
+    @media (max-width: 680px) {
+      margin-bottom: 8px;
+    }
 
     .section-header-bar {
       border-bottom: 1.5px solid #000000;
       padding: 3px 0;
-      margin-bottom: 6px;
-      font-size: 0.85rem;
+      margin-bottom: 5px;
+      font-size: 0.84rem;
       font-weight: 700;
       color: #000000;
       letter-spacing: 0.01em;
       background: #FFFFFF !important;
+
+      @media (max-width: 680px) {
+        font-size: 0.76rem;
+        padding: 2px 0;
+        margin-bottom: 4px;
+      }
     }
   }
 
@@ -237,12 +358,12 @@
   .bank-grid-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     background: #FFFFFF !important;
 
     td {
       border: 1px solid #000000;
-      padding: 6px 10px;
+      padding: 5px 8px;
       vertical-align: middle;
       background: #FFFFFF !important;
     }
@@ -264,47 +385,123 @@
       font-weight: 500;
       background: #FFFFFF !important;
     }
+
+    @media (max-width: 680px) {
+      display: block;
+      width: 100%;
+      border: 1px solid #000000;
+
+      tbody {
+        display: block;
+        width: 100%;
+      }
+
+      tr {
+        display: grid;
+        grid-template-columns: 110px 1fr;
+        width: 100%;
+        border-bottom: 1px solid #000000;
+        box-sizing: border-box;
+
+        &:last-child {
+          border-bottom: none;
+        }
+      }
+
+      td {
+        border: none !important;
+        border-bottom: 1px solid #E2E8F0 !important;
+        padding: 4px 6px;
+        font-size: 0.72rem;
+        display: flex;
+        align-items: center;
+        box-sizing: border-box;
+
+        &:nth-child(even) {
+          border-left: 1px solid #000000 !important;
+        }
+
+        &[colspan="3"] {
+          grid-column: 2;
+        }
+      }
+
+      .field-lbl {
+        width: 100% !important;
+        background: #F8FAFC !important;
+        font-weight: 600;
+      }
+
+      .field-val {
+        width: 100% !important;
+        word-break: break-word;
+      }
+    }
   }
 
   // Declaration Paragraph Box (Enclosed inside solid white paper card)
   .bank-declaration-box {
-    margin-top: 14px;
-    padding-bottom: 16px;
+    margin-top: 10px;
+    padding-bottom: 12px;
     background: #FFFFFF !important;
     position: relative;
     z-index: 20;
 
+    @media (max-width: 680px) {
+      margin-top: 6px;
+      padding-bottom: 6px;
+
+      .bank-declaration-text {
+        font-size: 0.7rem;
+        padding: 6px 8px;
+      }
+    }
+
     .dec-title {
       background: #FFFFFF !important;
       color: #000000 !important;
+      font-size: 0.84rem;
+      font-weight: 700;
     }
 
     .bank-declaration-text {
-      font-size: 0.78rem;
+      font-size: 0.76rem;
       color: #000000 !important;
       line-height: 1.4;
       border: 1px solid #000000;
-      padding: 8px 12px;
+      padding: 6px 10px;
       font-weight: 400;
       background: #FFFFFF !important;
+      margin-top: 4px;
     }
 
     // Signatures & Stamp Box Row
     .bank-signatures-container {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 14px;
-      margin-top: 14px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 10px;
       background: #FFFFFF !important;
+
+      @media (max-width: 768px) {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      @media (max-width: 480px) {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
 
       .sig-box {
         border: 1px solid #000000;
-        padding: 8px 10px;
+        padding: 6px 8px;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: space-between;
-        height: 80px;
+        min-height: 70px;
         text-align: center;
         background: #FFFFFF !important;
 
@@ -313,7 +510,7 @@
         }
 
         .sig-title {
-          font-size: 0.75rem;
+          font-size: 0.72rem;
           font-weight: 600;
           color: #000000;
           border-top: 1px solid #000000;
@@ -322,7 +519,7 @@
         }
 
         .sig-date {
-          font-size: 0.68rem;
+          font-size: 0.65rem;
           color: #000000;
           margin-top: 1px;
         }
@@ -330,16 +527,16 @@
 
       .bank-seal-box {
         border: 1px dashed #000000;
-        height: 80px;
+        min-height: 70px;
         display: flex;
         align-items: center;
         justify-content: center;
         text-align: center;
-        padding: 8px;
+        padding: 6px;
         background: #FFFFFF !important;
 
         span {
-          font-size: 0.72rem;
+          font-size: 0.7rem;
           font-weight: 600;
           color: #000000;
         }

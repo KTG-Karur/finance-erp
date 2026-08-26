@@ -52,7 +52,7 @@ function Avatar({ name, photo, size = 30 }) {
 // the active tab, matching Investor Capital / Fixed Deposits / Collections.
 function StatusTabs({ tabs, active, onChange }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4, borderBottom: '1px solid #E2E8F0' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4, borderBottom: '1px solid #E2E8F0', overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%', scrollbarWidth: 'none' }}>
       {tabs.map(tab => {
         const isActive = active === tab.id;
         return (
@@ -61,11 +61,12 @@ function StatusTabs({ tabs, active, onChange }) {
             type="button"
             onClick={() => onChange(tab.id)}
             style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '9px 4px', marginBottom: -1,
+              display: 'flex', alignItems: 'center', gap: 6, padding: '9px 6px', marginBottom: -1,
               border: 'none', borderBottom: isActive ? '2px solid var(--brand-primary, #15803D)' : '2px solid transparent',
               background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
               fontSize: '0.8rem', fontWeight: isActive ? 700 : 500,
-              color: isActive ? 'var(--brand-primary, #15803D)' : '#64748B', marginRight: 18
+              color: isActive ? 'var(--brand-primary, #15803D)' : '#64748B', marginRight: 14,
+              whiteSpace: 'nowrap', flexShrink: 0
             }}
           >
             <span>{tab.label}</span>
@@ -136,7 +137,9 @@ export default function LoansView({
   onApproveLoanClosure,
   onRejectLoanClosure,
   onDisburseApprovedLoan,
-  onCollectLoan
+  onMarkPendingDisbursal,
+  onCollectLoan,
+  highlightLoanId = null
 }) {
   const { t, tStatus } = useLanguage();
 
@@ -146,12 +149,12 @@ export default function LoansView({
     if (selectedBranch && selectedBranch !== 'ALL') setBranchFilter(selectedBranch);
   }, [selectedBranch]);
   const scopedLoans = branchFilter === 'ALL' ? loans : loans.filter(l => l.branch === branchFilter);
-  // Primary Account View Mode: 'ALL' | 'ACTIVE' | 'CLOSED' | 'APPLICATIONS' | 'CLOSURE_REQUESTS'
+  // Primary Account View Mode: 'ACTIVE' | 'ALL' | 'CLOSED' | 'APPLICATIONS' | 'CLOSURE_REQUESTS'
   const [viewMode, setViewMode] = useState(() => {
     if (activeTab.includes('loan-applications')) return 'APPLICATIONS';
     if (activeTab.includes('closed-loans')) return 'CLOSED';
-    if (activeTab.includes('active-loans')) return 'ACTIVE';
-    return 'ALL';
+    if (activeTab.includes('loans-register')) return 'ALL';
+    return 'ACTIVE';
   });
 
   useEffect(() => {
@@ -159,12 +162,26 @@ export default function LoansView({
       setViewMode('APPLICATIONS');
     } else if (activeTab.includes('closed-loans')) {
       setViewMode('CLOSED');
-    } else if (activeTab.includes('active-loans')) {
-      setViewMode('ACTIVE');
-    } else {
+    } else if (activeTab.includes('loans-register')) {
       setViewMode('ALL');
+    } else {
+      setViewMode('ACTIVE');
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (!highlightLoanId) return;
+    const target = loans.find(l => l.id === highlightLoanId || l.loan_account_no === highlightLoanId);
+    if (!target) return;
+
+    if (target.status === 'PENDING' || target.status === 'PENDING_DISBURSAL' || target.status === 'APPROVED' || target.status === 'REJECTED') {
+      setViewMode('APPLICATIONS');
+    } else if (target.status === 'CLOSED') {
+      setViewMode('CLOSED');
+    } else if (target.status === 'OVERDUE' || target.status === 'ACTIVE') {
+      setViewMode('ACTIVE');
+    }
+  }, [highlightLoanId, loans]);
 
   // Closure Requests: loans fully paid off, awaiting Admin's review before CLOSED.
   const [expandedClosureId, setExpandedClosureId] = useState(null);
@@ -238,7 +255,7 @@ export default function LoansView({
   // rejected application never becomes a real loan account.
   const allLoansCount = scopedLoans.filter(l => l.status !== 'REJECTED').length;
   const activeLoansCount = scopedLoans.filter(l => l.status === 'ACTIVE' || l.status === 'OVERDUE').length;
-  const applicationsCount = scopedLoans.filter(l => l.status === 'PENDING' || l.status === 'APPROVED' || l.status === 'REJECTED').length;
+  const applicationsCount = scopedLoans.filter(l => l.status === 'PENDING' || l.status === 'APPROVED' || l.status === 'PENDING_DISBURSAL' || l.status === 'REJECTED').length;
   const closedLoansCount = scopedLoans.filter(l => l.status === 'CLOSED').length;
 
   // Filter and sort loans by date descending (newest first)
@@ -278,6 +295,15 @@ export default function LoansView({
   const startIndex = (safePage - 1) * pageSize;
   const paginatedList = displayList.slice(startIndex, startIndex + pageSize);
 
+  useEffect(() => {
+    if (!highlightLoanId || viewMode === 'APPLICATIONS') return;
+    const targetIndex = displayList.findIndex(l => l.id === highlightLoanId || l.loan_account_no === highlightLoanId);
+    if (targetIndex !== -1) {
+      const targetPage = Math.floor(targetIndex / pageSize) + 1;
+      setCurrentPage(targetPage);
+    }
+  }, [highlightLoanId, displayList, viewMode]);
+
   // Calculate Metrics
   const totalPrincipal = displayList.reduce((acc, l) => acc + (parseFloat(l.principal_amount) || 0), 0);
   const totalCollected = displayList.reduce((acc, l) => acc + (parseFloat(l.collected_amount) || 0), 0);
@@ -289,6 +315,7 @@ export default function LoansView({
   if (openNewApp) {
     return (
       <NewLoanApplicationPage
+        loans={loans}
         borrowers={borrowers}
         loanSchemes={loanSchemes}
         branches={branches}
@@ -354,9 +381,10 @@ export default function LoansView({
   }
 
   const TABS = [
-    { id: 'ALL', label: t('loans.tab_all'), count: allLoansCount },
-    { id: 'ACTIVE', label: t('loans.tab_active'), count: activeLoansCount },
-    { id: 'CLOSED', label: t('loans.tab_closed'), count: closedLoansCount },
+    { id: 'ACTIVE', label: t('loans.tab_active') || 'Active Loans', count: activeLoansCount },
+    { id: 'APPLICATIONS', label: t('loans.applications_title') || 'Loan Applications', count: applicationsCount },
+    { id: 'ALL', label: t('loans.tab_all') || 'All Loans', count: allLoansCount },
+    { id: 'CLOSED', label: t('loans.tab_closed') || 'Closed Loans', count: closedLoansCount },
     ...(closureRequestsList.length > 0 ? [{ id: 'CLOSURE_REQUESTS', label: t('loans.closure_requests_tab'), count: closureRequestsList.length }] : [])
   ];
 
@@ -405,98 +433,35 @@ export default function LoansView({
         )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {viewMode === 'APPLICATIONS' ? (
-            <button
-              type="button"
-              onClick={() => setViewMode('ACTIVE')}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                height: 32, padding: '0 14px', borderRadius: 7,
-                border: '1px solid #CBD5E1', background: '#FFFFFF',
-                color: '#475569', fontSize: '0.78rem', fontWeight: 600,
-                cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-              }}
-            >
-              <ChevronLeft style={{ width: 15, height: 15 }} />
-              <span>Back to Active Loans</span>
-            </button>
-          ) : (
-            <StatusTabs tabs={TABS} active={viewMode} onChange={(id) => { setViewMode(id); setCurrentPage(1); }} />
-          )}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, width: '100%' }}>
+        <div style={{ flex: '1 1 auto', minWidth: 0, maxWidth: '100%', overflowX: 'auto' }}>
+          <StatusTabs tabs={TABS} active={viewMode} onChange={(id) => { setViewMode(id); setCurrentPage(1); }} />
         </div>
 
         {viewMode !== 'CLOSURE_REQUESTS' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <DropdownSelect
-              value={branchFilter}
-              onChange={(e) => { setBranchFilter(e.target.value); setCurrentPage(1); }}
-              disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
-              buttonStyle={{ height: 32, minWidth: 150 }}
-              options={[
-                { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
-                ...branches.map(b => ({ value: b.name, label: b.name }))
-              ]}
-            />
-            <div style={{ position: 'relative', width: 220 }}>
-              <Search style={{ position: 'absolute', left: 9, top: 8, width: 13, height: 13, color: '#94A3B8' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', width: '100%', maxWidth: 440 }}>
+            <div style={{ flex: '1 1 140px', minWidth: 120 }}>
+              <DropdownSelect
+                value={branchFilter}
+                onChange={(e) => { setBranchFilter(e.target.value); setCurrentPage(1); }}
+                disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
+                buttonStyle={{ height: 34, width: '100%' }}
+                options={[
+                  { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
+                  ...branches.map(b => ({ value: b.name, label: b.name }))
+                ]}
+              />
+            </div>
+            <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 150 }}>
+              <Search style={{ position: 'absolute', left: 9, top: 9, width: 14, height: 14, color: '#94A3B8' }} />
               <input
-                style={{ paddingLeft: 27, width: '100%', height: 32, borderRadius: 7, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: '0.75rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                style={{ paddingLeft: 29, width: '100%', height: 34, borderRadius: 7, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: '0.78rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
                 type="text"
                 placeholder={viewMode === 'APPLICATIONS' ? t('loans.search_applications') : t('loans.search_active')}
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               />
             </div>
-            {viewMode !== 'APPLICATIONS' && (
-              <button
-                type="button"
-                onClick={() => setViewMode('APPLICATIONS')}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  height: 32,
-                  padding: '0 12px',
-                  borderRadius: 7,
-                  border: '1px solid #CBD5E1',
-                  background: '#FFFFFF',
-                  color: '#334155',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                  transition: 'all 0.15s ease',
-                  whiteSpace: 'nowrap'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--brand-primary, #059669)';
-                  e.currentTarget.style.color = 'var(--brand-primary, #059669)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = '#CBD5E1';
-                  e.currentTarget.style.color = '#334155';
-                }}
-              >
-                <Clock style={{ width: 14, height: 14, color: 'var(--brand-primary, #059669)', flexShrink: 0 }} />
-                <span style={{ lineHeight: 1 }}>Loan Applications</span>
-                <span style={{
-                  fontSize: '0.68rem',
-                  fontWeight: 700,
-                  borderRadius: 12,
-                  padding: '2px 7px',
-                  background: 'var(--brand-primary-light, #ECFDF5)',
-                  color: 'var(--brand-primary, #059669)',
-                  border: '1px solid var(--brand-primary-border, #A7F3D0)',
-                  lineHeight: 1,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>{applicationsCount}</span>
-              </button>
-            )}
           </div>
         )}
       </div>
@@ -518,6 +483,8 @@ export default function LoansView({
           onRejectApplication={onRejectApplication}
           onRevertApplication={onRevertApplication}
           onDisburseApprovedLoan={onDisburseApprovedLoan}
+          onMarkPendingDisbursal={onMarkPendingDisbursal}
+          highlightLoanId={highlightLoanId}
         />
       )}
 
@@ -580,20 +547,25 @@ export default function LoansView({
                             <th className="num">{t('col.amount')}</th>
                             <th className="num">{t('col.principal')}</th>
                             <th className="num">{t('col.interest')}</th>
+                            <th className="num" style={{ color: '#D97706' }}>Charges</th>
                             <th>{t('col.mode')}</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {history.map(rec => (
-                            <tr key={rec.id}>
-                              <td>{rec.collection_date || rec.date}</td>
-                              <td className="code">{rec.voucher_no || rec.receipt_no || '—'}</td>
-                              <td className="num" style={{ fontWeight: 600 }}>₹{fmt(rec.amount)}</td>
-                              <td className="num">₹{fmt(rec.principal_paid ?? rec.principalPaid)}</td>
-                              <td className="num">₹{fmt(rec.interest_paid ?? rec.interestPaid)}</td>
-                              <td>{rec.payment_mode}</td>
-                            </tr>
-                          ))}
+                          {history.map(rec => {
+                            const pen = Number(rec.penalty ?? rec.penalty_paid ?? rec.additional_charges ?? 0);
+                            return (
+                              <tr key={rec.id}>
+                                <td>{rec.collection_date || rec.date}</td>
+                                <td className="code">{rec.voucher_no || rec.receipt_no || '—'}</td>
+                                <td className="num" style={{ fontWeight: 600 }}>₹{fmt(rec.amount)}</td>
+                                <td className="num">₹{fmt(rec.principal_paid ?? rec.principalPaid)}</td>
+                                <td className="num">₹{fmt(rec.interest_paid ?? rec.interestPaid)}</td>
+                                <td className="num" style={{ color: pen > 0 ? '#D97706' : '#94A3B8' }}>{pen > 0 ? `₹${fmt(pen)}` : '—'}</td>
+                                <td>{rec.payment_mode}</td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -704,8 +676,13 @@ export default function LoansView({
               ) : (
                 paginatedList.map((loan, idx) => {
                   const borrower = linkedBorrower(loan);
+                  const isHighlighted = Boolean(highlightLoanId && (loan.id === highlightLoanId || loan.loan_account_no === highlightLoanId));
                   return (
-                    <tr key={loan.id}>
+                    <tr
+                      key={loan.id}
+                      className={isHighlighted ? 'highlighted-loan-row' : ''}
+                      ref={isHighlighted ? (el) => el?.scrollIntoView({ behavior: 'smooth', block: 'center' }) : null}
+                    >
                       <td style={{ textAlign: 'center', color: '#94A3B8' }}>{startIndex + idx + 1}</td>
 
                       <td>
@@ -749,9 +726,18 @@ export default function LoansView({
 
                       <td style={{ color: '#334155', fontSize: '0.78rem' }}>{schemeName(loan.scheme_id)}</td>
                       <td className="num" style={{ fontWeight: 600 }}>₹{fmt(loan.principal_amount)}</td>
-                      <td className="num" style={{ color: 'var(--brand-primary-hover, #0E5327)', fontWeight: 600 }}>{loan.installment_amount != null ? `₹${fmt(loan.installment_amount)}` : '—'}</td>
+                      <td className="num" style={{ color: 'var(--brand-primary-hover, #0E5327)', fontWeight: 600 }}>
+                        {loan.repayment_method === 'INTEREST_ONLY'
+                          ? <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>Interest Only</span>
+                          : (loan.installment_amount != null ? `₹${fmt(loan.installment_amount)}` : '—')}
+                      </td>
                       <td className="num" style={{ color: 'var(--brand-primary, #15803D)' }}>₹{fmt(loan.collected_amount)}</td>
-                      <td className="num" style={{ color: loan.pending_amount > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)' }}>₹{fmt(loan.pending_amount)}</td>
+                      <td className="num" style={{ color: loan.pending_amount > 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)' }}>
+                        <div style={{ fontWeight: 600 }}>₹{fmt(loan.pending_amount)}</div>
+                        <div style={{ fontSize: '0.66rem', color: '#64748B', fontWeight: 400, marginTop: 1 }}>
+                          {loan.last_payment_date ? `Paid: ${new Date(loan.last_payment_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}` : 'No payments'}
+                        </div>
+                      </td>
 
                       <td style={{ textAlign: 'center' }}>
                         <span className={statusBadgeCls(loan.status)}>{tStatus(loan.status)}</span>
@@ -829,6 +815,7 @@ export default function LoansView({
       {selectedCustomerForProfile && (
         <CustomerProfileModal
           borrower={selectedCustomerForProfile}
+          tenant={tenant}
           onClose={() => setSelectedCustomerForProfile(null)}
           onEdit={() => setSelectedCustomerForProfile(null)}
         />

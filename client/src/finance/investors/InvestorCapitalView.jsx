@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Wallet, Users, Plus, Trash2, Pencil, X, AlertTriangle,
   Eye, ArrowLeft, Search, Camera, Phone, Mail, MapPin, UserCheck, ChevronLeft, ChevronRight, TrendingUp
@@ -6,6 +6,7 @@ import {
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import SharedDropdown from '../../components/common/SharedDropdown';
 import SharedDatePicker from '../../components/common/SharedDatePicker';
+import { uploadFile } from '../../api/upload';
 
 const FORM_MAX_WIDTH = 780;
 
@@ -121,13 +122,15 @@ function Pagination({ page, setPage, totalPages, total, startIndex, pageSize }) 
 // ── Full-screen "Register / Edit Investor" form — same page scaffold as
 // customer registration, but capped to a narrower width and packed into
 // 3-4 column rows so individual fields stay a sensible size instead of
-// stretching edge-to-edge.
-function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
+function AddInvestorScreen({ initialData, bankAccounts = [], branchesList = [], onCancel, onSubmit }) {
   const { t, tStatus } = useLanguage();
   const [form, setForm] = useState(() => initialData || {
     name: '', phone: '', email: '', address: '', city: '', state: '', pincode: '',
     status: 'ACTIVE', nominee_name: '', nominee_phone: '', nominee_relation: '',
     capital_amount: '', join_date: new Date().toISOString().slice(0, 10), exit_date: '',
+    payment_mode: 'BANK_TRANSFER',
+    bank_account_id: bankAccounts[0]?.id || '',
+    branch: branchesList[0]?.name || 'Main Branch',
     notes: '', photo: null
   });
   const [error, setError] = useState('');
@@ -135,7 +138,7 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
 
   const setField = (field, val) => setForm(prev => ({ ...prev, [field]: val }));
 
-  const handlePhotoChange = (e) => {
+  const handlePhotoChange = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
@@ -148,9 +151,14 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
       return;
     }
     setError('');
-    const reader = new FileReader();
-    reader.onload = () => setField('photo', reader.result);
-    reader.readAsDataURL(file);
+    try {
+      const res = await uploadFile(file, { subfolder: 'investors', category: 'profile', prefix: 'inv_profile' });
+      if (res?.url) {
+        setField('photo', res.url);
+      }
+    } catch {
+      setError('Failed to upload investor photo.');
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -162,8 +170,12 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
     setLoading(true);
     setError('');
     try {
+      const selectedBank = bankAccounts.find(b => String(b.id) === String(form.bank_account_id));
+      const settlementCode = form.payment_mode === 'CASH' ? '1001' : (selectedBank?.account_code || selectedBank?.ledger_account_code || '1002');
+
       await onSubmit({
         ...form,
+        settlement_account_code: settlementCode,
         capital_amount: form.capital_amount === '' ? 0 : Number(form.capital_amount),
         exit_date: form.status === 'EXITED' ? (form.exit_date || new Date().toISOString().slice(0, 10)) : null
       }, initialData?.id);
@@ -295,6 +307,51 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
               />
             </div>
           </div>
+
+          {!initialData && Number(form.capital_amount) > 0 && (
+            <div className="form-row form-row--3" style={{ marginTop: 6, paddingTop: 14, borderTop: '1px dashed #E2E8F0' }}>
+              <div className="form-group">
+                <label>Payment Mode</label>
+                <SharedDropdown
+                  value={form.payment_mode || 'BANK_TRANSFER'}
+                  onChange={e => setField('payment_mode', e.target.value)}
+                  options={[
+                    { value: 'BANK_TRANSFER', label: 'Bank Transfer / NEFT / RTGS' },
+                    { value: 'CASH', label: 'Cash in Hand (1001)' },
+                    { value: 'CHEQUE', label: 'Cheque' },
+                    { value: 'ONLINE', label: 'Online / Net Banking / UPI' }
+                  ]}
+                />
+              </div>
+
+              {form.payment_mode !== 'CASH' && (
+                <div className="form-group">
+                  <label>Deposit To Bank Account</label>
+                  <SharedDropdown
+                    value={form.bank_account_id || ''}
+                    onChange={e => setField('bank_account_id', e.target.value)}
+                    options={bankAccounts.length > 0 ? bankAccounts.map(b => ({
+                      value: String(b.id),
+                      label: `${b.bank_name} - ${b.account_number || b.account_name} (${b.branch || 'Main'})`
+                    })) : [{ value: '', label: 'Default Operating Bank (1002)' }]}
+                  />
+                </div>
+              )}
+
+              <div className="form-group">
+                <label>Operating Branch</label>
+                <SharedDropdown
+                  value={form.branch || (branchesList[0]?.name || 'Main Branch')}
+                  onChange={e => setField('branch', e.target.value)}
+                  options={branchesList.length > 0 ? branchesList.map(b => ({
+                    value: b.name,
+                    label: `${b.name} (${b.code || 'BR'})`
+                  })) : [{ value: 'Main Branch', label: 'Main Branch' }]}
+                />
+              </div>
+            </div>
+          )}
+
           {form.status === 'EXITED' && (
             <div className="form-row form-row--2">
               <div className="form-group">
@@ -351,9 +408,244 @@ function AddInvestorScreen({ initialData, onCancel, onSubmit }) {
   );
 }
 
-function InvestorProfileView({ investor, onBack, onEdit }) {
+function AddInvestorCapitalModal({ investor, bankAccounts = [], branchesList = [], onClose, onSubmit }) {
+  const { t } = useLanguage();
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [paymentMode, setPaymentMode] = useState('BANK_TRANSFER');
+  const [bankAccountId, setBankAccountId] = useState(() => bankAccounts[0]?.id ? String(bankAccounts[0].id) : '');
+  const [branch, setBranch] = useState(() => branchesList[0]?.name || 'Main Branch');
+  const [notes, setNotes] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const fmt = n => Number(n || 0).toLocaleString('en-IN');
+  const currentCapital = Number(investor?.capital_amount || 0);
+  const addAmountNum = parseFloat(amount) || 0;
+  const newBalance = currentCapital + addAmountNum;
+
+  const handleSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!addAmountNum || addAmountNum <= 0) {
+      setError('Please enter a valid capital amount greater than 0.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const selectedBank = bankAccounts.find(b => String(b.id) === String(bankAccountId));
+      const settlementCode = paymentMode === 'CASH' ? '1001' : (selectedBank?.account_code || '1002');
+
+      await onSubmit(investor.id, {
+        amount: addAmountNum,
+        date,
+        payment_mode: paymentMode,
+        settlement_account_code: settlementCode,
+        branch,
+        notes: notes.trim()
+      });
+      onClose();
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to add capital. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="saas-modal-backdrop">
+      <div className="saas-modal-card" style={{ maxWidth: 480 }}>
+        <div className="saas-modal-header">
+          <div className="head-left">
+            <div className="head-icon-badge" style={{ background: 'var(--brand-primary-light, #F0FEF5)', borderColor: 'var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)' }}>
+              <TrendingUp style={{ width: 18, height: 18 }} />
+            </div>
+            <div className="head-titles">
+              <h3>Add Investor Capital</h3>
+              <p>{investor?.investor_code} — {investor?.name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="close-btn" type="button" disabled={loading}><X style={{ width: 16, height: 16 }} /></button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="saas-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {error && (
+            <div className="form-alert form-alert--error">
+              <AlertTriangle style={{ width: 14, height: 14 }} />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Balance Preview Card */}
+          <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <span style={{ fontSize: '0.66rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase' }}>Current Capital Balance</span>
+              <strong style={{ fontSize: '1.05rem', color: '#0F172A' }}>₹{fmt(currentCapital)}</strong>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <span style={{ fontSize: '0.66rem', color: '#64748B', display: 'block', fontWeight: 600, textTransform: 'uppercase' }}>New Capital Balance</span>
+              <strong style={{ fontSize: '1.15rem', color: 'var(--brand-primary, #15803D)' }}>₹{fmt(newBalance)}</strong>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>
+              Additional Capital Amount (₹) <span style={{ color: '#DC2626' }}>*</span>
+            </label>
+            <input
+              type="number"
+              min="1"
+              required
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              placeholder="e.g. 500000"
+              style={{
+                height: 38, padding: '0 12px', borderRadius: 8,
+                border: '1px solid #CBD5E1', fontSize: '0.9rem',
+                fontWeight: 600, fontFamily: 'monospace', outline: 'none'
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>Contribution Date</label>
+              <SharedDatePicker
+                value={date}
+                onChange={e => setDate(e.target.value)}
+                buttonStyle={{ height: 38 }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>Payment Mode</label>
+              <SharedDropdown
+                value={paymentMode}
+                onChange={e => setPaymentMode(e.target.value)}
+                buttonStyle={{ height: 38 }}
+                options={[
+                  { value: 'BANK_TRANSFER', label: 'Bank Transfer (NEFT/RTGS)' },
+                  { value: 'UPI', label: 'UPI / Online' },
+                  { value: 'CHEQUE', label: 'Cheque' },
+                  { value: 'CASH', label: 'Cash in Hand' }
+                ]}
+              />
+            </div>
+          </div>
+
+          {paymentMode !== 'CASH' && bankAccounts.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>Deposit Company Bank Account</label>
+              <SharedDropdown
+                value={bankAccountId}
+                onChange={e => setBankAccountId(e.target.value)}
+                buttonStyle={{ height: 38 }}
+                options={bankAccounts.map(b => ({
+                  value: String(b.id),
+                  label: `${b.bank_name} - ${b.account_number} (${b.account_name || 'Main'})`
+                }))}
+              />
+            </div>
+          )}
+
+          {branchesList.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>Branch</label>
+              <SharedDropdown
+                value={branch}
+                onChange={e => setBranch(e.target.value)}
+                buttonStyle={{ height: 38 }}
+                options={branchesList.map(b => ({ value: b.name, label: b.name }))}
+              />
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>Transaction Reference / Remarks</label>
+            <input
+              type="text"
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="e.g. Cheque #441029 / RTGS Ref / Board resolution note"
+              style={{
+                height: 38, padding: '0 12px', borderRadius: 8,
+                border: '1px solid #CBD5E1', fontSize: '0.82rem',
+                fontFamily: 'inherit', outline: 'none'
+              }}
+            />
+          </div>
+
+          <p style={{ fontSize: '0.74rem', color: '#64748B', margin: 0, lineHeight: 1.4 }}>
+            An automatic double-entry voucher will be posted: Debiting <strong>{paymentMode === 'CASH' ? 'Cash in Hand (1001)' : 'Bank Account (1002)'}</strong> and Crediting <strong>Promoter Share Capital (3001)</strong>.
+          </p>
+
+          <div className="saas-modal-footer" style={{ marginTop: 6, padding: '12px 0 0 0', borderTop: '1px solid #E2E8F0' }}>
+            <button type="button" onClick={onClose} disabled={loading} className="btn-cancel">{t('btn.cancel')}</button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-submit"
+              style={{ background: loading ? '#94A3B8' : 'var(--brand-primary, #15803D)', cursor: loading ? 'not-allowed' : 'pointer' }}
+            >
+              {loading ? 'Posting Voucher...' : 'Confirm & Deposit Capital'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function InvestorProfileView({ investor, bankAccounts = [], branchesList = [], journalEntries = [], onBack, onEdit, onAddCapital }) {
   const { t, tStatus } = useLanguage();
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
+
+  const investorTxns = useMemo(() => {
+    const txns = [];
+    const code = investor.investor_code || `INV-${String(investor.id).padStart(4, '0')}`;
+    const invIdStr = String(investor.id);
+
+    const matchingVouchers = (journalEntries || []).filter(j => {
+      const text = (j.narration || j.description || '');
+      const isInvRef = j.ref_type === 'INVESTOR_CAPITAL' && String(j.ref_id) === invIdStr;
+      const mentionsCode = text.includes(code) || (text.includes('Investor') && text.includes(investor.name));
+      return isInvRef || mentionsCode;
+    });
+
+    if (matchingVouchers.length > 0) {
+      const sorted = [...matchingVouchers].sort((a, b) => new Date(a.date || a.entry_date) - new Date(b.date || b.entry_date));
+      let currentBal = 0;
+      sorted.forEach(v => {
+        const lineAmt = (v.lines || []).reduce((s, l) => Math.max(s, Number(l.debit || l.credit || 0)), 0);
+        const amt = Number(v.total_amount || lineAmt || v.amount || 0);
+        currentBal += amt;
+        const text = (v.narration || v.description || '');
+        const isCash = text.toUpperCase().includes('(CASH)') || text.toUpperCase().includes('CASH') || (v.lines || []).some(l => l.account_code === '1001');
+        txns.push({
+          id: v.id || v.db_id,
+          voucher_no: v.voucher_no || v.id,
+          date: String(v.date || v.entry_date || v.created_at || '').slice(0, 10),
+          description: text || `Capital Contribution (${code})`,
+          payment_mode: isCash ? 'CASH' : 'BANK',
+          amount: amt,
+          running_balance: currentBal,
+          created_by: v.created_by || 'Admin'
+        });
+      });
+    } else if (Number(investor.capital_amount) > 0) {
+      txns.push({
+        id: `INIT-${investor.id}`,
+        voucher_no: `VOU-INV-${investor.id}`,
+        date: String(investor.join_date || '').slice(0, 10) || new Date().toISOString().slice(0, 10),
+        description: `Initial Capital Contribution from ${investor.name} (${code})`,
+        payment_mode: 'BANK',
+        amount: Number(investor.capital_amount),
+        running_balance: Number(investor.capital_amount),
+        created_by: 'Admin'
+      });
+    }
+    return txns;
+  }, [journalEntries, investor]);
 
   return (
     <div className="fin-page" style={{ maxWidth: 960, margin: '0 auto' }}>
@@ -397,30 +689,52 @@ function InvestorProfileView({ investor, onBack, onEdit }) {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onEdit}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '8px 16px', borderRadius: 8, border: 'none',
-              background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', fontSize: '0.78rem',
-              fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb),0.25)'
-            }}
-          >
-            <Pencil style={{ width: 14, height: 14 }} />
-            <span>Edit Investor Details</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => onAddCapital(investor)}
+              disabled={investor.status === 'EXITED'}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '8px 16px', borderRadius: 8, border: 'none',
+                background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', fontSize: '0.78rem',
+                fontWeight: 700, cursor: investor.status === 'EXITED' ? 'not-allowed' : 'pointer',
+                boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb),0.25)'
+              }}
+            >
+              <Plus style={{ width: 14, height: 14 }} />
+              <span>Add Capital</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onEdit}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '8px 16px', borderRadius: 8, border: '1px solid #CBD5E1',
+                background: '#FFFFFF', color: '#334155', fontSize: '0.78rem',
+                fontWeight: 700, cursor: 'pointer'
+              }}
+            >
+              <Pencil style={{ width: 14, height: 14 }} />
+              <span>Edit Details</span>
+            </button>
+          </div>
         </div>
 
         {/* Executive KPI Bar */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginTop: 24, paddingTop: 20, borderTop: '1px solid #E2E8F0' }}>
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '14px 18px', borderRadius: 10 }}>
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Capital Invested</span>
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Capital Invested</span>
             <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--brand-primary, #15803D)', marginTop: 4 }}>₹{fmt(investor.capital_amount)}</div>
           </div>
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '14px 18px', borderRadius: 10 }}>
             <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Joining Date</span>
             <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0F172A', marginTop: 4 }}>{investor.join_date || '—'}</div>
+          </div>
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '14px 18px', borderRadius: 10 }}>
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Contributions</span>
+            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#2563EB', marginTop: 4 }}>{investorTxns.length} Transaction(s)</div>
           </div>
           {investor.status === 'EXITED' && (
             <div style={{ background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', padding: '14px 18px', borderRadius: 10 }}>
@@ -504,14 +818,81 @@ function InvestorProfileView({ investor, onBack, onEdit }) {
 
       </div>
 
+      {/* Capital Transaction History & Contribution Ledger */}
+      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px', marginTop: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <TrendingUp style={{ width: 15, height: 15 }} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: '#0F172A' }}>Capital Transaction History & Contribution Ledger</h3>
+              <p style={{ margin: 0, fontSize: '0.72rem', color: '#64748B' }}>Audit trail of initial capital contribution and top-up investments with automated double-entry vouchers</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onAddCapital(investor)}
+            disabled={investor.status === 'EXITED'}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '6px 14px', borderRadius: 7, border: 'none',
+              background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', fontSize: '0.76rem',
+              fontWeight: 700, cursor: investor.status === 'EXITED' ? 'not-allowed' : 'pointer'
+            }}
+          >
+            <Plus style={{ width: 13, height: 13 }} />
+            <span>Add Capital</span>
+          </button>
+        </div>
+
+        <div className="fin-tablewrap" style={{ border: '1px solid #E2E8F0', borderRadius: 8 }}>
+          <table className="fin-grid-table">
+            <thead>
+              <tr>
+                <th style={{ width: 45, textAlign: 'center' }}>#</th>
+                <th style={{ width: 95 }}>Date</th>
+                <th style={{ width: 140 }}>Voucher No</th>
+                <th>Particulars / Description</th>
+                <th style={{ width: 85 }}>Mode</th>
+                <th className="num" style={{ width: 130 }}>Amount Added (₹)</th>
+                <th className="num" style={{ width: 130 }}>Balance After (₹)</th>
+                <th style={{ width: 100 }}>Recorded By</th>
+              </tr>
+            </thead>
+            <tbody>
+              {investorTxns.length === 0 ? (
+                <tr>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '30px 0', color: '#94A3B8' }}>
+                    No capital transactions recorded yet.
+                  </td>
+                </tr>
+              ) : (
+                investorTxns.map((tx, idx) => (
+                  <tr key={tx.id || idx}>
+                    <td style={{ textAlign: 'center', color: '#64748B' }}>{idx + 1}</td>
+                    <td style={{ fontSize: '0.78rem', color: '#334155' }}>{tx.date}</td>
+                    <td className="code" style={{ color: 'var(--brand-primary, #15803D)', fontWeight: 600 }}>{tx.voucher_no}</td>
+                    <td style={{ fontSize: '0.78rem', color: '#1E293B' }}>{tx.description}</td>
+                    <td><span className="fin-badge fin-badge--neutral" style={{ fontSize: '0.66rem' }}>{tx.payment_mode}</span></td>
+                    <td className="num" style={{ fontWeight: 700, color: 'var(--brand-primary, #15803D)' }}>+ ₹{fmt(tx.amount)}</td>
+                    <td className="num" style={{ fontWeight: 700, color: '#0F172A' }}>₹{fmt(tx.running_balance)}</td>
+                    <td style={{ fontSize: '0.74rem', color: '#64748B' }}>{tx.created_by || 'Admin'}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {/* Internal Notes Card */}
       {investor.notes && (
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px', marginTop: 16 }}>
-          <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 8 }}>
+          <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Internal Remarks & Portfolio Notes
           </span>
-          <p style={{ fontSize: '0.82rem', color: '#334155', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+          <p style={{ fontSize: '0.82rem', color: '#334155', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap', marginTop: 8 }}>
             {investor.notes}
           </p>
         </div>
@@ -528,11 +909,15 @@ const INVESTOR_TABS = [
 
 export default function InvestorCapitalView({
   investors = [],
-  onCreateInvestor, onUpdateInvestor, onDeleteInvestor
+  bankAccounts = [],
+  branchesList = [],
+  journalEntries = [],
+  onCreateInvestor, onUpdateInvestor, onDeleteInvestor, onAddInvestorCapital
 }) {
   const { t, tStatus } = useLanguage();
   const [screen, setScreen] = useState('DIRECTORY'); // 'DIRECTORY' | 'ADD_INVESTOR'
   const [editingInvestor, setEditingInvestor] = useState(null);
+  const [addCapitalTarget, setAddCapitalTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteError, setDeleteError] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -554,6 +939,8 @@ export default function InvestorCapitalView({
     return (
       <AddInvestorScreen
         initialData={editingInvestor}
+        bankAccounts={bankAccounts}
+        branchesList={branchesList}
         onCancel={() => { setScreen(viewingInvestorId ? 'PROFILE' : 'DIRECTORY'); setEditingInvestor(null); }}
         onSubmit={async (form, id) => {
           await (id ? onUpdateInvestor(id, form) : onCreateInvestor(form));
@@ -566,11 +953,30 @@ export default function InvestorCapitalView({
 
   if (viewingInvestor) {
     return (
-      <InvestorProfileView
-        investor={viewingInvestor}
-        onBack={() => setViewingInvestorId(null)}
-        onEdit={() => { setEditingInvestor(viewingInvestor); setScreen('ADD_INVESTOR'); }}
-      />
+      <>
+        <InvestorProfileView
+          investor={viewingInvestor}
+          bankAccounts={bankAccounts}
+          branchesList={branchesList}
+          journalEntries={journalEntries}
+          onBack={() => setViewingInvestorId(null)}
+          onEdit={() => { setEditingInvestor(viewingInvestor); setScreen('ADD_INVESTOR'); }}
+          onAddCapital={(inv) => setAddCapitalTarget(inv)}
+        />
+        {addCapitalTarget && (
+          <AddInvestorCapitalModal
+            investor={addCapitalTarget}
+            bankAccounts={bankAccounts}
+            branchesList={branchesList}
+            onClose={() => setAddCapitalTarget(null)}
+            onSubmit={async (id, payload) => {
+              if (onAddInvestorCapital) {
+                await onAddInvestorCapital(id, payload);
+              }
+            }}
+          />
+        )}
+      </>
     );
   }
 
@@ -680,6 +1086,20 @@ export default function InvestorCapitalView({
         <Pagination page={safePage} setPage={setPage} totalPages={totalPages} total={filteredInvestors.length} startIndex={startIndex} pageSize={pageSize} />
       </div>
 
+      {addCapitalTarget && (
+        <AddInvestorCapitalModal
+          investor={addCapitalTarget}
+          bankAccounts={bankAccounts}
+          branchesList={branchesList}
+          onClose={() => setAddCapitalTarget(null)}
+          onSubmit={async (id, payload) => {
+            if (onAddInvestorCapital) {
+              await onAddInvestorCapital(id, payload);
+            }
+          }}
+        />
+      )}
+
       {deleteTarget && (
         <div className="saas-modal-backdrop">
           <div className="saas-modal-card">
@@ -729,3 +1149,4 @@ export default function InvestorCapitalView({
     </div>
   );
 }
+

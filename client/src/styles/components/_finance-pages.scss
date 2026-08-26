@@ -1,3 +1,5 @@
+@use '../mixins' as *;
+
 // ── Finance & Accounting — one shared design for every page ──────
 // Cash Book, General Ledger, Trial Balance, Balance Sheet, Income Statement, and
 // Expense Vouchers all use these same building blocks: a proper header card with
@@ -25,6 +27,11 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+
+  @include respond-to(md) {
+    padding: 12px 14px;
+    gap: 10px;
+  }
 }
 
 .fin-page-header {
@@ -33,6 +40,12 @@
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+
+  @include respond-to(md) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
 }
 
 .fin-page-header__left {
@@ -72,6 +85,19 @@
   gap: 8px;
   border-top: 1px solid #F1F5F9;
   padding-top: 12px;
+
+  @include respond-to(sm) {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+
+    .fin-header-stat {
+      width: 100%;
+      box-sizing: border-box;
+      justify-content: space-between;
+      padding: 6px 10px;
+    }
+  }
 }
 
 .fin-header-stat {
@@ -118,6 +144,11 @@
   align-items: center;
   gap: 6px;
   transition: background 0.15s;
+
+  @include respond-to(md) {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .fin-btn-primary:hover {
@@ -141,8 +172,39 @@
   padding: 14px 16px;
   display: flex;
   align-items: flex-end;
-  gap: 14px;
+  gap: 12px;
   flex-wrap: wrap;
+
+  @include respond-to(md) {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px;
+
+    .fin-field,
+    .fin-field--account,
+    .fin-field--branch,
+    .fin-field--date,
+    .fin-field--search {
+      flex: none !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      height: auto !important;
+    }
+
+    .fin-search-btn {
+      width: 100% !important;
+      height: 40px;
+    }
+
+    .fin-quickrow {
+      margin-left: 0;
+      width: 100%;
+      justify-content: flex-start;
+      margin-top: 4px;
+    }
+  }
 }
 
 .fin-filterbar__label {
@@ -159,6 +221,26 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.fin-field--account {
+  flex: 1 1 220px;
+  min-width: 180px;
+}
+
+.fin-field--branch {
+  flex: 1 1 160px;
+  min-width: 140px;
+}
+
+.fin-field--date {
+  flex: 1 1 140px;
+  min-width: 130px;
+}
+
+.fin-field--search {
+  flex: 1 1 180px;
+  min-width: 160px;
 }
 
 .fin-field label {
@@ -411,6 +493,40 @@
   border-top: 2px solid #CBD5E1;
 }
 
+.fin-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.fin-table-pagination {
+  border-top: 1px solid #E2E8F0;
+  background: #F8FAFC;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+
+  @include respond-to(sm) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 12px;
+
+    .fin-table-pagination__info {
+      text-align: center;
+    }
+
+    .fin-table-pagination__controls {
+      justify-content: center;
+      width: 100%;
+    }
+  }
+}
+
 .fin-grid-table td.amount-in { color: var(--brand-primary, #15803D); }
 .fin-grid-table td.amount-out { color: var(--color-danger, #DC2626); }
 .fin-grid-table td.amount-muted { color: #CBD5E1; }
@@ -474,3 +590,122 @@
 
 .fin-net-bar__value--profit { color: var(--brand-primary-hover, #0E5327); }
 .fin-net-bar__value--loss { color: var(--color-danger, #DC2626); }
+
+// ── Notification Row Target Highlight ──────────────────────────────
+.highlighted-loan-row {
+  animation: highlightPulse 3.5s ease-out forwards !important;
+  position: relative;
+}
+
+@keyframes highlightPulse {
+  0% {
+    background-color: #FEF3C7 !important;
+    box-shadow: inset 0 0 0 2px #D97706, 0 0 12px rgba(217, 119, 6, 0.25) !important;
+  }
+  20% {
+    background-color: #FEF3C7 !important;
+    box-shadow: inset 0 0 0 2px #D97706, 0 0 12px rgba(217, 119, 6, 0.25) !important;
+  }
+  70% {
+    background-color: #FFFBEB !important;
+    box-shadow: inset 0 0 0 1px #FDE68A !important;
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+
+// ── Responsive Split Panels ──────────────────────────────────────────
+.fin-split-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 20px;
+  margin-bottom: 24px;
+
+  @include respond-to(lg) {
+    grid-template-columns: 1fr;
+  }
+}
+
+// ── Manual Voucher Form Responsive Grids ─────────────────────────────
+.mv-form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+
+  @include respond-to(sm) {
+    grid-template-columns: 1fr !important;
+    gap: 10px;
+  }
+}
+
+.mv-journal-line {
+  display: grid;
+  grid-template-columns: 1fr 110px 110px 32px;
+  gap: 8px;
+  align-items: center;
+
+  @include respond-to(sm) {
+    grid-template-columns: 1fr 1fr 36px;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    padding: 8px;
+
+    > *:first-child {
+      grid-column: 1 / -1;
+    }
+  }
+}
+
+// ── Master & Organization Responsive Layouts ──────────────────────────
+.org-split-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 900px) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+.theme-split-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 900px) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+.modal-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+
+  @include respond-to(sm) {
+    grid-template-columns: 1fr !important;
+    gap: 10px;
+  }
+}
+
+.modal-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+
+  @include respond-to(sm) {
+    grid-template-columns: 1fr !important;
+    gap: 10px;
+  }
+}
+

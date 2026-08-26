@@ -19,7 +19,8 @@ export async function listInvestorsHandler(request, reply) {
 export async function createInvestorHandler(request, reply) {
   try {
     const companyCode = request.tenantCode || request.user?.companyCode || 'default';
-    const data = await investorService.createInvestor(request.tenantDb, request.body, companyCode);
+    const createdBy = request.user?.name || request.user?.email || 'Admin';
+    const data = await investorService.createInvestor(request.tenantDb, request.body, companyCode, createdBy);
     return reply.code(201).send({ success: true, data });
   } catch (err) { return fail(reply, err); }
 }
@@ -38,3 +39,12 @@ export async function deleteInvestorHandler(request, reply) {
     return reply.send({ success: true, message: 'Investor deleted successfully.' });
   } catch (err) { return fail(reply, err); }
 }
+
+export async function addInvestorCapitalHandler(request, reply) {
+  try {
+    const createdBy = request.user?.name || request.user?.email || 'Admin';
+    const data = await investorService.addInvestorCapital(request.tenantDb, request.params.id, request.body, createdBy);
+    return reply.send({ success: true, data });
+  } catch (err) { return fail(reply, err); }
+}
+

@@ -33,3 +33,8 @@ description: Management of Database-per-Tenant model, MySQL schema migrations, m
        conn.release();
      }
      ```
+4. **Schema Migrations (Strict Separate Files)**:
+   - Always create new schema changes as separate timestamped files under `server/src/tenant-configuration/migrations/YYYYMMDDNNNNNN-<name>.js` (for tenant DBs) or `server/src/database/migrations/YYYYMMDDNNNNNN-<name>.js` (for master DB).
+   - Never mutate historical base migrations.
+   - Export both `up(queryInterface, Sequelize)` and `down(queryInterface, Sequelize)`.
+

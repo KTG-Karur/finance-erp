@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { Building2, MapPin, Plus, Trash2, Pencil, X, AlertTriangle, Loader2, Save, CheckCircle2, Camera, Trash, Crown, Clock, Calendar, ShieldCheck } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import { theme } from '../styles/theme.js';
+import { uploadFile } from '../api/upload.js';
 
-const inputStyle = { width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', color: '#0F172A', fontWeight: 500 };
-const labelStyle = { fontSize: '0.72rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 4 };
+const inputStyle = { width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', color: '#0F172A', fontWeight: 500, boxSizing: 'border-box' };
+const labelStyle = { fontSize: '0.72rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 4 };
 
 function BranchModal({ isOpen, initialData, onClose, onSubmit }) {
   const { t } = useLanguage();
@@ -54,62 +55,70 @@ function BranchModal({ isOpen, initialData, onClose, onSubmit }) {
       <div className="saas-modal-card" style={{ maxWidth: 560 }}>
         <div className="saas-modal-header">
           <div className="head-left">
-            <div className="head-icon-badge" style={{ background: 'var(--color-info-light, #EFF6FF)', color: 'var(--color-info, #2563EB)' }}>
+            <div className="head-icon-badge" style={{ background: 'var(--color-info-light, #EFF6FF)', color: 'var(--color-info, #2563EB)', flexShrink: 0 }}>
               <MapPin style={{ width: 18, height: 18 }} />
             </div>
             <div className="head-titles">
-              <h3 style={{ fontWeight: 400 }}>{initialData ? t('branch.title_edit') : t('org.add_branch')}</h3>
-              <p>{t('branch.subtitle')}</p>
+              <h3 style={{ fontWeight: 600, fontSize: '0.98rem', color: '#0F172A', margin: 0 }}>{initialData ? t('branch.title_edit') : t('org.add_branch')}</h3>
+              <p style={{ margin: 0, fontSize: '0.74rem', color: '#64748B' }}>{t('branch.subtitle')}</p>
             </div>
           </div>
           <button onClick={onClose} className="close-btn" type="button"><X style={{ width: 16, height: 16 }} /></button>
         </div>
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '20px 24px' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '16px 20px', maxHeight: '78vh', overflowY: 'auto' }}>
           {error && (
             <div className="form-alert form-alert--error"><AlertTriangle style={{ width: 14, height: 14 }} /><span>{error}</span></div>
           )}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+
+          <div className="modal-grid-2">
             <div>
-              <label style={labelStyle}>{t('branch.name_label')}</label>
+              <label style={labelStyle}>{t('branch.modal.name')} *</label>
               <input type="text" required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Karur Main Branch" style={inputStyle} />
             </div>
             <div>
-              <label style={labelStyle}>{t('branch.code_label')}</label>
-              <input type="text" required value={form.code} onChange={e => setForm({ ...form, code: e.target.value.toUpperCase().replace(/\s/g, '') })} placeholder="e.g. KRM" style={{ ...inputStyle, fontFamily: 'monospace', textTransform: 'uppercase' }} maxLength={20} />
+              <label style={labelStyle}>{t('branch.modal.code')} *</label>
+              <input type="text" required value={form.code} onChange={e => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="e.g. KRR-01" style={inputStyle} />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+
+          <div className="modal-grid-2">
             <div>
-              <label style={labelStyle}>{t('branch.phone_label')}</label>
-              <input type="text" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="e.g. 04324 123456" style={inputStyle} />
+              <label style={labelStyle}>{t('branch.modal.phone')}</label>
+              <input type="text" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="e.g. 04324-220000" style={inputStyle} />
             </div>
             <div>
-              <label style={labelStyle}>{t('form.pincode')}</label>
+              <label style={labelStyle}>{t('branch.modal.pincode')}</label>
               <input type="text" value={form.pincode} onChange={e => setForm({ ...form, pincode: e.target.value })} placeholder="e.g. 639001" style={inputStyle} />
             </div>
           </div>
+
           <div>
-            <label style={labelStyle}>{t('col.address')}</label>
-            <input type="text" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="Branch office address" style={inputStyle} />
+            <label style={labelStyle}>{t('branch.modal.address')}</label>
+            <input type="text" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="Street address..." style={inputStyle} />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+
+          <div className="modal-grid-2">
             <div>
-              <label style={labelStyle}>{t('form.city')}</label>
-              <input type="text" value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} placeholder="e.g. Karur" style={inputStyle} />
+              <label style={labelStyle}>{t('branch.modal.city')}</label>
+              <input type="text" value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} placeholder="City" style={inputStyle} />
             </div>
             <div>
-              <label style={labelStyle}>{t('form.state')}</label>
-              <input type="text" value={form.state} onChange={e => setForm({ ...form, state: e.target.value })} placeholder="e.g. Tamil Nadu" style={inputStyle} />
+              <label style={labelStyle}>{t('branch.modal.state')}</label>
+              <input type="text" value={form.state} onChange={e => setForm({ ...form, state: e.target.value })} placeholder="State" style={inputStyle} />
             </div>
           </div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.8rem', color: '#334155' }}>
-            <input type="checkbox" checked={form.is_active} onChange={e => setForm({ ...form, is_active: e.target.checked })} />
-            {t('form.active')}
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.8rem', color: '#334155', fontWeight: 500, cursor: 'pointer', marginTop: 4 }}>
+            <input type="checkbox" checked={form.is_active} onChange={e => setForm({ ...form, is_active: e.target.checked })} style={{ width: 16, height: 16, accentColor: 'var(--brand-primary, #15803D)' }} />
+            <span>{t('form.active')}</span>
           </label>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-            <button type="button" onClick={onClose} style={{ background: '#F1F5F9', color: '#475569', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer' }}>{t('btn.cancel')}</button>
-            <button type="submit" disabled={loading} style={{ background: 'var(--color-info, #2563EB)', color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: '0.8rem', fontWeight: 400, cursor: 'pointer' }}>
-              {loading ? t('form.saving') : (initialData ? t('form.save_changes') : t('org.add_branch'))}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12, borderTop: '1px solid #E2E8F0', paddingTop: 14 }}>
+            <button type="button" onClick={onClose} style={{ background: '#F1F5F9', color: '#475569', border: '1px solid #CBD5E1', borderRadius: 6, padding: '8px 16px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+              {t('btn.cancel')}
+            </button>
+            <button type="submit" disabled={loading} style={{ background: 'var(--color-info, #2563EB)', color: '#FFFFFF', border: 'none', borderRadius: 6, padding: '8px 18px', fontSize: '0.8rem', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}>
+              {loading ? t('form.saving') : (initialData ? t('form.save_changes') : t('branch.add'))}
             </button>
           </div>
         </form>
@@ -120,17 +129,31 @@ function BranchModal({ isOpen, initialData, onClose, onSubmit }) {
 
 export default function OrganizationHierarchyView({
   tenant,
-  branches = [], loading, error,
-  onCreateBranch, onUpdateBranch, onDeleteBranch,
-  companyForm, setCompanyForm, onSaveCompany, savedSuccess, companySaveError, companySaving
+  branches = [],
+  loading,
+  error,
+  onCreateBranch,
+  onUpdateBranch,
+  onDeleteBranch,
+  companyForm,
+  setCompanyForm,
+  onSaveCompany,
+  savedSuccess,
+  companySaveError,
+  companySaving
 }) {
   const { t, tStatus } = useLanguage();
   const [branchModalOpen, setBranchModalOpen] = useState(false);
   const [branchEditing, setBranchEditing] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null); // branch being deleted
-  const [deleteError, setDeleteError] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const [logoError, setLogoError] = useState('');
+  const [logoImgError, setLogoImgError] = useState(false);
+
+  React.useEffect(() => {
+    setLogoImgError(false);
+  }, [companyForm?.logo]);
 
   const confirmDelete = async () => {
     if (!deleteTarget || deleteLoading) return;
@@ -146,7 +169,7 @@ export default function OrganizationHierarchyView({
     }
   };
 
-  const handleLogoChange = (e) => {
+  const handleLogoChange = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
@@ -159,9 +182,15 @@ export default function OrganizationHierarchyView({
       return;
     }
     setLogoError('');
-    const reader = new FileReader();
-    reader.onload = () => setCompanyForm({ ...companyForm, logo: reader.result });
-    reader.readAsDataURL(file);
+    try {
+      const res = await uploadFile(file, { subfolder: 'company-info', category: 'logo', prefix: 'company_logo' });
+      if (res?.url && setCompanyForm) {
+        setLogoImgError(false);
+        setCompanyForm(prev => ({ ...prev, logo: res.url }));
+      }
+    } catch {
+      setLogoError('Failed to upload logo.');
+    }
   };
 
   return (
@@ -169,28 +198,28 @@ export default function OrganizationHierarchyView({
 
       <div className="active-loans-header">
         <div className="header-left">
-          <div className="header-badge-icon" style={{ background: '#F1F5F9', borderColor: '#CBD5E1', color: '#334155' }}>
-            <Building2 style={{ width: 20, height: 20 }} />
+          <div className="header-badge-icon" style={{ background: '#F1F5F9', borderColor: '#CBD5E1', color: '#334155', flexShrink: 0 }}>
+            <Building2 style={{ width: 20, height: 20, flexShrink: 0 }} />
           </div>
           <div className="header-text">
-            <h1 style={{ fontWeight: 400 }}>{t('org.title')}</h1>
-            <p style={{ fontWeight: 400 }}>{t('org.subtitle')}</p>
+            <h1 style={{ fontWeight: 700, fontSize: '1.25rem', color: '#0F172A', margin: 0 }}>{t('org.title')}</h1>
+            <p style={{ fontWeight: 400, fontSize: '0.78rem', color: '#64748B', margin: '2px 0 0 0' }}>{t('org.subtitle')}</p>
           </div>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 360px) 1fr', gap: 16, alignItems: 'start' }}>
+      <div className="org-split-layout">
 
         {/* ── Left Panel: Company Profile ─────────────────────────── */}
         {companyForm && (
-          <form onSubmit={onSaveCompany} className="loans-table-card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <form onSubmit={onSaveCompany} className="loans-table-card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 16, boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 10 }}>
-              <div style={{ fontSize: '0.9rem', fontWeight: 400, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Building2 style={{ width: 16, height: 16, color: '#334155' }} />
+              <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Building2 style={{ width: 16, height: 16, color: '#334155', flexShrink: 0 }} />
                 <span>Company Profile</span>
               </div>
               {savedSuccess && (
-                <span style={{ padding: '4px 12px', borderRadius: 20, background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary-hover, #0E5327)', border: '1px solid var(--brand-primary-border, #A3F5C1)', fontSize: '0.75rem', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ padding: '4px 12px', borderRadius: 20, background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary-hover, #0E5327)', border: '1px solid var(--brand-primary-border, #A3F5C1)', fontSize: '0.75rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                   <CheckCircle2 style={{ width: 14, height: 14 }} />
                   <span>Saved!</span>
                 </span>
@@ -206,16 +235,18 @@ export default function OrganizationHierarchyView({
 
             {/* Company Logo */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ width: 60, height: 60, flexShrink: 0 }}>
-                {companyForm.logo ? (
+              <div style={{ width: 56, height: 56, flexShrink: 0 }}>
+                {companyForm.logo && !logoImgError ? (
                   <img
+                    key={companyForm.logo}
                     src={companyForm.logo}
                     alt="Company logo"
-                    style={{ width: 60, height: 60, borderRadius: 10, objectFit: 'cover', border: '1px solid #E2E8F0' }}
+                    onError={() => setLogoImgError(true)}
+                    style={{ width: 56, height: 56, borderRadius: 10, objectFit: 'cover', border: '1px solid #E2E8F0' }}
                   />
                 ) : (
                   <div style={{
-                    width: 60, height: 60, borderRadius: 10, background: '#F1F5F9', border: '1px solid #CBD5E1',
+                    width: 56, height: 56, borderRadius: 10, background: '#F1F5F9', border: '1px solid #CBD5E1',
                     color: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}>
                     <Building2 style={{ width: 24, height: 24 }} />
@@ -224,34 +255,37 @@ export default function OrganizationHierarchyView({
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', fontWeight: 400,
+                  display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', fontWeight: 500,
                   color: '#334155', border: '1px solid #CBD5E1', background: '#FFF', borderRadius: 7,
-                  padding: '6px 10px', cursor: 'pointer', width: 'fit-content'
+                  padding: '6px 12px', cursor: 'pointer', width: 'fit-content'
                 }}>
                   <Camera style={{ width: 13, height: 13 }} />
-                  {companyForm.logo ? 'Change Logo' : 'Upload Logo'}
+                  <span>{companyForm.logo ? 'Change Logo' : 'Upload Logo'}</span>
                   <input type="file" accept="image/*" onChange={handleLogoChange} style={{ display: 'none' }} />
                 </label>
                 {companyForm.logo && (
                   <button
                     type="button"
-                    onClick={() => setCompanyForm({ ...companyForm, logo: null })}
+                    onClick={() => {
+                      setLogoImgError(false);
+                      setCompanyForm({ ...companyForm, logo: null });
+                    }}
                     style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.72rem', fontWeight: 500,
+                      display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.72rem', fontWeight: 500,
                       color: 'var(--color-danger, #DC2626)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: 'fit-content'
                     }}
                   >
                     <Trash style={{ width: 11, height: 11 }} />
-                    Remove Logo
+                    <span>Remove Logo</span>
                   </button>
                 )}
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
-                <label style={labelStyle}>Company / Entity Name</label>
-                <input type="text" required value={companyForm.name} onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })} style={{ ...inputStyle, fontWeight: 400 }} />
+                <label style={labelStyle}>Company / Entity Name *</label>
+                <input type="text" required value={companyForm.name} onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })} style={inputStyle} />
               </div>
               <div>
                 <label style={labelStyle}>GSTIN Registration No</label>
@@ -260,8 +294,6 @@ export default function OrganizationHierarchyView({
                   value={companyForm.gstin}
                   onChange={(e) => setCompanyForm({ ...companyForm, gstin: e.target.value.toUpperCase() })}
                   maxLength={15}
-                  pattern="[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}"
-                  title="15-character GSTIN, e.g. 22AAAAA0000A1Z5"
                   placeholder="22AAAAA0000A1Z5"
                   style={inputStyle}
                 />
@@ -273,8 +305,6 @@ export default function OrganizationHierarchyView({
                   value={companyForm.pan}
                   onChange={(e) => setCompanyForm({ ...companyForm, pan: e.target.value.toUpperCase() })}
                   maxLength={10}
-                  pattern="[A-Z]{5}[0-9]{4}[A-Z]{1}"
-                  title="10-character PAN, e.g. ABCDE1234F"
                   placeholder="ABCDE1234F"
                   style={inputStyle}
                 />
@@ -289,13 +319,28 @@ export default function OrganizationHierarchyView({
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
               <button
                 type="submit"
                 disabled={companySaving}
-                style={{ height: 38, background: companySaving ? '#94A3B8' : theme.primary, color: '#FFFFFF', border: 'none', borderRadius: 8, padding: '0 18px', fontSize: '0.78rem', fontWeight: 400, cursor: companySaving ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                style={{
+                  height: 38,
+                  background: companySaving ? '#94A3B8' : theme.primary,
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '0 18px',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: companySaving ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  whiteSpace: 'nowrap',
+                  maxWidth: '100%'
+                }}
               >
-                <Save style={{ width: 14, height: 14 }} />
+                <Save style={{ width: 14, height: 14, flexShrink: 0 }} />
                 <span>{companySaving ? 'Saving...' : 'Save Company Profile'}</span>
               </button>
             </div>
@@ -331,8 +376,8 @@ export default function OrganizationHierarchyView({
                   <span>{t('org.add_branch')}</span>
                 </button>
               </div>
-              <div className="table-responsive">
-                <table>
+              <div className="fin-table-scroll">
+                <table style={{ minWidth: 600 }}>
                   <thead>
                     <tr>
                       <th style={{ width: 50, textAlign: 'center' }}>{t('col.sno')}</th>
@@ -359,13 +404,23 @@ export default function OrganizationHierarchyView({
                             {b.is_active ? tStatus('ACTIVE') : tStatus('INACTIVE')}
                           </span>
                         </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <div style={{ display: 'inline-flex', gap: 6 }}>
-                            <button onClick={() => { setBranchEditing(b); setBranchModalOpen(true); }} style={{ border: '1px solid #E2E8F0', background: '#FFFFFF', color: '#334155', borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}>
-                              <Pencil style={{ width: 12, height: 12 }} />
+                        <td style={{ textAlign: 'right', whiteSpace: 'nowrap', width: 90 }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, flexShrink: 0 }}>
+                            <button
+                              type="button"
+                              onClick={() => { setBranchEditing(b); setBranchModalOpen(true); }}
+                              title="Edit Branch"
+                              style={{ width: 30, height: 30, flexShrink: 0, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#334155', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
+                            >
+                              <Pencil style={{ width: 13, height: 13, flexShrink: 0 }} />
                             </button>
-                            <button onClick={() => { setDeleteTarget(b); setDeleteError(''); }} style={{ border: 'none', background: 'var(--color-danger-light, #FEE2E2)', color: 'var(--color-danger, #DC2626)', borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}>
-                              <Trash2 style={{ width: 12, height: 12 }} />
+                            <button
+                              type="button"
+                              onClick={() => { setDeleteTarget(b); setDeleteError(''); }}
+                              title="Delete Branch"
+                              style={{ width: 30, height: 30, flexShrink: 0, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
+                            >
+                              <Trash2 style={{ width: 13, height: 13, flexShrink: 0 }} />
                             </button>
                           </div>
                         </td>

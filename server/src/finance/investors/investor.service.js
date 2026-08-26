@@ -35,7 +35,7 @@ async function nextInvestorCode(db) {
 }
 
 export async function getInvestors(db) {
-  const [rows] = await db.query('SELECT * FROM investors ORDER BY id DESC');
+  const [rows] = await db.query('SELECT * FROM investors WHERE deleted_at IS NULL ORDER BY id DESC');
   return rows;
 }
 
@@ -48,7 +48,9 @@ function assertValidCapital(payload) {
   }
 }
 
-export async function createInvestor(db, payload, companyCode = 'default') {
+import { insertVoucherOnConnection } from '../ledger/ledger.service.js';
+
+export async function createInvestor(db, payload, companyCode = 'default', createdBy = null) {
   if (!payload.name?.trim() || !payload.phone?.trim()) {
     const err = new Error('Investor Name and Phone are required.');
     err.statusCode = 400;
@@ -65,13 +67,29 @@ export async function createInvestor(db, payload, companyCode = 'default') {
     normalized.photo = await saveBase64File(normalized.photo, companyCode, 'investors', 'inv_profile');
   }
 
-  // investor_code is derived from MAX(id), which is racy under concurrent
-  // double-submits — retry once on the unique-constraint collision rather than
-  // taking a table lock for what's a rare, self-resolving conflict.
+  const capital = Number(normalized.capital_amount) || 0;
+  const paymentMode = (payload.payment_mode || 'BANK_TRANSFER').toUpperCase();
+  const isBank = paymentMode !== 'CASH';
+  const debitCode = payload.settlement_account_code || (isBank ? '1002' : '1001');
+  let debitName = isBank ? 'Bank Account' : 'Cash in Hand';
+  if (isBank && debitCode) {
+    try {
+      const [accs] = await db.query('SELECT account_name FROM chart_of_accounts WHERE account_code = ?', [debitCode]);
+      if (accs.length && accs[0].account_name) {
+        debitName = accs[0].account_name;
+      }
+    } catch (e) {}
+  }
+  const joinDate = normalized.join_date || new Date().toISOString().slice(0, 10);
+  const branchName = payload.branch || 'Main Branch';
+
   for (let attempt = 0; attempt < 2; attempt++) {
     const code = await nextInvestorCode(db);
+    const conn = await db.getConnection();
     try {
-      const [result] = await db.execute(
+      await conn.beginTransaction();
+
+      const [result] = await conn.execute(
         `INSERT INTO investors (investor_code, name, phone, email, address, city, state, pincode,
           nominee_name, nominee_phone, nominee_relation,
           capital_amount, join_date, exit_date, notes, photo, status)
@@ -81,10 +99,34 @@ export async function createInvestor(db, payload, companyCode = 'default') {
           normalized.nominee_phone, normalized.nominee_relation, normalized.capital_amount, normalized.join_date,
           normalized.exit_date, normalized.notes, normalized.photo, normalized.status]
       );
-      return { id: result.insertId, investor_code: code, ...normalized };
+      const investorId = result.insertId;
+
+      // Double-Entry Posting for Initial Capital Contribution
+      if (capital > 0) {
+        await insertVoucherOnConnection(conn, {
+          entry_date: joinDate,
+          description: `Capital Contribution from Investor ${normalized.name} (${code})`,
+          voucher_type: isBank ? 'BANK_RECEIPT' : 'CASH_RECEIPT',
+          is_auto: true,
+          ref_type: 'INVESTOR_CAPITAL',
+          ref_id: investorId,
+          branch: branchName,
+          created_by: createdBy || 'Admin',
+          lines: [
+            { account_code: debitCode, account_name: debitName, debit: capital, credit: 0, description: `Capital Received via ${isBank ? paymentMode : 'Cash'}` },
+            { account_code: '3001', account_name: 'Promoter Share Capital', debit: 0, credit: capital, description: `Share Capital Credited - ${normalized.name}` }
+          ]
+        });
+      }
+
+      await conn.commit();
+      return { id: investorId, investor_code: code, ...normalized };
     } catch (err) {
+      await conn.rollback();
       if (err.code === 'ER_DUP_ENTRY' && attempt === 0) continue;
       throw err;
+    } finally {
+      conn.release();
     }
   }
 }
@@ -127,10 +169,72 @@ export async function updateInvestor(db, id, payload, companyCode = 'default') {
 }
 
 export async function deleteInvestor(db, id) {
-  const [result] = await db.execute('DELETE FROM investors WHERE id = ?', [id]);
+  const [result] = await db.execute('UPDATE investors SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL', [id]);
   if (!result.affectedRows) {
     const err = new Error('Investor not found.');
     err.statusCode = 404;
     throw err;
   }
 }
+
+export async function addInvestorCapital(db, id, payload = {}, createdBy = null) {
+  const amount = Number(payload.amount);
+  if (!amount || amount <= 0) {
+    const err = new Error('A valid additional capital amount greater than 0 is required.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [rows] = await conn.query('SELECT * FROM investors WHERE id = ? FOR UPDATE', [id]);
+    if (!rows.length) {
+      const err = new Error('Investor not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+    const investor = rows[0];
+    const currentCapital = Number(investor.capital_amount) || 0;
+    const newCapital = currentCapital + amount;
+
+    await conn.execute('UPDATE investors SET capital_amount = ? WHERE id = ?', [newCapital, id]);
+
+    const paymentMode = (payload.payment_mode || 'BANK_TRANSFER').toUpperCase();
+    const isBank = paymentMode !== 'CASH';
+    const debitCode = payload.settlement_account_code || (isBank ? '1002' : '1001');
+    const debitName = isBank ? 'Bank Account' : 'Cash in Hand';
+    const txnDate = payload.date || new Date().toISOString().slice(0, 10);
+    const extraNotes = payload.notes ? ` — ${payload.notes}` : '';
+
+    const voucher = await insertVoucherOnConnection(conn, {
+      entry_date: txnDate,
+      description: `Additional Capital Contribution from Investor ${investor.name} (${investor.investor_code})${extraNotes}`,
+      voucher_type: isBank ? 'BANK_RECEIPT' : 'CASH_RECEIPT',
+      is_auto: true,
+      ref_type: 'INVESTOR_CAPITAL',
+      ref_id: investor.id,
+      branch: payload.branch || investor.branch || 'Main Branch',
+      created_by: createdBy || 'Admin',
+      lines: [
+        { account_code: debitCode, account_name: debitName, debit: amount, credit: 0, description: `Capital Received via ${isBank ? paymentMode : 'Cash'}` },
+        { account_code: '3001', account_name: 'Promoter Share Capital', debit: 0, credit: amount, description: `Additional Capital - ${investor.name}` }
+      ]
+    });
+
+    await conn.commit();
+
+    const [updatedRows] = await db.query('SELECT * FROM investors WHERE id = ?', [id]);
+    return {
+      investor: updatedRows[0],
+      voucher
+    };
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+

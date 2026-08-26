@@ -105,6 +105,16 @@ async function tenantGuardPlugin(fastify, options) {
 
     request.companyId = companyId;
     request.companyCode = companyCode;
+    request.tenantCode = companyCode;
+    request.tenant = {
+      id: companyId,
+      code: companyCode,
+      dbName: dbName
+    };
+    if (request.user) {
+      request.user.companyCode = companyCode;
+      request.user.company_code = companyCode;
+    }
     request.dbName = dbName;
     request.tenantDb = getTenantDbPool(dbName);
     request.companyMaxBranches = maxBranches;

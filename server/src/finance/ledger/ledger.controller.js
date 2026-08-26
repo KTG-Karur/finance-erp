@@ -72,3 +72,20 @@ export async function getTrialBalanceHandler(request, reply) {
     return reply.send({ success: true, data: trialBalance });
   } catch (err) { return fail(reply, err); }
 }
+
+export async function getAccountBalancesHandler(request, reply) {
+  try {
+    const balances = await LedgerService.getAccountBalances(request.tenantDb, request.query || {});
+    return reply.send({ success: true, count: balances.length, data: balances });
+  } catch (err) { return fail(reply, err); }
+}
+
+export async function getAccountBalanceByCodeHandler(request, reply) {
+  try {
+    const balance = await LedgerService.getAccountBalance(request.tenantDb, request.params.code, request.query || {});
+    if (!balance) {
+      return reply.code(404).send({ success: false, message: 'Account not found in Chart of Accounts' });
+    }
+    return reply.send({ success: true, data: balance });
+  } catch (err) { return fail(reply, err); }
+}

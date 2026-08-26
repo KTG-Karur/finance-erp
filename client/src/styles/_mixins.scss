@@ -93,5 +93,41 @@
 
 // ── Sidebar transition ────────────────────────────────────────
 @mixin sidebar-transition {
-  transition: width $duration-slow $ease-out;
+  transition: width $duration-slow $ease-out, transform $duration-slow $ease-out;
 }
+
+// ── Responsive Media Query Engine ─────────────────────────────
+@mixin respond-to($breakpoint) {
+  @if $breakpoint == xs {
+    @media (max-width: #{$bp-xs}) { @content; }
+  } @else if $breakpoint == sm {
+    @media (max-width: #{$bp-sm}) { @content; }
+  } @else if $breakpoint == md {
+    @media (max-width: #{$bp-md}) { @content; }
+  } @else if $breakpoint == lg {
+    @media (max-width: #{$bp-lg}) { @content; }
+  } @else if $breakpoint == xl {
+    @media (min-width: #{$bp-xl}) { @content; }
+  } @else {
+    @media (max-width: #{$breakpoint}) { @content; }
+  }
+}
+
+// ── Touch Target Accessibility ────────────────────────────────
+@mixin touch-target($min-size: 40px) {
+  min-height: $min-size;
+  min-width: $min-size;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+// ── Mobile Card Base ──────────────────────────────────────────
+@mixin mobile-card {
+  background: $surface-white;
+  border: 1px solid $border-default;
+  border-radius: $radius-lg;
+  padding: $space-3 $space-4;
+  box-shadow: $shadow-xs;
+}
+

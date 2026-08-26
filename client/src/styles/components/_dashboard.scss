@@ -1,3 +1,5 @@
+@use '../mixins' as *;
+
 // ============================================================
 // DASHBOARD — Finance ERP · Sleek Dual Pillars & Spacious Banner
 // Font: macOS SF Pro system stack
@@ -44,6 +46,13 @@ $white: #FFFFFF;
   overflow: hidden;
   box-shadow: 0 4px 18px rgba(var(--brand-primary-deep-3-rgb, 7, 44, 21), 0.25);
 
+  @include respond-to(md) {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px 14px;
+    gap: 10px;
+  }
+
   &::before {
     content: '';
     position: absolute;
@@ -63,6 +72,11 @@ $white: #FFFFFF;
   gap: 16px;
   flex-wrap: nowrap;
   z-index: 1;
+
+  @include respond-to(md) {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
 }
 
 .db-banner__title-group {
@@ -229,6 +243,19 @@ $white: #FFFFFF;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 10px;
+
+  @include respond-to(lg) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  @include respond-to(md) {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  @include respond-to(xs) {
+    grid-template-columns: 1fr;
+  }
 }
 
 .db-kpi {
@@ -320,6 +347,10 @@ $white: #FFFFFF;
   font-family: $font;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
+
+  @include respond-to(md) {
+    font-size: 1.1rem;
+  }
 }
 
 .db-kpi__label {
@@ -335,8 +366,12 @@ $white: #FFFFFF;
 // ── Mid Row Layout ─────────────────────────────────────────────
 .db-mid-row {
   display: grid;
-  grid-template-columns: 1fr 270px;
-  gap: 10px;
+  grid-template-columns: 1fr 280px;
+  gap: 12px;
+
+  @include respond-to(lg) {
+    grid-template-columns: 1fr;
+  }
 }
 
 .db-card {
@@ -950,5 +985,121 @@ $white: #FFFFFF;
   &:hover {
     background: var(--brand-primary-hover, #0E5327);
     transform: translateY(-1px);
+  }
+}
+
+// ── Executive Visual Widgets Responsive Grid ──────────────────
+.db-executive-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 4px;
+
+  @include respond-to(lg) {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+.db-liquidity-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+
+  @include respond-to(xs) {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+.db-liquidity-card {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  min-width: 0;
+}
+
+.db-risk-matrix-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+
+  @include respond-to(xs) {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
+.db-risk-tile {
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  box-sizing: border-box;
+
+  &--active {
+    background: var(--brand-primary-light, #F0FEF5);
+    border: 1px solid var(--brand-primary-border, #A3F5C1);
+  }
+
+  &--warning-mild {
+    background: var(--color-warning-light, #FFFBEB);
+    border: 1px solid var(--color-warning-border, #FDE68A);
+  }
+
+  &--warning-mod {
+    background: #FFF7ED;
+    border: 1px solid #FFEDD5;
+  }
+
+  &--danger-npa {
+    background: var(--color-danger-light, #FEF2F2);
+    border: 1px solid var(--color-danger-border, #FECACA);
+  }
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+
+  &__title {
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.2;
+    min-width: 0;
+  }
+
+  &__badge {
+    font-size: 0.68rem;
+    background: #FFFFFF;
+    padding: 2px 7px;
+    border-radius: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    flex-shrink: 0;
+  }
+
+  &__value {
+    font-size: 1.15rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+    margin-top: 2px;
+    word-break: break-word;
+  }
+
+  &__sub {
+    font-size: 0.66rem;
+    display: block;
+    margin-top: 3px;
+    line-height: 1.2;
   }
 }

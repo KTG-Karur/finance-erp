@@ -87,8 +87,13 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
 
-  @media (max-width: 1024px) {
+  @include respond-to(lg) {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  @include respond-to(xs) {
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 }
 

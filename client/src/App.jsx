@@ -103,6 +103,12 @@ export default function App() {
     const current = stripModulePrefix(window.location.pathname);
     return (current && current !== 'login') ? current : 'dashboard';
   });
+  const [highlightLoanId, setHighlightLoanId] = useState(null);
+
+  const handleNavigateNotification = (route, targetLoanId) => {
+    setHighlightLoanId(targetLoanId || null);
+    handleTabChange(route);
+  };
 
   // Pre-auth flow: Company Code -> Module Selection -> Credentials
   // Persisted to sessionStorage so a page refresh mid-flow doesn't bounce back to step 1.
@@ -208,6 +214,7 @@ export default function App() {
       if (createdVoucher) {
         setExpenseVouchers(prev => [createdVoucher, ...prev]);
         fetchLedgerEntries();
+        fetchData();
       }
 
       // Refresh categories list so balance decreases in state
@@ -228,6 +235,8 @@ export default function App() {
       amount: payload.amount,
       otherAccountCode: payload.other_account_code,
       contraDirection: payload.contra_direction,
+      bankAccountId: payload.bank_account_id,
+      bankAccounts,
       lines: payload.lines
     });
     const res = await api.post('/finance/ledger/vouchers', {
@@ -242,6 +251,7 @@ export default function App() {
     const created = res.data?.data;
     if (created) {
       setLedgerEntries(prev => [normalizeLedgerEntry(created), ...prev]);
+      await fetchData();
     }
     return created;
   };
@@ -255,6 +265,7 @@ export default function App() {
     const reversal = res.data?.data;
     if (reversal) {
       setLedgerEntries(prev => [normalizeLedgerEntry(reversal), ...prev]);
+      await fetchData();
     }
     return reversal;
   };
@@ -527,7 +538,7 @@ export default function App() {
       const [
         loansRes, empsRes, colRes, schemesRes, borrowersRes,
         investorsRes, fdRes, rdRes, expCatRes, expReqRes, expVouchRes,
-        ledgerAccountsRes, bankAccountsRes, eodRes
+        ledgerAccountsRes, ledgerBalancesRes, bankAccountsRes, eodRes
       ] = await Promise.allSettled([
         api.get('/finance/loans'),
         api.get('/employees'),
@@ -541,6 +552,7 @@ export default function App() {
         api.get('/finance/expenses/allocation-requests'),
         api.get('/finance/expenses/vouchers'),
         api.get('/finance/ledger/accounts'),
+        api.get('/finance/ledger/accounts/balances'),
         api.get('/finance/bank-accounts'),
         api.get('/finance/eod/records')
       ]);
@@ -556,8 +568,24 @@ export default function App() {
       if (expReqRes.status === 'fulfilled' && expReqRes.value.data?.data) setExpenseAllocationRequests(expReqRes.value.data.data);
       if (expVouchRes.status === 'fulfilled' && expVouchRes.value.data?.data) setExpenseVouchers(expVouchRes.value.data.data);
       if (eodRes.status === 'fulfilled' && eodRes.value.data?.data) setEodRecords(eodRes.value.data.data);
+
+      const balancesMap = new Map();
+      if (ledgerBalancesRes.status === 'fulfilled' && ledgerBalancesRes.value.data?.data) {
+        ledgerBalancesRes.value.data.data.forEach(b => balancesMap.set(b.account_code, b));
+      }
+
       if (ledgerAccountsRes.status === 'fulfilled' && ledgerAccountsRes.value.data?.data) {
-        setLedgerAccounts(ledgerAccountsRes.value.data.data.map(normalizeLedgerAccount));
+        const merged = ledgerAccountsRes.value.data.data.map(acc => {
+          const liveBal = balancesMap.get(acc.account_code);
+          return normalizeLedgerAccount({
+            ...acc,
+            available_balance: liveBal?.available_balance ?? acc.balance,
+            current_balance: liveBal?.available_balance ?? acc.balance,
+            total_debit: liveBal?.total_debit ?? 0,
+            total_credit: liveBal?.total_credit ?? 0
+          });
+        });
+        setLedgerAccounts(merged);
       }
       if (bankAccountsRes.status === 'fulfilled' && bankAccountsRes.value.data?.data) {
         setBankAccounts(bankAccountsRes.value.data.data);
@@ -565,11 +593,52 @@ export default function App() {
       await Promise.allSettled([
         fetchLedgerEntries(),
         fetchOrgHierarchy(),
-        fetchCompanyProfile()
+        fetchCompanyProfile(),
+        fetchRoles()
       ]);
     } finally {
       setIsFetchingData(false);
     }
+  };
+
+  const [roles, setRoles] = useState([]);
+
+  const fetchRoles = async () => {
+    try {
+      const res = await api.get('/roles');
+      if (res.data?.data) {
+        setRoles(res.data.data);
+      }
+    } catch (e) {
+      console.warn('Failed to fetch roles from API', e);
+    }
+  };
+
+  const handleCreateRole = async (payload) => {
+    const res = await api.post('/roles', payload);
+    const created = res.data?.data;
+    if (created) {
+      setRoles(prev => [...prev, created]);
+      logAudit('ROLE', created.id, 'CREATE', `${created.role_name} (${created.role_code})`);
+      fetchRoles();
+    }
+    return created;
+  };
+
+  const handleUpdateRole = async (roleCode, payload) => {
+    const res = await api.put(`/roles/${roleCode}`, payload);
+    const updated = res.data?.data;
+    if (updated) {
+      setRoles(prev => prev.map(r => r.role_code === roleCode ? { ...r, ...updated } : r));
+      logAudit('ROLE', roleCode, 'UPDATE', `${updated.role_name || roleCode}`);
+    }
+    return updated;
+  };
+
+  const handleDeleteRole = async (roleCode) => {
+    await api.delete(`/roles/${roleCode}`);
+    setRoles(prev => prev.filter(r => r.role_code !== roleCode));
+    logAudit('ROLE', roleCode, 'DELETE', roleCode);
   };
 
   // Manual Vouchers, General Ledger, and Trial Balance all read from this one
@@ -788,26 +857,44 @@ export default function App() {
   };
 
   // ── Investor Capital ──
-  // A Master-style record — capital_amount/yield_rate/yield_notes live directly on
-  // the investor, not derived from a transaction ledger. A "withdrawal" is just
-  // editing capital_amount down and/or setting status to EXITED; a yield payout is
-  // just a manual note. Not wired into double-entry accounting at all.
   const handleCreateInvestor = async (payload) => {
     const res = await api.post('/finance/investors', payload);
     const created = res.data?.data;
-    if (created) setInvestors(prev => [created, ...prev]);
+    if (created) {
+      setInvestors(prev => [created, ...prev]);
+      logAudit('INVESTOR', created.id, 'CREATE', created.name);
+      fetchLedgerEntries();
+    }
     return created;
   };
+
   const handleUpdateInvestor = async (id, payload) => {
     const res = await api.put(`/finance/investors/${id}`, payload);
     const updated = res.data?.data;
-    if (updated) setInvestors(prev => prev.map(i => (i.id === id ? updated : i)));
+    if (updated) {
+      setInvestors(prev => prev.map(i => i.id === id ? updated : i));
+      logAudit('INVESTOR', id, 'UPDATE', updated.name);
+    }
     return updated;
   };
+
   const handleDeleteInvestor = async (id) => {
     await api.delete(`/finance/investors/${id}`);
     setInvestors(prev => prev.filter(i => i.id !== id));
+    logAudit('INVESTOR', id, 'DELETE', `Investor #${id}`);
   };
+
+  const handleAddInvestorCapital = async (id, payload) => {
+    const res = await api.post(`/finance/investors/${id}/add-capital`, payload);
+    const data = res.data?.data;
+    if (data?.investor) {
+      setInvestors(prev => prev.map(i => i.id === id ? data.investor : i));
+      logAudit('INVESTOR', id, 'CAPITAL_ADDED', `₹${Number(payload.amount || 0).toLocaleString('en-IN')} added to ${data.investor.name}`);
+      fetchLedgerEntries();
+    }
+    return data;
+  };
+
 
   // ── Fixed Deposits ──
   // FD principal in is a liability (owed back to the customer), booked at
@@ -844,8 +931,9 @@ export default function App() {
     if (updated) setFixedDeposits(prev => prev.map(f => (f.id === id ? updated : f)));
     fetchLedgerEntries();
   };
-  const handlePayFdMonthlyInterest = async (id, paymentMode) => {
-    const res = await api.post(`/finance/fixed-deposits/${id}/pay-interest`, { payment_mode: paymentMode });
+  const handlePayFdMonthlyInterest = async (id, payoutPayload) => {
+    const payload = typeof payoutPayload === 'string' ? { payment_mode: payoutPayload } : payoutPayload;
+    const res = await api.post(`/finance/fixed-deposits/${id}/pay-interest`, payload);
     fetchLedgerEntries();
     return res.data?.data;
   };
@@ -1054,9 +1142,11 @@ export default function App() {
       // Custom-formula applications stay client-only (see handleDisburseLoan's
       // comment — the server has no engine for token-based custom formulas).
       if (isCustom) {
+        const year = new Date().getFullYear();
+        const nextSeq = String(loans.length + 1).padStart(4, '0');
         const newApp = {
           id: Date.now(),
-          loan_account_no: `APP-2026-${Math.floor(100 + Math.random() * 900)}`,
+          loan_account_no: `APP-${year}-${nextSeq}`,
           borrower_id: payload.borrower_id ? Number(payload.borrower_id) : null,
           scheme_id: schemeId,
           borrower_name: payload.borrower_name,
@@ -1114,23 +1204,30 @@ export default function App() {
         repayment_frequency: repaymentFrequency,
         formula_type: 'STANDARD',
         purpose: payload.purpose,
+        guarantor: payload.guarantor,
         nominee: payload.nominee,
         security: payload.security
       });
       const created = res.data?.data;
       if (created) {
         const newApp = {
+          ...payload,
           ...created,
-          borrower_id: payload.borrower_id ? Number(payload.borrower_id) : null,
-          borrower_name: payload.borrower_name,
-          phone: payload.phone,
-          purpose: payload.purpose,
-          nominee: payload.nominee,
-          security: payload.security,
-          repayment_schedule: created.schedule || []
+          borrower_id: payload.borrower_id ? Number(payload.borrower_id) : (created.borrower_id || null),
+          borrower_name: payload.borrower_name || created.borrower_name,
+          phone: payload.phone || created.phone,
+          branch: resolvedBranch || created.branch,
+          scheme_id: schemeId || created.scheme_id,
+          principal_amount: payload.principal_amount || created.principal_amount,
+          installment_amount: payload.installment_amount || created.installment_amount,
+          purpose: payload.purpose || created.purpose,
+          nominee: payload.nominee || created.nominee,
+          security: payload.security || created.security,
+          repayment_schedule: created.repayment_schedule || created.schedule || []
         };
-        setLoans(prev => [newApp, ...prev]);
+        setLoans(prev => [newApp, ...prev.filter(l => l.id !== created.id)]);
         logAudit('LOAN', created.id, 'APPLICATION_SUBMITTED', created.loan_account_no);
+        fetchData();
       }
       return created;
     }
@@ -1185,13 +1282,30 @@ export default function App() {
     const isCustomFormulaLoan = loans.find(l => l.id === payload.loan_id)?.formula_type === 'CUSTOM';
 
     if (!isCustomFormulaLoan) {
+      const rawPrincipal = payload.principal_paid !== undefined ? payload.principal_paid : payload.principal_portion;
+      const rawInterest = payload.interest_paid !== undefined ? payload.interest_paid : payload.interest_portion;
+      const rawPenalty = payload.penalty !== undefined ? payload.penalty : (payload.penalty_portion || 0);
+
       const res = await api.post('/finance/collections', {
         loan_id: payload.loan_id,
         amount: totalAmt,
-        penalty: payload.penalty || 0,
+        principal_paid: rawPrincipal !== undefined ? rawPrincipal : undefined,
+        principal_portion: rawPrincipal !== undefined ? rawPrincipal : undefined,
+        interest_paid: rawInterest !== undefined ? rawInterest : undefined,
+        interest_portion: rawInterest !== undefined ? rawInterest : undefined,
+        penalty: rawPenalty,
+        penalty_portion: rawPenalty,
+        interest_from_date: payload.interest_from_date || null,
+        interest_paid_upto: payload.interest_paid_upto || null,
+        interest_days: payload.interest_days !== undefined ? payload.interest_days : undefined,
+        interest_shortfall_action: payload.interest_shortfall_action || 'CARRY_FORWARD',
+        interest_shortfall: payload.interest_shortfall || 0,
+        interest_waiver: payload.interest_waiver || 0,
+        new_pending_interest_arrears: payload.new_pending_interest_arrears !== undefined ? payload.new_pending_interest_arrears : undefined,
         payment_mode: payload.payment_mode || 'CASH',
         notes: payload.notes || '',
         payment_date: collectionDate,
+        collection_date: collectionDate,
         reference_no: payload.reference_no || '',
         collector_name: payload.collector_name || user?.name || '',
         branch: payload.branch || loans.find(l => l.id === payload.loan_id)?.branch || '',
@@ -1201,9 +1315,9 @@ export default function App() {
         longitude: payload.longitude ?? null
       });
       const data = res.data?.data;
-      principalPaid = data.principal_portion;
-      interestPaid = data.interest_portion;
-      newPendingFromServer = data.new_pending_balance;
+      principalPaid = data?.principal_portion ?? (data?.principal_paid ?? principalPaid);
+      interestPaid = data?.interest_portion ?? (data?.interest_paid ?? interestPaid);
+      newPendingFromServer = data?.new_pending_balance;
       serverData = data;
       synced = true;
     }
@@ -1223,27 +1337,19 @@ export default function App() {
     const newReceipt = synced
       ? {
         ...serverData,
-        // DailyCollectionsView (and the printable receipts it builds) reads
-        // these three amounts defensively across several historical naming
-        // schemes (`c.interest_paid ?? c.interest_portion ?? c.interestPaid`,
-        // same pattern for principal/balance) because collections loaded via
-        // GET /finance/collections use the raw DB column names while a
-        // freshly-recorded one used to carry a different, locally-invented
-        // shape. Setting the DB-style names here too means a just-recorded
-        // collection reads identically to one loaded after a refresh.
-        principal_paid: serverData.principal_portion,
-        interest_paid: serverData.interest_portion,
-        penalty: serverData.penalty_portion,
-        new_principal_balance: serverData.new_pending_balance,
-        // A few older views (LoanLedgerView, CollectionsReportView,
-        // DashboardOverviewView) only ever check the camelCase names, with no
-        // DB-column fallback — setting both here, rather than auditing and
-        // fixing every consumer individually, is what actually makes a
-        // freshly-recorded collection render identically everywhere a
-        // page-refreshed one does.
-        principalPaid: serverData.principal_portion,
-        interestPaid: serverData.interest_portion,
-        newPrincipalBalance: serverData.new_pending_balance,
+        principal_paid: serverData.principal_portion ?? serverData.principal_paid ?? principalPaid,
+        interest_paid: serverData.interest_portion ?? serverData.interest_paid ?? interestPaid,
+        penalty: serverData.penalty_portion ?? serverData.penalty ?? penaltyAmt,
+        new_principal_balance: serverData.new_pending_balance ?? serverData.new_principal_balance ?? newPendingFromServer,
+        interest_from_date: serverData.interest_from_date || payload.interest_from_date || null,
+        interest_paid_upto: serverData.interest_paid_upto || payload.interest_paid_upto || null,
+        interest_days: serverData.interest_days ?? payload.interest_days ?? null,
+        interest_shortfall: serverData.interest_shortfall || payload.interest_shortfall || 0,
+        interest_waiver: serverData.interest_waiver || payload.interest_waiver || 0,
+        pending_interest_arrears: serverData.pending_interest_arrears !== undefined ? serverData.pending_interest_arrears : payload.new_pending_interest_arrears,
+        principalPaid: serverData.principal_portion ?? serverData.principal_paid ?? principalPaid,
+        interestPaid: serverData.interest_portion ?? serverData.interest_paid ?? interestPaid,
+        newPrincipalBalance: serverData.new_pending_balance ?? serverData.new_principal_balance ?? newPendingFromServer,
         loan_account_no: payload.loan_account_no || '',
         bank_name: payload.bank_name || '',
         received_at: payload.received_at || 'BRANCH_COUNTER',
@@ -1269,6 +1375,9 @@ export default function App() {
         notes: payload.notes || '',
         voucher_no: generateVoucherNo(),
         collection_date: collectionDate,
+        interest_from_date: payload.interest_from_date || null,
+        interest_paid_upto: payload.interest_paid_upto || null,
+        interest_days: payload.interest_days ?? null,
         synced: false,
         proof_image: payload.proof_image || null,
         latitude: payload.latitude ?? null,
@@ -1289,8 +1398,12 @@ export default function App() {
       const isFullyPaid = newPending <= 0;
       const updated = {
         ...l,
-        collected_amount: l.collected_amount + totalAmt + penaltyAmt,
+        collected_amount: l.collected_amount + totalAmt,
         pending_amount: newPending,
+        pending_interest_arrears: serverData?.pending_interest_arrears !== undefined
+          ? serverData.pending_interest_arrears
+          : (payload.new_pending_interest_arrears !== undefined ? payload.new_pending_interest_arrears : (l.pending_interest_arrears || 0)),
+        interest_paid_upto: serverData?.interest_paid_upto || payload.interest_paid_upto || l.interest_paid_upto,
         // Next collection's interest-first allocation accrues from this date
         // (used by the Interest-Only strategies; harmless no-op for EMI loans).
         last_payment_date: collectionDate,
@@ -1406,6 +1519,28 @@ export default function App() {
     fetchLedgerEntries();
   };
 
+  const handleApproveWaiver = async (collectionId) => {
+    const res = await api.post(`/finance/collections/${collectionId}/approve-waiver`);
+    const updated = res.data?.data;
+    if (updated) {
+      setCollections(prev => prev.map(c => c.id === collectionId ? { ...c, ...updated } : c));
+      logAudit('COLLECTION', collectionId, 'WAIVER_APPROVED', `Waiver approved for ${updated.voucher_no || collectionId}`);
+      fetchData();
+    }
+    return updated;
+  };
+
+  const handleRejectWaiver = async (collectionId, reason) => {
+    const res = await api.post(`/finance/collections/${collectionId}/reject-waiver`, { reason });
+    const updated = res.data?.data;
+    if (updated) {
+      setCollections(prev => prev.map(c => c.id === collectionId ? { ...c, ...updated } : c));
+      logAudit('COLLECTION', collectionId, 'WAIVER_REJECTED', `Waiver rejected: ${reason}`);
+      fetchData();
+    }
+    return updated;
+  };
+
   const handleDisburseLoan = async (form) => {
     const mRate = parseFloat(form.monthly_interest_rate || form.interest_rate) || 2.0;
     const months = (form.tenure_days / 30) || 4;
@@ -1446,11 +1581,13 @@ export default function App() {
     // (EMI / Interest-Only) loans — the overwhelming majority — are real,
     // persisted via POST /finance/loans below.
     if (isCustom) {
+      const year = new Date().getFullYear();
+      const nextSeq = String(loans.length + 1).padStart(4, '0');
       const newLoan = {
         id: Date.now(),
         loan_account_no: isApplication
-          ? `APP-2026-${Math.floor(100 + Math.random() * 900)}`
-          : `LN-2026-${Math.floor(100 + Math.random() * 900)}`,
+          ? `APP-${year}-${nextSeq}`
+          : `LN-${year}-${nextSeq}`,
         borrower_id: matchedBorrower?.id || null,
         scheme_id: form.scheme_id ? Number(form.scheme_id) : loanSchemes[0]?.id || null,
         borrower_name: form.borrower_name,
@@ -1519,7 +1656,9 @@ export default function App() {
       formula_type: 'STANDARD',
       aadhaar: matchedBorrower?.aadhaar_number || '',
       pan: matchedBorrower?.pan_number || '',
-      guarantor: matchedBorrower?.guarantor_name || 'Self',
+      guarantor: form.guarantor || (matchedBorrower?.guarantor_name ? { name: matchedBorrower.guarantor_name, mobile: matchedBorrower.guarantor_phone || '', relationship: matchedBorrower.guarantor_relation || 'Guarantor' } : null),
+      nominee: form.nominee || null,
+      security: form.security || null,
       purpose: form.purpose || ''
     });
     const created = res.data?.data;
@@ -1593,7 +1732,19 @@ export default function App() {
     logAudit('LOAN', loanId, 'APPLICATION_REVERTED', loan?.loan_account_no);
   };
 
-  // Disburses an already-APPROVED application — cash leaves the vault/bank
+  const handleMarkPendingDisbursal = async (loanId, reason) => {
+    const loan = loans.find(l => l.id === loanId);
+    if (loan?.formula_type === 'CUSTOM') {
+      setLoans(prev => prev.map(l => (
+        l.id === loanId ? { ...l, status: 'PENDING_DISBURSAL' } : l
+      )));
+      return;
+    }
+    await updateLoanStatusReal(loanId, 'PENDING_DISBURSAL', reason);
+    logAudit('LOAN', loanId, 'MOVED_TO_PENDING_DISBURSAL', `${loan?.loan_account_no} — ${reason || 'Awaiting funds'}`);
+  };
+
+  // Disburses an already-APPROVED or PENDING_DISBURSAL application — cash leaves the vault/bank
   // now (real voucher posted server-side with selected source account & branch).
   const handleDisburseApprovedLoan = async (loanId, disbursalDetails = {}) => {
     const loan = loans.find(l => l.id === loanId);
@@ -1653,6 +1804,8 @@ export default function App() {
   };
 
   const getSettingsSubTab = (tabStr) => {
+    if (tabStr.includes('drafts') || tabStr.includes('trash') || tabStr.includes('archive') || tabStr.includes('deleted')) return 'drafts-archive';
+    if (tabStr.includes('brand-theme') || tabStr.includes('theme')) return 'brand-theme';
     if (tabStr.includes('bank-accounts') || tabStr.includes('banking')) return 'bank-accounts';
     if (tabStr.includes('chart-of-accounts')) return 'chart-of-accounts';
     if (tabStr.includes('investor')) return 'investor-master';
@@ -1748,6 +1901,10 @@ export default function App() {
       selectedBranch={selectedBranch}
       onChangeBranch={handleChangeBranch}
       onSaveTheme={handleSaveCompanyProfile}
+      loans={loans}
+      bankAccounts={bankAccounts}
+      chartOfAccounts={ledgerAccounts}
+      onNavigateNotification={handleNavigateNotification}
     >
 
 
@@ -1778,6 +1935,8 @@ export default function App() {
           tenant={tenant}
           chartOfAccounts={ledgerAccounts}
           bankAccounts={bankAccounts}
+          highlightLoanId={highlightLoanId}
+          onClearHighlight={() => setHighlightLoanId(null)}
           initialApplicationTerms={estimationTermsForNewLoan}
           onClearInitialApplicationTerms={() => setEstimationTermsForNewLoan(null)}
           onCreateBorrower={handleCreateBorrower}
@@ -1788,6 +1947,7 @@ export default function App() {
           onApproveLoanClosure={handleApproveLoanClosure}
           onRejectLoanClosure={handleRejectLoanClosure}
           onDisburseApprovedLoan={handleDisburseApprovedLoan}
+          onMarkPendingDisbursal={handleMarkPendingDisbursal}
           onCollectLoan={(loan) => setSelectedLoanForCollection(loan)}
         />
       )}
@@ -1858,6 +2018,8 @@ export default function App() {
           onUpdateCollection={handleUpdateCollection}
           onMarkChequeCleared={handleMarkChequeCleared}
           onMarkChequeBounced={handleMarkChequeBounced}
+          onApproveWaiver={handleApproveWaiver}
+          onRejectWaiver={handleRejectWaiver}
         />
       )}
 
@@ -1935,6 +2097,10 @@ export default function App() {
         <BorrowersView
           borrowers={borrowers}
           loans={loans}
+          collections={collections}
+          fixedDeposits={fixedDeposits}
+          recurringDeposits={recurringDeposits}
+          journalEntries={ledgerEntries}
           branches={branchesList}
           selectedBranch={selectedBranch}
           tenant={tenant}
@@ -1977,6 +2143,10 @@ export default function App() {
             tenant={tenant}
             user={user}
             employees={employees}
+            roles={roles}
+            onCreateRole={handleCreateRole}
+            onUpdateRole={handleUpdateRole}
+            onDeleteRole={handleDeleteRole}
             onSavePermissions={handleSavePermissions}
             onCreateEmployee={handleCreateEmployee}
             onUpdateEmployee={handleUpdateEmployee}
@@ -2038,6 +2208,10 @@ export default function App() {
             onCreateInvestor={handleCreateInvestor}
             onUpdateInvestor={handleUpdateInvestor}
             onDeleteInvestor={handleDeleteInvestor}
+            onAddInvestorCapital={handleAddInvestorCapital}
+            journalEntries={ledgerEntries}
+            onSaveTheme={handleSaveCompanyProfile}
+            onRefreshData={fetchData}
           />
       )}
 

@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Layers, Search, ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
+import { Layers, Search, ChevronLeft, ChevronRight, Plus, X, Clock } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import { ACCOUNT_TYPES, computeLedgerFolio, filterEntriesByBranch } from '../../utils/accounting';
 import api from '../../api/client';
-import DropdownSelect from '../../components/DropdownSelect';
+import SharedDropdown from '../../components/common/SharedDropdown';
 import SharedDatePicker from '../../components/common/SharedDatePicker';
 
 function formatDateDDMMYYYY(dateStr) {
@@ -14,6 +14,13 @@ function formatDateDDMMYYYY(dateStr) {
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
   }
   return dateStr;
+}
+
+function fmtTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 }
 
 function todayStr() {
@@ -248,9 +255,9 @@ export default function GeneralLedgerView({
 
       {/* ── Standard ERP Filter Bar ───────────────────────────────── */}
       <form className="fin-filterbar" onSubmit={handleSearch}>
-        <div className="fin-field" style={{ minWidth: 240 }}>
+        <div className="fin-field fin-field--account">
           <label>{t('fin.account_label')}</label>
-          <DropdownSelect
+          <SharedDropdown
             value={accountCode}
             onChange={(e) => {
               const newCode = e.target.value;
@@ -258,7 +265,8 @@ export default function GeneralLedgerView({
               setApplied(prev => ({ ...prev, account: newCode }));
               setCurrentPage(1);
             }}
-            buttonStyle={{ height: 36, minWidth: 240 }}
+            searchable
+            buttonStyle={{ height: 38, width: '100%' }}
             options={chartOfAccounts.map(acc => ({
               value: acc.code,
               label: `${accountName(acc)} (${acc.code})`
@@ -266,13 +274,13 @@ export default function GeneralLedgerView({
           />
         </div>
 
-        <div className="fin-field">
+        <div className="fin-field fin-field--branch">
           <label>{t('fin.branch_label')}</label>
-          <DropdownSelect
+          <SharedDropdown
             value={branch}
             onChange={(e) => { setBranch(e.target.value); setCurrentPage(1); }}
             disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
-            buttonStyle={{ height: 36, minWidth: 160 }}
+            buttonStyle={{ height: 38, width: '100%' }}
             options={[
               { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
               ...branchesList.map(b => ({ value: b.name, label: b.name }))
@@ -280,33 +288,33 @@ export default function GeneralLedgerView({
           />
         </div>
 
-        <div className="fin-field">
+        <div className="fin-field fin-field--date">
           <label>{t('fin.from_label')}</label>
           <SharedDatePicker
             value={fromDate}
             max={toDate || todayStr()}
             onChange={(e) => { setFromDate(e.target.value); setDatePreset('CUSTOM'); }}
-            buttonStyle={{ height: 36, minWidth: 140 }}
+            buttonStyle={{ height: 38, width: '100%' }}
           />
         </div>
 
-        <div className="fin-field">
+        <div className="fin-field fin-field--date">
           <label>{t('fin.to_label')}</label>
           <SharedDatePicker
             value={toDate}
             max={todayStr()}
             onChange={(e) => { setToDate(e.target.value); setDatePreset('CUSTOM'); }}
-            buttonStyle={{ height: 36, minWidth: 140 }}
+            buttonStyle={{ height: 38, width: '100%' }}
           />
         </div>
 
-        <div className="fin-field" style={{ flex: '1 1 200px', minWidth: 180 }}>
+        <div className="fin-field fin-field--search">
           <label>{t('fin.find_transactions_placeholder')}</label>
           <div style={{ position: 'relative' }}>
-            <Search style={{ position: 'absolute', left: 9, top: 11, width: 14, height: 14, color: '#94A3B8', pointerEvents: 'none' }} />
+            <Search style={{ position: 'absolute', left: 9, top: 12, width: 14, height: 14, color: '#94A3B8', pointerEvents: 'none' }} />
             <input
               className="fin-input"
-              style={{ width: '100%', paddingLeft: 30 }}
+              style={{ width: '100%', height: 38, paddingLeft: 30, boxSizing: 'border-box' }}
               type="text"
               placeholder={t('fin.find_transactions_placeholder')}
               value={instantSearch}
@@ -315,7 +323,7 @@ export default function GeneralLedgerView({
           </div>
         </div>
 
-        <button type="submit" className="fin-search-btn">{t('fin.search_btn')}</button>
+        <button type="submit" className="fin-search-btn" style={{ height: 38 }}>{t('fin.search_btn')}</button>
 
         {/* Quick Date Presets */}
         <div className="fin-quickrow">
@@ -346,104 +354,114 @@ export default function GeneralLedgerView({
 
       {/* ── Table Container ───────────────────────────────────────── */}
       <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'hidden' }}>
-        <table className="fin-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
-          <thead>
-            <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569' }}>
-              <th style={{ textAlign: 'left', width: 110, padding: '10px 12px' }}>{t('col.date')}</th>
-              <th style={{ textAlign: 'left', padding: '10px 12px' }}>{t('col.transaction_description')}</th>
-              <th style={{ textAlign: 'center', width: 130, padding: '10px 12px' }}>{t('fin.voucher_type_col')}</th>
-              <th style={{ textAlign: 'left', width: 130, padding: '10px 12px' }}>{t('fin.branch_label')}</th>
-              <th style={{ textAlign: 'right', width: 120, padding: '10px 12px' }}>{t('fin.col_debit')}</th>
-              <th style={{ textAlign: 'right', width: 120, padding: '10px 12px' }}>{t('fin.col_credit')}</th>
-              <th style={{ textAlign: 'right', width: 140, padding: '10px 14px' }}>{t('col.balance')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pagedFolio.length === 0 ? (
-              <tr>
-                <td colSpan="7" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>
-                  {t('fin.no_results_hint')}
-                </td>
+        <div className="fin-table-scroll">
+          <table className="fin-table" style={{ width: '100%', minWidth: 680, borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+            <thead>
+              <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569' }}>
+                <th style={{ textAlign: 'left', width: 130, padding: '10px 12px' }}>{t('col.date_time') || 'Date & Time'}</th>
+                <th style={{ textAlign: 'left', padding: '10px 12px' }}>{t('col.transaction_description')}</th>
+                <th style={{ textAlign: 'center', width: 110, padding: '10px 12px' }}>{t('fin.voucher_type_col')}</th>
+                <th style={{ textAlign: 'left', width: 110, padding: '10px 12px' }}>{t('fin.branch_label')}</th>
+                <th style={{ textAlign: 'right', width: 110, padding: '10px 12px' }}>{t('fin.col_debit')}</th>
+                <th style={{ textAlign: 'right', width: 110, padding: '10px 12px' }}>{t('fin.col_credit')}</th>
+                <th style={{ textAlign: 'right', width: 130, padding: '10px 14px' }}>{t('col.balance')}</th>
               </tr>
-            ) : pagedFolio.map(row => (
-              <tr
-                key={row.id}
-                style={{
-                  borderBottom: '1px solid #F1F5F9',
-                  background: row.isOpeningBalance ? '#F8FAFC' : '#FFFFFF',
-                  fontStyle: row.isOpeningBalance ? 'italic' : 'normal'
-                }}
-              >
-                <td style={{ color: '#0F172A', padding: '10px 12px' }}>{formatDateDDMMYYYY(row.date)}</td>
-                <td style={{ color: row.isOpeningBalance ? '#64748B' : '#0F172A', fontWeight: row.isOpeningBalance ? 600 : 400, padding: '10px 12px' }}>
-                  {row.narration}
-                </td>
-                <td style={{ textAlign: 'center', padding: '10px 12px' }}>
-                  <span style={{
-                    background: row.isOpeningBalance ? '#E2E8F0' : '#F1F5F9',
-                    color: '#334155',
-                    padding: '2px 8px',
-                    borderRadius: 4,
-                    fontSize: '0.7rem',
-                    fontWeight: 600
-                  }}>
-                    {row.ref_type || '—'}
-                  </span>
-                </td>
-                <td style={{ color: '#64748B', fontSize: '0.78rem', padding: '10px 12px' }}>{row.branch || '—'}</td>
-                <td style={{ textAlign: 'right', color: '#0F172A', fontWeight: 600, padding: '10px 12px' }}>
-                  {row.debit ? `₹${fmt(row.debit)}` : '—'}
-                </td>
-                <td style={{ textAlign: 'right', color: '#0F172A', fontWeight: 600, padding: '10px 12px' }}>
-                  {row.credit ? `₹${fmt(row.credit)}` : '—'}
-                </td>
-                <td style={{ textAlign: 'right', fontWeight: 700, color: row.balance < 0 ? 'var(--color-danger, #DC2626)' : '#0F172A', fontSize: '0.84rem', padding: '10px 14px' }}>
-                  {fmtSigned(row.balance)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-          {periodFolioRows.length > 0 && (
-            <tfoot>
-              <tr style={{ background: '#F8FAFC', borderTop: '2px solid #E2E8F0', fontWeight: 700 }}>
-                <td colSpan="4" style={{ textAlign: 'right', padding: '12px 14px', color: '#0F172A', fontSize: '0.82rem' }}>
-                  Period Totals / Closing Balance:
-                </td>
-                <td style={{ textAlign: 'right', padding: '12px 12px', color: 'var(--brand-primary, #15803D)', fontSize: '0.86rem' }}>
-                  ₹{fmt(totalDebit)}
-                </td>
-                <td style={{ textAlign: 'right', padding: '12px 12px', color: 'var(--color-danger, #DC2626)', fontSize: '0.86rem' }}>
-                  ₹{fmt(totalCredit)}
-                </td>
-                <td style={{ textAlign: 'right', padding: '12px 14px', color: closingBalance < 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)', fontSize: '0.94rem' }}>
-                  {fmtSigned(closingBalance)}
-                </td>
-              </tr>
-            </tfoot>
-          )}
-        </table>
+            </thead>
+            <tbody>
+              {pagedFolio.length === 0 ? (
+                <tr>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '40px 0', color: '#94A3B8' }}>
+                    {t('fin.no_results_hint')}
+                  </td>
+                </tr>
+              ) : pagedFolio.map(row => (
+                <tr
+                  key={row.id}
+                  style={{
+                    borderBottom: '1px solid #F1F5F9',
+                    background: row.isOpeningBalance ? '#F8FAFC' : '#FFFFFF',
+                    fontStyle: row.isOpeningBalance ? 'italic' : 'normal'
+                  }}
+                >
+                  <td style={{ color: '#0F172A', padding: '10px 12px' }}>
+                    <div style={{ fontWeight: 600 }}>{formatDateDDMMYYYY(row.date)}</div>
+                    {row.created_at && (
+                      <div style={{ fontSize: '0.68rem', color: '#64748B', display: 'flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
+                        <Clock style={{ width: 10, height: 10, color: '#94A3B8' }} />
+                        <span>{fmtTime(row.created_at)}</span>
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ color: row.isOpeningBalance ? '#64748B' : '#0F172A', fontWeight: row.isOpeningBalance ? 600 : 400, padding: '10px 12px' }}>
+                    {row.narration}
+                  </td>
+                  <td style={{ textAlign: 'center', padding: '10px 12px' }}>
+                    <span style={{
+                      background: row.isOpeningBalance ? '#E2E8F0' : '#F1F5F9',
+                      color: '#334155',
+                      padding: '2px 8px',
+                      borderRadius: 4,
+                      fontSize: '0.7rem',
+                      fontWeight: 600
+                    }}>
+                      {row.ref_type || '—'}
+                    </span>
+                  </td>
+                  <td style={{ color: '#64748B', fontSize: '0.78rem', padding: '10px 12px' }}>{row.branch || '—'}</td>
+                  <td style={{ textAlign: 'right', color: '#0F172A', fontWeight: 600, padding: '10px 12px' }}>
+                    {row.debit ? `₹${fmt(row.debit)}` : '—'}
+                  </td>
+                  <td style={{ textAlign: 'right', color: '#0F172A', fontWeight: 600, padding: '10px 12px' }}>
+                    {row.credit ? `₹${fmt(row.credit)}` : '—'}
+                  </td>
+                  <td style={{ textAlign: 'right', fontWeight: 700, color: row.balance < 0 ? 'var(--color-danger, #DC2626)' : '#0F172A', fontSize: '0.84rem', padding: '10px 14px' }}>
+                    {fmtSigned(row.balance)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            {periodFolioRows.length > 0 && (
+              <tfoot>
+                <tr style={{ background: '#F8FAFC', borderTop: '2px solid #E2E8F0', fontWeight: 700 }}>
+                  <td colSpan="4" style={{ textAlign: 'right', padding: '12px 14px', color: '#0F172A', fontSize: '0.82rem' }}>
+                    Period Totals / Closing Balance:
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '12px 12px', color: 'var(--brand-primary, #15803D)', fontSize: '0.86rem' }}>
+                    ₹{fmt(totalDebit)}
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '12px 12px', color: 'var(--color-danger, #DC2626)', fontSize: '0.86rem' }}>
+                    ₹{fmt(totalCredit)}
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '12px 14px', color: closingBalance < 0 ? 'var(--color-danger, #DC2626)' : 'var(--brand-primary, #15803D)', fontSize: '0.94rem' }}>
+                    {fmtSigned(closingBalance)}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
 
         {/* ── Table Pagination ──────────────────────────────────────── */}
-        <div style={{ borderTop: '1px solid #E2E8F0', background: '#F8FAFC', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+        <div className="fin-table-pagination">
+          <div className="fin-table-pagination__info" style={{ fontSize: '0.74rem', color: '#64748B' }}>
             Showing <strong>{visibleFolio.length === 0 ? 0 : startIndex + 1}</strong> to <strong>{Math.min(startIndex + pageSize, visibleFolio.length)}</strong> of <strong>{visibleFolio.length}</strong> entries
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div className="fin-table-pagination__controls" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={safePage === 1}
-              style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 6, padding: '4px 10px', fontSize: '0.74rem', cursor: safePage === 1 ? 'not-allowed' : 'pointer', opacity: safePage === 1 ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 4 }}
+              style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 6, padding: '5px 12px', fontSize: '0.74rem', cursor: safePage === 1 ? 'not-allowed' : 'pointer', opacity: safePage === 1 ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 4 }}
             >
               <ChevronLeft style={{ width: 14, height: 14 }} />
               <span>Prev</span>
             </button>
-            <span style={{ fontSize: '0.74rem', color: '#475569', padding: '0 6px' }}>
+            <span style={{ fontSize: '0.74rem', color: '#475569', padding: '0 6px', fontWeight: 600 }}>
               Page {safePage} of {totalPages}
             </span>
             <button
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={safePage === totalPages}
-              style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 6, padding: '4px 10px', fontSize: '0.74rem', cursor: safePage === totalPages ? 'not-allowed' : 'pointer', opacity: safePage === totalPages ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 4 }}
+              style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 6, padding: '5px 12px', fontSize: '0.74rem', cursor: safePage === totalPages ? 'not-allowed' : 'pointer', opacity: safePage === totalPages ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 4 }}
             >
               <span>Next</span>
               <ChevronRight style={{ width: 14, height: 14 }} />
