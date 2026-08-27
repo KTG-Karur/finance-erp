@@ -3,6 +3,7 @@ import { calculatePaymentAllocation, calculateInterestOnlyAllocation } from '../
 import { createCollectionVoucher, createCollectionReversalVoucher } from '../../shared/voucher-engine/voucherEngine.js';
 import { assertMaxFileSize } from '../../shared/validators/fileSize.js';
 import { saveBase64File } from '../../shared/utils/fileStorage.js';
+import { FyService } from '../fy/fy.service.js';
 
 const MAX_PROOF_IMAGE_BYTES = 5 * 1024 * 1024;
 
@@ -23,63 +24,73 @@ export class CollectionService {
       // Electronic Payment Reference Idempotency Guard (UPI / Bank Transfer / Cheque)
       const cleanRefNo = reference_no ? String(reference_no).trim() : null;
       if (cleanRefNo && (payment_mode || '').toUpperCase() !== 'CASH') {
-        const [dupRows] = await conn.query(
-          `SELECT id, receipt_no, collection_date FROM collections WHERE reference_no = ? AND reverted = 0 AND clearance_status != 'BOUNCED' LIMIT 1`,
+        const [existingRef] = await conn.query(
+          `SELECT id, receipt_no, collection_date, amount, loan_id FROM collections WHERE reference_no = ? AND reverted = 0 LIMIT 1`,
           [cleanRefNo]
         );
-        if (dupRows.length > 0) {
-          const err = new Error(`Duplicate transaction reference: A collection with reference '${cleanRefNo}' was already recorded under receipt ${dupRows[0].receipt_no} on ${dupRows[0].collection_date}.`);
+        if (existingRef.length > 0) {
+          const dup = existingRef[0];
+          const err = new Error(
+            `Duplicate transaction reference '${cleanRefNo}'. This payment was already recorded under Receipt #${dup.receipt_no} on ${dup.collection_date} for ₹${parseFloat(dup.amount).toLocaleString('en-IN')}.`
+          );
           err.statusCode = 409;
           throw err;
         }
       }
 
-      // Resolve specific settlement bank account for non-cash modes
-      let resolvedBankAccountId = bank_account_id ? parseInt(bank_account_id, 10) : null;
-      let resolvedSettlementCode = settlement_account_code || null;
-      let resolvedSettlementName = null;
+      const [loans] = await conn.query('SELECT * FROM loans WHERE id = ? FOR UPDATE', [loan_id]);
+      if (!loans.length) {
+        const err = new Error('Loan record not found.');
+        err.statusCode = 404;
+        throw err;
+      }
+      const loan = loans[0];
+
+      // Block collections on terminal/closed loans
+      if (['CLOSED', 'REJECTED'].includes(loan.status)) {
+        const err = new Error(`Cannot record collections against a ${loan.status} loan contract.`);
+        err.statusCode = 400;
+        throw err;
+      }
+
+      // Resolve Settlement Account Code and Name
+      let resolvedBankAccountId = bank_account_id || null;
+      let resolvedSettlementCode = settlement_account_code || (payment_mode === 'CASH' ? '1001' : '1002');
+      let resolvedSettlementName = payment_mode === 'CASH' ? 'Cash in Hand' : 'Bank Account';
 
       if (resolvedBankAccountId) {
         const [bankRows] = await conn.query(
-          `SELECT id, bank_name, account_name, ledger_account_code FROM bank_accounts WHERE id = ?`,
+          `SELECT id, bank_name, account_name, account_number, ledger_account_code FROM bank_accounts WHERE id = ? AND is_active = 1`,
           [resolvedBankAccountId]
         );
         if (bankRows.length > 0) {
-          resolvedSettlementCode = bankRows[0].ledger_account_code || '1002';
-          resolvedSettlementName = `${bankRows[0].bank_name} (${bankRows[0].account_name})`;
-        }
-      } else if (resolvedSettlementCode) {
-        const [coaRows] = await conn.query(
-          `SELECT account_name FROM chart_of_accounts WHERE account_code = ?`,
-          [resolvedSettlementCode]
-        );
-        if (coaRows.length > 0) {
-          resolvedSettlementName = coaRows[0].account_name;
+          const bank = bankRows[0];
+          resolvedSettlementCode = bank.ledger_account_code || '1002';
+          const [coaRows] = await conn.query(
+            `SELECT account_name FROM chart_of_accounts WHERE account_code = ?`,
+            [resolvedSettlementCode]
+          );
+          resolvedSettlementName = coaRows.length > 0 ? coaRows[0].account_name : `${bank.bank_name} (${bank.account_number})`;
         }
       }
+
+      const [schedules] = await conn.query(
+        'SELECT * FROM repayment_schedules WHERE loan_id = ? ORDER BY period ASC FOR UPDATE',
+        [loan_id]
+      );
 
       let diskProofImage = proof_image || null;
       if (proof_image && typeof proof_image === 'string' && proof_image.startsWith('data:')) {
         diskProofImage = await saveBase64File(proof_image, companyCode, 'collections', 'receipt_proof');
       }
 
-      const [loanRows] = await conn.query(`SELECT * FROM loans WHERE id = ? FOR UPDATE`, [loan_id]);
-      if (!loanRows.length) {
-        throw new Error(`Loan account ID ${loan_id} not found.`);
-      }
-      const loan = loanRows[0];
-
-      if (loan.status === 'CLOSED') {
-        throw new Error('This loan is already fully closed.');
-      }
-
-      const [schedules] = await conn.query(
-        `SELECT * FROM repayment_schedules WHERE loan_id = ? ORDER BY period ASC`,
-        [loan_id]
-      );
-
       const penalty = parseFloat(payload.penalty) || 0;
       const collectionDate = payment_date || new Date().toISOString().slice(0, 10);
+
+      // Period Locking Guard & Date Validations
+      await FyService.assertPeriodNotLocked(conn, collectionDate, { role: 'STAFF', name: createdBy });
+      const fy = await FyService.resolveFinancialYear(conn, collectionDate);
+      const resolvedFyId = fy?.id || null;
 
       const minDate = loan.last_payment_date || loan.loan_date || null;
       if (minDate && collectionDate < minDate) {
@@ -188,8 +199,8 @@ export class CollectionService {
 
       const [res] = await conn.query(
         `INSERT INTO collections (
-          receipt_no, loan_id, borrower_name, phone, collector_name, amount, principal_paid, interest_paid, penalty, interest_shortfall, interest_waiver, waiver_status, waiver_approved_by, waiver_approved_at, payment_mode, bank_account_id, settlement_account_code, reference_no, branch, notes, proof_image, latitude, longitude, collection_date, interest_from_date, interest_paid_upto, interest_days
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          receipt_no, loan_id, borrower_name, phone, collector_name, amount, principal_paid, interest_paid, penalty, interest_shortfall, interest_waiver, waiver_status, waiver_approved_by, waiver_approved_at, payment_mode, bank_account_id, settlement_account_code, reference_no, branch, notes, proof_image, latitude, longitude, collection_date, interest_from_date, interest_paid_upto, interest_days, financial_year_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           receiptNo,
           loan_id,
@@ -217,7 +228,8 @@ export class CollectionService {
           collectionDate,
           interestFromDate,
           interestPaidUpto,
-          interestDays
+          interestDays,
+          resolvedFyId
         ]
       );
 

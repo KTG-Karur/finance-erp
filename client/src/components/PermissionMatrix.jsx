@@ -6,7 +6,7 @@ import {
   UserCog, Percent, Landmark, CheckSquare, Square, RefreshCw,
   SlidersHorizontal, ArrowRight, Eye, Plus, Pencil, Trash2,
   CheckCircle2, AlertCircle, ChevronsDown, ChevronsUp, Folder,
-  FolderOpen, X, ShieldCheck, Archive, RotateCcw
+  FolderOpen, X, ShieldCheck, Archive, RotateCcw, Calendar, Lock
 } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import SharedDropdown from './common/SharedDropdown';
@@ -556,6 +556,27 @@ export const RBAC_MENU_SECTIONS = [
             actions: [
               { action: 'VIEW', label: 'View Archived Records', desc: 'Inspect deleted and draft records across all modules', icon: Eye },
               { action: 'RESTORE', label: 'Restore / Revert Records', desc: 'Reactivate soft-deleted entries back to active state', icon: RotateCcw }
+            ]
+          }
+        ]
+      },
+      {
+        id: 'FINANCIAL_YEAR',
+        module: 'FINANCIAL_YEAR',
+        title: 'Financial Years & Period Control',
+        icon: Calendar,
+        route: '/master-settings/financial-years',
+        description: 'Accounting periods (1 April - 31 March), period locking, subledger parity audit, and year-end carry forward',
+        submenus: [
+          {
+            id: 'fy_manager',
+            title: 'Financial Year Control & Closing Wizard',
+            route: '/master-settings/financial-years',
+            description: 'Manage financial years, run pre-closing audits, execute year-end closing, and manage period locks',
+            actions: [
+              { action: 'VIEW', label: 'View Financial Years', desc: 'Inspect financial years register and period status', icon: Eye },
+              { action: 'CLOSE', label: 'Execute Year-End Close', desc: 'Perform pre-closing audit and execute atomic closing', icon: Lock },
+              { action: 'SOFT_LOCK', label: 'Audit Soft Lock', desc: 'Pause standard transaction entry for year-end audit', icon: ShieldCheck }
             ]
           }
         ]

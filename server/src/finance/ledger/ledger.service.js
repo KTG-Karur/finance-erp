@@ -1,6 +1,7 @@
 import { LedgerRepository } from './ledger.repository.js';
 import { validateDoubleEntry } from '../../shared/accounting-engine/accountingEngine.js';
 import { EodService } from '../eod/eod.service.js';
+import { FyService } from '../fy/fy.service.js';
 
 const VALID_VOUCHER_TYPES = ['RECEIPT', 'PAYMENT', 'JOURNAL', 'CONTRA', 'CASH_RECEIPT', 'CASH_PAYMENT', 'BANK_RECEIPT', 'BANK_PAYMENT'];
 
@@ -66,11 +67,24 @@ async function assertValidVoucherInput(conn, { description, entry_date, voucher_
 // change (e.g. FD booked) and its ledger posting either both commit or both
 // roll back together, never one without the other.
 export async function insertVoucherOnConnection(conn, voucherData) {
-  const { entry_date, description, voucher_type, lines, ref_type, ref_id, branch, created_by, is_auto } = voucherData;
+  const { entry_date, description, voucher_type, lines, ref_type, ref_id, branch, created_by, is_auto, financial_year_id } = voucherData;
   await assertValidVoucherInput(conn, { description, entry_date, voucher_type, lines });
-  if (ref_type !== 'EOD_VARIANCE_ADJUSTMENT') {
+
+  // Period Locking Guard & Daily EOD Lock Guard
+  if (ref_type !== 'PERIOD_CLOSING' && ref_type !== 'OPENING_BALANCE') {
+    await FyService.assertPeriodNotLocked(conn, entry_date, { role: 'STAFF', name: created_by });
+  }
+  if (ref_type !== 'EOD_VARIANCE_ADJUSTMENT' && ref_type !== 'PERIOD_CLOSING' && ref_type !== 'OPENING_BALANCE') {
     await EodService.assertEodNotLocked(conn, branch, entry_date);
   }
+
+  // Resolve Canonical Financial Year ID
+  let resolvedFyId = financial_year_id || null;
+  if (!resolvedFyId && entry_date) {
+    const fy = await FyService.resolveFinancialYear(conn, entry_date);
+    resolvedFyId = fy?.id || null;
+  }
+
   const { totalDebit } = validateDoubleEntry(lines);
   if (totalDebit <= 0) {
     const err = new Error('Voucher total amount must be greater than zero.');
@@ -83,8 +97,8 @@ export async function insertVoucherOnConnection(conn, voucherData) {
 
   const voucherNo = voucherData.voucher_no || `VOU-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
   const [vRes] = await conn.query(
-    `INSERT INTO journal_entries (voucher_no, entry_date, description, voucher_type, is_auto, total_amount, ref_type, ref_id, branch, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO journal_entries (voucher_no, entry_date, description, voucher_type, is_auto, total_amount, ref_type, ref_id, branch, created_by, financial_year_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       voucherNo,
       entry_date || new Date().toISOString().slice(0, 10),
@@ -95,7 +109,8 @@ export async function insertVoucherOnConnection(conn, voucherData) {
       finalRefType,
       ref_id || null,
       finalBranch,
-      created_by || null
+      created_by || null,
+      resolvedFyId
     ]
   );
   const entryId = vRes.insertId;
