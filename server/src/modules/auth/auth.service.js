@@ -11,7 +11,7 @@ export async function lookupCompanyByCode(masterDb, companyCode) {
   }
 
   const [rows] = await masterDb.execute(
-    'SELECT id, company_code, name, db_name, is_active, max_branches, allowed_modules FROM companies WHERE company_code = ?',
+    'SELECT id, company_code, name, db_name, is_active, max_branches, allowed_modules, logo FROM companies WHERE company_code = ?',
     [companyCode.toUpperCase()]
   );
 
@@ -44,6 +44,7 @@ export async function lookupCompanyByCode(masterDb, companyCode) {
     dbName: company.db_name,
     maxBranches: company.max_branches ?? null,
     allowedModules: parseAllowedModules(company.allowed_modules),
+    logo: company.logo || null,
     subscriptionEndDate
   };
 }

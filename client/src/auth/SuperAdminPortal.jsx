@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import SharedDropdown from '../components/common/SharedDropdown';
+import SharedDatePicker from '../components/common/SharedDatePicker';
 import api from '../api/client';
 import { uploadFile } from '../api/upload.js';
 
@@ -131,6 +132,9 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
   const [auditLogs, setAuditLogs] = useState([]);
   const [activeNav, setActiveNav] = useState('dashboard'); // 'dashboard' | 'registry' | 'plans' | 'pools' | 'audit' | 'settings'
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // Sub-views that are drilled into — a header Back button returns to the list.
+  const DETAIL_BACK = { 'plan-editor': 'plans', 'access-editor': 'registry' };
   const [searchQuery, setSearchQuery] = useState('');
   const [isProvisionModalOpen, setIsProvisionModalOpen] = useState(false);
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
@@ -877,13 +881,33 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
   const mini = sidebarCollapsed;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden', backgroundColor: '#F8FAFC', color: '#0F172A', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif' }}>
+    <div className="sa-portal" style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden', backgroundColor: '#F8FAFC', color: '#0F172A', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif' }}>
 
       {/* ── Top Header Bar (Financial ERP Emerald Branding) ────────────────── */}
       <header className="app-header" style={{ height: 56, minHeight: 56, backgroundColor: '#041A0C', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 40, flexShrink: 0 }}>
         {/* Brand Identity */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, var(--brand-primary, #15803D) 0%, var(--brand-primary-hover, #0E5327) 100%)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.3)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          <button
+            type="button"
+            className="sa-hamburger"
+            onClick={() => setMobileNavOpen(true)}
+            aria-label="Open navigation"
+            style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#FFFFFF', width: 34, height: 34, borderRadius: 8, display: 'none', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+          >
+            <PanelLeftOpen style={{ width: 18, height: 18 }} />
+          </button>
+          {DETAIL_BACK[activeNav] && (
+            <button
+              type="button"
+              className="sa-back-btn"
+              onClick={() => setActiveNav(DETAIL_BACK[activeNav])}
+              style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#FFFFFF', height: 34, padding: '0 12px', borderRadius: 8, display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600, flexShrink: 0 }}
+            >
+              <ChevronLeft style={{ width: 15, height: 15 }} />
+              <span>Back</span>
+            </button>
+          )}
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, var(--brand-primary, #15803D) 0%, var(--brand-primary-hover, #0E5327) 100%)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.3)', flexShrink: 0 }}>
             <Crown style={{ width: 18, height: 18 }} />
           </div>
           <div>
@@ -931,8 +955,12 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
       {/* ── App Body: Sidebar + Main Workspace Column ───────────── */}
       <div className="app-body" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
+        {mobileNavOpen && (
+          <div className="sa-nav-backdrop" onClick={() => setMobileNavOpen(false)} />
+        )}
+
         {/* ── Executive Dark Emerald Sidebar ───────────────────── */}
-        <aside className={`sidebar${mini ? ' sidebar--mini' : ' sidebar--full'}`} style={{ backgroundColor: '#072C15', borderRight: '1px solid rgba(255, 255, 255, 0.08)', width: mini ? 70 : 230, transition: 'width 0.2s ease', display: 'flex', flexDirection: 'column' }}>
+        <aside className={`sidebar${mini ? ' sidebar--mini' : ' sidebar--full'}${mobileNavOpen ? ' sidebar--open' : ''}`} style={{ backgroundColor: '#072C15', borderRight: '1px solid rgba(255, 255, 255, 0.08)', width: mini ? 70 : 230, transition: 'width 0.2s ease', display: 'flex', flexDirection: 'column' }}>
           <div className="sidebar__brand" style={{ display: 'flex', alignItems: 'center', justifyContent: mini ? 'center' : 'space-between', padding: mini ? '0 8px' : '0 14px', height: 60, backgroundColor: '#041A0C', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
             {!mini && (
               <div className="sidebar__brand-text">
@@ -951,7 +979,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
             </button>
           </div>
 
-          <div className="sidebar__scroll thin-scroll" style={{ padding: '12px 8px', flex: 1, overflowY: 'auto' }}>
+          <div className="sidebar__scroll thin-scroll" onClick={() => setMobileNavOpen(false)} style={{ padding: '12px 8px', flex: 1, overflowY: 'auto' }}>
             {!mini && (
               <div className="sidebar__section-label" style={{ color: 'var(--brand-primary, #34D399)', fontWeight: 600, fontSize: '0.68rem', letterSpacing: '0.08em', padding: '12px 10px 6px' }}>
                 MASTER REGISTRY

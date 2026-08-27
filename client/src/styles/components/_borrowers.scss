@@ -590,7 +590,9 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
 // ── Directory Cards Grid View ──────────────────────────────────────
 .borrowers-cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  // min(100%, 310px) so a single card never demands more width than the
+  // container — no horizontal overflow on a 320px phone.
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 310px), 1fr));
   gap: 14px;
 
   .borrower-card {
@@ -708,6 +710,120 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
       border-top: 1px solid #F1F5F9;
       padding-top: 10px;
       margin-top: 2px;
+    }
+  }
+}
+
+// ============================================================
+// CUSTOMER DIRECTORY — mobile-app compaction (≤ 540px)
+// The card list is the only view on phones (forced in JSX); the header,
+// toolbar and pagination shrink to app proportions.
+// ============================================================
+// Filters + search share rows instead of stacking one-per-line once the bar
+// would otherwise go vertical (≤ 768px).
+.customer-directory-page .fin-filterbar {
+  @include respond-to(md) {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
+
+    .fin-field {
+      flex: 1 1 calc(50% - 5px) !important;
+      width: auto !important;
+    }
+
+    // Search keeps its own full-width row above the two dropdowns.
+    .fin-field--search {
+      flex: 1 1 100% !important;
+    }
+
+    .fin-quickrow {
+      width: 100%;
+    }
+  }
+}
+
+@include respond-to(sm) {
+  .customer-directory-page {
+    .fin-header-stats { display: none; }
+
+    .fin-header-card {
+      padding: 10px 12px;
+      gap: 8px;
+    }
+
+    .fin-page-header__icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+
+      svg { width: 15px; height: 15px; }
+    }
+
+    .fin-page-header__title { font-size: 0.98rem; }
+
+    .fin-page-header__subtitle {
+      font-size: 0.68rem;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .fin-btn-primary {
+      width: 100%;
+      height: 36px;
+      font-size: 0.8rem;
+    }
+
+    // Export / Print fills the row; the table/card toggle stays a compact
+    // chip beside it.
+    .fin-quickrow {
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-left: 0;
+
+      .export-dropdown-container { flex: 1 1 auto; min-width: 0; }
+
+      .btn-export-trigger {
+        width: 100%;
+        height: 36px;
+        justify-content: center;
+      }
+
+      .export-menu-dropdown {
+        left: 0;
+        right: auto;
+        width: 100%;
+      }
+
+      .borrowers-toolbar__view-switch {
+        flex: 0 0 auto;
+        align-self: center;
+
+        button { width: 32px; height: 32px; }
+      }
+    }
+
+    .borrowers-cards-grid {
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    // Pagination sits inside the card grid here — reset the scroll-container
+    // stickiness it carries from the table layout.
+    .borrowers-cards-grid .table-pagination {
+      position: static;
+      width: auto;
+      min-width: 0;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+      text-align: center;
+
+      .table-pagination__controls { justify-content: center; }
     }
   }
 }

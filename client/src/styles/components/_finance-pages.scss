@@ -15,6 +15,14 @@
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
   font-size: 13px;
   color: #1E293B;
+  // Never let a wide child (a dense table, a nowrap stat row) stretch the page
+  // past the workspace — children scroll or wrap within this width instead.
+  min-width: 0;
+  max-width: 100%;
+
+  > * {
+    min-width: 0;
+  }
 }
 
 // ── Header card — title + action, and real numbers underneath ────
@@ -88,15 +96,23 @@
 
   @include respond-to(sm) {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    // minmax(0, …) lets the tracks shrink below their content so a long
+    // "label  value" pair wraps instead of blowing the grid wider than the card.
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
 
     .fin-header-stat {
       width: 100%;
       box-sizing: border-box;
       justify-content: space-between;
-      padding: 6px 10px;
+      gap: 8px;
+      padding: 7px 10px;
+      white-space: normal;
     }
+  }
+
+  @include respond-to(xs) {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -122,6 +138,7 @@
   font-weight: 500;
   color: #0F172A;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .fin-header-stat__value--good { color: var(--brand-primary, #15803D); }
@@ -353,6 +370,121 @@
   color: #FFFFFF;
 }
 
+// ============================================================
+// GENERAL LEDGER + AUTO / MANUAL VOUCHERS — mobile-app compaction
+// (identical page shell: header pills + branch/date/search filter bar + table)
+// ============================================================
+
+// The transaction table is never squeezed: every cell stays on one line and
+// the table scrolls sideways inside .fin-table-scroll instead of wrapping /
+// crushing columns on a small screen.
+.general-ledger-page .fin-table th,
+.general-ledger-page .fin-table td,
+.fin-vouchers-page .fin-table th,
+.fin-vouchers-page .fin-table td {
+  white-space: nowrap;
+}
+
+// Filters pair up instead of stacking one-per-line once the bar goes vertical.
+.general-ledger-page .fin-filterbar,
+.fin-vouchers-page .fin-filterbar {
+  @include respond-to(md) {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
+
+    .fin-field {
+      flex: 1 1 100% !important;
+      width: auto !important;
+    }
+
+    // From / To dates sit side by side.
+    .fin-field--date {
+      flex: 1 1 calc(50% - 5px) !important;
+    }
+
+    .fin-search-btn {
+      width: 100% !important;
+    }
+
+    .fin-quickrow {
+      width: 100%;
+    }
+  }
+}
+
+@include respond-to(sm) {
+  .general-ledger-page,
+  .fin-vouchers-page {
+    .fin-header-card {
+      padding: 10px 12px;
+      gap: 8px;
+    }
+
+    .fin-page-header__icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+
+      svg { width: 15px; height: 15px; }
+    }
+
+    .fin-page-header__title { font-size: 0.98rem; }
+
+    .fin-page-header__subtitle {
+      font-size: 0.68rem;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    // Summary pill badges are desktop context — hidden on phones.
+    .fin-header-stats { display: none; }
+
+    // Compact filter bar: smaller controls, small inline Search button, and
+    // no quick-date pills (mobile-app style).
+    .fin-filterbar {
+      padding: 10px 12px;
+      gap: 8px;
+
+      .fin-field label {
+        font-size: 0.62rem;
+      }
+
+      .fin-input,
+      .fin-field button {
+        height: 34px !important;
+        font-size: 0.78rem;
+      }
+
+      // Rows: [Account] / [Branch | Search] / [From | To] / [Search btn]
+      .fin-field--account { order: 1; }
+      .fin-field--branch  { order: 2; }
+      .fin-field--search  { order: 3; }
+      .fin-field--date    { order: 4; }
+      .fin-search-btn     { order: 5; }
+
+      .fin-field--branch,
+      .fin-field--search {
+        flex: 1 1 calc(50% - 4px) !important;
+      }
+
+      .fin-search-btn {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        height: 34px;
+        padding: 0 16px;
+      }
+
+      .fin-quickrow {
+        display: none !important;
+      }
+    }
+  }
+}
+
 // ── Empty state (before Search is applied / no rows found) ───────
 
 .fin-empty-state {
@@ -367,6 +499,307 @@
   background: #F8FAFC;
   border: 1px dashed #E2E8F0;
   font-size: 0.85rem;
+}
+
+// ============================================================
+// REPORT PAGES (reports/*ReportView) — mobile-app compaction
+// header pills + Print/Export buttons + filter bar + data table
+// ============================================================
+.fin-report-page {
+  *, *::before, *::after { min-width: 0; }
+  overflow-x: clip;
+
+  // Data table never squeezed — cells stay on one line, .fin-tablewrap scrolls.
+  .fin-grid-table th,
+  .fin-grid-table td { white-space: nowrap; }
+
+  @include respond-to(md) {
+    // Compact filter bar: fields pair two-per-row, small controls, small
+    // inline Search button — not full-width stacked bars.
+    .fin-filterbar {
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 8px;
+      padding: 10px 12px;
+
+      .fin-field {
+        flex: 1 1 calc(50% - 4px) !important;
+        width: auto !important;
+        min-width: 0 !important;
+      }
+
+      .fin-field label { font-size: 0.64rem; }
+
+      .fin-field .shared-dropdown-root,
+      .fin-field .shared-dropdown-root > button { min-width: 0 !important; width: 100% !important; }
+
+      .fin-input,
+      .fin-field button { height: 34px !important; font-size: 0.78rem; }
+
+      .fin-search-btn {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        height: 34px;
+        padding: 0 14px;
+        font-size: 0.78rem;
+      }
+    }
+
+    // Print / Export PDF / Export CSV — all three on ONE compact row.
+    .fin-page-header > div:last-child {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 6px;
+      width: 100%;
+
+      .fin-btn-primary {
+        flex: 1 1 0;
+        min-width: 0;
+        justify-content: center;
+        min-height: 32px;
+        height: auto !important;
+        padding: 6px 6px !important;
+        font-size: 0.72rem !important;
+        white-space: nowrap;
+        overflow: hidden;
+
+        span {
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        svg { width: 12px !important; height: 12px !important; flex-shrink: 0; }
+      }
+    }
+  }
+
+  @include respond-to(sm) {
+    gap: 10px;
+
+    .fin-header-stats { display: none; }
+
+    .fin-header-card {
+      padding: 10px 12px;
+      gap: 8px;
+    }
+
+    .fin-page-header__icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+
+      svg { width: 15px; height: 15px; }
+    }
+
+    .fin-page-header__title { font-size: 0.98rem; }
+
+    .fin-page-header__subtitle {
+      font-size: 0.68rem;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .fin-page-header > div:last-child {
+      gap: 5px;
+
+      .fin-btn-primary {
+        padding: 5px 4px !important;
+        font-size: 0.68rem !important;
+        min-height: 30px;
+        gap: 3px;
+      }
+    }
+
+    .fin-filterbar {
+      padding: 8px 10px;
+      gap: 6px;
+
+      .fin-field {
+        flex: 1 1 calc(50% - 3px) !important;
+      }
+
+      .fin-field label { font-size: 0.6rem; }
+
+      .fin-input,
+      .fin-field button { height: 32px !important; }
+
+      .fin-search-btn { height: 32px; padding: 0 12px; }
+    }
+  }
+}
+
+// ============================================================
+// LOAN LEDGER / CUSTOMER LEDGER — mobile-app compaction
+// ============================================================
+.fin-field--wide {
+  flex: 1 1 260px;
+  min-width: 220px;
+}
+
+// Filters pair up (dates side by side) instead of stacking one per line.
+.fin-ledger-page .fin-filterbar {
+  @include respond-to(md) {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
+
+    .fin-field {
+      flex: 1 1 100% !important;
+      width: auto !important;
+    }
+
+    .fin-field--date {
+      flex: 1 1 calc(50% - 5px) !important;
+    }
+  }
+}
+
+@include respond-to(sm) {
+  .fin-ledger-page {
+    // Summary pill badges are desktop context — hidden on phones.
+    .fin-header-stats { display: none; }
+
+    .fin-header-card {
+      padding: 10px 12px;
+      gap: 8px;
+    }
+
+    .fin-page-header__icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+
+      svg { width: 15px; height: 15px; }
+    }
+
+    .fin-page-header__title { font-size: 0.98rem; }
+
+    .fin-page-header__subtitle {
+      font-size: 0.68rem;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    // Compact filter controls.
+    .fin-filterbar {
+      padding: 10px 12px;
+      gap: 8px;
+
+      .fin-field label {
+        font-size: 0.62rem;
+      }
+
+      .fin-field button {
+        height: 34px !important;
+        font-size: 0.78rem;
+      }
+
+      .fin-search-btn {
+        flex: 0 0 auto;
+        width: auto;
+        height: 34px;
+        padding: 0 16px;
+      }
+    }
+  }
+}
+
+// ============================================================
+// TRIAL BALANCE — mobile-app compaction
+// ============================================================
+@include respond-to(sm) {
+  .trial-balance-page {
+    .fin-header-card {
+      padding: 12px 14px !important;
+    }
+
+    .tb-header-title {
+      h1 { font-size: 1rem !important; }
+
+      p {
+        font-size: 0.68rem !important;
+        line-height: 1.35;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+    }
+
+    // Total Debit / Total Credit / Reconciliation Status become small pill
+    // chips on their own line under the title.
+    .tb-header-summary {
+      width: 100%;
+      flex-wrap: wrap;
+      gap: 6px !important;
+
+      > div {
+        flex: 0 1 auto;
+        flex-direction: row !important;
+        align-items: baseline;
+        gap: 5px !important;
+        padding: 4px 10px;
+        background: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: 999px;
+
+        > span:first-child {
+          font-size: 0.58rem !important;
+        }
+
+        > span:last-child {
+          font-size: 0.8rem !important;
+          white-space: normal;
+          overflow-wrap: break-word;
+        }
+      }
+    }
+
+    // Compact filters: Branch + As-of date share a row, Search is a small
+    // inline button — not full-width stacked bars.
+    .fin-filterbar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .tb-filter-controls {
+      flex-wrap: wrap;
+      align-items: flex-end;
+      width: 100%;
+      gap: 8px !important;
+
+      .fin-field {
+        flex: 1 1 calc(50% - 4px) !important;
+        width: auto !important;
+        min-width: 0 !important;
+
+        label { font-size: 0.62rem; }
+
+        // let the dropdown / date button shrink to the half-row width
+        .shared-dropdown-root,
+        .shared-dropdown-root > button { min-width: 0 !important; }
+      }
+
+      .fin-search-btn {
+        flex: 0 0 auto;
+        width: auto;
+        height: 34px;
+        padding: 0 16px;
+        margin-top: 0 !important;
+      }
+    }
+
+    .fin-filterbar > label {
+      margin-top: 6px !important;
+    }
+  }
 }
 
 // ── Badge ──────────────────────────────────────────────────────
@@ -431,13 +864,230 @@
 .fin-tablewrap {
   border: 1px solid #CBD5E1;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
   max-height: 65vh;
+  // The wrapper is the scroll boundary: a wide table scrolls *inside* this box
+  // and never widens the page.
+  width: 100%;
+  max-width: 100%;
 }
 
 .fin-grid-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.8rem;
+}
+
+// Dense multi-column registers (Loans Register etc.): keep every column at a
+// legible width and let .fin-tablewrap scroll horizontally, rather than letting
+// columns crush together and text overlap on small screens.
+.fin-grid-table--wide {
+  min-width: 940px;
+}
+
+// The Fixed Deposits register carries ~13 columns — give it more room so no
+// heading or figure has to wrap or collide.
+.fixed-deposits-page .fin-grid-table--wide {
+  min-width: 1120px;
+}
+
+// ============================================================
+// FIXED DEPOSITS — mobile-app compaction (≤ 540px)
+// The list page drops to phone proportions: no summary pills, a slim header,
+// a compact filter row (branch chip + search on one line), full-width CTA.
+// ============================================================
+.fd-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+}
+
+.fd-toolbar__tabs {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.fd-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fd-filter-field {
+  &--branch {
+    flex: 0 0 auto;
+    width: 140px;
+  }
+
+  &--search {
+    position: relative;
+    width: 280px;
+    max-width: 100%;
+  }
+}
+
+.fd-header-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@include respond-to(sm) {
+  .fixed-deposits-page {
+    // Summary pills (Active Principal / Accounts / Maturity Liability) are
+    // desktop context — hidden on phones so the list is reachable immediately.
+    .fin-header-stats { display: none; }
+
+    .fin-header-card {
+      padding: 10px 12px;
+      gap: 8px;
+    }
+
+    .fin-page-header__icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+
+      svg { width: 15px; height: 15px; }
+    }
+
+    .fin-page-header__title { font-size: 0.98rem; }
+    .fin-page-header__subtitle { font-size: 0.7rem; }
+
+    .fd-header-actions {
+      width: 100%;
+      gap: 6px;
+      flex-wrap: nowrap;
+
+      // Print Register + Book New FD share one row, equal halves.
+      .fin-btn-primary,
+      .fd-header-actions__secondary {
+        flex: 1 1 0;
+        min-width: 0;
+        width: auto;
+        height: 36px;
+        font-size: 0.8rem;
+        white-space: nowrap;
+      }
+    }
+  }
+
+  .fd-toolbar { gap: 8px; }
+
+  .fd-filters {
+    flex-wrap: nowrap;
+    gap: 8px;
+    width: 100%;
+  }
+
+  // Branch dropdown = compact chip, not a full-width bar.
+  .fd-filter-field--branch {
+    flex: 0 0 auto;
+    width: 138px;
+  }
+
+  // Search fills the rest of the row beside the chip.
+  .fd-filter-field--search {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+}
+
+// ============================================================
+// RECURRING DEPOSITS — same mobile-app compaction as Fixed Deposits
+// ============================================================
+.recurring-deposits-page .fin-grid-table--wide {
+  min-width: 1120px;
+}
+
+.rd-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+}
+
+.rd-toolbar__tabs {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.rd-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rd-filter-field {
+  &--branch {
+    flex: 0 0 auto;
+    width: 140px;
+  }
+
+  &--search {
+    position: relative;
+    width: 280px;
+    max-width: 100%;
+  }
+}
+
+@include respond-to(sm) {
+  .recurring-deposits-page {
+    .fin-header-stats { display: none; }
+
+    .fin-header-card {
+      padding: 10px 12px;
+      gap: 8px;
+    }
+
+    .fin-page-header__icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+
+      svg { width: 15px; height: 15px; }
+    }
+
+    .fin-page-header__title { font-size: 0.98rem; }
+    .fin-page-header__subtitle { font-size: 0.7rem; }
+
+    .fin-btn-primary {
+      width: 100%;
+      height: 36px;
+      font-size: 0.8rem;
+    }
+  }
+
+  .rd-toolbar { gap: 8px; }
+
+  .rd-filters {
+    flex-wrap: nowrap;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .rd-filter-field--branch {
+    flex: 0 0 auto;
+    width: 138px;
+  }
+
+  .rd-filter-field--search {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
 }
 
 .fin-grid-table thead th {
@@ -626,6 +1276,88 @@
 
   @include respond-to(lg) {
     grid-template-columns: 1fr;
+  }
+}
+
+// ============================================================
+// BRANCH EXPENSE BUDGET & SPEND HISTORY — mobile-app compaction
+// ============================================================
+.branch-expense-page {
+  *, *::before, *::after { min-width: 0; }
+  overflow-x: clip;
+
+  // Filters pair up (branch + category) instead of stacking one per line.
+  .fin-filterbar {
+    @include respond-to(md) {
+      flex-direction: column;
+      align-items: stretch;
+
+      .be-filters {
+        width: 100%;
+        gap: 8px;
+
+        .fin-field {
+          flex: 1 1 calc(50% - 4px);
+          min-width: 0;
+        }
+      }
+
+      .be-search {
+        width: 100% !important;
+      }
+    }
+  }
+
+  @include respond-to(sm) {
+    gap: 10px;
+
+    .be-header-card {
+      padding: 12px 14px !important;
+    }
+
+    .be-header-title {
+      h1 { font-size: 1rem !important; }
+
+      p {
+        font-size: 0.68rem !important;
+        line-height: 1.35;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+    }
+
+    // Total Allocated / Spent / Remaining become small pill chips; the
+    // action button takes its own full-width row.
+    .be-header-summary {
+      width: 100%;
+      flex-wrap: wrap;
+      gap: 6px !important;
+
+      .be-hstat {
+        flex: 0 1 auto;
+        flex-direction: row !important;
+        align-items: baseline;
+        gap: 5px !important;
+        padding: 4px 10px;
+        background: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: 999px;
+
+        span:first-child { font-size: 0.56rem !important; }
+        span:last-child {
+          font-size: 0.82rem !important;
+          white-space: nowrap;
+        }
+      }
+
+      .be-header-btn {
+        flex: 1 1 100%;
+        justify-content: center;
+        padding: 9px 14px !important;
+      }
+    }
   }
 }
 

@@ -201,7 +201,7 @@ export default function GeneralLedgerView({
   };
 
   return (
-    <div className="fin-page">
+    <div className="fin-page general-ledger-page">
       {/* ── Standard ERP Header Card ──────────────────────────────── */}
       <div className="fin-header-card">
         <div className="fin-page-header">

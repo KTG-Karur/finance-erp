@@ -35,6 +35,36 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
   color: #0F172A;
   font-family: $font-macos !important;
   -webkit-font-smoothing: antialiased;
+
+  // ── Master pages (Staff Directory / RBAC) — mobile-app compaction ──
+  *, *::before, *::after { min-width: 0; }
+  overflow-x: clip;
+
+  // Table data never wraps / crushes — cells stay on one line and the
+  // .fin-table-scroll box scrolls sideways.
+  .fin-table-scroll table th,
+  .fin-table-scroll table td { white-space: nowrap; }
+
+  @include respond-to(sm) {
+    gap: 12px;
+
+    .active-loans-header {
+      .header-left { min-width: 0; }
+
+      .header-text {
+        h1 { font-size: 1rem; overflow-wrap: break-word; }
+        p {
+          font-size: 0.68rem;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+      }
+    }
+
+    .fin-header-stats { display: none; }
+  }
 }
 
 // ── Header Card ───────────────────────────────────────────────
@@ -449,6 +479,28 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
   width: max-content;
   min-width: 100%;
   box-sizing: border-box;
+  gap: 10px;
+  flex-wrap: wrap;
+
+  @include respond-to(sm) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 12px;
+    text-align: center;
+  }
+
+  // Rendered as a normal bar *under* the table (outside .fin-tablewrap), so it
+  // is always visible and doesn't scroll with the table.
+  &--under {
+    position: static;
+    width: auto;
+    min-width: 0;
+    margin-top: -1px;
+    border: 1px solid #CBD5E1;
+    border-top-color: #E2E8F0;
+    border-radius: 0 0 8px 8px;
+  }
 
   &__info {
     font-weight: 500 !important;
@@ -463,6 +515,10 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
     display: flex;
     align-items: center;
     gap: 8px;
+
+    @include respond-to(sm) {
+      justify-content: center;
+    }
 
     button {
       border: 1px solid #CBD5E1;
@@ -1506,6 +1562,154 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
   }
 }
 
+// ── Loan Account Detail view — mobile-app compaction ────────────
+.loan-detail-page-container {
+  // Every flex / grid child may shrink below its content, so KPI numbers,
+  // info chips and tab labels can't push the page wider than the screen.
+  *, *::before, *::after { min-width: 0; }
+  overflow-x: clip;
+
+  @include respond-to(md) {
+    gap: 12px;
+
+    .loan-detail-header-card {
+      padding: 12px;
+      gap: 10px;
+
+      .nav-top-row {
+        flex-wrap: wrap;
+        gap: 10px;
+
+        .header-action-btns {
+          width: 100%;
+          flex-wrap: wrap;
+          gap: 6px;
+
+          > button { white-space: nowrap; }
+        }
+      }
+    }
+  }
+
+  @include respond-to(sm) {
+    gap: 10px;
+
+    .loan-detail-header-card {
+      padding: 10px 12px;
+      gap: 10px;
+
+      // ── Action buttons: one tidy compact row ──────────────────
+      .nav-top-row .header-action-btns {
+        > button {
+          flex: 1 1 auto;
+          justify-content: center;
+          padding: 7px 10px !important;
+          font-size: 0.74rem !important;
+          border-radius: 8px !important;
+
+          svg { width: 13px !important; height: 13px !important; }
+        }
+      }
+
+      // ── Hero: avatar + name on one row, chips full-width below ──
+      .loan-hero-main-row .customer-header-profile {
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 10px;
+
+        .header-customer-photo,
+        .header-customer-avatar {
+          width: 40px;
+          height: 40px;
+          font-size: 0.85rem;
+        }
+
+        // Hoist name-row + chips out of their column so they sit directly
+        // in the flex row (name beside avatar, chips wrap onto their own line).
+        .customer-header-details { display: contents; }
+
+        .title-name-row {
+          flex: 1 1 auto;
+          min-width: 0;
+          gap: 6px;
+
+          h2 { font-size: 1rem; }
+
+          .status-tag-pill { flex-shrink: 0; }
+        }
+
+        .meta-pills-row {
+          flex-basis: 100%;
+          gap: 5px;
+
+          .info-chip {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 0.7rem;
+            padding: 3px 8px;
+          }
+        }
+      }
+    }
+
+    // ── KPI tiles: one per row, compact — label + value only ──────
+    .loan-detail-kpi-grid {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .kpi-detail-card {
+      padding: 10px 12px;
+      gap: 10px;
+      align-items: center;
+      border-radius: 12px;
+
+      &:hover { transform: none; }
+
+      .kpi-icon-badge {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+
+        svg { width: 15px; height: 15px; }
+      }
+
+      .lbl { font-size: 0.62rem; }
+      .val { font-size: 1.05rem; }
+      .sub { display: none; }
+    }
+
+    // Tab bar scrolls sideways instead of overflowing the screen.
+    .loan-detail-tab-nav {
+      width: 100%;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+
+      &::-webkit-scrollbar { display: none; }
+
+      .detail-tab-btn {
+        flex-shrink: 0;
+        white-space: nowrap;
+        padding: 8px 12px;
+        font-size: 0.78rem;
+      }
+    }
+
+    .donut-chart-flex {
+      gap: 16px;
+
+      .legend-column {
+        flex: 1 1 100%;
+        min-width: 0;
+      }
+    }
+  }
+}
+
 // Loan row action pills (Collect/View/History/Preclose/NOC) — used to wrap
 // onto a second line inside the table cell once more than 2-3 pills were
 // present. Keeping them on one row and letting the table's own horizontal
@@ -1517,6 +1721,98 @@ $font-macos: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pr
   gap: 5px;
   flex-wrap: nowrap;
   justify-content: flex-end;
+}
+
+// ── Loan Register toolbar: tabs + branch filter + search ─────────
+.loans-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+}
+
+.loans-toolbar__tabs {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.loans-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 440px;
+}
+
+.loans-filter-field {
+  &--branch {
+    flex: 1 1 140px;
+    min-width: 120px;
+  }
+
+  &--search {
+    position: relative;
+    flex: 1 1 180px;
+    min-width: 150px;
+  }
+}
+
+// ── Below tablet: strip it down to mobile-app proportions ────────
+@include respond-to(sm) {
+  .loans-register-page {
+    // The four summary "pill badges" (Total Disbursed / Collected / Outstanding
+    // / Overdue) are desktop context — drop them on phones so the list starts
+    // right away.
+    .fin-header-stats { display: none; }
+
+    .fin-header-card {
+      padding: 10px 12px;
+      gap: 8px;
+    }
+
+    .fin-page-header__icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+
+      svg { width: 15px; height: 15px; }
+    }
+
+    .fin-page-header__title { font-size: 0.98rem; }
+    .fin-page-header__subtitle { font-size: 0.7rem; }
+
+    .fin-btn-primary {
+      width: 100%;
+      height: 34px;
+      font-size: 0.8rem;
+    }
+  }
+
+  .loans-toolbar { gap: 8px; }
+
+  .loans-filters {
+    max-width: none;
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+
+  // Branch dropdown = compact chip, not a full-width bar.
+  .loans-filter-field--branch {
+    flex: 0 0 auto;
+    width: 140px;
+    min-width: 0;
+  }
+
+  // Search takes whatever width is left beside the compact dropdown.
+  .loans-filter-field--search {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
 }
 
 

@@ -24,6 +24,13 @@ export default function LoanLedgerView({ loans = [], collections = [], branchesL
   const hasBranchSelected = branch !== '';
   const [fromDate, setFromDate] = useState(monthStartStr());
   const [toDate, setToDate] = useState(todayStr());
+  // Date range is applied only when Search is pressed (branch / loan pickers
+  // stay live since they are the navigation).
+  const [applied, setApplied] = useState({ from: monthStartStr(), to: todayStr() });
+  const handleSearch = (e) => {
+    if (e) e.preventDefault();
+    setApplied({ from: fromDate, to: toDate });
+  };
 
   const branchLoans = useMemo(() => {
     if (branch === 'ALL') return loans;
@@ -80,15 +87,15 @@ export default function LoanLedgerView({ loans = [], collections = [], branchesL
     });
 
     return out
-      .filter(row => (!fromDate || row.date >= fromDate) && (!toDate || row.date <= toDate))
+      .filter(row => (!applied.from || row.date >= applied.from) && (!applied.to || row.date <= applied.to))
       .slice()
       .reverse();
-  }, [selectedLoan, collections, fromDate, toDate]);
+  }, [selectedLoan, collections, applied.from, applied.to]);
 
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
   return (
-    <div className="fin-page">
+    <div className="fin-page fin-ledger-page loan-ledger-page">
       <div className="fin-header-card">
         <div className="fin-page-header">
           <div className="fin-page-header__left">
@@ -122,14 +129,14 @@ export default function LoanLedgerView({ loans = [], collections = [], branchesL
         </div>
       </div>
 
-      <div className="fin-filterbar">
+      <form className="fin-filterbar" onSubmit={handleSearch}>
         <div className="fin-field">
           <label>{t('fin.branch_label')}</label>
           <SharedDropdown
             value={branch}
             onChange={(e) => { setBranch(e.target.value); setLoanId(''); }}
             disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
-            buttonStyle={{ height: 36, minWidth: 160 }}
+            buttonStyle={{ height: 36, width: '100%' }}
             options={[
               { value: '', label: t('fin.select_branch_placeholder') || '— Select Branch —' },
               { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
@@ -138,14 +145,14 @@ export default function LoanLedgerView({ loans = [], collections = [], branchesL
           />
         </div>
         {hasBranchSelected && (
-          <div className="fin-field" style={{ minWidth: 260 }}>
+          <div className="fin-field fin-field--wide">
             <label>{t('col.loan_acc')}</label>
             <SharedDropdown
               value={effectiveLoanId}
               placeholder={t('fin.select_account_placeholder') || '— Select Account —'}
               onChange={(e) => setLoanId(Number(e.target.value))}
               searchable
-              buttonStyle={{ height: 36, minWidth: 260 }}
+              buttonStyle={{ height: 36, width: '100%' }}
               options={branchLoans.map(l => ({
                 value: l.id,
                 label: `${l.loan_account_no} — ${l.borrower_name}`
@@ -153,25 +160,27 @@ export default function LoanLedgerView({ loans = [], collections = [], branchesL
             />
           </div>
         )}
-        <div className="fin-field">
+        <div className="fin-field fin-field--date">
           <label>{t('fin.from_label')}</label>
           <SharedDatePicker
             value={fromDate}
             max={toDate || todayStr()}
             onChange={(e) => setFromDate(e.target.value)}
-            buttonStyle={{ height: 36, minWidth: 140 }}
+            buttonStyle={{ height: 36, width: '100%' }}
           />
         </div>
-        <div className="fin-field">
+        <div className="fin-field fin-field--date">
           <label>{t('fin.to_label')}</label>
           <SharedDatePicker
             value={toDate}
             max={todayStr()}
             onChange={(e) => setToDate(e.target.value)}
-            buttonStyle={{ height: 36, minWidth: 140 }}
+            buttonStyle={{ height: 36, width: '100%' }}
           />
         </div>
-      </div>
+
+        <button type="submit" className="fin-search-btn">{t('fin.search_btn')}</button>
+      </form>
 
       <div className="fin-tablewrap">
         <table className="fin-grid-table">

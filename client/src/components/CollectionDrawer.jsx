@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Receipt, CheckCircle2, FileText, Calendar } from 'lucide-react';
+import { X, Receipt, CheckCircle2, FileText, Calendar, Phone } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
 import {
   resolveInterestPaidUpto,
@@ -324,6 +324,34 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
               }}>
                 {currentLoan.loan_account_no}
               </span>
+
+            </div>
+
+            {/* Mobile-only compact identity: photo + name on one row,
+                mobile number + customer id on the next (≤768px). */}
+            <div className="cd-mobile-identity">
+              <div className="cd-mi-top">
+                {profileImage ? (
+                  <img
+                    src={profileImage}
+                    alt={borrowerName}
+                    className="cd-mi-avatar"
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                ) : (
+                  <div className="cd-mi-avatar cd-mi-avatar--initials">
+                    {(borrowerName || 'C').slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <h4 className="cd-mi-name">{borrowerName}</h4>
+              </div>
+              <div className="cd-mi-meta">
+                <span className="cd-mi-chip">
+                  <Phone style={{ width: 12, height: 12 }} />
+                  {phoneNo}
+                </span>
+                <span className="cd-mi-chip cd-mi-chip--id">{currentLoan.loan_account_no}</span>
+              </div>
             </div>
 
             {/* Borrower Identity & Contact Grid */}
@@ -447,7 +475,7 @@ export default function CollectionDrawer({ isOpen, onClose, loan, borrowers = []
             </div>
           </div>
 
-          <div style={{ paddingTop: 12, borderTop: '1px solid #E2E8F0', fontSize: '0.72rem', color: 'var(--brand-primary-hover, #0E5327)', textAlign: 'center', fontWeight: 500 }}>
+          <div className="cd-panel-footer" style={{ paddingTop: 12, borderTop: '1px solid #E2E8F0', fontSize: '0.72rem', color: 'var(--brand-primary-hover, #0E5327)', textAlign: 'center', fontWeight: 500 }}>
             {t('cd.active_loan_account')}
           </div>
         </div>

@@ -129,7 +129,7 @@ export default function AutoVouchersView({ journalEntries = [], branchesList = [
   const totalAmount = filtered.reduce((s, je) => s + lineTotal(je, 'debit'), 0);
 
   return (
-    <div className="fin-page">
+    <div className="fin-page fin-vouchers-page">
       <div className="fin-header-card">
         <div className="fin-page-header">
           <div className="fin-page-header__left">

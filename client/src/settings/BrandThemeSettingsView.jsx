@@ -58,7 +58,7 @@ export default function BrandThemeSettingsView({ tenant, user, onSaveTheme }) {
   const isDirty = (tenant?.theme_color || DEFAULT_HEX).toLowerCase() !== customHex.toLowerCase();
 
   return (
-    <div className="fin-page">
+    <div className="fin-page master-settings-page">
       {/* ── Page Header ── */}
       <div className="fin-header-card">
         <div className="fin-page-header">

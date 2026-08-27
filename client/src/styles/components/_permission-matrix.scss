@@ -382,3 +382,39 @@
     }
   }
 }
+
+// ── RBAC matrix — mobile-app compaction ─────────────────────────
+.rbac-matrix-page,
+.rbac-matrix-container {
+  *, *::before, *::after { min-width: 0; }
+}
+
+@include respond-to(sm) {
+  .rbac-matrix-container {
+    gap: 10px;
+
+    .matrix-toolbar {
+      padding: 8px 10px;
+      gap: 8px;
+
+      .toolbar-left {
+        width: 100%;
+        gap: 8px;
+
+        .role-selector-field { flex: 1 1 100%; }
+
+        .perm-search-box {
+          width: auto;
+          flex: 1 1 100%;
+        }
+
+        .btn-collapse-all { flex: 0 0 auto; }
+      }
+    }
+
+    // One toggle card per row so long action names never collide with the switch.
+    .module-card-body .actions-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+}

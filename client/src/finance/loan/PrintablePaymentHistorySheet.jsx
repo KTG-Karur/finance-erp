@@ -75,7 +75,7 @@ export default function PrintablePaymentHistorySheet({
   // ── STEP 1: MODIFIED macOS STYLE UI MODAL
   if (viewStep === 'UI_MODAL') {
     const uiModalContent = (
-      <div style={{
+      <div className="pmt-ledger-overlay" style={{
         position: 'fixed',
         inset: 0,
         zIndex: 999999,
@@ -87,8 +87,59 @@ export default function PrintablePaymentHistorySheet({
         justifyContent: 'center',
         padding: 24
       }}>
+        <style>{`
+          /* The 12-column ledger never squeezes: every cell stays on one line
+             and the table scrolls horizontally inside its own box. */
+          .pmt-ledger-tbl { min-width: 1040px !important; width: 1040px; }
+          .pmt-ledger-tbl th,
+          .pmt-ledger-tbl td { white-space: nowrap; }
+          .pmt-ledger-tbl-scroll {
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior-x: contain;
+          }
+
+          @media (max-width: 900px) {
+            .pmt-ledger-overlay { padding: 8px !important; }
+            .pmt-ledger-card {
+              width: 100% !important;
+              max-width: 100% !important;
+              max-height: 94vh !important;
+              border-radius: 12px !important;
+              overflow-x: hidden !important;
+            }
+            /* Every flex / grid child may shrink below its content width. */
+            .pmt-ledger-card *, .pmt-ledger-card *::before, .pmt-ledger-card *::after { min-width: 0; }
+            /* Keep the header on ONE row: title/subtitle wrap inside their own
+               column, the round ✕ button stays pinned top-right. */
+            .pmt-ledger-head {
+              padding: 12px 14px !important;
+              gap: 10px;
+              flex-wrap: nowrap !important;
+              align-items: flex-start !important;
+            }
+            .pmt-ledger-head h3 { font-size: 0.95rem !important; }
+            .pmt-ledger-head > div:first-child { flex: 1 1 auto; min-width: 0; }
+            .pmt-ledger-head > div:first-child > :first-child { flex-shrink: 0; }
+            .pmt-ledger-head > button { flex-shrink: 0; align-self: flex-start; }
+            .pmt-ledger-body { padding: 14px !important; gap: 14px !important; overflow-x: hidden !important; }
+            .pmt-ledger-kpis {
+              grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+              gap: 8px !important;
+            }
+            .pmt-ledger-tblhead { flex-direction: column; align-items: flex-start !important; gap: 2px; }
+            .pmt-ledger-foot { flex-direction: column-reverse !important; gap: 8px; align-items: stretch !important; }
+            .pmt-ledger-foot > button { width: 100%; justify-content: center; }
+          }
+
+          @media (max-width: 430px) {
+            .pmt-ledger-kpis { grid-template-columns: 1fr !important; }
+          }
+        `}</style>
         {/* Modern macOS System Container (Width 1140px, Max-height 88vh) */}
-        <div style={{
+        <div className="pmt-ledger-card" style={{
           background: '#FFFFFF',
           borderRadius: 20,
           boxShadow: '0 30px 80px -20px rgba(15, 23, 42, 0.3), 0 0 0 1px rgba(226, 232, 240, 0.8)',
@@ -104,7 +155,7 @@ export default function PrintablePaymentHistorySheet({
         }}>
 
           {/* Header Bar */}
-          <div style={{
+          <div className="pmt-ledger-head" style={{
             padding: '18px 24px',
             borderBottom: '1px solid #E2E8F0',
             display: 'flex',
@@ -160,7 +211,7 @@ export default function PrintablePaymentHistorySheet({
           </div>
 
           {/* Modal Inner Content Body */}
-          <div style={{
+          <div className="pmt-ledger-body" style={{
             padding: 24,
             overflowY: 'auto',
             display: 'flex',
@@ -168,9 +219,9 @@ export default function PrintablePaymentHistorySheet({
             gap: 20,
             flex: 1
           }}>
-            
+
             {/* KPI Summary Strip */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+            <div className="pmt-ledger-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
               <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '12px 16px' }}>
                 <span style={{ fontSize: '0.68rem', color: '#64748B', display: 'block', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Sanctioned Principal</span>
                 <span style={{ fontSize: '1.1rem', color: 'var(--color-info, #2563EB)', marginTop: 4, display: 'block', fontWeight: 500 }}>₹{fmt(loan.principal_amount)}</span>
@@ -194,7 +245,7 @@ export default function PrintablePaymentHistorySheet({
 
             {/* Detailed Expanded Payments Table */}
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div className="pmt-ledger-tblhead" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <span style={{ fontSize: '0.78rem', color: '#475569', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                   Itemized Collection Voucher Records ({historyItems.length})
                 </span>
@@ -204,8 +255,8 @@ export default function PrintablePaymentHistorySheet({
               </div>
 
               <div style={{ border: '1px solid #E2E8F0', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
-                <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 360 }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', textAlign: 'left' }}>
+                <div className="pmt-ledger-tbl-scroll" style={{ maxHeight: 360 }}>
+                  <table className="pmt-ledger-tbl" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', position: 'sticky', top: 0, zIndex: 1 }}>
                         <th style={{ padding: '10px 12px', width: 34, textAlign: 'center', fontWeight: 500 }}>#</th>
@@ -378,7 +429,7 @@ export default function PrintablePaymentHistorySheet({
           </div>
 
           {/* Footer Control Bar */}
-          <div style={{
+          <div className="pmt-ledger-foot" style={{
             padding: '16px 24px',
             borderTop: '1px solid #E2E8F0',
             display: 'flex',

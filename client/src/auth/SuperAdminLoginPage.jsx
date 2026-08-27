@@ -124,6 +124,17 @@ export default function SuperAdminLoginPage({ onLoginSuccess }) {
         <div className="fluid-form-col">
           <div className={`modern-saas-card ${isExiting ? 'auth-card-exit' : ''}`}>
 
+            {/* Mobile-only brand header (hidden ≥ 540px via CSS) */}
+            <div className="saas-mobile-brand">
+              <div className="brand-logo">
+                <ShieldCheck style={{ width: 18, height: 18 }} />
+              </div>
+              <div className="brand-copy">
+                <span className="brand-name">Super Admin Portal</span>
+                <span className="brand-tag">Financial ERP Platform</span>
+              </div>
+            </div>
+
             {/* Stepper Header */}
             <div className="saas-segmented-tabs">
               <button type="button" className="saas-tab saas-tab--active" style={{ cursor: 'default' }}>

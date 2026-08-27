@@ -486,7 +486,7 @@ export default function ExpenseAllocationView({
   };
 
   return (
-    <div className="fin-page">
+    <div className="fin-page master-settings-page">
       <div className="fin-page-header">
         <div className="header-titles">
           <div className="head-icon-badge" style={{ background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #15803D)' }}>

@@ -389,7 +389,7 @@ export default function LoansView({
   ];
 
   return (
-    <div className="fin-page">
+    <div className="fin-page loans-register-page">
       <div className="fin-header-card">
         <div className="fin-page-header">
           <div className="fin-page-header__left">
@@ -433,14 +433,14 @@ export default function LoansView({
         )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, width: '100%' }}>
-        <div style={{ flex: '1 1 auto', minWidth: 0, maxWidth: '100%', overflowX: 'auto' }}>
+      <div className="loans-toolbar">
+        <div className="loans-toolbar__tabs">
           <StatusTabs tabs={TABS} active={viewMode} onChange={(id) => { setViewMode(id); setCurrentPage(1); }} />
         </div>
 
         {viewMode !== 'CLOSURE_REQUESTS' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', width: '100%', maxWidth: 440 }}>
-            <div style={{ flex: '1 1 140px', minWidth: 120 }}>
+          <div className="loans-filters">
+            <div className="loans-filter-field loans-filter-field--branch">
               <DropdownSelect
                 value={branchFilter}
                 onChange={(e) => { setBranchFilter(e.target.value); setCurrentPage(1); }}
@@ -452,7 +452,7 @@ export default function LoansView({
                 ]}
               />
             </div>
-            <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 150 }}>
+            <div className="loans-filter-field loans-filter-field--search">
               <Search style={{ position: 'absolute', left: 9, top: 9, width: 14, height: 14, color: '#94A3B8' }} />
               <input
                 style={{ paddingLeft: 29, width: '100%', height: 34, borderRadius: 7, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: '0.78rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
@@ -512,7 +512,7 @@ export default function LoansView({
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: 24 }}>
+                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: '0.68rem', color: '#64748B' }}>{t('loans.principal_sanctioned')}</div>
                         <div style={{ fontSize: '0.92rem', fontWeight: 600, color: '#0F172A' }}>₹{fmt(snapshot.principal_amount ?? loan.principal_amount)}</div>
@@ -651,7 +651,7 @@ export default function LoansView({
       {/* ── Active / Closed Accounts Table ──── */}
       {viewMode !== 'APPLICATIONS' && viewMode !== 'CLOSURE_REQUESTS' && (
         <div className="fin-tablewrap">
-          <table className="fin-grid-table">
+          <table className="fin-grid-table fin-grid-table--wide">
             <thead>
               <tr>
                 <th style={{ width: 50, textAlign: 'center' }}>{t('col.sno')}</th>

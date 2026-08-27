@@ -477,7 +477,7 @@ export default function ManualVouchersView({
   const liveLiquidTreasury = liveCashBalance + liveBankBalance;
 
   return (
-    <div className="fin-page">
+    <div className="fin-page fin-vouchers-page">
       <div className="fin-header-card">
         <div className="fin-page-header">
           <div className="fin-page-header__left">

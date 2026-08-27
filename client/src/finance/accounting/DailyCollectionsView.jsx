@@ -26,7 +26,9 @@ import {
   ChevronUp,
   ShieldCheck,
   Check,
-  Shield
+  Shield,
+  List,
+  LayoutGrid
 } from 'lucide-react';
 import CustomerProfileModal from '../borrowers/CustomerProfileModal';
 import VoucherReceiptModal from '../../components/VoucherReceiptModal';
@@ -139,6 +141,9 @@ export default function DailyCollectionsView({
   const [printThermalReceipt, setPrintThermalReceipt] = useState(null);
   const [selectedCustomerForProfile, setSelectedCustomerForProfile] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  // Table is the default on every screen size; a compact toggle lets phone
+  // users switch to the card list if they prefer it.
+  const [dataView, setDataView] = useState('TABLE'); // 'TABLE' | 'CARDS'
 
   // Sorting state: field name & direction ('asc' | 'desc')
   const [sortColumn, setSortColumn] = useState('date');
@@ -592,50 +597,131 @@ export default function DailyCollectionsView({
           flex-shrink: 0;
         }
 
-        /* ── Responsive View Toggle: Desktop Table vs Mobile Cards ── */
-        .coll-desktop-view {
-          display: block;
+        /* ── Table vs Card view — user-controlled at every screen size,
+              defaults to table (see .coll-view-switch) ── */
+        .coll-view-table .coll-desktop-view { display: block; }
+        .coll-view-table .coll-mobile-view { display: none !important; }
+        .coll-view-cards .coll-desktop-view { display: none !important; }
+        .coll-view-cards .coll-mobile-view {
+          display: flex !important;
+          flex-direction: column;
+          gap: 10px;
+          padding: 10px;
+          max-height: calc(100vh - 280px);
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
         }
-        .coll-mobile-view {
-          display: none !important;
+
+        /* Compact view toggle */
+        .coll-view-switch {
+          display: inline-flex;
+          align-items: center;
+          background: #FFFFFF;
+          border: 1px solid #CBD5E1;
+          border-radius: 8px;
+          padding: 2px;
+          gap: 2px;
+          flex: 0 0 auto;
+          margin-left: auto;
+          align-self: center;
+        }
+        .coll-view-switch button {
+          width: 30px;
+          height: 30px;
+          border: none;
+          border-radius: 6px;
+          background: transparent;
+          color: #64748B;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+        }
+        .coll-view-switch button.active {
+          background: var(--brand-primary-light, #F0FEF5);
+          color: var(--brand-primary, #15803D);
         }
 
         @media (max-width: 768px) {
+          .coll-view-switch button { width: 34px; height: 34px; }
+          /* Compact, app-style filter bar: a full-width search on its own line,
+             then the dropdowns as small chips two-per-row — not four stacked
+             full-width bars. */
           .coll-toolbar-row {
-            flex-direction: column !important;
+            flex-wrap: wrap !important;
             align-items: stretch !important;
-            gap: 8px !important;
-          }
-          .coll-toolbar-row > div,
-          .coll-toolbar-row-inner {
-            flex-direction: column !important;
-            align-items: stretch !important;
-            width: 100% !important;
+            gap: 6px !important;
+            padding: 8px 10px !important;
           }
           .coll-toolbar-search {
             width: 100% !important;
+            flex: 1 1 100% !important;
           }
-          .coll-toolbar-row .shared-dropdown-container,
-          .coll-toolbar-row button {
+          .coll-toolbar-search input {
+            height: 34px !important;
+          }
+          .coll-toolbar-row-inner {
+            flex-wrap: wrap !important;
+            align-items: stretch !important;
+            width: 100% !important;
+            gap: 6px !important;
+          }
+          .coll-toolbar-row > div:not(.coll-toolbar-search):not(.shared-dropdown-root):not(.coll-view-switch) {
+            flex: 1 1 100% !important;
+          }
+          .coll-view-switch { margin-left: 0 !important; }
+          .coll-toolbar-row .shared-dropdown-root {
+            flex: 1 1 calc(50% - 3px) !important;
+            min-width: 0 !important;
+            width: auto !important;
+          }
+          .coll-toolbar-row .shared-dropdown-root > button {
+            width: 100% !important;
+            min-width: 0 !important;
+            height: 34px !important;
+            font-size: 0.72rem !important;
+          }
+          .coll-toolbar-row > button {
+            flex: 1 1 100% !important;
             width: 100% !important;
           }
-          .coll-desktop-view {
-            display: none !important;
+
+          /* Slim page header + tabs */
+          .coll-entry-card {
+            padding: 12px !important;
+            margin-bottom: 12px !important;
           }
-          .coll-mobile-view {
-            display: flex !important;
-            flex-direction: column;
-            gap: 12px;
-            padding: 12px;
-            max-height: calc(100vh - 280px);
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
+          .coll-reg-header {
+            margin-bottom: 10px !important;
+            padding-bottom: 8px !important;
+          }
+          .coll-reg-title { font-size: 0.98rem !important; }
+          .coll-reg-subtitle {
+            font-size: 0.68rem !important;
+            line-height: 1.35 !important;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+          }
+          .coll-tabs {
+            gap: 2px !important;
+            margin-bottom: 10px !important;
+          }
+          .coll-tab {
+            font-size: 0.74rem !important;
+            padding: 7px 9px !important;
+            gap: 4px !important;
+          }
+          .coll-tab svg {
+            width: 13px !important;
+            height: 13px !important;
           }
         }
       `}</style>
 
       {/* ── Top Level Navigation Tabs: Collection Register vs Waiver Approvals ── */}
-      <div style={{
+      <div className="coll-tabs" style={{
         display: 'flex',
         alignItems: 'center',
         gap: 10,
@@ -645,6 +731,7 @@ export default function DailyCollectionsView({
       }}>
         <button
           type="button"
+          className="coll-tab"
           onClick={() => setActiveSection('REGISTER')}
           style={{
             background: 'none',
@@ -667,6 +754,7 @@ export default function DailyCollectionsView({
 
         <button
           type="button"
+          className="coll-tab"
           onClick={() => setActiveSection('WAIVERS')}
           style={{
             background: 'none',
@@ -724,17 +812,17 @@ export default function DailyCollectionsView({
       {activeSection === 'REGISTER' && (
         <>
           {/* ── Collection Entry Form Card with integrated Page Header ── */}
-          <div className="fin-card" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 18, marginBottom: 18, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
+          <div className="fin-card coll-entry-card" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 18, marginBottom: 18, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div className="coll-reg-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ width: 34, height: 34, borderRadius: 8, background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <Receipt style={{ width: 18, height: 18 }} />
                 </div>
                 <div>
-                  <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#0F172A', lineHeight: 1.2 }}>
+                  <h1 className="coll-reg-title" style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#0F172A', lineHeight: 1.2 }}>
                     {t('coll.title')}
                   </h1>
-                  <p style={{ margin: 0, fontSize: '0.76rem', color: '#64748B' }}>
+                  <p className="coll-reg-subtitle" style={{ margin: 0, fontSize: '0.76rem', color: '#64748B' }}>
                     {t('coll.subtitle')}
                   </p>
                 </div>
@@ -874,7 +962,7 @@ export default function DailyCollectionsView({
         </form>
       </div>
 
-      <div className="coll-card-container">
+      <div className={`coll-card-container coll-view-${dataView === 'CARDS' ? 'cards' : 'table'}`}>
         {/* Toolbar Header - Fixed Top */}
         <div className="coll-toolbar-row">
           {/* Search Box */}
@@ -930,6 +1018,26 @@ export default function DailyCollectionsView({
               { value: 'CUSTOM', label: 'Custom' }
             ]}
           />
+
+          {/* Table / Card view toggle — compact, works at every screen size */}
+          <div className="coll-view-switch" role="group" aria-label="Data view">
+            <button
+              type="button"
+              className={dataView === 'TABLE' ? 'active' : ''}
+              onClick={() => setDataView('TABLE')}
+              title="Table view"
+            >
+              <List style={{ width: 15, height: 15 }} />
+            </button>
+            <button
+              type="button"
+              className={dataView === 'CARDS' ? 'active' : ''}
+              onClick={() => setDataView('CARDS')}
+              title="Card view"
+            >
+              <LayoutGrid style={{ width: 15, height: 15 }} />
+            </button>
+          </div>
 
           {/* Custom Date Pickers (only shown if datePreset === 'CUSTOM') */}
           {datePreset === 'CUSTOM' && (
@@ -1327,7 +1435,7 @@ export default function DailyCollectionsView({
 
       {/* ── WAIVER APPROVALS QUEUE VIEW ── */}
       {activeSection === 'WAIVERS' && (
-        <div className="coll-card-container">
+        <div className={`coll-card-container coll-view-${dataView === 'CARDS' ? 'cards' : 'table'}`}>
           {/* Toolbar Header */}
           <div className="coll-toolbar-row" style={{ justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap' }} className="coll-toolbar-row-inner">

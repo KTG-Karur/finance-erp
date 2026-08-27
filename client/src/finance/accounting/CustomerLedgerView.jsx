@@ -25,6 +25,13 @@ export default function CustomerLedgerView({ borrowers = [], loans = [], collect
   const hasBranchSelected = branch !== '';
   const [fromDate, setFromDate] = useState(monthStartStr());
   const [toDate, setToDate] = useState(todayStr());
+  // Date range is applied only when Search is pressed (branch / customer pickers
+  // stay live since they are the navigation).
+  const [applied, setApplied] = useState({ from: monthStartStr(), to: todayStr() });
+  const handleSearch = (e) => {
+    if (e) e.preventDefault();
+    setApplied({ from: fromDate, to: toDate });
+  };
 
   const branchBorrowers = useMemo(() => {
     if (branch === 'ALL') return borrowers;
@@ -67,14 +74,14 @@ export default function CustomerLedgerView({ borrowers = [], loans = [], collect
         amount: c.amount
       }));
     return [...disbursalRows, ...collectionRows]
-      .filter(row => (!fromDate || row.date >= fromDate) && (!toDate || row.date <= toDate))
+      .filter(row => (!applied.from || row.date >= applied.from) && (!applied.to || row.date <= applied.to))
       .sort((a, b) => {
         const timeA = new Date(a.created_at || `${a.date}T00:00:00`).getTime() || 0;
         const timeB = new Date(b.created_at || `${b.date}T00:00:00`).getTime() || 0;
         if (a.date !== b.date) return a.date < b.date ? 1 : -1;
         return timeB - timeA;
       });
-  }, [selectedBorrower, customerLoans, collections, fromDate, toDate]);
+  }, [selectedBorrower, customerLoans, collections, applied.from, applied.to]);
 
   const totalBorrowed = customerLoans.reduce((s, l) => s + (l.principal_amount || 0), 0);
   const totalCollected = customerLoans.reduce((s, l) => s + (l.collected_amount || 0), 0);
@@ -83,7 +90,7 @@ export default function CustomerLedgerView({ borrowers = [], loans = [], collect
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
   return (
-    <div className="fin-page">
+    <div className="fin-page fin-ledger-page customer-ledger-page">
       <div className="fin-header-card">
         <div className="fin-page-header">
           <div className="fin-page-header__left">
@@ -121,14 +128,14 @@ export default function CustomerLedgerView({ borrowers = [], loans = [], collect
         </div>
       </div>
 
-      <div className="fin-filterbar">
+      <form className="fin-filterbar" onSubmit={handleSearch}>
         <div className="fin-field">
           <label>{t('fin.branch_label')}</label>
           <SharedDropdown
             value={branch}
             onChange={(e) => { setBranch(e.target.value); setBorrowerId(''); }}
             disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
-            buttonStyle={{ height: 36, minWidth: 160 }}
+            buttonStyle={{ height: 36, width: '100%' }}
             options={[
               { value: '', label: t('fin.select_branch_placeholder') || '— Select Branch —' },
               { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
@@ -137,14 +144,14 @@ export default function CustomerLedgerView({ borrowers = [], loans = [], collect
           />
         </div>
         {hasBranchSelected && (
-          <div className="fin-field" style={{ minWidth: 260 }}>
+          <div className="fin-field fin-field--wide">
             <label>{t('col.customer')}</label>
             <SharedDropdown
               value={effectiveBorrowerId}
               placeholder={t('fin.select_account_placeholder') || '— Select Customer —'}
               onChange={(e) => setBorrowerId(Number(e.target.value))}
               searchable
-              buttonStyle={{ height: 36, minWidth: 260 }}
+              buttonStyle={{ height: 36, width: '100%' }}
               options={branchBorrowers.map(b => ({
                 value: b.id,
                 label: `${b.full_name} — ${b.phone}`
@@ -152,25 +159,27 @@ export default function CustomerLedgerView({ borrowers = [], loans = [], collect
             />
           </div>
         )}
-        <div className="fin-field">
+        <div className="fin-field fin-field--date">
           <label>{t('fin.from_label')}</label>
           <SharedDatePicker
             value={fromDate}
             max={toDate || todayStr()}
             onChange={(e) => setFromDate(e.target.value)}
-            buttonStyle={{ height: 36, minWidth: 140 }}
+            buttonStyle={{ height: 36, width: '100%' }}
           />
         </div>
-        <div className="fin-field">
+        <div className="fin-field fin-field--date">
           <label>{t('fin.to_label')}</label>
           <SharedDatePicker
             value={toDate}
             max={todayStr()}
             onChange={(e) => setToDate(e.target.value)}
-            buttonStyle={{ height: 36, minWidth: 140 }}
+            buttonStyle={{ height: 36, width: '100%' }}
           />
         </div>
-      </div>
+
+        <button type="submit" className="fin-search-btn">{t('fin.search_btn')}</button>
+      </form>
 
       <div className="fin-tablewrap">
         <table className="fin-grid-table">

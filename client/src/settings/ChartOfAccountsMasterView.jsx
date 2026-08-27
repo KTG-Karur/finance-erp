@@ -278,7 +278,7 @@ export default function ChartOfAccountsMasterView({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div className="master-settings-page" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div className="active-loans-header">
         <div className="header-left">
           <div className="header-badge-icon" style={{ background: '#F1F5F9', borderColor: '#CBD5E1', color: '#334155' }}>
