@@ -182,7 +182,7 @@ export default function BankAccountMasterView({
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
   return (
-    <div className="fin-page">
+    <div className="fin-page master-settings-page">
       
       {/* ── Top Header ────────────────────────────────────────────── */}
       <div className="active-loans-header" style={{ marginBottom: 20 }}>
@@ -239,27 +239,27 @@ export default function BankAccountMasterView({
       </div>
 
       {/* ── KPI Stat Badges ─────────────────────────────────────────── */}
-      <div style={{
+      <div className="bank-kpi-grid" style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
         gap: 16,
         marginBottom: 24
       }}>
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 18px' }}>
+        <div className="bank-kpi-card" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 18px' }}>
           <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600, display: 'block', textTransform: 'uppercase' }}>
             Total Bank Accounts
           </span>
           <strong style={{ fontSize: '1.4rem', color: '#0F172A' }}>{bankAccounts.length}</strong>
         </div>
 
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 18px' }}>
+        <div className="bank-kpi-card" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 18px' }}>
           <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600, display: 'block', textTransform: 'uppercase' }}>
             Active Operational Accounts
           </span>
           <strong style={{ fontSize: '1.4rem', color: '#15803D' }}>{activeCount}</strong>
         </div>
 
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 18px' }}>
+        <div className="bank-kpi-card" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 18px' }}>
           <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600, display: 'block', textTransform: 'uppercase' }}>
             Total Registered Book Balance
           </span>

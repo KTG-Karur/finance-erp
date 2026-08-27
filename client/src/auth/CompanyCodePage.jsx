@@ -79,7 +79,7 @@ export default function CompanyCodePage({ onVerified }) {
           {/* Brand Header Badge */}
           <div className="fluid-brand-pill">
             <div className="brand-icon-wrap"></div>
-            <span className="brand-owner">Knock The Globe Technologies Pvt. Ltd.</span>
+            <span className="brand-owner">Knock The Globe Technologies</span>
           </div>
 
           {/* Headline Typography */}
@@ -111,6 +111,17 @@ export default function CompanyCodePage({ onVerified }) {
         {/* ── Right Column: Floating Auth Form ────────────────────── */}
         <div className="fluid-form-col">
           <div className={`modern-saas-card ${isExiting ? 'auth-card-exit' : ''}`}>
+
+            {/* Mobile-only brand header (hidden ≥ 540px via CSS) */}
+            <div className="saas-mobile-brand">
+              <div className="brand-logo">
+                <Landmark style={{ width: 18, height: 18 }} />
+              </div>
+              <div className="brand-copy">
+                <span className="brand-name">Financial ERP</span>
+                <span className="brand-tag">Knock The Globe Technologies</span>
+              </div>
+            </div>
 
             {/* Segmented Stepper Header */}
             <div className="saas-segmented-tabs">
@@ -183,7 +194,7 @@ export default function CompanyCodePage({ onVerified }) {
 
       {/* ── Page Footer ───────────────────────────── */}
       <div className="fluid-page-footer">
-        <span>© {new Date().getFullYear()} Knock The Globe Technologies Pvt. Ltd. All rights reserved.</span>
+        <span>© {new Date().getFullYear()} Knock The Globe Technologies. All rights reserved.</span>
       </div>
     </div>
   );

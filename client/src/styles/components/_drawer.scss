@@ -173,6 +173,11 @@
   grid-template-rows: 1fr;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
 
+  // Let every flex / grid descendant shrink below its content width. Without
+  // this, the inner 2- and 3-column cards keep their content min-size and push
+  // the whole modal wider than a phone screen.
+  *, *::before, *::after { min-width: 0; }
+
   @media (max-width: 768px) {
     display: flex;
     flex-direction: column;
@@ -180,6 +185,7 @@
     max-height: 94vh;
     border-radius: 12px;
     overflow-y: auto;
+    overflow-x: hidden;
   }
 }
 
@@ -226,9 +232,95 @@
     text-align: center;
     margin-bottom: 16px;
 
+    h4 {
+      overflow-wrap: break-word;
+    }
+
     @media (max-width: 768px) {
+      display: none;
+    }
+  }
+
+  // ── Compact phone identity (≤768px) ─────────────────────────────
+  // Row 1: photo + name   |   Row 2: mobile number + customer id
+  .cd-mobile-identity {
+    display: none;
+
+    @media (max-width: 768px) {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
       margin-bottom: 12px;
     }
+
+    .cd-mi-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .cd-mi-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      object-fit: cover;
+      border: 2px solid var(--brand-primary-border, #A3F5C1);
+      box-shadow: 0 4px 12px rgba(var(--brand-primary-rgb), 0.18);
+
+      &--initials {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--brand-primary-light, #F0FEF5);
+        color: var(--brand-primary, #15803D);
+        font-weight: 600;
+        font-size: 0.95rem;
+      }
+    }
+
+    .cd-mi-name {
+      margin: 0;
+      min-width: 0;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #0F172A;
+      line-height: 1.3;
+      overflow-wrap: break-word;
+    }
+
+    .cd-mi-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .cd-mi-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: #FFFFFF;
+      border: 1px solid #CBD5E1;
+      border-radius: 20px;
+      padding: 3px 10px;
+      font-size: 0.74rem;
+      font-weight: 500;
+      color: #0F172A;
+      white-space: nowrap;
+
+      svg { color: #64748B; flex-shrink: 0; }
+
+      &--id {
+        color: var(--brand-primary, #15803D);
+        font-family: 'SF Mono', Consolas, monospace;
+      }
+    }
+  }
+
+  // On phones the left panel is trimmed to the essentials.
+  @media (max-width: 768px) {
+    .identity-grid-card { display: none !important; }
+    .cd-panel-footer { display: none; }
   }
 
   .identity-grid-card {
@@ -238,12 +330,16 @@
     padding: 14px;
     margin-bottom: 16px;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 10px;
 
     @media (max-width: 768px) {
       margin-bottom: 12px;
       padding: 12px;
+    }
+
+    @media (max-width: 400px) {
+      grid-template-columns: 1fr;
     }
   }
 
@@ -253,12 +349,14 @@
     border-radius: 12px;
     padding: 14px;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 12px;
 
+    // Stay two fields per row on phones too — just tighter — so the panel
+    // stays short and the collection form is the focus.
     @media (max-width: 768px) {
-      padding: 12px;
-      gap: 10px;
+      padding: 10px;
+      gap: 8px 10px;
     }
   }
 }
@@ -301,13 +399,19 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 10px;
     position: sticky;
     top: 0;
     background: #FFFFFF;
     z-index: 10;
 
+    > div:first-child { min-width: 0; }
+    > button { flex-shrink: 0; }
+
     @media (max-width: 768px) {
       padding: 12px 14px;
+
+      h3 { font-size: 0.95rem; }
     }
   }
 
@@ -329,10 +433,10 @@
     border-radius: 9px;
     padding: 12px;
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
     gap: 10px;
 
-    @media (max-width: 480px) {
+    @media (max-width: 560px) {
       grid-template-columns: 1fr;
       gap: 8px;
     }

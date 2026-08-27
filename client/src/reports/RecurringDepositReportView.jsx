@@ -86,7 +86,7 @@ export default function RecurringDepositReportView({ recurringDeposits = [], bor
   };
 
   return (
-    <div className="fin-page">
+    <div className="fin-page fin-report-page">
 
       <div className="fin-header-card" style={{ background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%)', border: '1px solid #E2E8F0', borderRadius: 12, padding: '18px 24px' }}>
         <div className="fin-page-header">
@@ -104,16 +104,16 @@ export default function RecurringDepositReportView({ recurringDeposits = [], bor
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button type="button" onClick={() => setShowPreview(true)} disabled={filtered.length === 0} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#334155', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-              <Printer style={{ width: 14, height: 14, color: 'var(--brand-primary, #15803D)' }} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="fin-btn-primary" style={{ background: '#475569' }} onClick={() => setShowPreview(true)} disabled={filtered.length === 0}>
+              <Printer style={{ width: 14, height: 14 }} />
               <span>Print Preview</span>
             </button>
-            <button type="button" onClick={() => setShowPreview(true)} disabled={filtered.length === 0} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 7, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#334155', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-              <FileDown style={{ width: 14, height: 14, color: 'var(--color-info, #2563EB)' }} />
+            <button type="button" className="fin-btn-primary" style={{ background: '#475569' }} onClick={() => setShowPreview(true)} disabled={filtered.length === 0}>
+              <FileDown style={{ width: 14, height: 14 }} />
               <span>Export PDF</span>
             </button>
-            <button type="button" onClick={handleExport} disabled={filtered.length === 0} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 7, border: 'none', background: 'var(--brand-primary, #15803D)', color: '#FFFFFF', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb),0.25)' }}>
+            <button type="button" className="fin-btn-primary" onClick={handleExport} disabled={filtered.length === 0}>
               <Download style={{ width: 14, height: 14 }} />
               <span>Export Excel</span>
             </button>
@@ -238,21 +238,22 @@ export default function RecurringDepositReportView({ recurringDeposits = [], bor
             ))}
           </tbody>
         </table>
-        <div className="table-pagination">
-          <div className="table-pagination__info">
-            Showing <strong>{filtered.length === 0 ? 0 : startIndex + 1}</strong> to <strong>{Math.min(startIndex + pageSize, filtered.length)}</strong> of <strong>{filtered.length}</strong> entries
-          </div>
-          <div className="table-pagination__controls">
-            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>
-              <ChevronLeft style={{ width: 14, height: 14 }} />
-              <span>Previous</span>
-            </button>
-            <span className="page-indicator">Page {safePage} of {totalPages}</span>
-            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>
-              <span>Next</span>
-              <ChevronRight style={{ width: 14, height: 14 }} />
-            </button>
-          </div>
+      </div>
+
+      <div className="table-pagination table-pagination--under">
+        <div className="table-pagination__info">
+          Showing <strong>{filtered.length === 0 ? 0 : startIndex + 1}</strong> to <strong>{Math.min(startIndex + pageSize, filtered.length)}</strong> of <strong>{filtered.length}</strong> entries
+        </div>
+        <div className="table-pagination__controls">
+          <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>
+            <ChevronLeft style={{ width: 14, height: 14 }} />
+            <span>Previous</span>
+          </button>
+          <span className="page-indicator">Page {safePage} of {totalPages}</span>
+          <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>
+            <span>Next</span>
+            <ChevronRight style={{ width: 14, height: 14 }} />
+          </button>
         </div>
       </div>
 

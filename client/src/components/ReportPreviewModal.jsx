@@ -48,13 +48,14 @@ export default function ReportPreviewModal({
       </div>
 
       <style>{`
-        /* On screen the sheet can be wider than a physical page — that's the
-           only way to stop a receipt-no-style column from wrapping without
-           shrinking the print/PDF output, which stays a real A4 landscape
-           page (see the @media print override below). */
+        /* Same preview on every screen size — never shrunk to fit. The sheet
+           grows to whatever width the (non-wrapping) table needs and the
+           .printable-form-overlay scrolls; nothing spills past the modal.
+           The @media print block below still emits a real A4 landscape page. */
         .report-preview-paper {
-          width: min(1300px, 92vw);
-          max-width: 100%;
+          width: max-content;
+          min-width: min(1000px, 100%);
+          max-width: none;
           box-sizing: border-box;
           background: #FFFFFF;
           margin: 0 auto 60px auto;
@@ -62,30 +63,30 @@ export default function ReportPreviewModal({
           border-radius: 4px;
         }
         .report-preview-table {
-          table-layout: fixed;
           width: 100%;
+          border-collapse: collapse;
           font-size: ${tableFontSize};
         }
         .report-preview-table td, .report-preview-table th {
           padding: ${cellPadding};
-          white-space: normal;
-          word-break: normal;
-          /* Normal words never break — this only kicks in as a last resort,
-             when a single value is wider than its column and would otherwise
-             spill into the next one. */
-          overflow-wrap: break-word;
-          line-height: 1.25;
+          /* One line per cell — words are never wrapped or broken; a wide
+             report simply scrolls sideways inside the modal. */
+          white-space: nowrap;
+          line-height: 1.3;
         }
         @media print {
           @page { size: A4 landscape; margin: 10mm; }
           .report-preview-paper {
             width: 100% !important;
+            min-width: 0 !important;
             max-width: none !important;
             box-shadow: none !important;
             border-radius: 0 !important;
             margin: 0 !important;
             padding: 0 !important;
           }
+          /* Print can wrap to fit the physical page. */
+          .report-preview-table td, .report-preview-table th { white-space: normal; overflow-wrap: break-word; }
         }
       `}</style>
 

@@ -106,8 +106,8 @@ function BookRdScreen({ borrowers, onCancel, onSubmit }) {
           <h1 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: '#0F172A' }}>{t('rd.register_title')}</h1>
         </div>
         <div className="cf-header-right">
-          <button type="button" onClick={onCancel} className="btn-cancel" disabled={loading}>{t('btn.cancel')}</button>
-          <button type="submit" onClick={handleSubmit} disabled={loading} className="btn-submit">
+          <button type="button" onClick={onCancel} className="btn-cancel desktop-only-btn" disabled={loading}>{t('btn.cancel')}</button>
+          <button type="submit" onClick={handleSubmit} disabled={loading} className="btn-submit desktop-only-btn">
             {loading ? t('rd.saving') : t('rd.modal.submit')}
           </button>
         </div>
@@ -388,7 +388,7 @@ export default function RecurringDepositsView({
   }).length;
 
   return (
-    <div className="fin-page">
+    <div className="fin-page recurring-deposits-page">
       <div className="fin-header-card">
         <div className="fin-page-header">
           <div className="fin-page-header__left">
@@ -400,7 +400,7 @@ export default function RecurringDepositsView({
               <p className="fin-page-header__subtitle">{t('rd.subtitle')}</p>
             </div>
           </div>
-          <button type="button" className="fin-btn-primary" onClick={() => setScreen('BOOK')} disabled={!borrowers.length}>
+          <button type="button" className="fin-btn-primary" onClick={() => setScreen('BOOK')}>
             <Plus style={{ width: 14, height: 14 }} />
             <span>{t('rd.book_new')}</span>
           </button>
@@ -422,30 +422,34 @@ export default function RecurringDepositsView({
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-        <StatusTabs
-          tabs={[
-            { id: 'ACTIVE', label: t('fin.status_active'), count: tabCount('ACTIVE') },
-            { id: 'MATURED', label: tStatus('MATURED'), count: tabCount('MATURED') },
-            { id: 'CLOSED_PREMATURE', label: tStatus('CLOSED_PREMATURE'), count: tabCount('CLOSED_PREMATURE') }
-          ]}
-          active={statusTab}
-          onChange={(id) => { setStatusTab(id); setPage(1); }}
-        />
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <SharedDropdown
-            value={branchFilter}
-            onChange={(e) => { setBranchFilter(e.target.value); setPage(1); }}
-            disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
-            size="sm"
-            buttonStyle={{ height: 34, minWidth: 140 }}
-            options={[
-              { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
-              ...branchesList.map(b => ({ value: b.name, label: b.name }))
+      <div className="rd-toolbar">
+        <div className="rd-toolbar__tabs">
+          <StatusTabs
+            tabs={[
+              { id: 'ACTIVE', label: t('fin.status_active'), count: tabCount('ACTIVE') },
+              { id: 'MATURED', label: tStatus('MATURED'), count: tabCount('MATURED') },
+              { id: 'CLOSED_PREMATURE', label: tStatus('CLOSED_PREMATURE'), count: tabCount('CLOSED_PREMATURE') }
             ]}
+            active={statusTab}
+            onChange={(id) => { setStatusTab(id); setPage(1); }}
           />
-          <div style={{ position: 'relative', width: 280, maxWidth: '100%' }}>
+        </div>
+
+        <div className="rd-filters">
+          <div className="rd-filter-field rd-filter-field--branch">
+            <SharedDropdown
+              value={branchFilter}
+              onChange={(e) => { setBranchFilter(e.target.value); setPage(1); }}
+              disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
+              size="sm"
+              buttonStyle={{ height: 34, width: '100%' }}
+              options={[
+                { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
+                ...branchesList.map(b => ({ value: b.name, label: b.name }))
+              ]}
+            />
+          </div>
+          <div className="rd-filter-field rd-filter-field--search">
             <Search style={{ position: 'absolute', left: 10, top: 9, width: 14, height: 14, color: '#94A3B8' }} />
             <input style={{ paddingLeft: 30, width: '100%', height: 34, borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: '0.78rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} type="text" placeholder={t('rd.search_placeholder')} value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }} />
           </div>
@@ -453,7 +457,7 @@ export default function RecurringDepositsView({
       </div>
 
       <div className="fin-tablewrap">
-        <table className="fin-grid-table">
+        <table className="fin-grid-table fin-grid-table--wide">
           <thead>
             <tr>
               <th style={{ width: 50, textAlign: 'center' }}>{t('col.sno')}</th>

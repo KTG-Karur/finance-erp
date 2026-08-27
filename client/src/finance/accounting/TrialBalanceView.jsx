@@ -52,12 +52,12 @@ export default function TrialBalanceView({ chartOfAccounts = [], journalEntries 
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
   return (
-    <div className="fin-page">
+    <div className="fin-page trial-balance-page">
       {/* ── Executive Header: Left Title/Subtitle & Right Financial Info Summary ── */}
       <div className="fin-header-card" style={{ background: '#FFFFFF', border: `1px solid ${isBalanced ? '#E2E8F0' : '#FECACA'}`, padding: '20px 24px', borderRadius: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           {/* Left Title & Description */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div className="tb-header-title" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 38, height: 38, borderRadius: 10, background: isBalanced ? 'var(--brand-primary-light, #F0FDF4)' : '#FEF2F2', border: `1px solid ${isBalanced ? '#BBF7D0' : '#FECACA'}`, color: isBalanced ? 'var(--brand-primary-hover, #15803D)' : '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {isBalanced ? <Scale style={{ width: 20, height: 20 }} /> : <AlertTriangle style={{ width: 20, height: 20 }} />}
             </div>
@@ -68,7 +68,7 @@ export default function TrialBalanceView({ chartOfAccounts = [], journalEntries 
           </div>
 
           {/* Right Executive Financial Info (No Pills) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+          <div className="tb-header-summary" style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontSize: '0.7rem', fontWeight: 500, color: '#64748B', textTransform: 'uppercase' }}>Total Debit</span>
               <span style={{ fontSize: '1.1rem', fontWeight: 600, color: '#0F172A' }}>₹{fmt(totals.debit)}</span>
@@ -114,14 +114,14 @@ export default function TrialBalanceView({ chartOfAccounts = [], journalEntries 
 
       {/* ── Search & Filter Controls Bar ── */}
       <form className="fin-filterbar" onSubmit={handleSearch} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+        <div className="tb-filter-controls" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
           <div className="fin-field">
             <label>{t('fin.branch_label')}</label>
             <DropdownSelect
               value={branch}
               onChange={(e) => setBranch(e.target.value)}
               disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
-              buttonStyle={{ height: 36, minWidth: 160 }}
+              buttonStyle={{ height: 36, width: '100%' }}
               options={[
                 { value: '', label: t('fin.select_branch_placeholder') || '— Select Branch —' },
                 { value: 'ALL', label: t('fin.all_branches') || 'All Branches' },
@@ -135,7 +135,7 @@ export default function TrialBalanceView({ chartOfAccounts = [], journalEntries 
               value={asOfDate}
               max={todayStr()}
               onChange={(e) => setAsOfDate(e.target.value)}
-              buttonStyle={{ height: 36, minWidth: 140 }}
+              buttonStyle={{ height: 36, width: '100%' }}
             />
           </div>
           <button type="submit" className="fin-search-btn" style={{ marginTop: 22 }}>{t('fin.search_btn')}</button>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Lock, ArrowRight, AlertCircle,
-  ArrowLeft, CheckCircle2, Eye, EyeOff, Check, User, ChevronDown, ShieldCheck
+  ArrowLeft, CheckCircle2, Eye, EyeOff, User, ChevronDown, ShieldCheck
 } from 'lucide-react';
 import api from '../api/client';
 import SharedDropdown from '../components/common/SharedDropdown';
@@ -11,7 +11,6 @@ export default function LoginPage({ company, module, onLoginSuccess, onBackToMod
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -133,6 +132,9 @@ export default function LoginPage({ company, module, onLoginSuccess, onBackToMod
           {/* Brand Header Badge */}
           <div className="fluid-brand-pill">
             <div className="brand-icon-wrap">
+              {company?.logo
+                ? <img src={company.logo} alt="" className="brand-logo-img" />
+                : <ShieldCheck style={{ width: 13, height: 13, color: 'var(--brand-primary, #15803D)' }} />}
             </div>
             <span className="brand-owner">{module?.title} · {company?.companyName}</span>
           </div>
@@ -186,7 +188,28 @@ export default function LoginPage({ company, module, onLoginSuccess, onBackToMod
 
         {/* ── Right Column: Sleek Modern SaaS Form Card ─────────── */}
         <div className="fluid-form-col">
-          <div className={`modern-saas-card ${isExiting ? 'auth-card-exit' : ''}`}>
+          <div className={`modern-saas-card login-tenant-card ${isExiting ? 'auth-card-exit' : ''}`}>
+
+            {/* Mobile-only header: brand + back nav beside it (hidden ≥ 540px via CSS) */}
+            <div className="saas-mobile-brand">
+              <div className="brand-logo">
+                {company?.logo
+                  ? <img src={company.logo} alt="" className="brand-logo-img" />
+                  : <ShieldCheck style={{ width: 18, height: 18 }} />}
+              </div>
+              <div className="brand-copy">
+                <span className="brand-name">{company?.companyName || module?.title || 'Financial ERP'}</span>
+                <span className="brand-tag">{company?.companyCode} · {module?.title}</span>
+              </div>
+              <button
+                type="button"
+                className="saas-mobile-back"
+                onClick={handleBackWithAnimation}
+              >
+                <ArrowLeft style={{ width: 14, height: 14 }} />
+                <span>Change</span>
+              </button>
+            </div>
 
             {/* Minimal Segmented Tab Switcher */}
             <div className="saas-segmented-tabs">
@@ -293,25 +316,6 @@ export default function LoginPage({ company, module, onLoginSuccess, onBackToMod
                 </div>
               </div>
 
-              {/* Options Row */}
-              <div className="saas-options-row">
-                <label className="checkbox-wrap">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                  />
-                  <span className="custom-box">
-                    {rememberMe && <Check style={{ width: 10, height: 10, strokeWidth: 3 }} />}
-                  </span>
-                  <span>Remember me</span>
-                </label>
-
-                <a href="#forgot" onClick={(e) => e.preventDefault()} className="forgot-link">
-                  Forgot password?
-                </a>
-              </div>
-
               {/* Submit CTA */}
               <button
                 type="submit"
@@ -341,7 +345,7 @@ export default function LoginPage({ company, module, onLoginSuccess, onBackToMod
 
       {/* ── Page Footer: Rights Reserved ───────────────────────────── */}
       <div className="fluid-page-footer">
-        <span>© {new Date().getFullYear()} Knock The Globe Technologies Pvt. Ltd. All rights reserved.</span>
+        <span>© {new Date().getFullYear()} Knock The Globe Technologies. All rights reserved.</span>
       </div>
     </div>
   );

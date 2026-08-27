@@ -10,7 +10,7 @@ export default function PrintableFixedDepositRegister({ company = {}, fixedDepos
   const totalMaturity = fixedDeposits.reduce((sum, f) => sum + (parseFloat(f.status === 'CLOSED_PREMATURE' ? f.payout_amount : f.maturity_value) || 0), 0);
 
   const content = (
-    <div className="printable-form-overlay">
+    <div className="printable-form-overlay fd-reg-overlay">
       <div className="printable-form-floating-btns">
         <button type="button" className="btn-close" onClick={onClose}>
           <X style={{ width: 14, height: 14 }} />
@@ -23,14 +23,38 @@ export default function PrintableFixedDepositRegister({ company = {}, fixedDepos
       </div>
 
       <style>{`
+        /* Wide landscape report — the full A4 sheet renders at real size and
+           SCROLLS INSIDE .fd-reg-scroll (which is never wider than the modal),
+           so nothing spills past the screen and the sheet is never shrunk. */
+        .fd-reg-overlay {
+          align-items: safe center;
+          overflow: auto;
+        }
+        .fd-reg-overlay .printable-form-floating-btns {
+          position: sticky;
+          top: 12px;
+          left: 8px;
+          align-self: flex-start;
+          width: max-content;
+          max-width: none;
+          justify-content: flex-start;
+        }
+        .fd-reg-scroll {
+          max-width: 100%;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          overscroll-behavior-x: contain;
+        }
         .fd-reg-paper {
           width: 210mm;
-          max-width: 100%;
           box-sizing: border-box;
           background: #FFFFFF;
           margin: 0 auto 60px auto;
           box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
           border-radius: 4px;
+        }
+        .fd-reg-tablewrap {
+          width: 100%;
         }
         .fd-reg-table {
           width: 100%;
@@ -51,18 +75,23 @@ export default function PrintableFixedDepositRegister({ company = {}, fixedDepos
           border: 1px solid #E2E8F0;
           color: #1E293B;
         }
+
         @media print {
           @page { size: A4 landscape; margin: 8mm; }
+          .fd-reg-scroll { overflow: visible !important; max-width: none !important; }
           .fd-reg-paper {
             width: 100% !important; max-width: none !important; box-shadow: none !important;
             border-radius: 0 !important; margin: 0 !important; padding: 0 !important;
           }
+          .fd-reg-table { min-width: 0 !important; }
+          .fd-reg-tablewrap { overflow: visible !important; }
         }
       `}</style>
 
+      <div className="fd-reg-scroll">
       <div className="fd-reg-paper" style={{ padding: '12mm', fontFamily: 'Inter, -apple-system, sans-serif', color: '#0F172A' }}>
         {/* MNC Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #0F172A', paddingBottom: 12, marginBottom: 16 }}>
+        <div className="fd-reg-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #0F172A', paddingBottom: 12, marginBottom: 16 }}>
           <div>
             <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>{company.name || 'Finance ERP System'}</div>
             <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: 2 }}>{company.address || 'Corporate Financial Operations'}</div>
@@ -72,7 +101,7 @@ export default function PrintableFixedDepositRegister({ company = {}, fixedDepos
               </div>
             )}
           </div>
-          <div style={{ textAlign: 'right' }}>
+          <div className="fd-reg-title-col" style={{ textAlign: 'right' }}>
             <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--brand-primary, #15803D)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Fixed Deposit Register
             </div>
@@ -86,7 +115,7 @@ export default function PrintableFixedDepositRegister({ company = {}, fixedDepos
         </div>
 
         {/* Financial KPI Summary Bar */}
-        <div style={{ display: 'flex', gap: 12, marginBottom: 16, background: '#F8FAFC', padding: '10px 14px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
+        <div className="fd-reg-kpi" style={{ display: 'flex', gap: 12, marginBottom: 16, background: '#F8FAFC', padding: '10px 14px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
           <div style={{ flex: 1 }}>
             <span style={{ fontSize: '0.66rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>Total Accounts</span>
             <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0F172A' }}>{fixedDeposits.length}</div>
@@ -102,6 +131,7 @@ export default function PrintableFixedDepositRegister({ company = {}, fixedDepos
         </div>
 
         {/* Master Register Data Table */}
+        <div className="fd-reg-tablewrap">
         <table className="fd-reg-table">
           <thead>
             <tr>
@@ -148,13 +178,15 @@ export default function PrintableFixedDepositRegister({ company = {}, fixedDepos
             )}
           </tbody>
         </table>
+        </div>
 
         {/* Footer Authorization Block */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 40, paddingTop: 16, borderTop: '1px solid #CBD5E1', fontSize: '0.72rem', color: '#64748B' }}>
+        <div className="fd-reg-footer" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 40, paddingTop: 16, borderTop: '1px solid #CBD5E1', fontSize: '0.72rem', color: '#64748B' }}>
           <div>Prepared By: <strong>Authorized Finance System</strong></div>
           <div>Internal Audit & Compliance Verification</div>
           <div>Authorized Officer Signature</div>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -254,7 +254,7 @@ export default function ExpenseReportView({
   };
 
   return (
-    <div className="fin-page">
+    <div className="fin-page fin-report-page">
       {/* ── Standard ERP Header Card ──────────────────────────────── */}
       <div className="fin-header-card">
         <div className="fin-page-header">

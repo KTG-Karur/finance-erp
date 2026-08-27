@@ -29,6 +29,18 @@ $white: #FFFFFF;
   font-family: $font;
   color: $text1;
   padding-bottom: 8px;
+  // Nothing on the dashboard should ever push the page wider than its column —
+  // children reflow to fit instead.
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+
+  // Flex/grid children only shrink below their content size when min-width is 0.
+  *,
+  *::before,
+  *::after {
+    min-width: 0;
+  }
 }
 
 // ── Single Row Welcome Banner with 3D Coins Chart ──────────────
@@ -91,6 +103,11 @@ $white: #FFFFFF;
   color: #FFFFFF;
   letter-spacing: -0.01em;
   white-space: nowrap;
+
+  @include respond-to(sm) {
+    white-space: normal;
+    font-size: 1rem;
+  }
 }
 
 .db-banner__date {
@@ -98,13 +115,17 @@ $white: #FFFFFF;
   color: rgba(255, 255, 255, 0.7);
   font-weight: 400;
   white-space: nowrap;
+
+  @include respond-to(sm) {
+    white-space: normal;
+  }
 }
 
 .db-banner__meta {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
 .db-banner__tag {
@@ -139,6 +160,14 @@ $white: #FFFFFF;
   gap: 12px;
   flex-shrink: 0;
   z-index: 1;
+
+  @include respond-to(md) {
+    width: 100%;
+    flex-shrink: 1;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 10px;
+  }
 }
 
 .db-banner__action-group {
@@ -190,12 +219,23 @@ $white: #FFFFFF;
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 9px;
   padding: 6px 12px;
+
+  @include respond-to(md) {
+    flex: 1;
+    justify-content: space-between;
+  }
+
+  @include respond-to(xs) {
+    width: 100%;
+    flex: none;
+  }
 }
 
 .db-banner__qs {
   display: flex;
   flex-direction: column;
   gap: 0;
+  min-width: 0;
 
   span {
     font-size: 0.58rem;
@@ -203,6 +243,7 @@ $white: #FFFFFF;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.03em;
+    white-space: nowrap;
   }
 
   strong {
@@ -210,6 +251,7 @@ $white: #FFFFFF;
     color: #FFFFFF;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
 }
 
@@ -224,17 +266,32 @@ $white: #FFFFFF;
   align-items: center;
   justify-content: center;
   margin-left: 4px;
+  flex-shrink: 0;
+
+  // Purely decorative — it is the first thing to drop when space is tight.
+  @include respond-to(md) {
+    margin-left: 0;
+  }
+
+  @include respond-to(xs) {
+    display: none;
+  }
 }
 
 .db-banner__chart-img {
   height: 72px;
   width: auto;
+  max-width: 100%;
   object-fit: contain;
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.22));
   transition: transform 0.25s ease;
 
   &:hover {
     transform: scale(1.06) rotate(1deg);
+  }
+
+  @include respond-to(sm) {
+    height: 54px;
   }
 }
 
@@ -425,6 +482,8 @@ $white: #FFFFFF;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 2px;
 }
 
@@ -435,6 +494,7 @@ $white: #FFFFFF;
   border: 1px solid $border;
   padding: 2px;
   border-radius: 6px;
+  flex-wrap: wrap;
 }
 
 .db-mtab {
@@ -467,7 +527,8 @@ $white: #FFFFFF;
 .db-matrix-legend {
   display: flex;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 6px 10px;
   font-size: 0.68rem;
   color: $text2;
 }
@@ -476,6 +537,7 @@ $white: #FFFFFF;
   display: flex;
   align-items: center;
   gap: 4px;
+  white-space: nowrap;
 }
 
 .db-mdot {
@@ -505,6 +567,11 @@ $white: #FFFFFF;
   height: 155px;
   align-items: flex-end;
   padding: 6px 2px 2px;
+
+  @include respond-to(sm) {
+    gap: 3px;
+    height: 130px;
+  }
 }
 
 .db-pillar-col {
@@ -573,6 +640,11 @@ $white: #FFFFFF;
   color: $text3;
   font-weight: 500;
   transition: color 0.15s ease;
+  white-space: nowrap;
+
+  @include respond-to(sm) {
+    font-size: 0.56rem;
+  }
 }
 
 // Interactive Inspector for Active Month
@@ -580,23 +652,45 @@ $white: #FFFFFF;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
   background: #F8FAFC;
   border: 1px solid #E2E8F0;
   border-radius: 8px;
   padding: 8px 14px;
   animation: fadeIn 0.2s ease;
+
+  // Below tablet the label + three currency figures cannot share one row
+  // without overflowing — stack into a clean key/value list instead.
+  @include respond-to(md) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
 }
 
 .db-mi-left {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  min-width: 0;
+
+  @include respond-to(md) {
+    align-items: flex-start;
+    gap: 4px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #E2E8F0;
+  }
 }
 
 .db-mi-month {
   font-size: 0.8rem;
   font-weight: 700;
   color: $text1;
+
+  @include respond-to(md) {
+    font-size: 0.78rem;
+  }
 }
 
 .db-mi-rate-badge {
@@ -606,12 +700,29 @@ $white: #FFFFFF;
   font-size: 0.68rem;
   font-weight: 600;
   color: var(--brand-primary-hover, #0E5327);
+  white-space: nowrap;
+  max-width: 100%;
+
+  // "100% Recovery Efficiency" is a long phrase — let it wrap rather than spill
+  // out of the inspector on narrow screens.
+  @include respond-to(md) {
+    white-space: normal;
+  }
+
+  svg { flex-shrink: 0; }
 }
 
 .db-mi-stats {
   display: flex;
   align-items: center;
   gap: 14px;
+
+  @include respond-to(md) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    width: 100%;
+  }
 }
 
 .db-mi-stat {
@@ -630,12 +741,30 @@ $white: #FFFFFF;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
   }
+
+  @include respond-to(md) {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+
+    span { white-space: nowrap; }
+
+    strong {
+      text-align: right;
+      white-space: nowrap;
+    }
+  }
 }
 
 .db-mi-div {
   width: 1px;
   height: 24px;
   background: #E2E8F0;
+
+  @include respond-to(md) {
+    display: none;
+  }
 }
 
 // ── VELOCITY WAVE VIEW ─────────────────────────────────────────

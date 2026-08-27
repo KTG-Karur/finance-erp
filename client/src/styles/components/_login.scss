@@ -6,15 +6,20 @@
 
 .fluid-login-screen {
   min-height: 100vh;
-  width: 100vw;
+  min-height: 100dvh;
+  width: 100%;
   position: relative;
   background-color: #F8FAFC;
   color: #0F172A;
   font-family: $font-sans;
   overflow-x: hidden;
+  overflow-y: auto;
+  // Column + margin:auto on the content wrapper keeps it centred when there is
+  // room, but lets tall content (small / landscape phones) scroll instead of
+  // being clipped by flex centering.
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  align-items: stretch;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -49,6 +54,15 @@
       background: radial-gradient(circle, #0D9488 0%, rgba(13, 148, 136, 0) 70%);
       animation-delay: -6s;
     }
+
+    // Lighter blur + smaller footprint on phones keeps the background cheap to
+    // paint without changing the look.
+    @include respond-to(sm) {
+      filter: blur(80px);
+
+      &.orb-1 { width: 380px; height: 380px; top: -90px; left: -90px; }
+      &.orb-2 { width: 320px; height: 320px; bottom: -90px; right: -70px; }
+    }
   }
 
   .mesh-grid-svg {
@@ -71,21 +85,35 @@
   z-index: 10;
   width: 100%;
   max-width: 1120px;
-  margin: 2.5rem;
+  margin: auto;
+  padding: 2.5rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 3.5rem;
 
+  @media (max-width: 1100px) {
+    gap: 2.5rem;
+  }
+
   @media (max-width: 960px) {
     flex-direction: column;
-    margin: 2rem 1.25rem;
+    align-items: stretch;
+    padding: 2.5rem 1.5rem;
     gap: 2rem;
   }
 
+  @include respond-to(md) {
+    padding: 2rem 1.25rem;
+  }
+
   @include respond-to(sm) {
-    margin: 1.5rem 0.75rem;
-    gap: 1rem;
+    padding: 1.5rem 1rem;
+    gap: 1.25rem;
+  }
+
+  @include respond-to(xs) {
+    padding: 1.25rem 0.85rem;
   }
 }
 
@@ -129,6 +157,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+
+    .brand-logo-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
   }
 
   .brand-title {
@@ -169,6 +206,12 @@
     @media (max-width: 1200px) {
       font-size: 1.75rem;
     }
+
+    @include respond-to(md) {
+      font-size: 1.5rem;
+    }
+
+    br { display: none; }
   }
 
   p {
@@ -176,6 +219,10 @@
     color: #475569;
     line-height: 1.6;
     margin: 0;
+
+    @include respond-to(md) {
+      font-size: 0.8125rem;
+    }
   }
 }
 
@@ -245,8 +292,13 @@
 
   .telemetry-metrics {
     display: flex;
-    gap: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem 2rem;
     padding-top: 0.25rem;
+
+    @include respond-to(sm) {
+      gap: 0.85rem 1.5rem;
+    }
 
     .metric-cell {
       display: flex;
@@ -313,7 +365,12 @@
 
   @media (max-width: 960px) {
     width: 100%;
-    max-width: 100%;
+    max-width: 420px;
+    align-self: center;
+  }
+
+  @include respond-to(sm) {
+    max-width: 400px;
   }
 
   .modern-saas-card {
@@ -327,6 +384,18 @@
     flex-direction: column;
     gap: 1.5rem;
     animation: authCardEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+
+    // Mobile: stays a contained, centred login-form modal — just tighter
+    // padding and a slightly smaller radius. NOT full-screen.
+    @include respond-to(sm) {
+      padding: 1.6rem 1.35rem;
+      gap: 1.15rem;
+      border-radius: 16px;
+    }
+
+    @include respond-to(xs) {
+      padding: 1.4rem 1.15rem;
+    }
 
     &.auth-card-exit {
       animation: authCardExit 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
@@ -558,6 +627,13 @@
         font-family: inherit;
 
         &::placeholder { color: #94A3B8; }
+
+        // Larger touch target + 16px font so iOS Safari doesn't auto-zoom the
+        // viewport when the field gains focus.
+        @include respond-to(md) {
+          height: 46px;
+          font-size: 16px;
+        }
       }
 
       .saas-badge-tag {
@@ -590,6 +666,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 0.5rem;
     padding: 0.6rem 0.85rem;
     background: var(--brand-primary-light, #F0FEF5);
     border: 1px solid var(--brand-primary-border, #A3F5C1);
@@ -599,12 +676,22 @@
       display: flex;
       align-items: center;
       gap: 0.4rem;
+      min-width: 0;
       font-size: 0.775rem;
       font-weight: 500;
       color: var(--brand-primary-text, #075F27);
+
+      span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      svg { flex-shrink: 0; }
     }
 
     .switch-link {
+      flex-shrink: 0;
       background: transparent;
       border: none;
       color: var(--brand-primary, #15803D);
@@ -623,6 +710,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
 
     .checkbox-wrap {
       display: flex;
@@ -667,6 +756,11 @@
     width: 100%;
     height: 38px;
     margin-top: 0.25rem;
+
+    @include respond-to(md) {
+      height: 46px;
+      font-size: 0.875rem;
+    }
     background: var(--brand-primary, #15803D);
     color: #FFFFFF;
     border: none;
@@ -840,6 +934,26 @@
   white-space: nowrap;
   pointer-events: none;
   z-index: 10;
+
+  // Below the point where the layout stacks, the absolutely-positioned nowrap
+  // footer would overflow the viewport and overlap the card. Drop it back into
+  // normal flow, let it wrap, and centre it under the content.
+  @media (max-width: 960px) {
+    position: static;
+    transform: none;
+    left: auto;
+    bottom: auto;
+    white-space: normal;
+    text-align: center;
+    max-width: 90%;
+    margin: 0.5rem auto 1.5rem;
+    line-height: 1.5;
+  }
+
+  @include respond-to(sm) {
+    font-size: 0.65rem;
+    margin-top: 0.25rem;
+  }
 }
 
 @keyframes pulseDot {
@@ -940,6 +1054,182 @@
   0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
   70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(59, 130, 246, 0); }
   100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+// ============================================================
+// MOBILE LOGIN MODAL (≤ 540px)
+// The hero column is hidden here, so the form card carries its own compact
+// brand header + back control. It stays a contained, centred modal — NOT a
+// full-screen page. Compact type, larger touch targets.
+// Applies to LoginPage / CompanyCodePage / SuperAdminLoginPage (shared markup).
+// ============================================================
+
+// Brand header + back button live in the markup year-round but only show on
+// mobile, where the hero (which normally carries branding) is hidden.
+.saas-mobile-brand,
+.saas-mobile-back { display: none; }
+
+@include respond-to(sm) {
+
+  .fluid-screen-content {
+    // Keep the card vertically centred; let it scroll if it ever outgrows
+    // the viewport.
+    justify-content: center;
+  }
+
+  .fluid-form-col .modern-saas-card {
+
+    // ── Compact brand header ─────────────────────────────────────
+    .saas-mobile-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      padding-bottom: 0.9rem;
+      margin-bottom: 0.1rem;
+      border-bottom: 1px solid #F1F5F9;
+
+      .brand-logo {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        background: var(--brand-primary-light, #F0FEF5);
+        color: var(--brand-primary, #15803D);
+
+        .brand-logo-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+      }
+
+      .brand-copy {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-width: 0;
+
+        .brand-name {
+          font-size: 0.82rem;
+          font-weight: 700;
+          color: #0F172A;
+          line-height: 1.25;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .brand-tag {
+          font-size: 0.66rem;
+          font-weight: 500;
+          color: #94A3B8;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+      }
+
+      // ── Back / change nav, sitting beside the company name ──────
+      .saas-mobile-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        flex-shrink: 0;
+        margin-left: auto;
+        background: #F1F5F9;
+        border: 1px solid #E2E8F0;
+        border-radius: 8px;
+        color: #334155;
+        font-size: 0.7rem;
+        font-weight: 500;
+        padding: 6px 10px;
+        cursor: pointer;
+
+        &:active { background: #E2E8F0; }
+      }
+    }
+
+    // ── Compact step tabs (kept for the Company-Code / Super-Admin
+    //    screens; removed on the tenant login screen) ──────────────
+    .saas-segmented-tabs {
+      gap: 3px;
+
+      .saas-tab {
+        font-size: 0.68rem;
+        padding: 5px 6px;
+
+        .tab-num { width: 15px; height: 15px; font-size: 0.58rem; }
+      }
+    }
+
+    // On the tenant login card the stepper and the "verified company"
+    // bar are redundant with the brand header above — hide them.
+    &.login-tenant-card {
+      .saas-segmented-tabs,
+      .saas-verified-bar { display: none; }
+    }
+
+    // ── Compact type ─────────────────────────────────────────────
+    .saas-form { gap: 0.9rem; }
+
+    .saas-form-head {
+      h3 { font-size: 1.1rem; }
+      p  { font-size: 0.75rem; line-height: 1.4; }
+    }
+
+    .saas-card-header {
+      .saas-title { font-size: 1.1rem; }
+      .saas-sub   { font-size: 0.75rem; }
+    }
+
+    .saas-badge { font-size: 0.6rem; }
+
+    .saas-input-group {
+      gap: 0.3rem;
+
+      label { font-size: 0.7rem; }
+
+      .saas-input-wrap {
+        .saas-icon { width: 16px; height: 16px; }
+        input { height: 46px; font-size: 16px; padding-left: 38px; }
+      }
+    }
+
+    .saas-verified-bar {
+      padding: 0.5rem 0.7rem;
+      .verified-info { font-size: 0.7rem; }
+      .switch-link   { font-size: 0.68rem; }
+    }
+
+    .saas-options-row {
+      font-size: 0.72rem;
+      .checkbox-wrap { font-size: 0.72rem; }
+      .forgot-link   { font-size: 0.72rem; }
+    }
+
+    .saas-primary-btn {
+      height: 46px;
+      font-size: 0.85rem;
+      margin-top: 0.15rem;
+    }
+
+    .saas-error-alert,
+    .saas-alert-banner {
+      font-size: 0.72rem;
+      padding: 0.5rem 0.7rem;
+    }
+  }
+
+  .fluid-page-footer {
+    font-size: 0.58rem;
+    margin: 0.85rem auto;
+    padding: 0 1rem;
+  }
 }
 
 

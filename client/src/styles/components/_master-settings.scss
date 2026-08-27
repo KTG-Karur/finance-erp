@@ -1,0 +1,177 @@
+@use '../mixins' as *;
+
+// ============================================================
+// MASTER SETTINGS PAGES — shared mobile-app compaction
+// Applies to every master sub-view that carries `.master-settings-page`
+// (Loan Scheme Master, Chart of Accounts, Bank Accounts, Expense
+// Allocation, Org & Company, Brand/Theme, Drafts Archive, Investor
+// Master). Each has a bespoke layout but shares these building blocks:
+// .active-loans-header · .loans-table-card · .fin-table-scroll ·
+// .fin-filterbar · .saas-modal-card · .modal-grid-2 / -3
+// ============================================================
+.master-settings-page {
+  // Nothing may push the page wider than the screen — children reflow / scroll.
+  *, *::before, *::after { min-width: 0; }
+  overflow-x: clip;
+
+  // Table data never wraps or crushes — cells stay on one line and the
+  // .fin-table-scroll box scrolls sideways.
+  .fin-table-scroll table th,
+  .fin-table-scroll table td,
+  .fin-grid-table th,
+  .fin-grid-table td { white-space: nowrap; }
+
+  @include respond-to(sm) {
+    gap: 12px;
+
+    // ── Header (title + add button) ─────────────────────────────
+    .active-loans-header {
+      .header-left { min-width: 0; }
+
+      .header-text {
+        h1 {
+          font-size: 1rem !important;
+          overflow-wrap: break-word;
+        }
+
+        p {
+          font-size: 0.68rem !important;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+      }
+
+      .header-actions .btn-disburse {
+        padding: 8px 12px !important;
+        font-size: 0.76rem;
+      }
+    }
+
+    .fin-header-stats { display: none; }
+
+    // ── Filter bar (Chart of Accounts etc.) ────────────────────
+    .fin-filterbar {
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 8px;
+      padding: 10px 12px;
+
+      .fin-field {
+        flex: 1 1 calc(50% - 4px) !important;
+        width: auto !important;
+      }
+
+      .fin-field label { font-size: 0.62rem; }
+
+      .fin-input,
+      .fin-field button { height: 34px !important; font-size: 0.78rem; }
+
+      .fin-search-btn {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        height: 34px;
+        padding: 0 14px;
+      }
+    }
+  }
+
+  // ── Expense Allocation — page header uses .header-titles /
+  //    .head-icon-badge which have no page-context styling of their own ──
+  .fin-page-header {
+    .header-titles {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .head-icon-badge {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .header-titles h1 { font-size: 1.1rem; margin: 0; }
+    .header-titles p { font-size: 0.76rem; color: #64748B; margin: 2px 0 0; }
+
+    @include respond-to(sm) {
+      .head-icon-badge {
+        width: 32px;
+        height: 32px;
+
+        svg { width: 16px !important; height: 16px !important; }
+      }
+
+      .header-titles h1 { font-size: 1rem; }
+
+      .header-titles p {
+        font-size: 0.68rem;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+
+      .header-actions {
+        width: 100%;
+
+        button { flex: 1 1 auto; justify-content: center; }
+      }
+    }
+  }
+
+  // ── Bank Account Master — compact KPI cards on small screens ──
+  .bank-kpi-grid {
+    @include respond-to(md) {
+      // Two per row (the 3rd — the balance — spans the full width below) so a
+      // long "₹12,34,567" value always fits on one line inside its card.
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      gap: 8px !important;
+      margin-bottom: 14px !important;
+
+      .bank-kpi-card:last-child { grid-column: 1 / -1; }
+    }
+
+    @include respond-to(xs) {
+      grid-template-columns: 1fr !important;
+    }
+  }
+
+  .bank-kpi-card {
+    @include respond-to(md) {
+      padding: 9px 12px !important;
+      border-radius: 8px !important;
+
+      span {
+        font-size: 0.56rem !important;
+        line-height: 1.25;
+        margin-bottom: 2px;
+      }
+
+      strong {
+        font-size: 1.05rem !important;
+        white-space: nowrap;
+        overflow-wrap: normal;
+      }
+    }
+  }
+
+  // ── CRUD modals ──────────────────────────────────────────────
+  // (.saas-modal-card and .modal-grid-2/-3 already go full-width / 1-column
+  //  on `sm` via _modal.scss / _finance-pages.scss — only the *inline*
+  //  grid rows in these forms still need collapsing.)
+  @include respond-to(sm) {
+    [style*="grid-template-columns: 1fr 1fr"],
+    [style*="grid-template-columns: repeat(2"],
+    [style*="grid-template-columns: repeat(3"] {
+      grid-template-columns: 1fr !important;
+    }
+  }
+}

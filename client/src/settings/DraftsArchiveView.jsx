@@ -103,7 +103,7 @@ export default function DraftsArchiveView({ onRestored }) {
   const pagedRecords = filteredRecords.slice(startIndex, startIndex + pageSize);
 
   return (
-    <div className="fin-page">
+    <div className="fin-page master-settings-page">
       {/* ── Page Header ── */}
       <div className="fin-header-card">
         <div className="fin-page-header">

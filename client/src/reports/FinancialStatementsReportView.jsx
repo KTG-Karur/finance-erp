@@ -107,7 +107,7 @@ export default function FinancialStatementsReportView({ chartOfAccounts = [], jo
   };
 
   return (
-    <div className="fin-page">
+    <div className="fin-page fin-report-page">
       <div className="fin-header-card">
         <div className="fin-page-header">
           <div className="fin-page-header__left">

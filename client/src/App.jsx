@@ -1824,7 +1824,7 @@ export default function App() {
   // Before a module is known, the loader carries the platform brand only.
   // Once a user is authenticated (module + company known), it carries that context instead.
   if (isInitialLoading) {
-    const loaderTitle = isAuthenticated && user?.moduleName ? user.moduleName : 'Knock The Globe Technologies Pvt. Ltd.';
+    const loaderTitle = isAuthenticated && user?.moduleName ? user.moduleName : 'Knock The Globe Technologies';
     const loaderSub = isAuthenticated && user?.moduleName ? (user.companyName || tenant.name) : 'Company Code';
     return (
       <div className="app-page-loader">

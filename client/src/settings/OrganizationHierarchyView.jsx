@@ -194,7 +194,7 @@ export default function OrganizationHierarchyView({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div className="master-settings-page" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
       <div className="active-loans-header">
         <div className="header-left">

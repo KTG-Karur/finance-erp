@@ -657,7 +657,7 @@ export default function LoanSchemeMasterView({ schemes = [], onCreateScheme, onU
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif' }}>
+    <div className="master-settings-page" style={{ display: 'flex', flexDirection: 'column', gap: 16, fontFamily: 'InterVariable, Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif' }}>
       <div className="active-loans-header">
         <div className="header-left">
           <div className="header-text">

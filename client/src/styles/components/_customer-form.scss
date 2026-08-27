@@ -644,6 +644,10 @@
       bottom: 0;
       left: 0;
       right: 0;
+      // Stack full-width so long action labels ("Book Recurring Deposit")
+      // sit on one line instead of wrapping and overlapping inside the button.
+      flex-direction: column;
+      gap: 8px;
       padding: 12px 14px;
       background: rgba(255, 255, 255, 0.96);
       backdrop-filter: blur(8px);
@@ -655,11 +659,13 @@
       box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
 
       .btn-cancel, .btn-submit {
-        flex: 1;
+        flex: none;
+        width: 100%;
         height: 44px;
         justify-content: center;
-        padding: 0 10px;
+        padding: 0 14px;
         font-size: 0.85rem;
+        white-space: nowrap;
       }
     }
 
@@ -688,6 +694,7 @@
     .btn-submit {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 8px;
       padding: 11px 26px;
       border-radius: 10px;
@@ -696,6 +703,7 @@
       color: #FFFFFF;
       font-size: 0.82rem;
       font-weight: 700;
+      white-space: nowrap;
       cursor: pointer;
       box-shadow: 0 4px 12px rgba(var(--brand-primary-rgb), 0.28);
       transition: all 0.15s ease;

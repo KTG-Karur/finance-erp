@@ -38,7 +38,10 @@ export default function BorrowersView({ borrowers = [], loans = [], collections 
   useEffect(() => {
     if (selectedBranch && selectedBranch !== 'ALL') setBranchFilter(selectedBranch);
   }, [selectedBranch]);
+  // Table is the default on every screen size; the compact toggle lets phone
+  // users switch to the card list.
   const [viewMode, setViewMode] = useState('TABLE');
+  const effectiveView = viewMode;
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
@@ -255,7 +258,7 @@ export default function BorrowersView({ borrowers = [], loans = [], collections 
   }
 
   return (
-    <div className="fin-page">
+    <div className="fin-page customer-directory-page">
 
       {/* ── 1. Top Page Header + Summary Stats ───────────────────────────── */}
       <div className="fin-header-card">
@@ -290,7 +293,7 @@ export default function BorrowersView({ borrowers = [], loans = [], collections 
 
       {/* ── 2. Directory Toolbar (Search & Filters) ─────────────────────── */}
       <div className="fin-filterbar">
-        <div className="fin-field" style={{ minWidth: 200 }}>
+        <div className="fin-field fin-field--search">
           <label>{t('fin.find_transactions_placeholder')}</label>
           <div style={{ position: 'relative' }}>
             <Search style={{ position: 'absolute', left: 9, top: 9, width: 13, height: 13, color: '#94A3B8' }} />
@@ -305,12 +308,12 @@ export default function BorrowersView({ borrowers = [], loans = [], collections 
           </div>
         </div>
 
-        <div className="fin-field">
+        <div className="fin-field fin-field--pair">
           <label>Filter</label>
           <SharedDropdown
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-            buttonStyle={{ height: 36, minWidth: 160 }}
+            buttonStyle={{ height: 36, width: '100%' }}
             options={[
               { value: 'ALL', label: `All Customers (${totalBorrowers})` },
               { value: 'ACTIVE_LOANS', label: 'Active Loans Only' }
@@ -318,13 +321,13 @@ export default function BorrowersView({ borrowers = [], loans = [], collections 
           />
         </div>
 
-        <div className="fin-field">
+        <div className="fin-field fin-field--pair">
           <label>{t('fin.branch_label')}</label>
           <SharedDropdown
             value={branchFilter}
             onChange={(e) => { setBranchFilter(e.target.value); setCurrentPage(1); }}
             disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
-            buttonStyle={{ height: 36, minWidth: 160 }}
+            buttonStyle={{ height: 36, width: '100%' }}
             options={[
               { value: 'ALL', label: 'All Branches' },
               ...branches.map(b => ({ value: b.name, label: b.name }))
@@ -391,9 +394,9 @@ export default function BorrowersView({ borrowers = [], loans = [], collections 
         </div>
       </div>
 
-      {viewMode === 'TABLE' ? (
+      {effectiveView === 'TABLE' ? (
         <div className="fin-tablewrap">
-          <table className="fin-grid-table">
+          <table className="fin-grid-table fin-grid-table--wide">
               <thead>
                 <tr>
                   <th style={{ width: 60, textAlign: 'center' }}>{t('col.sno')}</th>
@@ -613,6 +616,25 @@ export default function BorrowersView({ borrowers = [], loans = [], collections 
                 </div>
               </div>
             ))
+          )}
+
+          {totalPages > 1 && (
+            <div className="table-pagination" style={{ gridColumn: '1 / -1' }}>
+              <div className="table-pagination__info">
+                Showing <strong>{borrowersList.length === 0 ? 0 : startIndex + 1}</strong> to <strong>{Math.min(startIndex + pageSize, borrowersList.length)}</strong> of <strong>{borrowersList.length}</strong> entries
+              </div>
+              <div className="table-pagination__controls">
+                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>
+                  <ChevronLeft style={{ width: 14, height: 14 }} />
+                  <span>Previous</span>
+                </button>
+                <span className="page-indicator">Page {safePage} of {totalPages}</span>
+                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>
+                  <span>Next</span>
+                  <ChevronRight style={{ width: 14, height: 14 }} />
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}

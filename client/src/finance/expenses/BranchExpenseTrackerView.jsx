@@ -336,11 +336,11 @@ export default function BranchExpenseTrackerView({
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
 
   return (
-    <div className="fin-page">
+    <div className="fin-page branch-expense-page">
       {/* Executive Header */}
-      <div className="fin-header-card" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '20px 24px', borderRadius: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div className="fin-header-card be-header-card" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '20px 24px', borderRadius: 12 }}>
+        <div className="be-header-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+          <div className="be-header-title" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Wallet style={{ width: 22, height: 22 }} />
             </div>
@@ -354,20 +354,21 @@ export default function BranchExpenseTrackerView({
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <div className="be-header-summary" style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+            <div className="be-hstat" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>{t('expenses.total_allocated', 'Total Allocated')}</span>
               <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0F172A' }}>₹{fmt(totalAllocated)}</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div className="be-hstat" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>{t('expenses.total_spent', 'Total Spent')}</span>
               <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#C2410C' }}>₹{fmt(totalSpent)}</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div className="be-hstat" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>{t('expenses.remaining_balance', 'Remaining Balance')}</span>
               <span style={{ fontSize: '1.1rem', fontWeight: 700, color: totalRemaining > 0 ? 'var(--brand-primary, #15803D)' : 'var(--color-danger, #DC2626)' }}>₹{fmt(totalRemaining)}</span>
             </div>
             <button
+              className="be-header-btn"
               onClick={() => setIsVoucherModalOpen(true)}
               style={{
                 background: 'var(--brand-primary, #15803D)',
@@ -392,7 +393,7 @@ export default function BranchExpenseTrackerView({
 
       {/* Filter Toolbar */}
       <div className="fin-filterbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginTop: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div className="be-filters" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div className="fin-field">
             <label style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 500 }}>{t('fin.branch_label', 'Branch')}</label>
             <SharedDropdown
@@ -400,7 +401,7 @@ export default function BranchExpenseTrackerView({
               onChange={(e) => setBranchFilter(e.target.value)}
               disabled={Boolean(selectedBranch && selectedBranch !== 'ALL')}
               size="sm"
-              buttonStyle={{ height: 34, minWidth: 140 }}
+              buttonStyle={{ height: 34, width: '100%', minWidth: 130 }}
               options={[
                 { value: 'ALL', label: t('expenses.all_branches', 'All Branches') },
                 ...branchesList.map(b => ({ value: b.name, label: b.name }))
@@ -414,7 +415,7 @@ export default function BranchExpenseTrackerView({
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
               size="sm"
-              buttonStyle={{ height: 34, minWidth: 160 }}
+              buttonStyle={{ height: 34, width: '100%', minWidth: 130 }}
               options={[
                 { value: 'ALL', label: t('expenses.all_categories', 'All Categories') },
                 ...scopedCategories.map(c => ({ value: c.id, label: c.name }))
@@ -423,7 +424,7 @@ export default function BranchExpenseTrackerView({
           </div>
         </div>
 
-        <div style={{ position: 'relative', width: 220 }}>
+        <div className="be-search" style={{ position: 'relative', width: 220 }}>
           <Search style={{ position: 'absolute', left: 9, top: 10, width: 13, height: 13, color: '#94A3B8' }} />
           <input
             type="text"
@@ -465,8 +466,7 @@ export default function BranchExpenseTrackerView({
 
               return (
                 <div key={cat.id} style={{
-                  minWidth: 300,
-                  maxWidth: 320,
+                  width: 'min(82vw, 300px)',
                   flexShrink: 0,
                   background: '#FFFFFF',
                   border: '1px solid #E2E8F0',

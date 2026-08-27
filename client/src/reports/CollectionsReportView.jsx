@@ -115,7 +115,7 @@ export default function CollectionsReportView({ collections = [], loans = [], br
   };
 
   return (
-    <div className="fin-page">
+    <div className="fin-page fin-report-page">
       <div className="fin-header-card">
         <div className="fin-page-header">
           <div className="fin-page-header__left">
@@ -249,21 +249,22 @@ export default function CollectionsReportView({ collections = [], loans = [], br
             ))}
           </tbody>
         </table>
-        <div className="table-pagination">
-          <div className="table-pagination__info">
-            Showing <strong>{filtered.length === 0 ? 0 : startIndex + 1}</strong> to <strong>{Math.min(startIndex + pageSize, filtered.length)}</strong> of <strong>{filtered.length}</strong> entries
-          </div>
-          <div className="table-pagination__controls">
-            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>
-              <ChevronLeft style={{ width: 14, height: 14 }} />
-              <span>Previous</span>
-            </button>
-            <span className="page-indicator">Page {safePage} of {totalPages}</span>
-            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>
-              <span>Next</span>
-              <ChevronRight style={{ width: 14, height: 14 }} />
-            </button>
-          </div>
+      </div>
+
+      <div className="table-pagination table-pagination--under">
+        <div className="table-pagination__info">
+          Showing <strong>{filtered.length === 0 ? 0 : startIndex + 1}</strong> to <strong>{Math.min(startIndex + pageSize, filtered.length)}</strong> of <strong>{filtered.length}</strong> entries
+        </div>
+        <div className="table-pagination__controls">
+          <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>
+            <ChevronLeft style={{ width: 14, height: 14 }} />
+            <span>Previous</span>
+          </button>
+          <span className="page-indicator">Page {safePage} of {totalPages}</span>
+          <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>
+            <span>Next</span>
+            <ChevronRight style={{ width: 14, height: 14 }} />
+          </button>
         </div>
       </div>
 
