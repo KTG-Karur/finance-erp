@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Banknote, Search, ChevronLeft, ChevronRight, Download, Printer, FileDown } from 'lucide-react';
+import { Banknote, Search, ChevronLeft, ChevronRight, Download, Printer, FileDown, Calendar } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import { exportToCsv } from '../utils/csvExport';
 import ReportPreviewModal from '../components/ReportPreviewModal';
 import { refTimeMap } from '../utils/accounting';
 import DropdownSelect from '../components/DropdownSelect';
 import SharedDatePicker from '../components/common/SharedDatePicker';
+import api from '../api/client';
 
 function formatDateDDMMYYYY(dateStr) {
   if (!dateStr) return '—';
@@ -21,6 +22,11 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function fmtTime(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
 export default function CollectionsReportView({ collections = [], loans = [], branchesList = [], journalEntries = [], tenant, user, selectedBranch = 'ALL' }) {
   const { t } = useLanguage();
   const [branch, setBranch] = useState(() => (selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL'));
@@ -28,6 +34,9 @@ export default function CollectionsReportView({ collections = [], loans = [], br
     setBranch(selectedBranch && selectedBranch !== 'ALL' ? selectedBranch : 'ALL');
   }, [selectedBranch]);
   const hasBranchSelected = branch !== '';
+
+  const [financialYears, setFinancialYears] = useState([]);
+  const [selectedFyCode, setSelectedFyCode] = useState('');
   const [paymentMode, setPaymentMode] = useState('ALL');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -35,6 +44,38 @@ export default function CollectionsReportView({ collections = [], loans = [], br
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
+
+  useEffect(() => {
+    const fetchFys = async () => {
+      try {
+        const res = await api.get('/finance/fy');
+        if (res?.data?.success) {
+          const list = res.data.data || [];
+          setFinancialYears(list);
+          const active = list.find(y => y.status === 'ACTIVE' || y.is_current) || list[0];
+          if (active) {
+            setSelectedFyCode(active.code);
+            setFromDate(active.start_date);
+            setToDate(active.end_date);
+            setApplied({ from: active.start_date, to: active.end_date });
+          }
+        }
+      } catch {}
+    };
+    fetchFys();
+  }, []);
+
+  const handleFyChange = (e) => {
+    const code = e.target.value;
+    setSelectedFyCode(code);
+    const fy = financialYears.find(y => y.code === code);
+    if (fy) {
+      setFromDate(fy.start_date);
+      setToDate(fy.end_date);
+      setApplied({ from: fy.start_date, to: fy.end_date });
+      setCurrentPage(1);
+    }
+  };
 
   const loanBranchMap = useMemo(() => {
     const m = {};
@@ -156,6 +197,20 @@ export default function CollectionsReportView({ collections = [], loans = [], br
       </div>
 
       <form className="fin-filterbar" onSubmit={handleSearch}>
+        {financialYears.length > 0 && (
+          <div className="fin-field">
+            <label>Financial Year</label>
+            <DropdownSelect
+              value={selectedFyCode}
+              onChange={handleFyChange}
+              buttonStyle={{ height: 36, minWidth: 140 }}
+              options={[
+                { value: '', label: '— Custom Range —' },
+                ...financialYears.map(fy => ({ value: fy.code, label: `${fy.code}${fy.is_current ? ' (Current)' : ''}` }))
+              ]}
+            />
+          </div>
+        )}
         <div className="fin-field">
           <label>{t('fin.branch_label')}</label>
           <DropdownSelect

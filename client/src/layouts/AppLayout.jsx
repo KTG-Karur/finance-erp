@@ -34,7 +34,8 @@ import {
   Landmark,
   Lock,
   Menu,
-  Palette
+  Palette,
+  Calendar
 } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import NotificationCenter from '../components/NotificationCenter';
@@ -507,6 +508,17 @@ export default function AppLayout({
                             </button>
                           )}
 
+                          {(match('Financial Year') || match('Year-End Closing') || match('Period Closing') || match('FY Closing')) && (
+                            <button id="nav-fy-closing"
+                              className={itemCls(activeTab === 'master-settings/financial-years' || activeTab === 'financial-years')}
+                              onClick={() => handleNavClick('master-settings/financial-years')}
+                              title="Financial Year & Closing"
+                            >
+                              <Calendar className="sidebar__item-icon" />
+                              <span className="sidebar__label">Financial Year Closing</span>
+                            </button>
+                          )}
+
                           <button
                             id="nav-branch-expenses"
                             className={itemCls(activeTab === 'branch-expenses' || activeTab === 'finance/expenses')}
@@ -600,6 +612,13 @@ export default function AppLayout({
                             title={t('nav.eod_process')}
                           >
                             <Calculator className="sidebar__item-icon" />
+                          </button>
+                          <button
+                            className={itemCls(activeTab === 'master-settings/financial-years' || activeTab === 'financial-years')}
+                            onClick={() => handleNavClick('master-settings/financial-years')}
+                            title="Financial Year & Closing"
+                          >
+                            <Calendar className="sidebar__item-icon" />
                           </button>
                           <button
                             className={itemCls(isFin('auto-vouchers'))}
@@ -889,6 +908,13 @@ export default function AppLayout({
                                 <Palette className="sidebar__sub-icon" />
                                 <span>Brand Theme</span>
                               </button>
+                              <button id="nav-financial-years"
+                                className={subCls(isSet('financial-years') || isSet('fy-closing'))}
+                                onClick={() => handleNavClick('master-settings/financial-years')}
+                              >
+                                <Calendar className="sidebar__sub-icon" />
+                                <span>Financial Years & Closing</span>
+                              </button>
                               <button id="nav-drafts-archive"
                                 className={subCls(isSet('drafts-archive') || isSet('drafts') || isSet('trash'))}
                                 onClick={() => handleNavClick('master-settings/drafts-archive')}
@@ -978,6 +1004,13 @@ export default function AppLayout({
                             title="Brand Theme"
                           >
                             <Palette className="sidebar__item-icon" />
+                          </button>
+                          <button
+                            className={itemCls(isSet('financial-years'))}
+                            onClick={() => handleNavClick('master-settings/financial-years')}
+                            title="Financial Years & Closing"
+                          >
+                            <Calendar className="sidebar__item-icon" />
                           </button>
                           <button
                             className={itemCls(isSet('drafts-archive') || isSet('drafts') || isSet('trash'))}

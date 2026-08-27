@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import SharedDropdown from '../components/common/SharedDropdown';
+import SharedDatePicker from '../components/common/SharedDatePicker';
 import api from '../api/client';
 import { uploadFile } from '../api/upload.js';
 

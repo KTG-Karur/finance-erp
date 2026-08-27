@@ -13,28 +13,22 @@ export const ACCOUNT_TYPES = {
 };
 
 export const INITIAL_CHART_OF_ACCOUNTS = [
-  { code: '1001', name: 'Cash on Hand', name_key: 'coa.cash_on_hand', type: 'ASSET' },
+  { code: '1001', name: 'Cash in Hand', name_key: 'coa.cash_in_hand', type: 'ASSET' },
   { code: '1002', name: 'Bank Account (Primary)', name_key: 'coa.bank_primary', type: 'ASSET' },
-  { code: '1003', name: 'Loans Outstanding (Principal Receivable)', name_key: 'coa.loans_outstanding', type: 'ASSET' },
-  { code: '1004', name: 'Interest Receivable', name_key: 'coa.interest_receivable', type: 'ASSET' },
-  { code: '1005', name: 'Prepaid Expenses', name_key: 'coa.prepaid_expenses', type: 'ASSET' },
-  { code: '2001', name: "Promoter's Capital", name_key: 'coa.promoter_capital', type: 'EQUITY' },
-  { code: '2002', name: 'Investor Borrowings (Debt)', name_key: 'coa.investor_borrowings', type: 'LIABILITY' },
-  { code: '2003', name: 'Customer Security Deposits', name_key: 'coa.customer_deposits', type: 'LIABILITY' },
-  { code: '2004', name: 'Accounts Payable', name_key: 'coa.accounts_payable', type: 'LIABILITY' },
-  { code: '3001', name: 'Retained Earnings', name_key: 'coa.retained_earnings', type: 'EQUITY' },
-  { code: '4001', name: 'Interest Income', name_key: 'coa.interest_income', type: 'REVENUE' },
-  { code: '4002', name: 'Late Fee / Penalty Income', name_key: 'coa.penalty_income', type: 'REVENUE' },
-  { code: '4003', name: 'Loan Processing Fee Income', name_key: 'coa.processing_fee_income', type: 'REVENUE' },
+  { code: '1100', name: 'Loan Receivables Portfolio', name_key: 'coa.loan_receivables', type: 'ASSET' },
+  { code: '2001', name: 'Member Deposits / Advance EMI', name_key: 'coa.member_deposits', type: 'LIABILITY' },
+  { code: '2200', name: 'Fixed Deposit Liability', name_key: 'coa.fd_liability', type: 'LIABILITY' },
+  { code: '2201', name: 'Recurring Deposit Liability', name_key: 'coa.rd_liability', type: 'LIABILITY' },
+  { code: '3001', name: 'Promoter Share Capital', name_key: 'coa.share_capital', type: 'EQUITY' },
+  { code: '3005', name: 'Retained Earnings / Reserve Fund', name_key: 'coa.retained_earnings', type: 'EQUITY' },
+  { code: '4001', name: 'Loan Interest Income', name_key: 'coa.interest_income', type: 'REVENUE' },
+  { code: '4002', name: 'Loan Penalty / Overdue Fee Income', name_key: 'coa.penalty_income', type: 'REVENUE' },
   { code: '4099', name: 'Miscellaneous Income', name_key: 'coa.misc_income', type: 'REVENUE' },
-  { code: '5001', name: 'Rent Expense', name_key: 'coa.rent_expense', type: 'EXPENSE' },
-  { code: '5002', name: 'Staff Salaries', name_key: 'coa.salary_expense', type: 'EXPENSE' },
-  { code: '5003', name: 'Electricity & Utilities', name_key: 'coa.utility_expense', type: 'EXPENSE' },
-  { code: '5004', name: 'Office Supplies & Stationery', name_key: 'coa.office_expense', type: 'EXPENSE' },
-  { code: '5005', name: 'Legal & Professional Charges', name_key: 'coa.legal_expense', type: 'EXPENSE' },
-  { code: '5006', name: 'Bank Charges & Processing Fees', name_key: 'coa.bank_charges', type: 'EXPENSE' },
-  { code: '5007', name: 'Loan Loss Provision / Bad Debt', name_key: 'coa.bad_debt_expense', type: 'EXPENSE' },
-  { code: '5099', name: 'Miscellaneous Expenses', name_key: 'coa.misc_expense', type: 'EXPENSE' }
+  { code: '5001', name: 'Bad Debt Provision Expense', name_key: 'coa.bad_debt_provision', type: 'EXPENSE' },
+  { code: '5002', name: 'Branch Operating Expenses', name_key: 'coa.operating_expenses', type: 'EXPENSE' },
+  { code: '5003', name: 'Fixed Deposit Interest Expense', name_key: 'coa.fd_interest_expense', type: 'EXPENSE' },
+  { code: '5004', name: 'Recurring Deposit Interest Expense', name_key: 'coa.rd_interest_expense', type: 'EXPENSE' },
+  { code: '5099', name: 'Miscellaneous Expense', name_key: 'coa.misc_expense', type: 'EXPENSE' }
 ];
 
 export function journalLine(account_code, debit = 0, credit = 0) {

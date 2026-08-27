@@ -747,6 +747,7 @@ export default function App() {
   };
 
   const fetchCompanyProfile = async () => {
+    if (!isAuthenticated || user?.role === 'SUPER_ADMIN') return;
     try {
       const res = await api.get('/auth/company/profile');
       const data = res.data?.data;
@@ -767,7 +768,7 @@ export default function App() {
 
   // Sync tenant permissions on window focus or route change so Super Admin feature changes reflect instantly
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || user?.role === 'SUPER_ADMIN') return;
     fetchCompanyProfile();
     const handleFocus = () => fetchCompanyProfile();
     window.addEventListener('focus', handleFocus);
@@ -776,7 +777,7 @@ export default function App() {
       window.removeEventListener('focus', handleFocus);
       clearInterval(syncInterval);
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?.role]);
 
   // The brand color is a DB column (companies.theme_color), shared across every
   // user of this tenant — apply it the instant it arrives from
@@ -1804,6 +1805,7 @@ export default function App() {
   };
 
   const getSettingsSubTab = (tabStr) => {
+    if (tabStr.includes('financial-year') || tabStr.includes('fy-closing') || tabStr.includes('fy')) return 'financial-years';
     if (tabStr.includes('drafts') || tabStr.includes('trash') || tabStr.includes('archive') || tabStr.includes('deleted')) return 'drafts-archive';
     if (tabStr.includes('brand-theme') || tabStr.includes('theme')) return 'brand-theme';
     if (tabStr.includes('bank-accounts') || tabStr.includes('banking')) return 'bank-accounts';

@@ -9,6 +9,7 @@ import BankAccountMasterView from './BankAccountMasterView';
 import InvestorCapitalView from '../finance/investors/InvestorCapitalView';
 import BrandThemeSettingsView from './BrandThemeSettingsView';
 import DraftsArchiveView from './DraftsArchiveView';
+import FinancialYearClosingView from './FinancialYearClosingView';
 import SharedDropdown from '../components/common/SharedDropdown';
 import { uploadFile } from '../api/upload.js';
 import {
@@ -465,6 +466,15 @@ export default function MasterSettingsView({
     return (
       <DraftsArchiveView
         onRestored={onRefreshData}
+      />
+    );
+  }
+
+  if (activeTab === 'financial-years' || activeTab === 'fy-closing' || activeTab === 'financial-year' || activeTab === 'period-closing') {
+    return (
+      <FinancialYearClosingView
+        user={user}
+        onRefreshData={onRefreshData}
       />
     );
   }

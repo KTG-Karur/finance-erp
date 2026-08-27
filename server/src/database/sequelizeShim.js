@@ -8,6 +8,7 @@
 export const DataTypes = {
   STRING: (length = 255) => ({ key: 'STRING', length }),
   INTEGER: { key: 'INTEGER' },
+  BIGINT: { key: 'BIGINT' },
   DECIMAL: (precision = 15, scale = 2) => ({ key: 'DECIMAL', precision, scale }),
   TEXT: Object.assign((subtype) => ({ key: subtype === 'long' ? 'LONGTEXT' : subtype === 'medium' ? 'MEDIUMTEXT' : 'TEXT' }), { key: 'TEXT' }),
   MEDIUMTEXT: { key: 'MEDIUMTEXT' },
@@ -28,6 +29,7 @@ function columnTypeSql(spec) {
   switch (type?.key) {
     case 'STRING': return `VARCHAR(${type.length})`;
     case 'INTEGER': return 'INT';
+    case 'BIGINT': return 'BIGINT';
     case 'DECIMAL': return `DECIMAL(${type.precision},${type.scale})`;
     case 'TEXT': return 'TEXT';
     case 'MEDIUMTEXT': return 'MEDIUMTEXT';
@@ -72,6 +74,9 @@ function columnDefinitionSql(conn, colName, spec) {
  */
 export function createQueryInterface(conn) {
   return {
+    sequelize: {
+      query: (sql, params) => conn.query(sql, params)
+    },
     async createTable(tableName, columns, options = {}) {
       const colDefs = Object.entries(columns).map(([name, spec]) => columnDefinitionSql(conn, name, spec));
       const engine = options.engine || 'InnoDB';
