@@ -39,7 +39,7 @@ export class BankService {
              COALESCE(SUM(jl.debit), 0) as total_debit,
              COALESCE(SUM(jl.credit), 0) as total_credit
       FROM bank_accounts b
-      LEFT JOIN journal_lines jl ON jl.account_code = b.ledger_account_code
+      LEFT JOIN journal_lines jl ON jl.account_code COLLATE utf8mb4_unicode_ci = b.ledger_account_code
       WHERE b.deleted_at IS NULL
     `;
     const params = [];

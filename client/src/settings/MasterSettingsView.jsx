@@ -94,6 +94,21 @@ export default function MasterSettingsView({
   onUpdateInvestor,
   onDeleteInvestor,
   onAddInvestorCapital,
+  onFetchInvestorCapitalLedger,
+  onFetchInvestorShareSnapshot,
+  onFetchSuggestedProfit,
+  onFetchProfitDistributions,
+  onFetchProfitDistribution,
+  onCreateProfitDistribution,
+  onDeleteProfitDistribution,
+  onUpdateProfitDistributionLine,
+  onFinalizeProfitDistribution,
+  onFetchCapitalWithdrawalRequests,
+  onFetchCapitalWithdrawalRequest,
+  onCreateCapitalWithdrawalRequest,
+  onRecordWithdrawalApproval,
+  onRetryCapitalWithdrawal,
+  onCancelCapitalWithdrawalRequest,
   journalEntries = [],
   onSaveTheme,
   onRefreshData
@@ -405,6 +420,7 @@ export default function MasterSettingsView({
   if (activeTab === 'investor-master' || activeTab === 'investors' || activeTab === 'investor-capital') {
     return (
       <InvestorCapitalView
+        currentUserRole={user?.role}
         investors={investors}
         bankAccounts={bankAccounts}
         branchesList={branchesList}
@@ -413,6 +429,21 @@ export default function MasterSettingsView({
         onUpdateInvestor={onUpdateInvestor}
         onDeleteInvestor={onDeleteInvestor}
         onAddInvestorCapital={onAddInvestorCapital}
+        onFetchInvestorCapitalLedger={onFetchInvestorCapitalLedger}
+        onFetchInvestorShareSnapshot={onFetchInvestorShareSnapshot}
+        onFetchSuggestedProfit={onFetchSuggestedProfit}
+        onFetchProfitDistributions={onFetchProfitDistributions}
+        onFetchProfitDistribution={onFetchProfitDistribution}
+        onCreateProfitDistribution={onCreateProfitDistribution}
+        onDeleteProfitDistribution={onDeleteProfitDistribution}
+        onUpdateProfitDistributionLine={onUpdateProfitDistributionLine}
+        onFinalizeProfitDistribution={onFinalizeProfitDistribution}
+        onFetchCapitalWithdrawalRequests={onFetchCapitalWithdrawalRequests}
+        onFetchCapitalWithdrawalRequest={onFetchCapitalWithdrawalRequest}
+        onCreateCapitalWithdrawalRequest={onCreateCapitalWithdrawalRequest}
+        onRecordWithdrawalApproval={onRecordWithdrawalApproval}
+        onRetryCapitalWithdrawal={onRetryCapitalWithdrawal}
+        onCancelCapitalWithdrawalRequest={onCancelCapitalWithdrawalRequest}
       />
     );
   }

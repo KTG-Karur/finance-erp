@@ -48,3 +48,10 @@ export async function addInvestorCapitalHandler(request, reply) {
   } catch (err) { return fail(reply, err); }
 }
 
+export async function getInvestorCapitalLedgerHandler(request, reply) {
+  try {
+    const data = await investorService.getInvestorCapitalLedger(request.tenantDb, request.params.id);
+    return reply.send({ success: true, data });
+  } catch (err) { return fail(reply, err); }
+}
+

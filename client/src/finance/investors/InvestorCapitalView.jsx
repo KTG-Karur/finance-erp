@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Wallet, Users, Plus, Trash2, Pencil, X, AlertTriangle,
   Eye, ArrowLeft, Search, Camera, Phone, Mail, MapPin, UserCheck, ChevronLeft, ChevronRight, TrendingUp
@@ -596,11 +596,49 @@ function AddInvestorCapitalModal({ investor, bankAccounts = [], branchesList = [
   );
 }
 
-function InvestorProfileView({ investor, bankAccounts = [], branchesList = [], journalEntries = [], onBack, onEdit, onAddCapital }) {
+const CAPITAL_TXN_TYPE_LABELS = {
+  INITIAL: 'Initial Capital Contribution',
+  ADDITIONAL: 'Additional Capital Contribution',
+  PROFIT_CREDIT: 'Monthly Profit Share Credited',
+  PROFIT_WITHDRAWAL: 'Profit Withdrawal',
+  PROFIT_REINVEST: 'Profit Reinvested to Capital',
+  CAPITAL_WITHDRAWAL: 'Capital Withdrawal'
+};
+
+function InvestorProfileView({ investor, bankAccounts = [], branchesList = [], journalEntries = [], onBack, onEdit, onAddCapital, onFetchCapitalLedger }) {
   const { t, tStatus } = useLanguage();
   const fmt = n => Number(n || 0).toLocaleString('en-IN');
 
-  const investorTxns = useMemo(() => {
+  // Server-backed capital ledger (investor_capital_transactions) — the audit
+  // trail of record. Falls back to the journal-voucher heuristic below only
+  // while it's loading or if the fetch fails, so existing behavior degrades
+  // gracefully rather than breaking.
+  const [ledgerRows, setLedgerRows] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!onFetchCapitalLedger || !investor?.id) return undefined;
+    onFetchCapitalLedger(investor.id)
+      .then(rows => { if (!cancelled) setLedgerRows(rows || []); })
+      .catch(() => { if (!cancelled) setLedgerRows(null); });
+    return () => { cancelled = true; };
+  }, [investor?.id, onFetchCapitalLedger]);
+
+  const ledgerTxns = useMemo(() => {
+    if (!ledgerRows) return null;
+    return ledgerRows.map(row => ({
+      id: row.id,
+      voucher_no: row.journal_entry_id ? `VOU-${row.journal_entry_id}` : '—',
+      date: String(row.txn_date || '').slice(0, 10),
+      description: row.notes || CAPITAL_TXN_TYPE_LABELS[row.txn_type] || row.txn_type,
+      payment_mode: row.txn_type,
+      amount: Number(row.amount),
+      running_balance: Number(row.balance_after),
+      created_by: row.created_by || 'Admin'
+    }));
+  }, [ledgerRows]);
+
+  const derivedTxns = useMemo(() => {
     const txns = [];
     const code = investor.investor_code || `INV-${String(investor.id).padStart(4, '0')}`;
     const invIdStr = String(investor.id);
@@ -646,6 +684,8 @@ function InvestorProfileView({ investor, bankAccounts = [], branchesList = [], j
     }
     return txns;
   }, [journalEntries, investor]);
+
+  const investorTxns = ledgerTxns !== null ? ledgerTxns : derivedTxns;
 
   return (
     <div className="fin-page" style={{ maxWidth: 960, margin: '0 auto' }}>
@@ -902,6 +942,654 @@ function InvestorProfileView({ investor, bankAccounts = [], branchesList = [], j
   );
 }
 
+function currentPeriodMonth() {
+  return new Date().toISOString().slice(0, 7);
+}
+
+function MonthlyProfitDistributionScreen({
+  onBack, onFetchShareSnapshot, onFetchSuggestedProfit, onFetchDistributions, onFetchDistribution,
+  onCreateDistribution, onDeleteDistribution, onUpdateDistributionLine, onFinalizeDistribution
+}) {
+  const fmt = n => Number(n || 0).toLocaleString('en-IN');
+
+  const [periodMonth, setPeriodMonth] = useState(currentPeriodMonth);
+  const [suggestedProfit, setSuggestedProfit] = useState(null);
+  const [totalProfitManual, setTotalProfitManual] = useState('');
+  const [shareSnapshot, setShareSnapshot] = useState(null);
+  const [distribution, setDistribution] = useState(null);
+  const [distributionsList, setDistributionsList] = useState([]);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (onFetchShareSnapshot) onFetchShareSnapshot().then(setShareSnapshot).catch(() => {});
+    if (onFetchDistributions) onFetchDistributions().then(setDistributionsList).catch(() => {});
+  }, [onFetchShareSnapshot, onFetchDistributions]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSuggestedProfit(null);
+    if (onFetchSuggestedProfit && periodMonth) {
+      onFetchSuggestedProfit(periodMonth).then(val => { if (!cancelled) setSuggestedProfit(val); }).catch(() => {});
+    }
+    return () => { cancelled = true; };
+  }, [periodMonth, onFetchSuggestedProfit]);
+
+  const openExistingDistribution = async (id) => {
+    setError('');
+    try {
+      const data = await onFetchDistribution(id);
+      setDistribution(data);
+      setPeriodMonth(data.period_month);
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to load distribution.');
+    }
+  };
+
+  const handleGenerateDraft = async () => {
+    const amount = parseFloat(totalProfitManual);
+    if (!amount || amount <= 0) {
+      setError('Please enter a valid distributable profit amount greater than 0.');
+      return;
+    }
+    if (!window.confirm(`Generate a profit distribution draft for ${periodMonth} with total profit ₹${fmt(amount)}? The total profit amount cannot be changed once the draft is created — you would need to delete the draft and start over.`)) {
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const created = await onCreateDistribution({ periodMonth, totalProfitManual: amount });
+      setDistribution(created);
+      if (onFetchDistributions) setDistributionsList(await onFetchDistributions());
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to create profit distribution draft.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteDraft = async (id) => {
+    if (!window.confirm('Delete this draft profit distribution? This cannot be undone, and the month will become available for a new draft.')) return;
+    setDeleting(true);
+    setError('');
+    try {
+      await onDeleteDistribution(id);
+      setDistribution(null);
+      setTotalProfitManual('');
+      if (onFetchDistributions) setDistributionsList(await onFetchDistributions());
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to delete this draft.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleLineWithdrawChange = (line, newWithdraw) => {
+    setDistribution(prev => ({
+      ...prev,
+      lines: prev.lines.map(l => l.id === line.id
+        ? { ...l, withdraw_amount: newWithdraw, reinvest_amount: Math.max(0, Number(l.profit_amount) - Number(newWithdraw || 0)) }
+        : l)
+    }));
+  };
+
+  const handleLineWithdrawBlur = async (line) => {
+    try {
+      await onUpdateDistributionLine(distribution.id, line.id, { withdrawAmount: Number(line.withdraw_amount) || 0 });
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to save split for this investor.');
+    }
+  };
+
+  const handleFinalize = async () => {
+    if (!window.confirm(`Finalize profit distribution for ${distribution.period_month}? This posts ledger vouchers and updates investor capital — it cannot be undone.`)) return;
+    setFinalizing(true);
+    setError('');
+    try {
+      const finalized = await onFinalizeDistribution(distribution.id);
+      setDistribution(finalized);
+      if (onFetchDistributions) setDistributionsList(await onFetchDistributions());
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to finalize profit distribution.');
+    } finally {
+      setFinalizing(false);
+    }
+  };
+
+  const isFinalized = distribution?.status === 'FINALIZED';
+
+  return (
+    <div className="fin-page" style={{ maxWidth: 1040, margin: '0 auto' }}>
+      <div className="fin-header-card">
+        <div className="fin-page-header">
+          <div className="fin-page-header__left">
+            <button type="button" onClick={onBack} style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginRight: 10 }} title="Back to Investor Directory">
+              <ArrowLeft style={{ width: 16, height: 16 }} />
+            </button>
+            <div className="fin-page-header__icon" style={{ background: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary, #15803D)' }}>
+              <TrendingUp style={{ width: 18, height: 18 }} />
+            </div>
+            <div>
+              <h1 className="fin-page-header__title">Monthly Profit Distribution</h1>
+              <p className="fin-page-header__subtitle">Split monthly profit by live capital share, and settle each investor's withdraw / reinvest split</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {error && <ErrorBanner>{error}</ErrorBanner>}
+
+      {/* Live Share Overview */}
+      {shareSnapshot && shareSnapshot.investors.length > 0 && (
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '18px 20px', marginTop: 14 }}>
+          <h3 style={{ margin: '0 0 10px 0', fontSize: '0.88rem', fontWeight: 800, color: '#0F172A' }}>Current Investor Ownership Share</h3>
+          <div className="fin-tablewrap" style={{ border: '1px solid #E2E8F0', borderRadius: 8 }}>
+            <table className="fin-grid-table">
+              <thead>
+                <tr>
+                  <th>Investor</th>
+                  <th className="num">Capital (₹)</th>
+                  <th className="num">Share %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shareSnapshot.investors.map(inv => (
+                  <tr key={inv.investor_id}>
+                    <td>{inv.name} <span style={{ color: '#94A3B8', fontSize: '0.72rem' }}>({inv.investor_code})</span></td>
+                    <td className="num">₹{fmt(inv.capital_amount)}</td>
+                    <td className="num" style={{ fontWeight: 700 }}>{inv.share_percent.toFixed(2)}%</td>
+                  </tr>
+                ))}
+                <tr>
+                  <td style={{ fontWeight: 700 }}>Total</td>
+                  <td className="num" style={{ fontWeight: 700 }}>₹{fmt(shareSnapshot.total_capital)}</td>
+                  <td className="num" style={{ fontWeight: 700 }}>100.00%</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Month + Profit Entry */}
+      {!distribution && (
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px', marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>Distribution Month</label>
+              <input
+                type="month"
+                value={periodMonth}
+                onChange={e => setPeriodMonth(e.target.value)}
+                style={{ height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.85rem', outline: 'none' }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>
+                Total Distributable Profit (₹) <span style={{ color: '#DC2626' }}>*</span>
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={totalProfitManual}
+                onChange={e => setTotalProfitManual(e.target.value)}
+                placeholder="Enter admin-approved monthly profit"
+                style={{ height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.9rem', fontWeight: 600, fontFamily: 'monospace', outline: 'none' }}
+              />
+              <span style={{ fontSize: '0.7rem', color: '#94A3B8' }}>
+                {suggestedProfit === null ? 'Calculating ledger-based suggestion…' : `Ledger-based suggestion for reference: ₹${fmt(suggestedProfit)} (not used automatically)`}
+              </span>
+            </div>
+          </div>
+          <div>
+            <button
+              type="button"
+              onClick={handleGenerateDraft}
+              disabled={loading}
+              className="fin-btn-primary"
+              style={{ background: loading ? '#94A3B8' : 'var(--brand-primary, #15803D)' }}
+            >
+              {loading ? 'Generating…' : 'Generate Draft'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Draft / Finalized Distribution */}
+      {distribution && (
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px', marginTop: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: '#0F172A' }}>
+                {distribution.period_month} Profit Distribution
+                <span className={`fin-badge ${isFinalized ? 'fin-badge--ok' : 'fin-badge--warn'}`} style={{ marginLeft: 10 }}>
+                  {isFinalized ? 'FINALIZED' : 'DRAFT'}
+                </span>
+              </h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.74rem', color: '#64748B' }}>
+                Total Profit: ₹{fmt(distribution.total_profit_manual)} across {distribution.lines.length} investor(s)
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {!isFinalized && (
+                <button
+                  type="button"
+                  className="fin-btn-secondary fin-btn-secondary--warn"
+                  onClick={() => handleDeleteDraft(distribution.id)}
+                  disabled={deleting}
+                >
+                  {deleting ? 'Deleting…' : 'Delete Draft'}
+                </button>
+              )}
+              {!isFinalized && (
+                <button
+                  type="button"
+                  onClick={handleFinalize}
+                  disabled={finalizing}
+                  className="fin-btn-primary"
+                  style={{ background: finalizing ? '#94A3B8' : 'var(--brand-primary, #15803D)' }}
+                >
+                  {finalizing ? 'Posting…' : 'Finalize & Post'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="fin-tablewrap" style={{ border: '1px solid #E2E8F0', borderRadius: 8 }}>
+            <table className="fin-grid-table">
+              <thead>
+                <tr>
+                  <th>Investor</th>
+                  <th className="num">Share %</th>
+                  <th className="num">Profit Share (₹)</th>
+                  <th className="num" style={{ width: 150 }}>Withdraw (₹)</th>
+                  <th className="num">Reinvest (₹)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {distribution.lines.map(line => (
+                  <tr key={line.id}>
+                    <td>{line.investor_name} <span style={{ color: '#94A3B8', fontSize: '0.72rem' }}>({line.investor_code})</span></td>
+                    <td className="num">{Number(line.share_percent).toFixed(2)}%</td>
+                    <td className="num" style={{ fontWeight: 700 }}>₹{fmt(line.profit_amount)}</td>
+                    <td className="num">
+                      {isFinalized ? (
+                        `₹${fmt(line.withdraw_amount)}`
+                      ) : (
+                        <input
+                          type="number"
+                          min="0"
+                          max={line.profit_amount}
+                          value={line.withdraw_amount}
+                          onChange={e => handleLineWithdrawChange(line, e.target.value)}
+                          onBlur={() => handleLineWithdrawBlur(line)}
+                          style={{ width: 120, height: 32, padding: '0 8px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '0.82rem', fontFamily: 'monospace', textAlign: 'right', outline: 'none' }}
+                        />
+                      )}
+                    </td>
+                    <td className="num" style={{ fontWeight: 700, color: 'var(--brand-primary, #15803D)' }}>₹{fmt(line.reinvest_amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p style={{ fontSize: '0.72rem', color: '#64748B', marginTop: 10 }}>
+            Reinvested amounts are added to each investor's capital balance and change their share % for the next distribution. Withdrawn amounts are paid out and never touch capital.
+          </p>
+        </div>
+      )}
+
+      {/* Distribution History */}
+      {distributionsList.length > 0 && (
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px', marginTop: 16 }}>
+          <h3 style={{ margin: '0 0 10px 0', fontSize: '0.88rem', fontWeight: 800, color: '#0F172A' }}>Distribution History</h3>
+          <div className="fin-tablewrap" style={{ border: '1px solid #E2E8F0', borderRadius: 8 }}>
+            <table className="fin-grid-table">
+              <thead>
+                <tr>
+                  <th>Month</th>
+                  <th className="num">Total Profit (₹)</th>
+                  <th>Status</th>
+                  <th style={{ width: 180 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {distributionsList.map(d => (
+                  <tr key={d.id}>
+                    <td>{d.period_month}</td>
+                    <td className="num">₹{fmt(d.total_profit_manual)}</td>
+                    <td><span className={`fin-badge ${d.status === 'FINALIZED' ? 'fin-badge--ok' : 'fin-badge--warn'}`}>{d.status}</span></td>
+                    <td style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                      <ActionPill icon={<Eye style={{ width: 11, height: 11 }} />} label="View" onClick={() => openExistingDistribution(d.id)} />
+                      {d.status !== 'FINALIZED' && (
+                        <ActionPill icon={<Trash2 style={{ width: 11, height: 11 }} />} label="Delete" tone="bad" onClick={() => handleDeleteDraft(d.id)} />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const WITHDRAWAL_STATUS_TONE = {
+  PENDING_APPROVAL: 'fin-badge--warn',
+  APPROVED_WAITING_FUNDS: 'fin-badge--warn',
+  EXECUTED: 'fin-badge--ok',
+  REJECTED: 'fin-badge--warn',
+  CANCELLED: 'fin-badge--warn'
+};
+
+function NewCapitalWithdrawalModal({ investors = [], onClose, onSubmit }) {
+  const activeInvestors = investors.filter(i => (i.status || 'ACTIVE') === 'ACTIVE');
+  const [investorId, setInvestorId] = useState(() => activeInvestors[0]?.id ? String(activeInvestors[0].id) : '');
+  const [amount, setAmount] = useState('');
+  const [accountCode, setAccountCode] = useState('1002');
+  const [notes, setNotes] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const fmt = n => Number(n || 0).toLocaleString('en-IN');
+  const selectedInvestor = activeInvestors.find(i => String(i.id) === investorId);
+
+  const handleSubmit = async (e) => {
+    if (e) e.preventDefault();
+    const amt = parseFloat(amount) || 0;
+    if (!investorId) { setError('Please select an investor.'); return; }
+    if (!amt || amt <= 0) { setError('Please enter a valid withdrawal amount greater than 0.'); return; }
+    if (selectedInvestor && amt > Number(selectedInvestor.capital_amount)) {
+      setError(`Amount cannot exceed ${selectedInvestor.name}'s current capital balance of ₹${fmt(selectedInvestor.capital_amount)}.`);
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      await onSubmit(investorId, { amount: amt, accountCode, notes: notes.trim() });
+      onClose();
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to submit capital withdrawal request.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="saas-modal-backdrop">
+      <div className="saas-modal-card" style={{ maxWidth: 480 }}>
+        <div className="saas-modal-header">
+          <div className="head-left">
+            <div className="head-icon-badge" style={{ background: 'var(--color-danger-light, #FEF2F2)', borderColor: 'var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)' }}>
+              <AlertTriangle style={{ width: 18, height: 18 }} />
+            </div>
+            <div className="head-titles">
+              <h3>New Capital Withdrawal Request</h3>
+              <p>Reduces investor principal — requires every active investor's approval</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="close-btn" type="button" disabled={loading}><X style={{ width: 16, height: 16 }} /></button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="saas-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {error && <ErrorBanner>{error}</ErrorBanner>}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>Investor</label>
+            <SharedDropdown
+              value={investorId}
+              onChange={e => setInvestorId(e.target.value)}
+              buttonStyle={{ height: 38 }}
+              options={activeInvestors.map(i => ({ value: String(i.id), label: `${i.name} (₹${fmt(i.capital_amount)} capital)` }))}
+            />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>Withdrawal Amount (₹) <span style={{ color: '#DC2626' }}>*</span></label>
+            <input
+              type="number"
+              min="1"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              placeholder="e.g. 100000"
+              style={{ height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.9rem', fontWeight: 600, fontFamily: 'monospace', outline: 'none' }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>Pay Out From</label>
+            <SharedDropdown
+              value={accountCode}
+              onChange={e => setAccountCode(e.target.value)}
+              buttonStyle={{ height: 38 }}
+              options={[
+                { value: '1002', label: 'Bank Account (1002)' },
+                { value: '1001', label: 'Cash in Hand (1001)' }
+              ]}
+            />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>Notes / Reason</label>
+            <input
+              type="text"
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="e.g. Partial capital exit approved by board"
+              style={{ height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', fontFamily: 'inherit', outline: 'none' }}
+            />
+          </div>
+
+          <p style={{ fontSize: '0.74rem', color: '#64748B', margin: 0, lineHeight: 1.4 }}>
+            This request will only execute once every active investor approves it and the company has sufficient available cash/bank balance. It will stay pending otherwise.
+          </p>
+
+          <div className="saas-modal-footer" style={{ marginTop: 6, padding: '12px 0 0 0', borderTop: '1px solid #E2E8F0' }}>
+            <button type="button" onClick={onClose} disabled={loading} className="btn-cancel">Cancel</button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-submit"
+              style={{ background: loading ? '#94A3B8' : 'var(--color-danger, #DC2626)', cursor: loading ? 'not-allowed' : 'pointer' }}
+            >
+              {loading ? 'Submitting…' : 'Submit for Approval'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function CapitalWithdrawalsScreen({
+  onBack, investors = [], isAdmin,
+  onFetchRequests, onFetchRequest, onCreateRequest, onRecordApproval, onRetryRequest, onCancelRequest
+}) {
+  const fmt = n => Number(n || 0).toLocaleString('en-IN');
+  const [requests, setRequests] = useState([]);
+  const [expandedId, setExpandedId] = useState(null);
+  const [expandedDetail, setExpandedDetail] = useState(null);
+  const [showNewModal, setShowNewModal] = useState(false);
+  const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState(null);
+
+  const refresh = async () => {
+    if (onFetchRequests) setRequests(await onFetchRequests());
+  };
+
+  useEffect(() => { refresh(); }, []);
+
+  const toggleExpand = async (req) => {
+    if (expandedId === req.id) { setExpandedId(null); setExpandedDetail(null); return; }
+    setExpandedId(req.id);
+    setExpandedDetail(null);
+    try {
+      const detail = await onFetchRequest(req.id);
+      setExpandedDetail(detail);
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to load request details.');
+    }
+  };
+
+  const handleApprove = async (req, investorId, decision) => {
+    setBusyId(req.id);
+    setError('');
+    try {
+      await onRecordApproval(req.id, investorId, decision);
+      await refresh();
+      const detail = await onFetchRequest(req.id);
+      setExpandedDetail(detail);
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to record approval decision.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleRetry = async (req) => {
+    setBusyId(req.id);
+    setError('');
+    try {
+      await onRetryRequest(req.id);
+      await refresh();
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to recheck funds for this request.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleCancel = async (req) => {
+    if (!window.confirm('Cancel this capital withdrawal request?')) return;
+    setBusyId(req.id);
+    setError('');
+    try {
+      await onCancelRequest(req.id);
+      await refresh();
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to cancel this request.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div className="fin-page" style={{ maxWidth: 1040, margin: '0 auto' }}>
+      <div className="fin-header-card">
+        <div className="fin-page-header">
+          <div className="fin-page-header__left">
+            <button type="button" onClick={onBack} style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginRight: 10 }} title="Back to Investor Directory">
+              <ArrowLeft style={{ width: 16, height: 16 }} />
+            </button>
+            <div className="fin-page-header__icon" style={{ background: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger, #DC2626)' }}>
+              <Wallet style={{ width: 18, height: 18 }} />
+            </div>
+            <div>
+              <h1 className="fin-page-header__title">Capital Withdrawal Requests</h1>
+              <p className="fin-page-header__subtitle">Reduces investor principal — requires every active investor's approval and sufficient company cash</p>
+            </div>
+          </div>
+          {isAdmin && (
+            <button type="button" className="fin-btn-primary fin-btn-primary--red" onClick={() => setShowNewModal(true)}>
+              <Plus style={{ width: 14, height: 14 }} />
+              <span>New Withdrawal Request</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {error && <ErrorBanner>{error}</ErrorBanner>}
+      {!isAdmin && (
+        <div style={{ marginTop: 14, fontSize: '0.78rem', color: '#64748B', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '10px 14px' }}>
+          Only an Admin can initiate or cancel a capital withdrawal request. You can still record investor approval decisions below.
+        </div>
+      )}
+
+      <div className="fin-tablewrap" style={{ marginTop: 14 }}>
+        <table className="fin-grid-table">
+          <thead>
+            <tr>
+              <th>Investor</th>
+              <th className="num">Amount (₹)</th>
+              <th>Status</th>
+              <th>Requested</th>
+              <th style={{ width: 220 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {requests.length === 0 ? (
+              <tr><td colSpan="5" style={{ textAlign: 'center', padding: '30px 0', color: '#94A3B8' }}>No capital withdrawal requests yet.</td></tr>
+            ) : requests.map(req => (
+              <React.Fragment key={req.id}>
+                <tr>
+                  <td>{req.investor_name} <span style={{ color: '#94A3B8', fontSize: '0.72rem' }}>({req.investor_code})</span></td>
+                  <td className="num" style={{ fontWeight: 700 }}>₹{fmt(req.amount)}</td>
+                  <td><span className={`fin-badge ${WITHDRAWAL_STATUS_TONE[req.status] || 'fin-badge--neutral'}`}>{req.status.replace(/_/g, ' ')}</span></td>
+                  <td style={{ fontSize: '0.76rem', color: '#64748B' }}>{String(req.requested_at || '').slice(0, 10)}</td>
+                  <td style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                    <ActionPill icon={<Eye style={{ width: 11, height: 11 }} />} label={expandedId === req.id ? 'Hide' : 'Approvals'} onClick={() => toggleExpand(req)} />
+                    {req.status === 'APPROVED_WAITING_FUNDS' && (
+                      <ActionPill icon={<TrendingUp style={{ width: 11, height: 11 }} />} label="Recheck Funds" onClick={() => handleRetry(req)} />
+                    )}
+                    {isAdmin && (req.status === 'PENDING_APPROVAL' || req.status === 'APPROVED_WAITING_FUNDS') && (
+                      <ActionPill icon={<X style={{ width: 11, height: 11 }} />} label="Cancel" tone="bad" onClick={() => handleCancel(req)} />
+                    )}
+                  </td>
+                </tr>
+                {expandedId === req.id && (
+                  <tr>
+                    <td colSpan="5" style={{ background: '#F8FAFC', padding: '14px 20px' }}>
+                      {!expandedDetail ? (
+                        <span style={{ fontSize: '0.78rem', color: '#94A3B8' }}>Loading approvals…</span>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {req.status === 'APPROVED_WAITING_FUNDS' && (
+                            <div style={{ fontSize: '0.76rem', color: 'var(--color-danger, #DC2626)', fontWeight: 600 }}>
+                              All investors approved — waiting for sufficient cash/bank balance to execute.
+                            </div>
+                          )}
+                          {expandedDetail.approvals.map(a => (
+                            <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem', padding: '6px 0', borderBottom: '1px solid #E2E8F0' }}>
+                              <span>{a.investor_name} <span style={{ color: '#94A3B8', fontSize: '0.72rem' }}>({a.investor_code})</span></span>
+                              {a.decision === 'PENDING' && req.status === 'PENDING_APPROVAL' ? (
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                  <ActionPill label="Approve" tone="good" onClick={() => handleApprove(req, a.investor_id, 'APPROVED')} />
+                                  <ActionPill label="Reject" tone="bad" onClick={() => handleApprove(req, a.investor_id, 'REJECTED')} />
+                                </div>
+                              ) : (
+                                <span className={`fin-badge ${a.decision === 'APPROVED' ? 'fin-badge--ok' : 'fin-badge--warn'}`}>{a.decision}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {showNewModal && (
+        <NewCapitalWithdrawalModal
+          investors={investors}
+          onClose={() => setShowNewModal(false)}
+          onSubmit={async (investorId, payload) => {
+            await onCreateRequest(investorId, payload);
+            await refresh();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 const INVESTOR_TABS = [
   { id: 'ACTIVE', labelKey: 'fin.status_active' },
   { id: 'EXITED', labelKey: 'status.EXITED' }
@@ -912,8 +1600,17 @@ export default function InvestorCapitalView({
   bankAccounts = [],
   branchesList = [],
   journalEntries = [],
-  onCreateInvestor, onUpdateInvestor, onDeleteInvestor, onAddInvestorCapital
+  currentUserRole,
+  onCreateInvestor, onUpdateInvestor, onDeleteInvestor, onAddInvestorCapital, onFetchInvestorCapitalLedger,
+  onFetchInvestorShareSnapshot, onFetchSuggestedProfit, onFetchProfitDistributions, onFetchProfitDistribution,
+  onCreateProfitDistribution, onDeleteProfitDistribution, onUpdateProfitDistributionLine, onFinalizeProfitDistribution,
+  onFetchCapitalWithdrawalRequests, onFetchCapitalWithdrawalRequest, onCreateCapitalWithdrawalRequest,
+  onRecordWithdrawalApproval, onRetryCapitalWithdrawal, onCancelCapitalWithdrawalRequest
 }) {
+  // Must match the server-side check in requireAdminForCapitalWithdrawal exactly —
+  // COMPANY_ADMIN bypasses moduleGuard elsewhere in this app, but a capital
+  // withdrawal's initiate/cancel guard is intentionally narrower than that.
+  const isAdmin = currentUserRole === 'ADMIN' || currentUserRole === 'SUPER_ADMIN';
   const { t, tStatus } = useLanguage();
   const [screen, setScreen] = useState('DIRECTORY'); // 'DIRECTORY' | 'ADD_INVESTOR'
   const [editingInvestor, setEditingInvestor] = useState(null);
@@ -962,6 +1659,7 @@ export default function InvestorCapitalView({
           onBack={() => setViewingInvestorId(null)}
           onEdit={() => { setEditingInvestor(viewingInvestor); setScreen('ADD_INVESTOR'); }}
           onAddCapital={(inv) => setAddCapitalTarget(inv)}
+          onFetchCapitalLedger={onFetchInvestorCapitalLedger}
         />
         {addCapitalTarget && (
           <AddInvestorCapitalModal
@@ -977,6 +1675,38 @@ export default function InvestorCapitalView({
           />
         )}
       </>
+    );
+  }
+
+  if (screen === 'PROFIT_DISTRIBUTION') {
+    return (
+      <MonthlyProfitDistributionScreen
+        onBack={() => setScreen('DIRECTORY')}
+        onFetchShareSnapshot={onFetchInvestorShareSnapshot}
+        onFetchSuggestedProfit={onFetchSuggestedProfit}
+        onFetchDistributions={onFetchProfitDistributions}
+        onFetchDistribution={onFetchProfitDistribution}
+        onCreateDistribution={onCreateProfitDistribution}
+        onDeleteDistribution={onDeleteProfitDistribution}
+        onUpdateDistributionLine={onUpdateProfitDistributionLine}
+        onFinalizeDistribution={onFinalizeProfitDistribution}
+      />
+    );
+  }
+
+  if (screen === 'CAPITAL_WITHDRAWALS') {
+    return (
+      <CapitalWithdrawalsScreen
+        onBack={() => setScreen('DIRECTORY')}
+        investors={investors}
+        isAdmin={isAdmin}
+        onFetchRequests={onFetchCapitalWithdrawalRequests}
+        onFetchRequest={onFetchCapitalWithdrawalRequest}
+        onCreateRequest={onCreateCapitalWithdrawalRequest}
+        onRecordApproval={onRecordWithdrawalApproval}
+        onRetryRequest={onRetryCapitalWithdrawal}
+        onCancelRequest={onCancelCapitalWithdrawalRequest}
+      />
     );
   }
 
@@ -1009,6 +1739,14 @@ export default function InvestorCapitalView({
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="fin-btn-secondary fin-btn-secondary--warn" onClick={() => setScreen('CAPITAL_WITHDRAWALS')}>
+              <Wallet style={{ width: 14, height: 14 }} />
+              <span>Capital Withdrawals</span>
+            </button>
+            <button type="button" className="fin-btn-secondary fin-btn-secondary--brand" onClick={() => setScreen('PROFIT_DISTRIBUTION')}>
+              <TrendingUp style={{ width: 14, height: 14 }} />
+              <span>Profit Distribution</span>
+            </button>
             <button type="button" className="fin-btn-primary" style={{ background: 'var(--brand-primary, #15803D)' }} onClick={() => { setEditingInvestor(null); setScreen('ADD_INVESTOR'); }}>
               <Plus style={{ width: 14, height: 14 }} />
               <span>{t('inv.add_investor')}</span>

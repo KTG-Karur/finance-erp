@@ -491,7 +491,9 @@ export const RBAC_MENU_SECTIONS = [
               { action: 'VIEW', label: 'View Investor Master', desc: 'Browse investor master records', icon: Eye },
               { action: 'CREATE', label: 'Register Investor', desc: 'Onboard new investor partner', icon: Plus },
               { action: 'EDIT', label: 'Edit Investor Details', desc: 'Update profile, address & nominee', icon: Pencil },
-              { action: 'DELETE', label: 'Delete Investor', desc: 'Remove investor partner record', icon: Trash2 }
+              { action: 'DELETE', label: 'Delete Investor', desc: 'Remove investor partner record', icon: Trash2 },
+              { action: 'PROFIT_DISTRIBUTE', label: 'Run Profit Distribution', desc: 'Enter monthly profit and settle investor payouts/reinvestment', icon: PieChart },
+              { action: 'CAPITAL_WITHDRAW', label: 'Capital Withdrawal & Approvals', desc: 'View and approve investor capital withdrawal requests. Initiating or cancelling a request is always restricted to Admin regardless of this permission.', icon: Banknote }
             ]
           }
         ]

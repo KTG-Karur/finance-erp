@@ -39,6 +39,23 @@ export async function getInvestors(db) {
   return rows;
 }
 
+export async function getInvestorCapitalLedger(db, investorId) {
+  const [rows] = await db.query(
+    'SELECT * FROM investor_capital_transactions WHERE investor_id = ? ORDER BY txn_date, id',
+    [investorId]
+  );
+  return rows;
+}
+
+async function insertCapitalTxn(conn, { investorId, txnType, amount, balanceAfter, txnDate, refType, refId, journalEntryId, notes, createdBy }) {
+  await conn.execute(
+    `INSERT INTO investor_capital_transactions
+      (investor_id, txn_type, amount, balance_after, txn_date, ref_type, ref_id, journal_entry_id, notes, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [investorId, txnType, amount, balanceAfter, txnDate, refType || null, refId || null, journalEntryId || null, notes || null, createdBy || null]
+  );
+}
+
 function assertValidCapital(payload) {
   const capital = Number(payload.capital_amount);
   if (payload.capital_amount !== undefined && payload.capital_amount !== '' && (Number.isNaN(capital) || capital < 0)) {
@@ -103,7 +120,7 @@ export async function createInvestor(db, payload, companyCode = 'default', creat
 
       // Double-Entry Posting for Initial Capital Contribution
       if (capital > 0) {
-        await insertVoucherOnConnection(conn, {
+        const voucher = await insertVoucherOnConnection(conn, {
           entry_date: joinDate,
           description: `Capital Contribution from Investor ${normalized.name} (${code})`,
           voucher_type: isBank ? 'BANK_RECEIPT' : 'CASH_RECEIPT',
@@ -116,6 +133,19 @@ export async function createInvestor(db, payload, companyCode = 'default', creat
             { account_code: debitCode, account_name: debitName, debit: capital, credit: 0, description: `Capital Received via ${isBank ? paymentMode : 'Cash'}` },
             { account_code: '3001', account_name: 'Promoter Share Capital', debit: 0, credit: capital, description: `Share Capital Credited - ${normalized.name}` }
           ]
+        });
+
+        await insertCapitalTxn(conn, {
+          investorId,
+          txnType: 'INITIAL',
+          amount: capital,
+          balanceAfter: capital,
+          txnDate: joinDate,
+          refType: 'INVESTOR_CAPITAL',
+          refId: investorId,
+          journalEntryId: voucher.id,
+          notes: 'Initial capital contribution',
+          createdBy: createdBy || 'Admin'
         });
       }
 
@@ -221,6 +251,19 @@ export async function addInvestorCapital(db, id, payload = {}, createdBy = null)
         { account_code: debitCode, account_name: debitName, debit: amount, credit: 0, description: `Capital Received via ${isBank ? paymentMode : 'Cash'}` },
         { account_code: '3001', account_name: 'Promoter Share Capital', debit: 0, credit: amount, description: `Additional Capital - ${investor.name}` }
       ]
+    });
+
+    await insertCapitalTxn(conn, {
+      investorId: investor.id,
+      txnType: 'ADDITIONAL',
+      amount,
+      balanceAfter: newCapital,
+      txnDate,
+      refType: 'INVESTOR_CAPITAL',
+      refId: investor.id,
+      journalEntryId: voucher.id,
+      notes: payload.notes || 'Additional capital contribution',
+      createdBy: createdBy || 'Admin'
     });
 
     await conn.commit();
