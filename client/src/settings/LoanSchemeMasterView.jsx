@@ -6,6 +6,7 @@ import { generateEmiSchedule, calculatePaymentAllocation, resolveSchemeRepayment
 import FormulaDurationPreview from '../components/FormulaDurationPreview';
 import CustomFormulaModal from '../components/CustomFormulaModal';
 import SharedDropdown from '../components/common/SharedDropdown';
+import { focusAndScrollToFirstError } from '../utils/formNavigation';
 
 const inputStyle = { width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', color: '#0F172A', fontWeight: 500 };
 const labelStyle = { fontSize: '0.72rem', color: '#475569', fontWeight: 500, display: 'block', marginBottom: 4 };
@@ -253,27 +254,36 @@ function SchemeModal({ isOpen, initialData, schemes, customFormulas, onCreateCus
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (submittingRef.current) return;
-    if (!form.name.trim() || !form.rate_per_unit) return;
+
+    const triggerErr = (msg) => {
+      setError(msg);
+      setTimeout(() => focusAndScrollToFirstError('.saas-modal-card, form'), 50);
+    };
+
+    if (!form.name.trim() || !form.rate_per_unit) {
+      triggerErr('Scheme Name and Interest Rate are required.');
+      return;
+    }
 
     const isDuplicateName = schemes.some(s =>
       s.id !== initialData?.id && s.name.trim().toLowerCase() === form.name.trim().toLowerCase()
     );
     if (isDuplicateName) {
-      setError(t('scheme.modal.duplicate_name_error'));
+      triggerErr(t('scheme.modal.duplicate_name_error'));
       return;
     }
 
     if (form.min_amount && form.max_amount && Number(form.min_amount) > Number(form.max_amount)) {
-      setError(t('scheme.modal.min_max_amount_error'));
+      triggerErr(t('scheme.modal.min_max_amount_error'));
       return;
     }
     if (form.min_tenure_months && form.max_tenure_months && Number(form.min_tenure_months) > Number(form.max_tenure_months)) {
-      setError(t('scheme.modal.min_max_tenure_error'));
+      triggerErr(t('scheme.modal.min_max_tenure_error'));
       return;
     }
 
     if (form.formula_type === 'CUSTOM' && !form.interest_formula?.length) {
-      setError('Pick a saved formula, or create a new one, before saving this scheme.');
+      triggerErr('Pick a saved formula, or create a new one, before saving this scheme.');
       return;
     }
 

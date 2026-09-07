@@ -5,6 +5,7 @@ import { filterEntriesInRange, filterEntriesByBranch, MANUAL_VOUCHER_TYPES } fro
 import VoucherReceiptModal from '../../components/VoucherReceiptModal';
 import SharedDropdown from '../../components/common/SharedDropdown';
 import SharedDatePicker from '../../components/common/SharedDatePicker';
+import { focusAndScrollToFirstError } from '../../utils/formNavigation';
 
 const VOUCHER_TYPE_LABEL_KEY = {
   CASH_RECEIPT: 'fin.voucher_type_cash_receipt',
@@ -86,40 +87,45 @@ function NewVoucherModal({ isOpen, onClose, onSubmit, chartOfAccounts, branchesL
     e.preventDefault();
     setError('');
 
+    const triggerErr = (msg) => {
+      setError(msg);
+      setTimeout(() => focusAndScrollToFirstError('.saas-modal-body, form'), 50);
+    };
+
     if (!form.narration.trim()) {
-      setError(t('fin.narration_label') + ' *');
+      triggerErr(t('fin.narration_label') + ' *');
       return;
     }
     if (!form.created_by) {
-      setError(t('fin.created_by_label') + ' *');
+      triggerErr(t('fin.created_by_label') + ' *');
       return;
     }
     if (isJournal) {
       if (!journalBalanced) {
-        setError(t('fin.voucher_unbalanced_error'));
+        triggerErr(t('fin.voucher_unbalanced_error'));
         return;
       }
     } else if (isContra) {
-      if (!(Number(form.amount) > 0)) { setError(t('fin.amount_label') + ' *'); return; }
+      if (!(Number(form.amount) > 0)) { triggerErr(t('fin.amount_label') + ' *'); return; }
     } else {
       if (!form.other_account_code && !isOthers) {
-        setError(isReceipt ? (t('fin.received_against_label') + ' *') : (t('fin.paid_towards_label') + ' *'));
+        triggerErr(isReceipt ? (t('fin.received_against_label') + ' *') : (t('fin.paid_towards_label') + ' *'));
         return;
       }
       if (!(Number(form.amount) > 0)) {
-        setError(t('fin.amount_label') + ' *');
+        triggerErr(t('fin.amount_label') + ' *');
         return;
       }
       if (isOfficeExpense && selectedCategory) {
         const availableBalance = Number(selectedCategory.balance || 0);
         const voucherAmount = Number(form.amount || 0);
         if (voucherAmount > availableBalance) {
-          setError('there is no enough money for this expense category please topup');
+          triggerErr('there is no enough money for this expense category please topup');
           return;
         }
       }
-      if (isOfficeExpense && form.expense_category_id && isMiscCategory && !form.purpose.trim()) { setError(t('fin.purpose_label') + ' *'); return; }
-      if (isOthers && !form.other_reason.trim()) { setError(t('fin.other_reason_label') + ' *'); return; }
+      if (isOfficeExpense && form.expense_category_id && isMiscCategory && !form.purpose.trim()) { triggerErr(t('fin.purpose_label') + ' *'); return; }
+      if (isOthers && !form.other_reason.trim()) { triggerErr(t('fin.other_reason_label') + ' *'); return; }
     }
 
     let narration = form.narration.trim();

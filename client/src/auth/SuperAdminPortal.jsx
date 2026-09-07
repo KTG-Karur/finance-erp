@@ -45,6 +45,7 @@ import SharedDropdown from '../components/common/SharedDropdown';
 import SharedDatePicker from '../components/common/SharedDatePicker';
 import api from '../api/client';
 import { uploadFile } from '../api/upload.js';
+import { focusAndScrollToFirstError } from '../utils/formNavigation.js';
 
 // Menu tree structure: single entries for standalone menus, nested checkboxes only for menus with real submenus
 const MODULE_MENU_TREE = [
@@ -142,6 +143,8 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [provisionErrors, setProvisionErrors] = useState({});
+  const [planErrors, setPlanErrors] = useState({});
   const [form, setForm] = useState({ name: '', company_code: '', company_email: '', company_phone: '', admin_email: '', admin_password: '', logo: '', plan_code: 'STANDARD', status: 'TRIAL', trial_days: '15', billing_cycle: '3_MONTHS', custom_expiry_date: '' });
   const [planForm, setPlanForm] = useState({ name: '', code: '', max_branches: '5', monthly_price: '2999', six_month_price: '14999', yearly_price: '29990', allowed_modules: null });
 
@@ -812,6 +815,22 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
     setLoading(true);
     setErrorMsg('');
     setSuccessMsg('');
+    setProvisionErrors({});
+
+    const errors = {};
+    if (!form.name?.trim()) errors.name = 'Company name is required';
+    if (!form.company_code?.trim()) errors.company_code = 'Company code is required';
+    if (!form.company_email?.trim()) errors.company_email = 'Company contact email is required';
+    if (!form.admin_email?.trim()) errors.admin_email = 'Admin username / login email is required';
+    if (!form.admin_password?.trim()) errors.admin_password = 'Admin password is required';
+
+    if (Object.keys(errors).length > 0) {
+      setProvisionErrors(errors);
+      setErrorMsg('Please complete all required fields highlighted in red.');
+      setLoading(false);
+      setTimeout(() => focusAndScrollToFirstError('#provision_form_container'), 50);
+      return;
+    }
 
     const code = form.company_code.toUpperCase().trim();
 
@@ -837,9 +856,15 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
         setIsProvisionModalOpen(false);
         setForm({ name: '', company_code: '', company_email: '', company_phone: '', admin_email: '', admin_password: '', logo: '', plan_code: 'STANDARD', status: 'TRIAL', trial_days: '15', billing_cycle: '3_MONTHS', custom_expiry_date: '' });
         setSuccessMsg('');
+        setProvisionErrors({});
       }, 1500);
     } catch (err) {
-      setErrorMsg(err?.response?.data?.message || 'Failed to provision tenant. Please try again.');
+      const msg = err?.response?.data?.message || 'Failed to provision tenant. Please try again.';
+      setErrorMsg(msg);
+      if (msg.toLowerCase().includes('company code')) {
+        setProvisionErrors(prev => ({ ...prev, company_code: msg }));
+      }
+      setTimeout(() => focusAndScrollToFirstError('#provision_form_container'), 50);
     } finally {
       setLoading(false);
     }
@@ -849,6 +874,20 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
     e.preventDefault();
     setLoading(true);
     setErrorMsg('');
+    setPlanErrors({});
+
+    const errors = {};
+    if (!planForm.name?.trim()) errors.name = 'Plan name is required';
+    if (!planForm.code?.trim()) errors.code = 'Plan code is required';
+
+    if (Object.keys(errors).length > 0) {
+      setPlanErrors(errors);
+      setErrorMsg('Please complete all required fields highlighted in red.');
+      setLoading(false);
+      setTimeout(() => focusAndScrollToFirstError('#plan_form_container'), 50);
+      return;
+    }
+
     try {
       const isFullyChecked = planForm.allowed_modules && MODULE_KEYS.every(m => planForm.allowed_modules.includes(m.key));
       const payload = {
@@ -2506,7 +2545,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
               </button>
             </div>
 
-            <form onSubmit={handleProvisionSubmit} style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', flex: 1 }}>
+            <form id="provision_form_container" onSubmit={handleProvisionSubmit} style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', flex: 1 }}>
               {errorMsg && <div style={{ padding: '8px 12px', backgroundColor: 'var(--color-danger-light, #FEF2F2)', border: '1px solid var(--color-danger-border, #FECACA)', color: 'var(--color-danger-text, #991B1B)', borderRadius: 8, fontSize: '0.78rem' }}>{errorMsg}</div>}
               {successMsg && <div style={{ padding: '8px 12px', backgroundColor: 'var(--brand-primary-light, #F0FEF5)', border: '1px solid var(--brand-primary-border, #A3F5C1)', color: 'var(--brand-primary-text, #075F27)', borderRadius: 8, fontSize: '0.78rem' }}>{successMsg}</div>}
 
@@ -2516,6 +2555,8 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                   type="text"
                   required
                   value={form.name}
+                  aria-invalid={Boolean(provisionErrors.name)}
+                  className={`form-input ${provisionErrors.name ? 'is-invalid' : ''}`}
                   onChange={(e) => {
                     const name = e.target.value;
                     setForm(prev => ({
@@ -2523,10 +2564,12 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                       name,
                       company_code: (!prev.company_code || prev.company_code.startsWith('APEX') || prev.company_code.startsWith('FIN')) ? generateCompanyCodeFromName(name) : prev.company_code
                     }));
+                    if (provisionErrors.name) setProvisionErrors(prev => ({ ...prev, name: null }));
                   }}
                   placeholder="e.g. Apex Global Financial Services Ltd."
                   style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}
                 />
+                {provisionErrors.name && <span className="err-txt">{provisionErrors.name}</span>}
               </div>
 
               <div>
@@ -2537,6 +2580,7 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                     onClick={() => {
                       const code = generateCompanyCodeFromName(form.name);
                       setForm(prev => ({ ...prev, company_code: code }));
+                      if (provisionErrors.company_code) setProvisionErrors(prev => ({ ...prev, company_code: null }));
                     }}
                     style={{
                       background: 'var(--brand-primary-light, #F0FEF5)',
@@ -2560,10 +2604,16 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                   type="text"
                   required
                   value={form.company_code}
-                  onChange={(e) => setForm({ ...form, company_code: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '') })}
+                  aria-invalid={Boolean(provisionErrors.company_code)}
+                  className={`form-input ${provisionErrors.company_code ? 'is-invalid' : ''}`}
+                  onChange={(e) => {
+                    setForm({ ...form, company_code: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '') });
+                    if (provisionErrors.company_code) setProvisionErrors(prev => ({ ...prev, company_code: null }));
+                  }}
                   placeholder="e.g. APEXFIN01"
                   style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', fontFamily: 'SF Mono, monospace', textTransform: 'uppercase' }}
                 />
+                {provisionErrors.company_code && <span className="err-txt">{provisionErrors.company_code}</span>}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -2748,11 +2798,30 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Company Contact Email *</label>
-                  <input type="email" required value={form.company_email} onChange={(e) => setForm({ ...form, company_email: e.target.value })} placeholder="contact@apexfinance.in" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                  <input
+                    type="text"
+                    required
+                    value={form.company_email}
+                    aria-invalid={Boolean(provisionErrors.company_email)}
+                    className={`form-input ${provisionErrors.company_email ? 'is-invalid' : ''}`}
+                    onChange={(e) => {
+                      setForm({ ...form, company_email: e.target.value });
+                      if (provisionErrors.company_email) setProvisionErrors(prev => ({ ...prev, company_email: null }));
+                    }}
+                    placeholder="contact@apexfinance.in"
+                    style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}
+                  />
+                  {provisionErrors.company_email && <span className="err-txt">{provisionErrors.company_email}</span>}
                 </div>
                 <div>
                   <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Company Phone</label>
-                  <input type="text" value={form.company_phone} onChange={(e) => setForm({ ...form, company_phone: e.target.value.replace(/\D/g, '').slice(0, 10) })} placeholder="9876543210" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                  <input
+                    type="text"
+                    value={form.company_phone}
+                    onChange={(e) => setForm({ ...form, company_phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                    placeholder="9876543210"
+                    style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}
+                  />
                 </div>
               </div>
 
@@ -2761,11 +2830,37 @@ export default function SuperAdminPortal({ user, onJumpToTenant, onSignOut }) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
                     <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Admin Username / Login Email *</label>
-                    <input type="email" required value={form.admin_email} onChange={(e) => setForm({ ...form, admin_email: e.target.value })} placeholder="admin@apexfinance.in" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                    <input
+                      type="text"
+                      required
+                      value={form.admin_email}
+                      aria-invalid={Boolean(provisionErrors.admin_email)}
+                      className={`form-input ${provisionErrors.admin_email ? 'is-invalid' : ''}`}
+                      onChange={(e) => {
+                        setForm({ ...form, admin_email: e.target.value.trim() });
+                        if (provisionErrors.admin_email) setProvisionErrors(prev => ({ ...prev, admin_email: null }));
+                      }}
+                      placeholder="admin or admin@apexfinance.in"
+                      style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}
+                    />
+                    {provisionErrors.admin_email && <span className="err-txt">{provisionErrors.admin_email}</span>}
                   </div>
                   <div>
                     <label style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 6 }}>Admin Password *</label>
-                    <input type="password" required value={form.admin_password} onChange={(e) => setForm({ ...form, admin_password: e.target.value })} placeholder="••••••••••••" style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }} />
+                    <input
+                      type="password"
+                      required
+                      value={form.admin_password}
+                      aria-invalid={Boolean(provisionErrors.admin_password)}
+                      className={`form-input ${provisionErrors.admin_password ? 'is-invalid' : ''}`}
+                      onChange={(e) => {
+                        setForm({ ...form, admin_password: e.target.value });
+                        if (provisionErrors.admin_password) setProvisionErrors(prev => ({ ...prev, admin_password: null }));
+                      }}
+                      placeholder="••••••••••••"
+                      style={{ width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem' }}
+                    />
+                    {provisionErrors.admin_password && <span className="err-txt">{provisionErrors.admin_password}</span>}
                   </div>
                 </div>
               </div>

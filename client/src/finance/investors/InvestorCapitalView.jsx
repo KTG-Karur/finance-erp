@@ -7,6 +7,7 @@ import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import SharedDropdown from '../../components/common/SharedDropdown';
 import SharedDatePicker from '../../components/common/SharedDatePicker';
 import { uploadFile } from '../../api/upload';
+import { focusAndScrollToFirstError } from '../../utils/formNavigation';
 
 const FORM_MAX_WIDTH = 780;
 
@@ -165,6 +166,7 @@ function AddInvestorScreen({ initialData, bankAccounts = [], branchesList = [], 
     if (e) e.preventDefault();
     if (!form.name?.trim() || !form.phone?.trim()) {
       setError(t('cf.err.full_name'));
+      setTimeout(() => focusAndScrollToFirstError('.cf-wizard-body, .saas-modal-card'), 50);
       return;
     }
     setLoading(true);
@@ -181,6 +183,7 @@ function AddInvestorScreen({ initialData, bankAccounts = [], branchesList = [], 
       }, initialData?.id);
     } catch (err) {
       setError(err?.response?.data?.message || t('inv.modal.save_error'));
+      setTimeout(() => focusAndScrollToFirstError('.cf-wizard-body, .saas-modal-card'), 50);
     } finally {
       setLoading(false);
     }

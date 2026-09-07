@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X, Check } from 'lucide-react';
 
 const MONTH_NAMES = [
@@ -77,10 +78,13 @@ export default function SharedDatePicker({
   buttonStyle = {},
   size = 'md', // 'sm' (32px) | 'md' (36px) | 'lg' (42px)
   align = 'left',
-  clearable = true
+  clearable = true,
+  error = null
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [coords, setCoords] = useState(null);
   const containerRef = useRef(null);
+  const calendarRef = useRef(null);
 
   // Height map based on size prop
   const heightMap = {
@@ -99,6 +103,51 @@ export default function SharedDatePicker({
   const [showYearPicker, setShowYearPicker] = useState(false);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
 
+  const updateCoords = () => {
+    const triggerEl = containerRef.current?.querySelector('button') || containerRef.current;
+    const rect = triggerEl?.getBoundingClientRect();
+    if (!rect) return;
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const calendarHeight = 330;
+    const openUpward = spaceBelow < calendarHeight && spaceAbove > spaceBelow;
+
+    const calendarWidth = 280;
+    let left = rect.left;
+    if (align === 'right' || left + calendarWidth > window.innerWidth - 12) {
+      left = rect.right - calendarWidth;
+    }
+    if (left + calendarWidth > window.innerWidth - 12) {
+      left = window.innerWidth - calendarWidth - 12;
+    }
+    if (left < 12) {
+      left = 12;
+    }
+
+    setCoords({
+      top: openUpward ? undefined : rect.bottom + 4,
+      bottom: openUpward ? viewportHeight - rect.top + 4 : undefined,
+      left,
+      width: Math.min(calendarWidth, window.innerWidth - 24)
+    });
+  };
+
+  useLayoutEffect(() => {
+    if (isOpen) updateCoords();
+  }, [isOpen, showYearPicker, showMonthPicker]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onReposition = () => updateCoords();
+    window.addEventListener('scroll', onReposition, true);
+    window.addEventListener('resize', onReposition);
+    return () => {
+      window.removeEventListener('scroll', onReposition, true);
+      window.removeEventListener('resize', onReposition);
+    };
+  }, [isOpen]);
+
   // Sync view when value changes or when opened
   useEffect(() => {
     if (parsedValue) {
@@ -114,7 +163,10 @@ export default function SharedDatePicker({
   // Handle outside clicks to close the popover
   useEffect(() => {
     function handleClickOutside(e) {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
+      if (
+        containerRef.current && !containerRef.current.contains(e.target) &&
+        (!calendarRef.current || !calendarRef.current.contains(e.target))
+      ) {
         setIsOpen(false);
         setShowYearPicker(false);
         setShowMonthPicker(false);
@@ -306,6 +358,8 @@ export default function SharedDatePicker({
       <button
         type="button"
         disabled={disabled}
+        aria-invalid={Boolean(error)}
+        className={`sdp-trigger ${error ? 'is-invalid' : ''}`}
         onClick={() => {
           if (!disabled) {
             setIsOpen(prev => !prev);
@@ -321,12 +375,14 @@ export default function SharedDatePicker({
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 6,
-          background: disabled ? '#F8FAFC' : '#FFFFFF',
-          border: isOpen
-            ? '1px solid var(--brand-primary, #15803D)'
-            : '1px solid #CBD5E1',
+          background: disabled ? '#F8FAFC' : (error ? 'var(--color-danger-light, #FEF2F2)' : '#FFFFFF'),
+          border: error
+            ? '1px solid var(--color-danger, #DC2626)'
+            : (isOpen ? '1px solid var(--brand-primary, #15803D)' : '1px solid #CBD5E1'),
           borderRadius: 8,
-          boxShadow: isOpen ? '0 0 0 3px rgba(21, 128, 61, 0.12)' : 'none',
+          boxShadow: error
+            ? '0 0 0 3px rgba(220, 38, 38, 0.18)'
+            : (isOpen ? '0 0 0 3px rgba(21, 128, 61, 0.12)' : 'none'),
           color: disabled ? '#94A3B8' : (value ? '#0F172A' : '#94A3B8'),
           fontSize: '0.8rem',
           fontWeight: value ? 500 : 400,
@@ -344,7 +400,7 @@ export default function SharedDatePicker({
             style={{
               width: 14,
               height: 14,
-              color: isOpen || value ? 'var(--brand-primary, #15803D)' : '#94A3B8',
+              color: error ? 'var(--color-danger, #DC2626)' : (isOpen || value ? 'var(--brand-primary, #15803D)' : '#94A3B8'),
               flexShrink: 0,
               transition: 'color 0.15s ease'
             }}
@@ -389,20 +445,22 @@ export default function SharedDatePicker({
         </div>
       </button>
 
-      {/* Popover Calendar Card */}
-      {isOpen && (
+      {/* Popover Calendar Card rendered via Portal to escape modal overflow clipping */}
+      {isOpen && coords && createPortal(
         <div
+          ref={calendarRef}
           style={{
-            position: 'absolute',
-            top: 'calc(100% + 4px)',
-            [align === 'right' ? 'right' : 'left']: 0,
-            zIndex: 9999,
-            width: 280,
-            maxWidth: 'min(280px, calc(100vw - 24px))',
+            position: 'fixed',
+            top: coords.top,
+            bottom: coords.bottom,
+            left: coords.left,
+            zIndex: 999999,
+            width: coords.width,
+            maxWidth: 'calc(100vw - 24px)',
             background: '#FFFFFF',
             borderRadius: 10,
             border: '1px solid #CBD5E1',
-            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08)',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
             padding: '12px',
             animation: 'dropdownFadeIn 0.12s ease-out',
             boxSizing: 'border-box'
@@ -705,7 +763,8 @@ export default function SharedDatePicker({
               Close
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

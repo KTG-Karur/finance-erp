@@ -3,6 +3,7 @@ import { Building2, MapPin, Plus, Trash2, Pencil, X, AlertTriangle, Loader2, Sav
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import { theme } from '../styles/theme.js';
 import { uploadFile } from '../api/upload.js';
+import { focusAndScrollToFirstError } from '../utils/formNavigation';
 
 const inputStyle = { width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: '0.82rem', color: '#0F172A', fontWeight: 500, boxSizing: 'border-box' };
 const labelStyle = { fontSize: '0.72rem', color: '#475569', fontWeight: 600, display: 'block', marginBottom: 4 };
@@ -37,7 +38,11 @@ function BranchModal({ isOpen, initialData, onClose, onSubmit }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.code.trim()) return;
+    if (!form.name.trim() || !form.code.trim()) {
+      setError('Branch Name and Branch Code are required.');
+      setTimeout(() => focusAndScrollToFirstError('.saas-modal-card'), 50);
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -45,6 +50,7 @@ function BranchModal({ isOpen, initialData, onClose, onSubmit }) {
       onClose();
     } catch (err) {
       setError(err?.response?.data?.message || t('branch.save_error'));
+      setTimeout(() => focusAndScrollToFirstError('.saas-modal-card'), 50);
     } finally {
       setLoading(false);
     }
