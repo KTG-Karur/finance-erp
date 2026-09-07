@@ -3,7 +3,7 @@ import {
   Shield, Check, Save, ChevronDown, ChevronRight, Search,
   PieChart, FileText, Banknote, Repeat, Users, BookOpen,
   Calculator, Wallet, CreditCard, FileBarChart2, Building2,
-  UserCog, Percent, Landmark, CheckSquare, Square, RefreshCw,
+  UserCog, Percent, Landmark, RefreshCw,
   SlidersHorizontal, ArrowRight, Eye, Plus, Pencil, Trash2,
   CheckCircle2, AlertCircle, ChevronsDown, ChevronsUp, Folder,
   FolderOpen, X, ShieldCheck, Archive, RotateCcw, Calendar, Lock
@@ -709,6 +709,184 @@ export function getRolePreset(roleId) {
   return getBaseRolePreset(roleId);
 }
 
+// ── Minimal flat-tree row (Section / Menu / Submenu) ──────────────────────
+// One indentation level per depth, a small disclosure arrow, a granted
+// count, and a text-only "select all" link — no card chrome, no icons.
+function TreeRow({ depth, expanded, onToggle, title, granted, total, allGranted, onToggleAll, bold = false, marker }) {
+  return (
+    <div
+      onClick={onToggle}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 10,
+        padding: '9px 14px',
+        paddingLeft: 14 + depth * 20,
+        cursor: 'pointer',
+        userSelect: 'none',
+        background: depth === 0 ? '#FAFAFA' : '#FFFFFF'
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        {expanded ? <ChevronDown style={{ width: 14, height: 14, color: '#94A3B8', flexShrink: 0 }} /> : <ChevronRight style={{ width: 14, height: 14, color: '#94A3B8', flexShrink: 0 }} />}
+        {marker && (
+          <span style={{
+            fontSize: bold ? '0.8rem' : '0.76rem',
+            fontWeight: 700,
+            color: bold ? 'var(--brand-primary, #15803D)' : '#94A3B8',
+            flexShrink: 0,
+            minWidth: bold ? 16 : 12,
+            textAlign: bold ? 'right' : 'left'
+          }}>
+            {marker}
+          </span>
+        )}
+        <span style={{
+          fontSize: bold ? '0.86rem' : '0.82rem',
+          fontWeight: bold ? 700 : 600,
+          color: '#0F172A',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        }}>
+          {title}
+        </span>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+        <span style={{ fontSize: '0.72rem', fontWeight: 600, color: granted > 0 ? 'var(--brand-primary, #15803D)' : '#94A3B8' }}>
+          {granted}/{total}
+        </span>
+        <button
+          type="button"
+          onClick={onToggleAll}
+          style={{
+            border: 'none',
+            background: 'none',
+            color: allGranted ? '#94A3B8' : 'var(--brand-primary, #15803D)',
+            fontSize: '0.72rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            padding: 0,
+            textDecoration: 'underline',
+            textUnderlineOffset: 2
+          }}
+        >
+          {allGranted ? 'Clear' : 'Select all'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── iOS-style toggle switch ────────────────────────────────────────────────
+function ToggleSwitch({ checked, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={checked}
+      style={{
+        width: 36,
+        height: 20,
+        borderRadius: 999,
+        border: 'none',
+        background: checked ? 'var(--brand-primary, #15803D)' : '#CBD5E1',
+        position: 'relative',
+        cursor: 'pointer',
+        flexShrink: 0,
+        padding: 0,
+        transition: 'background 0.15s ease'
+      }}
+    >
+      <span style={{
+        position: 'absolute',
+        top: 2,
+        left: checked ? 18 : 2,
+        width: 16,
+        height: 16,
+        borderRadius: '50%',
+        background: '#FFFFFF',
+        boxShadow: '0 1px 2px rgba(15, 23, 42, 0.25)',
+        transition: 'left 0.15s ease'
+      }} />
+    </button>
+  );
+}
+
+// ── Flat list of individual permission rows, each ending in a toggle switch ──
+function ActionToggleList({ depth, actions, moduleName, flags, onToggle }) {
+  return (
+    <div>
+      {actions.map(act => {
+        const key = `${moduleName}_${act.action}`;
+        const isChecked = Boolean(flags[key]);
+        return (
+          <div
+            key={act.action}
+            onClick={() => onToggle(moduleName, act.action)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 10,
+              padding: '8px 14px',
+              paddingLeft: 14 + depth * 20,
+              cursor: 'pointer',
+              userSelect: 'none'
+            }}
+          >
+            <span style={{ fontSize: '0.8rem', fontWeight: 500, color: isChecked ? '#0F172A' : '#475569' }}>
+              {act.label}
+            </span>
+            <ToggleSwitch checked={isChecked} onClick={(e) => { e.stopPropagation(); onToggle(moduleName, act.action); }} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Plain underlined text-link button — used throughout the header controls
+// so every header action reads as a real, clickable control — bordered,
+// tinted by intent, with an icon — rather than a bare text link.
+function ToolbarButton({ onClick, tone = 'neutral', icon: Icon, children }) {
+  const tones = {
+    neutral: { border: '#CBD5E1', background: '#FFFFFF', color: '#334155' },
+    brand: { border: 'var(--brand-primary-border, #A3F5C1)', background: 'var(--brand-primary-light, #F0FEF5)', color: 'var(--brand-primary, #15803D)' },
+    danger: { border: 'var(--color-danger-border, #FECACA)', background: 'var(--color-danger-light, #FEF2F2)', color: 'var(--color-danger, #DC2626)' }
+  };
+  const c = tones[tone] || tones.neutral;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        border: `1px solid ${c.border}`,
+        background: c.background,
+        color: c.color,
+        fontSize: '0.76rem',
+        fontWeight: 600,
+        padding: '6px 12px',
+        borderRadius: 7,
+        cursor: 'pointer',
+        whiteSpace: 'nowrap'
+      }}
+    >
+      {Icon && <Icon style={{ width: 13, height: 13, flexShrink: 0 }} />}
+      <span>{children}</span>
+    </button>
+  );
+}
+
+function HeaderDivider() {
+  return <span style={{ width: 1, height: 22, background: '#E2E8F0', flexShrink: 0 }} />;
+}
+
 export default function PermissionMatrix({
   initialRole = 'MANAGER',
   selectedStaffMember = null,
@@ -775,33 +953,12 @@ export default function PermissionMatrix({
   const [newRoleForm, setNewRoleForm] = useState({ name: '', code: '', desc: '', baseRole: 'STAFF' });
   const [newRoleError, setNewRoleError] = useState('');
 
-  // Accordion State:
-  // 1. Sections: Expanded by default
-  const [expandedSections, setExpandedSections] = useState(() => {
-    const initial = {};
-    RBAC_MENU_SECTIONS.forEach(sec => { initial[sec.id] = true; });
-    return initial;
-  });
-
-  // 2. Menus: Expanded by default
-  const [expandedMenus, setExpandedMenus] = useState(() => {
-    const initial = {};
-    RBAC_MENU_SECTIONS.forEach(sec => {
-      sec.menus.forEach(menu => { initial[menu.id] = true; });
-    });
-    return initial;
-  });
-
-  // 3. Submenus / Pages: Expanded by default
-  const [expandedSubmenus, setExpandedSubmenus] = useState(() => {
-    const initial = {};
-    RBAC_MENU_SECTIONS.forEach(sec => {
-      sec.menus.forEach(menu => {
-        menu.submenus.forEach(sub => { initial[sub.id] = true; });
-      });
-    });
-    return initial;
-  });
+  // Accordion State — everything starts collapsed so the page opens as a
+  // short list of module groups instead of dumping every action on screen
+  // at once; the user drills into only what they need to change.
+  const [expandedSections, setExpandedSections] = useState({});
+  const [expandedMenus, setExpandedMenus] = useState({});
+  const [expandedSubmenus, setExpandedSubmenus] = useState({});
 
   useEffect(() => {
     const target = selectedStaffMember?.role || initialRole;
@@ -1084,6 +1241,25 @@ export default function PermissionMatrix({
     }).filter(Boolean);
   }, [sq]);
 
+  // While searching, auto-expand every section/menu/submenu that matched so
+  // results are actually visible — everything is collapsed by default otherwise.
+  useEffect(() => {
+    if (!sq) return;
+    const nextSec = {};
+    const nextMenu = {};
+    const nextSub = {};
+    filteredSections.forEach(sec => {
+      nextSec[sec.id] = true;
+      sec.menus.forEach(menu => {
+        nextMenu[menu.id] = true;
+        menu.submenus.forEach(sub => { nextSub[sub.id] = true; });
+      });
+    });
+    setExpandedSections(prev => ({ ...prev, ...nextSec }));
+    setExpandedMenus(prev => ({ ...prev, ...nextMenu }));
+    setExpandedSubmenus(prev => ({ ...prev, ...nextSub }));
+  }, [sq, filteredSections]);
+
   // Summary Metrics
   const allKeys = getAllActionKeys();
   const totalPermissions = allKeys.length;
@@ -1104,7 +1280,7 @@ export default function PermissionMatrix({
       color: '#0F172A'
     }}>
 
-      {/* ── 1. Top Executive Control Header ────────────────────────── */}
+      {/* ── 1. Top Control Header — real bordered/tinted buttons with icons ── */}
       <div style={{
         background: '#FFFFFF',
         border: '1px solid #E2E8F0',
@@ -1115,119 +1291,55 @@ export default function PermissionMatrix({
         flexDirection: 'column',
         gap: 14
       }}>
-        
-        {/* Top Row: Role Switcher + Save Button */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 12
-        }}>
-          {/* Left: Role Switcher & Context */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              background: '#F8FAFC',
-              border: '1px solid #CBD5E1',
-              borderRadius: 8,
-              padding: '6px 12px'
-            }}>
-              <Shield style={{ width: 18, height: 18, color: 'var(--brand-primary, #15803D)' }} />
-              <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                {selectedStaffMember ? 'Staff Target:' : 'Target Role:'}
-              </label>
 
-              {selectedStaffMember ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: '0.86rem', fontWeight: 700, color: '#0F172A' }}>
-                    {selectedStaffMember.name}
-                  </span>
-                  <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
-                    ({selectedStaffMember.role})
-                  </span>
-                </div>
-              ) : (
-                <SharedDropdown
-                  value={selectedRole}
-                  onChange={(e) => handleRoleChange(e.target.value)}
-                  size="sm"
-                  buttonStyle={{ height: 32, minWidth: 140, fontWeight: 700, border: 'none', background: 'transparent' }}
-                  options={ROLES.map(r => ({ value: r.id, label: r.name }))}
-                />
-              )}
-            </div>
+        {/* Row 1: Role target + Save */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <Shield style={{ width: 16, height: 16, color: 'var(--brand-primary, #15803D)', flexShrink: 0 }} />
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.04em', flexShrink: 0 }}>
+              {selectedStaffMember ? 'Staff Target' : 'Target Role'}
+            </span>
+
+            {selectedStaffMember ? (
+              <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0F172A', flexShrink: 0 }}>
+                {selectedStaffMember.name}
+                <span style={{ fontSize: '0.76rem', fontWeight: 500, color: '#64748B' }}> ({selectedStaffMember.role})</span>
+              </span>
+            ) : (
+              <SharedDropdown
+                value={selectedRole}
+                onChange={(e) => handleRoleChange(e.target.value)}
+                size="sm"
+                buttonStyle={{ height: 32, minWidth: 160, fontWeight: 700, border: '1px solid #CBD5E1', background: '#FFFFFF', flexShrink: 0 }}
+                options={ROLES.map(r => ({ value: r.id, label: r.name }))}
+              />
+            )}
 
             {!selectedStaffMember && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button
-                  type="button"
+              <>
+                <ToolbarButton
+                  tone="brand"
+                  icon={Plus}
                   onClick={() => {
                     setNewRoleForm({ name: '', code: '', desc: '', baseRole: 'STAFF' });
                     setNewRoleError('');
                     setShowAddRoleModal(true);
                   }}
-                  style={{
-                    background: 'var(--brand-primary-light, #F0FEF5)',
-                    border: '1px solid var(--brand-primary-border, #A3F5C1)',
-                    color: 'var(--brand-primary, #15803D)',
-                    padding: '6px 12px',
-                    borderRadius: 8,
-                    fontSize: '0.78rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 5
-                  }}
                 >
-                  <Plus style={{ width: 14, height: 14 }} />
-                  <span>Add New Role</span>
-                </button>
+                  Add New Role
+                </ToolbarButton>
 
                 {!ROLES.find(r => r.id === selectedRole)?.isSystem && (
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteCustomRole(selectedRole)}
-                    style={{
-                      background: 'var(--color-danger-light, #FEF2F2)',
-                      border: '1px solid var(--color-danger-border, #FECACA)',
-                      color: 'var(--color-danger, #DC2626)',
-                      padding: '6px 10px',
-                      borderRadius: 8,
-                      fontSize: '0.76rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4
-                    }}
-                    title="Delete this custom role"
-                  >
-                    <Trash2 style={{ width: 13, height: 13 }} />
-                    <span>Delete Role</span>
-                  </button>
+                  <ToolbarButton tone="danger" icon={Trash2} onClick={() => handleDeleteCustomRole(selectedRole)}>
+                    Delete Role
+                  </ToolbarButton>
                 )}
 
-                <span style={{
-                  fontSize: '0.74rem',
-                  fontWeight: 600,
-                  padding: '4px 10px',
-                  borderRadius: 20,
-                  background: '#F1F5F9',
-                  color: '#475569',
-                  border: '1px solid #CBD5E1'
-                }}>
-                  Applies to {affectedCount} staff user{affectedCount === 1 ? '' : 's'} with {selectedRole} role
-                </span>
-              </div>
+              </>
             )}
           </div>
 
-          {/* Right: Save Actions + Status Notifications */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
             {saveError && (
               <span style={{ color: 'var(--color-danger, #DC2626)', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
                 <AlertCircle style={{ width: 14, height: 14 }} /> {saveError}
@@ -1238,7 +1350,6 @@ export default function PermissionMatrix({
                 <Check style={{ width: 15, height: 15 }} /> Permissions Saved!
               </span>
             )}
-
             <button
               type="button"
               onClick={handleSave}
@@ -1255,8 +1366,7 @@ export default function PermissionMatrix({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 7,
-                boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.25)',
-                transition: 'all 0.15s ease'
+                boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.25)'
               }}
             >
               <Save style={{ width: 15, height: 15 }} />
@@ -1265,18 +1375,16 @@ export default function PermissionMatrix({
           </div>
         </div>
 
-        {/* Bottom Row: Search Filter + Bulk Actions Bar */}
+        {/* Row 2: Search + stats + bulk-action buttons */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           flexWrap: 'wrap',
           gap: 12,
-          paddingTop: 10,
+          paddingTop: 12,
           borderTop: '1px solid #F1F5F9'
         }}>
-          
-          {/* Quick Search */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -1284,12 +1392,12 @@ export default function PermissionMatrix({
             background: '#F8FAFC',
             border: '1px solid #E2E8F0',
             borderRadius: 7,
-            padding: '6px 12px',
+            padding: '7px 12px',
             width: '100%',
             maxWidth: 280,
             boxSizing: 'border-box'
           }}>
-            <Search style={{ width: 15, height: 15, color: '#94A3B8' }} />
+            <Search style={{ width: 15, height: 15, color: '#94A3B8', flexShrink: 0 }} />
             <input
               type="text"
               placeholder="Search menus, submenus, or actions..."
@@ -1306,125 +1414,35 @@ export default function PermissionMatrix({
             />
           </div>
 
-          {/* Quick Bulk Action Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            {/* Granted Counter Pill */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              background: '#F8FAFC',
-              border: '1px solid #E2E8F0',
-              padding: '4px 10px',
-              borderRadius: 7
-            }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
-                Granted: <strong style={{ color: 'var(--brand-primary, #15803D)' }}>{grantedCount}</strong> / {totalPermissions} ({percentGranted}%)
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569' }}>
+                Granted <strong style={{ color: 'var(--brand-primary, #15803D)' }}>{grantedCount}/{totalPermissions}</strong> ({percentGranted}%)
               </span>
-              <div style={{
-                width: 60,
-                height: 6,
-                borderRadius: 3,
-                background: '#E2E8F0',
-                overflow: 'hidden'
-              }}>
-                <div style={{
-                  width: `${percentGranted}%`,
-                  height: '100%',
-                  background: 'var(--brand-primary, #15803D)',
-                  transition: 'width 0.3s ease'
-                }} />
+              <div style={{ width: 56, height: 6, borderRadius: 3, background: '#E2E8F0', overflow: 'hidden' }}>
+                <div style={{ width: `${percentGranted}%`, height: '100%', background: 'var(--brand-primary, #15803D)', transition: 'width 0.3s ease' }} />
               </div>
             </div>
 
-            {/* Expand / Collapse All */}
-            <button
-              type="button"
-              onClick={handleExpandAll}
-              style={{
-                border: '1px solid #CBD5E1',
-                background: '#FFFFFF',
-                color: '#334155',
-                fontSize: '0.72rem',
-                fontWeight: 600,
-                padding: '5px 9px',
-                borderRadius: 6,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4
-              }}
-            >
-              <ChevronsDown style={{ width: 13, height: 13 }} />
-              <span>Expand All</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleCollapseAll}
-              style={{
-                border: '1px solid #CBD5E1',
-                background: '#FFFFFF',
-                color: '#334155',
-                fontSize: '0.72rem',
-                fontWeight: 600,
-                padding: '5px 9px',
-                borderRadius: 6,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4
-              }}
-            >
-              <ChevronsUp style={{ width: 13, height: 13 }} />
-              <span>Collapse All</span>
-            </button>
+            <HeaderDivider />
 
-            {/* Grant / Revoke All */}
-            <button
-              type="button"
-              onClick={() => handleGlobalToggle(true)}
-              style={{
-                border: '1px solid var(--brand-primary-border, #A3F5C1)',
-                background: 'var(--brand-primary-light, #F0FEF5)',
-                color: 'var(--brand-primary, #15803D)',
-                fontSize: '0.72rem',
-                fontWeight: 600,
-                padding: '5px 10px',
-                borderRadius: 6,
-                cursor: 'pointer'
-              }}
-            >
-              Grant All
-            </button>
-            <button
-              type="button"
-              onClick={() => handleGlobalToggle(false)}
-              style={{
-                border: '1px solid #E2E8F0',
-                background: '#FFFFFF',
-                color: '#64748B',
-                fontSize: '0.72rem',
-                fontWeight: 600,
-                padding: '5px 10px',
-                borderRadius: 6,
-                cursor: 'pointer'
-              }}
-            >
-              Revoke All
-            </button>
+            <ToolbarButton icon={ChevronsDown} onClick={handleExpandAll}>Expand All</ToolbarButton>
+            <ToolbarButton icon={ChevronsUp} onClick={handleCollapseAll}>Collapse All</ToolbarButton>
+
+            <HeaderDivider />
+
+            <ToolbarButton tone="brand" icon={Check} onClick={() => handleGlobalToggle(true)}>Grant All</ToolbarButton>
+            <ToolbarButton tone="danger" icon={X} onClick={() => handleGlobalToggle(false)}>Revoke All</ToolbarButton>
           </div>
-
         </div>
 
       </div>
 
-      {/* ── 2. Hierarchical Sections, Menus & Submenus ──────────────── */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {filteredSections.map(section => {
-          const SectionIcon = section.icon;
+      {/* ── 2. Hierarchical Sections, Menus & Submenus — minimal flat tree ── */}
+      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+        {filteredSections.map((section, secIdx) => {
           const isSectionExpanded = Boolean(expandedSections[section.id]);
 
-          // Compute section-level statistics
           const secActionKeys = [];
           section.menus.forEach(m => {
             m.submenus.forEach(s => {
@@ -1435,425 +1453,92 @@ export default function PermissionMatrix({
           const secAllGranted = secActionKeys.length > 0 && secGranted === secActionKeys.length;
 
           return (
-            <div
-              key={section.id}
-              style={{
-                background: '#FFFFFF',
-                border: '1px solid #E2E8F0',
-                borderRadius: 12,
-                overflow: 'hidden',
-                boxShadow: '0 1px 3px rgba(15, 23, 42, 0.03)'
-              }}
-            >
-              {/* Section Header Strip (Click to Expand / Collapse Section) */}
-              <div
-                onClick={() => toggleSectionAccordion(section.id)}
-                style={{
-                  background: '#F8FAFC',
-                  borderBottom: isSectionExpanded ? '1px solid #E2E8F0' : 'none',
-                  padding: '12px 18px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  cursor: 'pointer',
-                  userSelect: 'none',
-                  flexWrap: 'wrap',
-                  gap: 10
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: 4,
-                    background: '#FFFFFF',
-                    border: '1px solid #CBD5E1',
-                    color: '#475569',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    {isSectionExpanded ? <ChevronDown style={{ width: 14, height: 14 }} /> : <ChevronRight style={{ width: 14, height: 14 }} />}
-                  </div>
+            <div key={section.id} style={{ borderTop: secIdx === 0 ? 'none' : '1px solid #F1F5F9' }}>
+              <TreeRow
+                depth={0}
+                expanded={isSectionExpanded}
+                onToggle={() => toggleSectionAccordion(section.id)}
+                title={section.title}
+                granted={secGranted}
+                total={secActionKeys.length}
+                allGranted={secAllGranted}
+                onToggleAll={() => toggleSectionAll(section, !secAllGranted)}
+                marker={`${secIdx + 1}.`}
+                bold
+              />
 
-                  <div style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 6,
-                    background: '#FFFFFF',
-                    border: '1px solid #CBD5E1',
-                    color: '#0F172A',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <SectionIcon style={{ width: 16, height: 16 }} />
-                  </div>
+              {isSectionExpanded && section.menus.map((menu, menuIdx) => {
+                const isMenuExpanded = Boolean(expandedMenus[menu.id]);
+                // Most modules have exactly one submenu/page — showing a
+                // redundant submenu row for those just adds nesting, so
+                // their actions render directly under the menu instead.
+                const singleSubmenu = menu.submenus.length === 1;
 
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <h2 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700, color: '#0F172A', letterSpacing: '-0.01em' }}>
-                        {section.title}
-                      </h2>
-                      <span style={{
-                        fontSize: '0.66rem',
-                        fontWeight: 600,
-                        color: '#64748B',
-                        background: '#FFFFFF',
-                        border: '1px solid #CBD5E1',
-                        padding: '1px 6px',
-                        borderRadius: 10
-                      }}>
-                        {section.menus.length} Menu{section.menus.length === 1 ? '' : 's'}
-                      </span>
-                    </div>
-                    <span style={{ fontSize: '0.7rem', color: '#64748B' }}>
-                      {secGranted} / {secActionKeys.length} permissions active
-                    </span>
-                  </div>
-                </div>
+                const menuActionKeys = [];
+                menu.submenus.forEach(s => {
+                  s.actions.forEach(a => menuActionKeys.push(`${menu.module}_${a.action}`));
+                });
+                const menuGranted = menuActionKeys.filter(k => flags[k]).length;
+                const menuAllGranted = menuActionKeys.length > 0 && menuGranted === menuActionKeys.length;
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    onClick={() => toggleSectionAll(section, !secAllGranted)}
-                    style={{
-                      border: '1px solid #CBD5E1',
-                      background: '#FFFFFF',
-                      color: secAllGranted ? '#64748B' : 'var(--brand-primary, #15803D)',
-                      fontSize: '0.72rem',
-                      fontWeight: 600,
-                      padding: '4px 10px',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4
-                    }}
-                  >
-                    {secAllGranted ? <Square style={{ width: 12, height: 12 }} /> : <CheckSquare style={{ width: 12, height: 12 }} />}
-                    <span>{secAllGranted ? 'Deselect Section' : 'Select All in Section'}</span>
-                  </button>
-                </div>
-              </div>
+                return (
+                  <div key={menu.id}>
+                    <TreeRow
+                      depth={1}
+                      expanded={isMenuExpanded}
+                      onToggle={() => toggleMenuAccordion(menu.id)}
+                      title={menu.title}
+                      granted={menuGranted}
+                      total={menuActionKeys.length}
+                      allGranted={menuAllGranted}
+                      onToggleAll={() => toggleMenuAll(menu, !menuAllGranted)}
+                      marker="•"
+                    />
 
-              {/* Section Modules / Menus List */}
-              {isSectionExpanded && (
-                <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {section.menus.map(menu => {
-                    const MenuIcon = menu.icon;
-                    const isMenuExpanded = Boolean(expandedMenus[menu.id]);
+                    {isMenuExpanded && singleSubmenu && (
+                      <ActionToggleList
+                        depth={2}
+                        actions={menu.submenus[0].actions}
+                        moduleName={menu.module}
+                        flags={flags}
+                        onToggle={toggleAction}
+                      />
+                    )}
 
-                    // Compute Menu-level statistics
-                    const menuActionKeys = [];
-                    menu.submenus.forEach(s => {
-                      s.actions.forEach(a => menuActionKeys.push(`${menu.module}_${a.action}`));
-                    });
-                    const menuGranted = menuActionKeys.filter(k => flags[k]).length;
-                    const menuAllGranted = menuActionKeys.length > 0 && menuGranted === menuActionKeys.length;
+                    {isMenuExpanded && !singleSubmenu && menu.submenus.map((submenu, subIdx) => {
+                      const subActionKeys = submenu.actions.map(a => `${menu.module}_${a.action}`);
+                      const subGranted = subActionKeys.filter(k => flags[k]).length;
+                      const subAllGranted = subActionKeys.length > 0 && subGranted === subActionKeys.length;
+                      const isSubmenuExpanded = Boolean(expandedSubmenus[submenu.id]);
 
-                    return (
-                      <div
-                        key={menu.id}
-                        style={{
-                          border: '1px solid #E2E8F0',
-                          borderRadius: 10,
-                          overflow: 'hidden',
-                          background: '#FFFFFF',
-                          transition: 'border-color 0.15s ease'
-                        }}
-                      >
-                        {/* ── MENU HEADER (Click to Expand / Collapse Menu) ── */}
-                        <div
-                          onClick={() => toggleMenuAccordion(menu.id)}
-                          style={{
-                            padding: '12px 16px',
-                            background: isMenuExpanded ? '#FAFAFA' : '#FFFFFF',
-                            borderBottom: isMenuExpanded ? '1px solid #E2E8F0' : 'none',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            cursor: 'pointer',
-                            userSelect: 'none',
-                            flexWrap: 'wrap',
-                            gap: 10
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <div style={{
-                              width: 22,
-                              height: 22,
-                              borderRadius: 4,
-                              background: '#F1F5F9',
-                              color: '#475569',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}>
-                              {isMenuExpanded ? <ChevronDown style={{ width: 14, height: 14 }} /> : <ChevronRight style={{ width: 14, height: 14 }} />}
-                            </div>
-
-                            <div style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: 8,
-                              background: '#F8FAFC',
-                              border: '1px solid #CBD5E1',
-                              color: '#1E293B',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}>
-                              <MenuIcon style={{ width: 17, height: 17 }} />
-                            </div>
-
-                            <div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <h3 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 700, color: '#0F172A' }}>
-                                  {menu.title}
-                                </h3>
-                                <span style={{
-                                  fontSize: '0.68rem',
-                                  color: '#64748B',
-                                  background: '#F1F5F9',
-                                  border: '1px solid #E2E8F0',
-                                  padding: '1px 6px',
-                                  borderRadius: 4,
-                                  fontFamily: 'monospace'
-                                }}>
-                                  {menu.submenus.length} Submenu{menu.submenus.length === 1 ? '' : 's'}
-                                </span>
-                              </div>
-                              <p style={{ margin: '2px 0 0 0', fontSize: '0.74rem', color: '#64748B' }}>
-                                {menu.description}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Menu Right: Granted Badge + Quick Toggle */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={(e) => e.stopPropagation()}>
-                            <span style={{
-                              fontSize: '0.72rem',
-                              fontWeight: 600,
-                              color: menuGranted > 0 ? 'var(--brand-primary, #15803D)' : '#64748B',
-                              background: menuGranted > 0 ? 'var(--brand-primary-light, #F0FEF5)' : '#F8FAFC',
-                              border: `1px solid ${menuGranted > 0 ? 'var(--brand-primary-border, #A3F5C1)' : '#E2E8F0'}`,
-                              padding: '2px 8px',
-                              borderRadius: 12
-                            }}>
-                              {menuGranted} / {menuActionKeys.length} Granted
-                            </span>
-
-                            <button
-                              type="button"
-                              onClick={() => toggleMenuAll(menu, !menuAllGranted)}
-                              style={{
-                                border: '1px solid #CBD5E1',
-                                background: '#FFFFFF',
-                                color: '#334155',
-                                fontSize: '0.7rem',
-                                fontWeight: 600,
-                                padding: '3px 8px',
-                                borderRadius: 5,
-                                cursor: 'pointer'
-                              }}
-                            >
-                              {menuAllGranted ? 'Revoke Menu' : 'Grant Menu'}
-                            </button>
-                          </div>
+                      return (
+                        <div key={submenu.id || subIdx}>
+                          <TreeRow
+                            depth={2}
+                            expanded={isSubmenuExpanded}
+                            onToggle={() => toggleSubmenuAccordion(submenu.id)}
+                            title={submenu.title}
+                            granted={subGranted}
+                            total={submenu.actions.length}
+                            allGranted={subAllGranted}
+                            onToggleAll={() => toggleSubmenuAll(menu.module, submenu, !subAllGranted)}
+                            marker="–"
+                          />
+                          {isSubmenuExpanded && (
+                            <ActionToggleList
+                              depth={3}
+                              actions={submenu.actions}
+                              moduleName={menu.module}
+                              flags={flags}
+                              onToggle={toggleAction}
+                            />
+                          )}
                         </div>
-
-                        {/* ── MENU BODY: LIST OF COLLAPSIBLE SUBMENUS ── */}
-                        {isMenuExpanded && (
-                          <div style={{
-                            padding: '14px 16px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 12,
-                            background: '#FFFFFF'
-                          }}>
-                            {menu.submenus.map((submenu, subIdx) => {
-                              const subActionKeys = submenu.actions.map(a => `${menu.module}_${a.action}`);
-                              const subGranted = subActionKeys.filter(k => flags[k]).length;
-                              const subAllGranted = subActionKeys.length > 0 && subGranted === subActionKeys.length;
-                              const isSubmenuExpanded = Boolean(expandedSubmenus[submenu.id]);
-
-                              return (
-                                <div
-                                  key={submenu.id || subIdx}
-                                  style={{
-                                    border: '1px solid #E2E8F0',
-                                    borderRadius: 8,
-                                    overflow: 'hidden',
-                                    background: '#FAFAFA',
-                                    transition: 'border-color 0.15s ease'
-                                  }}
-                                >
-                                  {/* ── SUBMENU / PAGE HEADER (Click to Expand / Collapse Submenu) ── */}
-                                  <div
-                                    onClick={() => toggleSubmenuAccordion(submenu.id)}
-                                    style={{
-                                      padding: '10px 14px',
-                                      background: isSubmenuExpanded ? '#F1F5F9' : '#FAFAFA',
-                                      borderBottom: isSubmenuExpanded ? '1px solid #E2E8F0' : 'none',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'space-between',
-                                      cursor: 'pointer',
-                                      userSelect: 'none',
-                                      flexWrap: 'wrap',
-                                      gap: 8
-                                    }}
-                                  >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                      <div style={{
-                                        width: 20,
-                                        height: 20,
-                                        borderRadius: 4,
-                                        background: '#FFFFFF',
-                                        border: '1px solid #CBD5E1',
-                                        color: '#475569',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
-                                      }}>
-                                        {isSubmenuExpanded ? <ChevronDown style={{ width: 13, height: 13 }} /> : <ChevronRight style={{ width: 13, height: 13 }} />}
-                                      </div>
-
-                                      <div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                          <h4 style={{ margin: 0, fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
-                                            {submenu.title}
-                                          </h4>
-                                          <span style={{
-                                            fontSize: '0.66rem',
-                                            color: '#475569',
-                                            background: '#FFFFFF',
-                                            border: '1px solid #CBD5E1',
-                                            padding: '1px 6px',
-                                            borderRadius: 4,
-                                            fontFamily: 'monospace'
-                                          }}>
-                                            {submenu.route}
-                                          </span>
-                                        </div>
-                                        <span style={{ fontSize: '0.7rem', color: '#64748B' }}>
-                                          {submenu.description}
-                                        </span>
-                                      </div>
-                                    </div>
-
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={(e) => e.stopPropagation()}>
-                                      <span style={{
-                                        fontSize: '0.68rem',
-                                        fontWeight: 600,
-                                        color: subGranted > 0 ? 'var(--brand-primary, #15803D)' : '#64748B',
-                                        background: subGranted > 0 ? 'var(--brand-primary-light, #F0FEF5)' : '#FFFFFF',
-                                        border: `1px solid ${subGranted > 0 ? 'var(--brand-primary-border, #A3F5C1)' : '#E2E8F0'}`,
-                                        padding: '1px 6px',
-                                        borderRadius: 8
-                                      }}>
-                                        {subGranted} / {submenu.actions.length} Active
-                                      </span>
-
-                                      <button
-                                        type="button"
-                                        onClick={() => toggleSubmenuAll(menu.module, submenu, !subAllGranted)}
-                                        style={{
-                                          border: '1px solid #CBD5E1',
-                                          background: '#FFFFFF',
-                                          color: '#334155',
-                                          fontSize: '0.68rem',
-                                          fontWeight: 600,
-                                          padding: '2px 7px',
-                                          borderRadius: 4,
-                                          cursor: 'pointer'
-                                        }}
-                                      >
-                                        {subAllGranted ? 'Revoke Page' : 'Grant Page'}
-                                      </button>
-                                    </div>
-                                  </div>
-
-                                  {/* ── SUBMENU BODY: GRANULAR PAGE PERMISSION CHECKBOXES ── */}
-                                  {isSubmenuExpanded && (
-                                    <div style={{
-                                      padding: '12px 14px',
-                                      background: '#FFFFFF',
-                                      display: 'grid',
-                                      gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))',
-                                      gap: 8
-                                    }}>
-                                      {submenu.actions.map(act => {
-                                        const key = `${menu.module}_${act.action}`;
-                                        const isChecked = Boolean(flags[key]);
-                                        const ActionIcon = act.icon || Eye;
-
-                                        return (
-                                          <label
-                                            key={act.action}
-                                            onClick={(e) => {
-                                              e.preventDefault();
-                                              toggleAction(menu.module, act.action);
-                                            }}
-                                            style={{
-                                              display: 'flex',
-                                              alignItems: 'flex-start',
-                                              gap: 9,
-                                              padding: '8px 10px',
-                                              borderRadius: 6,
-                                              border: `1px solid ${isChecked ? 'var(--brand-primary-border, #A3F5C1)' : '#E2E8F0'}`,
-                                              background: isChecked ? 'var(--brand-primary-light, #F0FEF5)' : '#FAFAFA',
-                                              cursor: 'pointer',
-                                              userSelect: 'none',
-                                              transition: 'all 0.15s ease'
-                                            }}
-                                          >
-                                            <input
-                                              type="checkbox"
-                                              checked={isChecked}
-                                              onChange={() => {}}
-                                              style={{
-                                                marginTop: 2,
-                                                width: 15,
-                                                height: 15,
-                                                accentColor: 'var(--brand-primary, #15803D)',
-                                                cursor: 'pointer'
-                                              }}
-                                            />
-
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                                <ActionIcon style={{ width: 12, height: 12, color: isChecked ? 'var(--brand-primary, #15803D)' : '#64748B' }} />
-                                                <span style={{
-                                                  fontSize: '0.78rem',
-                                                  fontWeight: isChecked ? 700 : 600,
-                                                  color: isChecked ? '#0F172A' : '#334155'
-                                                }}>
-                                                  {act.label}
-                                                </span>
-                                              </div>
-                                              <span style={{ fontSize: '0.68rem', color: '#64748B', lineHeight: 1.25 }}>
-                                                {act.desc}
-                                              </span>
-                                            </div>
-                                          </label>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
+                      );
+                    })}
+                  </div>
+                );
+              })}
             </div>
           );
         })}
