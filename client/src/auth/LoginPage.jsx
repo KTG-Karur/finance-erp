@@ -275,19 +275,20 @@ export default function LoginPage({ company, module, onLoginSuccess, onBackToMod
                 </p>
               </div>
 
-              {/* Email Field */}
+              {/* Username or Email Field */}
               <div className="saas-input-group">
-                <label htmlFor="email">Email Address</label>
+                <label htmlFor="email">Username or Email Address</label>
                 <div className="saas-input-wrap">
                   <User className="saas-icon" />
                   <input
                     id="email"
-                    type="email"
+                    type="text"
+                    autoComplete="username"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     autoFocus
-                    placeholder="name@company.com"
+                    placeholder="e.g. admin or name@company.com"
                   />
                 </div>
               </div>

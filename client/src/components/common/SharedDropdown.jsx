@@ -301,6 +301,8 @@ export default function SharedDropdown({
         id={id}
         name={name}
         disabled={disabled}
+        aria-invalid={hasError}
+        className={`shared-dropdown-trigger ${hasError ? 'is-invalid' : ''}`}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         onClick={() => !disabled && setIsOpen(!isOpen)}

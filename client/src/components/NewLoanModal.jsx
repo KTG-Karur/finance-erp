@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Banknote, Clock, ArrowRight, User, Phone, DollarSign, Percent, Calendar, FileText } from 'lucide-react';
 import SharedDropdown from './common/SharedDropdown';
 import { convertRateToMonthly, rateBasisSuffix } from '../utils/loanCalculations';
+import { focusAndScrollToFirstError } from '../utils/formNavigation';
 
 export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBURSE', loanSchemes = [] }) {
   // App.jsx renders this component unconditionally and just toggles `isOpen`
@@ -25,6 +26,7 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
 
   if (!isOpen) return null;
 
@@ -49,13 +51,20 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (fieldErrors[name]) setFieldErrors(prev => ({ ...prev, [name]: null }));
+
     const updatedForm = { ...form, [name]: value };
 
-    // Selecting a scheme re-derives the interest rate from it, so the scheme actually
-    // drives the loan terms instead of being a disconnected label.
     if (name === 'scheme_id') {
       const scheme = activeSchemes.find(s => String(s.id) === String(value));
-      if (scheme) updatedForm.monthly_interest_rate = scheme?.rate_per_unit != null ? convertRateToMonthly(scheme.rate_per_unit, scheme.interest_basis) : '';
+      if (scheme) {
+        if (scheme?.rate_per_unit != null) {
+          updatedForm.monthly_interest_rate = convertRateToMonthly(scheme.rate_per_unit, scheme.interest_basis);
+        }
+        if (scheme.min_tenure_months) {
+          updatedForm.tenure_months = scheme.min_tenure_months;
+        }
+      }
     }
 
     if (name === 'principal_amount' || name === 'monthly_interest_rate' || name === 'tenure_months' || name === 'scheme_id') {
@@ -70,10 +79,29 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
     setForm(updatedForm);
   };
 
+  const handleSchemeChange = (schemeId) => {
+    handleChange({ target: { name: 'scheme_id', value: schemeId } });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (loading) return;
     setError('');
+    setFieldErrors({});
+
+    const errs = {};
+    if (!form.borrower_name?.trim()) errs.borrower_name = 'Borrower name is required';
+    if (!form.phone?.trim() || form.phone.replace(/\D/g, '').length < 10) errs.phone = 'Valid 10-digit mobile number required';
+    if (!form.principal_amount || Number(form.principal_amount) <= 0) errs.principal_amount = 'Principal amount is required';
+    if (!form.tenure_months || Number(form.tenure_months) <= 0) errs.tenure_months = 'Tenure is required';
+
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      setError('Please fix all fields highlighted in red.');
+      setTimeout(() => focusAndScrollToFirstError('.saas-modal-card'), 50);
+      return;
+    }
+
     setLoading(true);
     try {
       await onSubmit({
@@ -87,6 +115,7 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
       onClose();
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || 'Could not save this loan.');
+      setTimeout(() => focusAndScrollToFirstError('.saas-modal-card'), 50);
     } finally {
       setLoading(false);
     }
@@ -132,7 +161,7 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div className="form-group">
                 <label style={{ fontSize: '0.7rem', fontWeight: 500, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                  {isAppMode ? 'Applicant Customer Name' : 'Customer Name'}
+                  {isAppMode ? 'Applicant Customer Name' : 'Customer Name'} *
                 </label>
                 <input
                   type="text"
@@ -140,25 +169,24 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
                   value={form.borrower_name}
                   onChange={handleChange}
                   placeholder="e.g. Ramesh Kumar"
+                  aria-invalid={Boolean(fieldErrors.borrower_name)}
+                  className={`form-input ${fieldErrors.borrower_name ? 'is-invalid' : ''}`}
                   required
                   style={{
                     width: '100%',
                     height: 38,
                     padding: '0 12px',
-                    background: '#F8FAFC',
-                    border: '1px solid #CBD5E1',
                     borderRadius: 9,
                     fontSize: '0.8125rem',
-                    color: '#0F172A',
-                    fontFamily: 'inherit',
-                    fontWeight: 400
+                    fontFamily: 'inherit'
                   }}
                 />
+                {fieldErrors.borrower_name && <span className="err-txt">{fieldErrors.borrower_name}</span>}
               </div>
 
               <div className="form-group">
                 <label style={{ fontSize: '0.7rem', fontWeight: 500, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                  Mobile Contact Number
+                  Mobile Contact Number *
                 </label>
                 <input
                   type="text"
@@ -166,20 +194,19 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
                   value={form.phone}
                   onChange={handleChange}
                   placeholder="e.g. 9876543210"
+                  aria-invalid={Boolean(fieldErrors.phone)}
+                  className={`form-input ${fieldErrors.phone ? 'is-invalid' : ''}`}
                   required
                   style={{
                     width: '100%',
                     height: 38,
                     padding: '0 12px',
-                    background: '#F8FAFC',
-                    border: '1px solid #CBD5E1',
                     borderRadius: 9,
                     fontSize: '0.8125rem',
-                    color: '#0F172A',
-                    fontFamily: 'inherit',
-                    fontWeight: 400
+                    fontFamily: 'inherit'
                   }}
                 />
+                {fieldErrors.phone && <span className="err-txt">{fieldErrors.phone}</span>}
               </div>
             </div>
 
@@ -187,7 +214,7 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div className="form-group">
                 <label style={{ fontSize: '0.7rem', fontWeight: 500, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                  {isAppMode ? 'Requested Principal (₹)' : 'Principal Amount (₹)'}
+                  {isAppMode ? 'Requested Principal (₹)' : 'Principal Amount (₹)'} *
                 </label>
                 <input
                   type="number"
@@ -196,21 +223,20 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
                   onChange={handleChange}
                   step="1000"
                   min="1000"
+                  aria-invalid={Boolean(fieldErrors.principal_amount)}
+                  className={`form-input ${fieldErrors.principal_amount ? 'is-invalid' : ''}`}
                   required
                   style={{
                     width: '100%',
                     height: 38,
                     padding: '0 12px',
-                    background: '#F8FAFC',
-                    border: '1px solid #CBD5E1',
                     borderRadius: 9,
                     fontSize: '0.8125rem',
-                    color: '#0F172A',
                     fontFamily: 'inherit',
-                    fontWeight: 500,
                     fontVariantNumeric: 'tabular-nums'
                   }}
                 />
+                {fieldErrors.principal_amount && <span className="err-txt">{fieldErrors.principal_amount}</span>}
               </div>
 
               <div className="form-group">
@@ -222,21 +248,16 @@ export default function NewLoanModal({ isOpen, onClose, onSubmit, mode = 'DISBUR
                   name="monthly_interest_rate"
                   value={form.monthly_interest_rate}
                   onChange={handleChange}
-                  step="0.1"
-                  min="0.5"
-                  max="10"
+                  step="0.05"
+                  min="0.1"
                   required
                   style={{
                     width: '100%',
                     height: 38,
                     padding: '0 12px',
-                    background: '#F8FAFC',
-                    border: '1px solid #CBD5E1',
                     borderRadius: 9,
                     fontSize: '0.8125rem',
-                    color: '#0F172A',
                     fontFamily: 'inherit',
-                    fontWeight: 500,
                     fontVariantNumeric: 'tabular-nums'
                   }}
                 />

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Lock, Mail, ArrowRight, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, User, ArrowRight, AlertCircle } from 'lucide-react';
 import api from '../api/client';
 
 export default function SuperAdminLoginPage({ onLoginSuccess }) {
@@ -158,16 +158,17 @@ export default function SuperAdminLoginPage({ onLoginSuccess }) {
             {/* Login Form */}
             <form onSubmit={handleSubmit} className="saas-form">
               <div className="saas-input-group">
-                <label htmlFor="superadmin-email" style={{ fontWeight: 500 }}>Master Email</label>
+                <label htmlFor="superadmin-email" style={{ fontWeight: 500 }}>Master Username or Email</label>
                 <div className="saas-input-wrap">
-                  <Mail className="saas-icon" />
+                  <User className="saas-icon" />
                   <input
                     id="superadmin-email"
-                    type="email"
+                    type="text"
+                    autoComplete="username"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    placeholder="Enter super admin email"
+                    placeholder="e.g. superadmin or master@company.com"
                   />
                 </div>
               </div>

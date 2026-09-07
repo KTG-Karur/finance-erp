@@ -170,20 +170,6 @@ export async function up(queryInterface, Sequelize) {
 
   const defaultFYs = [
     {
-      code: `FY ${activeFyStartYear - 2}-${String(activeFyStartYear - 1).slice(-2)}`,
-      start_date: `${activeFyStartYear - 2}-04-01`,
-      end_date: `${activeFyStartYear - 1}-03-31`,
-      status: 'CLOSED',
-      is_current: false
-    },
-    {
-      code: `FY ${activeFyStartYear - 1}-${String(activeFyStartYear).slice(-2)}`,
-      start_date: `${activeFyStartYear - 1}-04-01`,
-      end_date: `${activeFyStartYear}-03-31`,
-      status: 'CLOSED',
-      is_current: false
-    },
-    {
       code: `FY ${activeFyStartYear}-${String(activeFyStartYear + 1).slice(-2)}`,
       start_date: `${activeFyStartYear}-04-01`,
       end_date: `${activeFyStartYear + 1}-03-31`,

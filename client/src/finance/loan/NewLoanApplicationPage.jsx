@@ -33,6 +33,7 @@ import {
 import SharedDropdown from '../../components/common/SharedDropdown';
 import SharedDatePicker from '../../components/common/SharedDatePicker';
 import { uploadMultipleFiles } from '../../api/upload';
+import { focusAndScrollToFirstError } from '../../utils/formNavigation';
 
 function tp(t, key, vars) {
   let str = t(key);
@@ -391,7 +392,7 @@ export default function NewLoanApplicationPage({
   const handleOpenPreview = (e) => {
     e.preventDefault();
     if (!validateForm()) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setTimeout(() => focusAndScrollToFirstError('.new-loan-app-page'), 50);
       return;
     }
 
@@ -613,6 +614,7 @@ export default function NewLoanApplicationPage({
                     value={schemeId}
                     onChange={handleSchemeChange}
                     placeholder="-- Select Loan Scheme --"
+                    error={formErrors.scheme}
                     options={activeSchemes.map(s => ({
                       value: s.id,
                       label: `${s.name} (${s.rate_per_unit}% ${rateBasisSuffix(s.interest_basis)})`
@@ -635,7 +637,8 @@ export default function NewLoanApplicationPage({
                     name="principal_amount"
                     value={loanTerms.principal_amount}
                     onChange={handleTermChange}
-                    className="input-field"
+                    aria-invalid={Boolean(formErrors.principal_amount)}
+                    className={`input-field ${formErrors.principal_amount ? 'is-invalid' : ''}`}
                     placeholder="e.g. 50000"
                   />
                   {formErrors.principal_amount && <span className="err-txt">{formErrors.principal_amount}</span>}
@@ -660,7 +663,8 @@ export default function NewLoanApplicationPage({
                     name="tenure_months"
                     value={loanTerms.tenure_months}
                     onChange={handleTermChange}
-                    className="input-field"
+                    aria-invalid={Boolean(formErrors.tenure_months)}
+                    className={`input-field ${formErrors.tenure_months ? 'is-invalid' : ''}`}
                   />
                   {formErrors.tenure_months && <span className="err-txt">{formErrors.tenure_months}</span>}
                 </div>
@@ -672,6 +676,7 @@ export default function NewLoanApplicationPage({
                     value={loanTerms.repayment_frequency}
                     onChange={handleTermChange}
                     placeholder="-- Select Frequency --"
+                    error={formErrors.repayment_frequency}
                     options={[
                       { value: 'DAILY', label: t('nla.freq_daily_emi') },
                       { value: 'WEEKLY', label: t('nla.freq_weekly_installment') },
@@ -719,7 +724,8 @@ export default function NewLoanApplicationPage({
                     name="name"
                     value={guarantor.name}
                     onChange={handleGuarantorChange}
-                    className="input-field"
+                    aria-invalid={Boolean(formErrors.guarantor_name)}
+                    className={`input-field ${formErrors.guarantor_name ? 'is-invalid' : ''}`}
                     placeholder="Guarantor Full Name"
                   />
                   {formErrors.guarantor_name && <span className="err-txt">{formErrors.guarantor_name}</span>}
@@ -731,6 +737,7 @@ export default function NewLoanApplicationPage({
                     name="dob"
                     value={guarantor.dob}
                     onChange={handleGuarantorChange}
+                    error={formErrors.guarantor_dob}
                     buttonStyle={{ height: 38 }}
                   />
                   {formErrors.guarantor_dob && <span className="err-txt">{formErrors.guarantor_dob}</span>}
@@ -765,7 +772,8 @@ export default function NewLoanApplicationPage({
                       name="custom_relationship"
                       value={guarantor.custom_relationship}
                       onChange={handleGuarantorChange}
-                      className="input-field"
+                      aria-invalid={Boolean(formErrors.guarantor_rel_custom)}
+                      className={`input-field ${formErrors.guarantor_rel_custom ? 'is-invalid' : ''}`}
                       placeholder="Type relationship (e.g. Neighbor, Colleague)"
                     />
                     {formErrors.guarantor_rel_custom && <span className="err-txt">{formErrors.guarantor_rel_custom}</span>}
@@ -779,7 +787,8 @@ export default function NewLoanApplicationPage({
                     name="mobile"
                     value={guarantor.mobile}
                     onChange={handleGuarantorChange}
-                    className="input-field"
+                    aria-invalid={Boolean(formErrors.guarantor_mobile)}
+                    className={`input-field ${formErrors.guarantor_mobile ? 'is-invalid' : ''}`}
                     placeholder="10-digit mobile"
                   />
                   {formErrors.guarantor_mobile && <span className="err-txt">{formErrors.guarantor_mobile}</span>}
@@ -807,7 +816,8 @@ export default function NewLoanApplicationPage({
                     name="id_proof_number"
                     value={guarantor.id_proof_number}
                     onChange={handleGuarantorChange}
-                    className="input-field"
+                    aria-invalid={Boolean(formErrors.guarantor_id_proof_number)}
+                    className={`input-field ${formErrors.guarantor_id_proof_number ? 'is-invalid' : ''}`}
                     placeholder="Document / Aadhaar Number"
                   />
                   {formErrors.guarantor_id_proof_number && <span className="err-txt">{formErrors.guarantor_id_proof_number}</span>}
@@ -1346,26 +1356,26 @@ export default function NewLoanApplicationPage({
             </div>
           </div>
 
-        </div>
+          {/* Form Action Buttons Bar */}
+          <div className="form-actions-bar">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="btn-cancel-app"
+            >
+              {t('btn.cancel')}
+            </button>
 
-        {/* Form Bottom Action Bar (Placed at grid level so on mobile it renders after summary preview) */}
-        <div className="form-actions-bar">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="btn-cancel-app"
-          >
-            {t('btn.cancel')}
-          </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn-submit-app"
+            >
+              <Eye style={{ width: 15, height: 15 }} />
+              <span>{t('nla.preview_submit')}</span>
+            </button>
+          </div>
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="btn-submit-app"
-          >
-            <Eye style={{ width: 15, height: 15 }} />
-            <span>{t('nla.preview_submit')}</span>
-          </button>
         </div>
 
       </form>

@@ -35,6 +35,17 @@ export async function provisionNewTenantCompany(masterDb, {
   const contactPhone = phone || company_phone || null;
   const contactAddress = address || null;
 
+  // 0. Pre-check for duplicate company code
+  const [existingCompany] = await masterDb.query(
+    'SELECT id, name FROM companies WHERE company_code = ?',
+    [code]
+  );
+  if (existingCompany.length > 0) {
+    const err = new Error(`Company Code '${code}' is already registered by '${existingCompany[0].name}'. Please choose a different unique company code.`);
+    err.statusCode = 409;
+    throw err;
+  }
+
   // Pre-create upload directories on disk for this tenant company
   await ensureCompanyUploadDirectories(code);
 

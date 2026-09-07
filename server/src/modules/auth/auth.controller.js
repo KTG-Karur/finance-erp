@@ -182,7 +182,9 @@ export async function provisionCompanyHandler(request, reply) {
     if (!company_code || !name) {
       return reply.code(400).send({ error: 'Bad Request', message: 'Company Code and Company Name are required.' });
     }
-    assertValidEmail(admin_email, { fieldLabel: 'Admin email', required: false });
+    if (admin_email && admin_email.includes('@')) {
+      assertValidEmail(admin_email, { fieldLabel: 'Admin email', required: false });
+    }
 
     const result = await provisionNewTenantCompany(request.server.masterDb, {
       company_code,

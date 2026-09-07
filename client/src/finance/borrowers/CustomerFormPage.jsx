@@ -23,6 +23,7 @@ import { useLanguage } from '../../i18n/LanguageContext';
 import SharedDropdown from '../../components/common/SharedDropdown';
 import SharedDatePicker from '../../components/common/SharedDatePicker';
 import { uploadFile, uploadMultipleFiles } from '../../api/upload';
+import { focusAndScrollToFirstError } from '../../utils/formNavigation';
 
 const EMPTY_FORM = {
   full_name: '',
@@ -257,6 +258,7 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
     });
     if (Object.keys(validationErrors).length > 0) {
       setActiveTab('profile');
+      setTimeout(() => focusAndScrollToFirstError('.customer-form-page'), 50);
       return;
     }
     setShowConfirm(true);
@@ -283,6 +285,7 @@ export default function CustomerFormPage({ mode = 'CREATE', initialData, branche
     } catch (error) {
       setShowConfirm(false);
       setServerError(error?.response?.data?.message || t('cf.err.submit_generic'));
+      setTimeout(() => focusAndScrollToFirstError('.customer-form-page'), 50);
     } finally {
       setLoading(false);
     }

@@ -18,6 +18,7 @@ import {
 import DropdownSelect from '../../components/DropdownSelect';
 import SharedDatePicker from '../../components/common/SharedDatePicker';
 import api from '../../api/client';
+import { focusAndScrollToFirstError } from '../../utils/formNavigation';
 
 export default function DisburseLoanModal({
   loan,
@@ -157,11 +158,13 @@ export default function DisburseLoanModal({
 
     if (isInsufficient) {
       setErrorMsg(`Insufficient funds in ${currentAccount?.name || 'Selected Account'} (${currentAccountCode}). Available: ₹${availableBalance.toLocaleString('en-IN')}, Required: ₹${netDisbursed.toLocaleString('en-IN')}. Disbursal cannot proceed.`);
+      setTimeout(() => focusAndScrollToFirstError('.saas-modal-card'), 50);
       return;
     }
 
     if (paymentMode !== 'CASH' && !transactionRef.trim() && paymentMode === 'CHEQUE') {
       setErrorMsg('Please provide a Cheque Number.');
+      setTimeout(() => focusAndScrollToFirstError('.saas-modal-card'), 50);
       return;
     }
 
@@ -182,6 +185,7 @@ export default function DisburseLoanModal({
       onClose();
     } catch (err) {
       setErrorMsg(err?.response?.data?.message || err?.message || 'Failed to disburse loan');
+      setTimeout(() => focusAndScrollToFirstError('.saas-modal-card'), 50);
     } finally {
       setSubmitting(false);
     }
