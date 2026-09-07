@@ -2,11 +2,28 @@ import { insertVoucherOnConnection, LedgerService } from '../ledger/ledger.servi
 
 const PROFIT_CLEARING_ACCOUNT = '3002';
 const PROFIT_CLEARING_ACCOUNT_NAME = 'Investor Profit Distribution';
-const SHARE_CAPITAL_ACCOUNT = '3001';
-const SHARE_CAPITAL_ACCOUNT_NAME = 'Promoter Share Capital';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
+}
+
+// The "Promoter Share Capital" equity account is seeded under different
+// codes across tenants (some have it at '3001', at least one existing
+// tenant has it at '2001') — resolve it by name/known codes at call time
+// instead of hardcoding a single code, which would silently fail voucher
+// validation on any tenant that doesn't use that exact number.
+export async function resolveShareCapitalAccount(connOrDb) {
+  const [byName] = await connOrDb.query(
+    "SELECT account_code, account_name FROM chart_of_accounts WHERE is_active = 1 AND account_name = 'Promoter Share Capital' LIMIT 1"
+  );
+  if (byName.length) return byName[0];
+  const [byCode] = await connOrDb.query(
+    "SELECT account_code, account_name FROM chart_of_accounts WHERE is_active = 1 AND account_code IN ('3001','2001') ORDER BY FIELD(account_code, '3001', '2001') LIMIT 1"
+  );
+  if (byCode.length) return byCode[0];
+  const err = new Error('No "Promoter Share Capital" equity account found in the chart of accounts.');
+  err.statusCode = 400;
+  throw err;
 }
 
 async function insertCapitalTxn(conn, { investorId, txnType, amount, balanceAfter, txnDate, refType, refId, journalEntryId, notes, createdBy }) {
@@ -242,6 +259,7 @@ export async function finalizeProfitDistribution(db, distributionId, createdBy =
     );
 
     const txnDate = todayStr();
+    const shareCapitalAccount = await resolveShareCapitalAccount(conn);
 
     for (const line of lines) {
       const profitAmount = Number(line.profit_amount);
@@ -255,7 +273,7 @@ export async function finalizeProfitDistribution(db, distributionId, createdBy =
         { account_code: PROFIT_CLEARING_ACCOUNT, account_name: PROFIT_CLEARING_ACCOUNT_NAME, debit: profitAmount, credit: 0, description: `Profit Share for ${line.investor_name} (${header.period_month})` }
       ];
       if (reinvestAmount > 0) {
-        voucherLines.push({ account_code: SHARE_CAPITAL_ACCOUNT, account_name: SHARE_CAPITAL_ACCOUNT_NAME, debit: 0, credit: reinvestAmount, description: `Profit Reinvested - ${line.investor_name}` });
+        voucherLines.push({ account_code: shareCapitalAccount.account_code, account_name: shareCapitalAccount.account_name, debit: 0, credit: reinvestAmount, description: `Profit Reinvested - ${line.investor_name}` });
       }
       if (withdrawAmount > 0) {
         voucherLines.push({ account_code: '1002', account_name: 'Bank Account', debit: 0, credit: withdrawAmount, description: `Profit Payout - ${line.investor_name}` });
@@ -469,6 +487,7 @@ export async function tryExecuteCapitalWithdrawal(db, requestId) {
     const withdrawAmount = Number(request.amount);
     const newCapital = Math.round((Number(request.current_capital) - withdrawAmount) * 100) / 100;
     const txnDate = todayStr();
+    const shareCapitalAccount = await resolveShareCapitalAccount(conn);
 
     const voucher = await insertVoucherOnConnection(conn, {
       entry_date: txnDate,
@@ -480,7 +499,7 @@ export async function tryExecuteCapitalWithdrawal(db, requestId) {
       branch: 'Main Branch',
       created_by: 'Admin',
       lines: [
-        { account_code: SHARE_CAPITAL_ACCOUNT, account_name: SHARE_CAPITAL_ACCOUNT_NAME, debit: withdrawAmount, credit: 0, description: `Capital Withdrawal - ${request.investor_name}` },
+        { account_code: shareCapitalAccount.account_code, account_name: shareCapitalAccount.account_name, debit: withdrawAmount, credit: 0, description: `Capital Withdrawal - ${request.investor_name}` },
         { account_code: request.account_code, account_name: accountName, debit: 0, credit: withdrawAmount, description: `Capital Withdrawal Payout - ${request.investor_name}` }
       ]
     });

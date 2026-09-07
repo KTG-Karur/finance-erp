@@ -66,6 +66,7 @@ function assertValidCapital(payload) {
 }
 
 import { insertVoucherOnConnection } from '../ledger/ledger.service.js';
+import { resolveShareCapitalAccount } from './investorCapital.service.js';
 
 export async function createInvestor(db, payload, companyCode = 'default', createdBy = null) {
   if (!payload.name?.trim() || !payload.phone?.trim()) {
@@ -120,6 +121,7 @@ export async function createInvestor(db, payload, companyCode = 'default', creat
 
       // Double-Entry Posting for Initial Capital Contribution
       if (capital > 0) {
+        const shareCapitalAccount = await resolveShareCapitalAccount(conn);
         const voucher = await insertVoucherOnConnection(conn, {
           entry_date: joinDate,
           description: `Capital Contribution from Investor ${normalized.name} (${code})`,
@@ -131,7 +133,7 @@ export async function createInvestor(db, payload, companyCode = 'default', creat
           created_by: createdBy || 'Admin',
           lines: [
             { account_code: debitCode, account_name: debitName, debit: capital, credit: 0, description: `Capital Received via ${isBank ? paymentMode : 'Cash'}` },
-            { account_code: '3001', account_name: 'Promoter Share Capital', debit: 0, credit: capital, description: `Share Capital Credited - ${normalized.name}` }
+            { account_code: shareCapitalAccount.account_code, account_name: shareCapitalAccount.account_name, debit: 0, credit: capital, description: `Share Capital Credited - ${normalized.name}` }
           ]
         });
 
@@ -237,6 +239,7 @@ export async function addInvestorCapital(db, id, payload = {}, createdBy = null)
     const debitName = isBank ? 'Bank Account' : 'Cash in Hand';
     const txnDate = payload.date || new Date().toISOString().slice(0, 10);
     const extraNotes = payload.notes ? ` — ${payload.notes}` : '';
+    const shareCapitalAccount = await resolveShareCapitalAccount(conn);
 
     const voucher = await insertVoucherOnConnection(conn, {
       entry_date: txnDate,
@@ -249,7 +252,7 @@ export async function addInvestorCapital(db, id, payload = {}, createdBy = null)
       created_by: createdBy || 'Admin',
       lines: [
         { account_code: debitCode, account_name: debitName, debit: amount, credit: 0, description: `Capital Received via ${isBank ? paymentMode : 'Cash'}` },
-        { account_code: '3001', account_name: 'Promoter Share Capital', debit: 0, credit: amount, description: `Additional Capital - ${investor.name}` }
+        { account_code: shareCapitalAccount.account_code, account_name: shareCapitalAccount.account_name, debit: 0, credit: amount, description: `Additional Capital - ${investor.name}` }
       ]
     });
 
