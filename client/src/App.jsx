@@ -896,6 +896,90 @@ export default function App() {
     return data;
   };
 
+  const handleFetchInvestorCapitalLedger = async (id) => {
+    const res = await api.get(`/finance/investors/${id}/capital-ledger`);
+    return res.data?.data || [];
+  };
+
+  const handleFetchInvestorShareSnapshot = async () => {
+    const res = await api.get('/finance/investors/share-snapshot');
+    return res.data?.data || { total_capital: 0, investors: [] };
+  };
+
+  const handleFetchSuggestedProfit = async (periodMonth) => {
+    const res = await api.get('/finance/investors/profit-suggested', { params: { period: periodMonth } });
+    return res.data?.data?.suggested_profit ?? 0;
+  };
+
+  const handleFetchProfitDistributions = async () => {
+    const res = await api.get('/finance/investors/profit-distributions');
+    return res.data?.data || [];
+  };
+
+  const handleFetchProfitDistribution = async (id) => {
+    const res = await api.get(`/finance/investors/profit-distributions/${id}`);
+    return res.data?.data;
+  };
+
+  const handleCreateProfitDistribution = async (payload) => {
+    const res = await api.post('/finance/investors/profit-distributions', payload);
+    logAudit('INVESTOR_PROFIT_DISTRIBUTION', res.data?.data?.id, 'CREATE_DRAFT', `Draft profit distribution for ${payload.periodMonth}`);
+    return res.data?.data;
+  };
+
+  const handleUpdateProfitDistributionLine = async (distributionId, lineId, payload) => {
+    const res = await api.put(`/finance/investors/profit-distributions/${distributionId}/lines/${lineId}`, payload);
+    return res.data?.data;
+  };
+
+  const handleDeleteProfitDistribution = async (id) => {
+    await api.delete(`/finance/investors/profit-distributions/${id}`);
+    logAudit('INVESTOR_PROFIT_DISTRIBUTION', id, 'DELETE_DRAFT', 'Deleted draft profit distribution');
+  };
+
+  const handleFinalizeProfitDistribution = async (id) => {
+    const res = await api.post(`/finance/investors/profit-distributions/${id}/finalize`);
+    logAudit('INVESTOR_PROFIT_DISTRIBUTION', id, 'FINALIZE', 'Finalized monthly profit distribution');
+    fetchLedgerEntries();
+    return res.data?.data;
+  };
+
+  // ── Investor Capital Withdrawal (Admin-only initiate, all-investor approval, cash-gated) ──
+  const handleFetchCapitalWithdrawalRequests = async (status) => {
+    const res = await api.get('/finance/investors/capital-withdrawal-requests', { params: status ? { status } : {} });
+    return res.data?.data || [];
+  };
+
+  const handleFetchCapitalWithdrawalRequest = async (reqId) => {
+    const res = await api.get(`/finance/investors/capital-withdrawal-requests/${reqId}`);
+    return res.data?.data;
+  };
+
+  const handleCreateCapitalWithdrawalRequest = async (investorId, payload) => {
+    const res = await api.post(`/finance/investors/${investorId}/capital-withdrawal-requests`, payload);
+    logAudit('INVESTOR_CAPITAL_WITHDRAWAL', res.data?.data?.id, 'REQUEST', `Capital withdrawal requested: ₹${Number(payload.amount || 0).toLocaleString('en-IN')}`);
+    return res.data?.data;
+  };
+
+  const handleRecordWithdrawalApproval = async (reqId, investorId, decision) => {
+    const res = await api.post(`/finance/investors/capital-withdrawal-requests/${reqId}/approvals/${investorId}`, { decision });
+    logAudit('INVESTOR_CAPITAL_WITHDRAWAL', reqId, decision, `Investor #${investorId} ${decision.toLowerCase()} the withdrawal request`);
+    if (res.data?.data?.status === 'EXECUTED') fetchLedgerEntries();
+    return res.data?.data;
+  };
+
+  const handleRetryCapitalWithdrawal = async (reqId) => {
+    const res = await api.post(`/finance/investors/capital-withdrawal-requests/${reqId}/retry`);
+    if (res.data?.data?.status === 'EXECUTED') fetchLedgerEntries();
+    return res.data?.data;
+  };
+
+  const handleCancelCapitalWithdrawalRequest = async (reqId) => {
+    const res = await api.post(`/finance/investors/capital-withdrawal-requests/${reqId}/cancel`);
+    logAudit('INVESTOR_CAPITAL_WITHDRAWAL', reqId, 'CANCEL', 'Cancelled capital withdrawal request');
+    return res.data?.data;
+  };
+
 
   // ── Fixed Deposits ──
   // FD principal in is a liability (owed back to the customer), booked at
@@ -2211,6 +2295,21 @@ export default function App() {
             onUpdateInvestor={handleUpdateInvestor}
             onDeleteInvestor={handleDeleteInvestor}
             onAddInvestorCapital={handleAddInvestorCapital}
+            onFetchInvestorCapitalLedger={handleFetchInvestorCapitalLedger}
+            onFetchInvestorShareSnapshot={handleFetchInvestorShareSnapshot}
+            onFetchSuggestedProfit={handleFetchSuggestedProfit}
+            onFetchProfitDistributions={handleFetchProfitDistributions}
+            onFetchProfitDistribution={handleFetchProfitDistribution}
+            onCreateProfitDistribution={handleCreateProfitDistribution}
+            onDeleteProfitDistribution={handleDeleteProfitDistribution}
+            onUpdateProfitDistributionLine={handleUpdateProfitDistributionLine}
+            onFinalizeProfitDistribution={handleFinalizeProfitDistribution}
+            onFetchCapitalWithdrawalRequests={handleFetchCapitalWithdrawalRequests}
+            onFetchCapitalWithdrawalRequest={handleFetchCapitalWithdrawalRequest}
+            onCreateCapitalWithdrawalRequest={handleCreateCapitalWithdrawalRequest}
+            onRecordWithdrawalApproval={handleRecordWithdrawalApproval}
+            onRetryCapitalWithdrawal={handleRetryCapitalWithdrawal}
+            onCancelCapitalWithdrawalRequest={handleCancelCapitalWithdrawalRequest}
             journalEntries={ledgerEntries}
             onSaveTheme={handleSaveCompanyProfile}
             onRefreshData={fetchData}
